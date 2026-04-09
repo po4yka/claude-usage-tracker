@@ -161,34 +161,42 @@ Apply these rules when editing:
 - Hover: accent border highlight
 - No icon -- text only with download arrow character
 
-## 7. Chart.js Theming
+## 7. ApexCharts Theming
 
 ### All Charts
-- Font: inherit from page (system sans)
-- Grid color: `var(--chart-grid)` (read from CSS in JS via getComputedStyle)
-- Text color: `var(--chart-text)`
-- Legend: bottom position, 12px box width, `--muted` color
-- Responsive: true, maintainAspectRatio: false
+- Library: ApexCharts 4 (loaded via CDN, renders into `<div>` elements)
+- `theme: { mode: apexThemeMode() }` -- reads light/dark from `data-theme` attribute
+- `chart.background: 'transparent'` -- let CSS card handle background
+- `chart.toolbar: { show: false }` -- clean dashboard look
+- `chart.fontFamily: 'inherit'` -- use system font stack
+- `dataLabels: { enabled: false }` -- no labels on chart elements
+- `grid.borderColor: cssVar('--chart-grid')` -- theme-aware grid lines
+- Destroy and recreate charts on theme toggle (ApexCharts doesn't hot-swap themes)
 
-### Bar Charts (Daily Usage)
-- Stacked bars for token types
-- Colors: input=blue(0.8), output=purple(0.8), cache_read=green(0.6), cache_creation=yellow(0.6)
-- No border on bars
+### Stacked Bar Charts (Daily Usage)
+- `chart.stacked: true` with 4 series (Input, Output, Cache Read, Cache Creation)
+- Colors: `TOKEN_COLORS` (input=blue, output=purple, cache_read=green, cache_creation=yellow)
+- `plotOptions.bar.columnWidth: '70%'`
 - Y-axis: formatted with `fmt()` (1.5M, 2.3K)
+- Legend: top position
 
-### Doughnut Charts (Model Distribution)
-- Border between segments: `var(--chart-border)` color, 2px width
+### Donut Charts (Model Distribution)
+- `chart.type: 'donut'`
+- Stroke between segments: `cssVar('--card')` color, 2px width
+- `plotOptions.pie.donut.size: '60%'`
 - Legend at bottom
 - Tooltip: show token count formatted
 
 ### Horizontal Bar Charts (Projects)
-- Truncate long labels with ellipsis prefix (> 22 chars)
-- Two datasets: input + output (not stacked)
+- `plotOptions.bar.horizontal: true, barHeight: '60%'`
+- Truncate long labels with ellipsis prefix (> 22 chars) via `xaxis.categories`
+- Two series: Input + Output (not stacked)
 
-### SVG Sparklines
-- Stroke: `var(--accent)`, 1.5px width
-- No fill, rounded line joins
-- Contained in small container (120x30px)
+### Sparklines
+- `chart.sparkline: { enabled: true }` -- native ApexCharts sparkline
+- `stroke.curve: 'smooth'`, width 1.5
+- Color: `cssVar('--accent')`
+- Tooltip disabled, 120x30px container
 
 ## 8. Execution Protocol
 

@@ -1,5 +1,5 @@
 // ── External declarations ──────────────────────────────────────────────
-declare const Chart: any;
+declare const ApexCharts: any;
 
 // ── Types ──────────────────────────────────────────────────────────────
 interface WindowInfo {
@@ -163,6 +163,44 @@ function esc(s: unknown): string {
 
 function $(id: string): HTMLElement {
   return document.getElementById(id)!;
+}
+
+// ── Theme ─────────────────────────────────────────────────────────────
+function getTheme(): 'light' | 'dark' {
+  const stored = localStorage.getItem('theme');
+  if (stored === 'light' || stored === 'dark') return stored;
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+function applyTheme(theme: 'light' | 'dark'): void {
+  if (theme === 'dark') {
+    document.documentElement.setAttribute('data-theme', 'dark');
+  } else {
+    document.documentElement.removeAttribute('data-theme');
+  }
+  const icon = document.getElementById('theme-icon');
+  if (icon) icon.innerHTML = theme === 'dark' ? '&#x2600;' : '&#x263E;';
+  // Re-render charts with new theme colors
+  if (rawData) applyFilter();
+}
+
+function toggleTheme(): void {
+  const current = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+  const next = current === 'dark' ? 'light' : 'dark';
+  localStorage.setItem('theme', next);
+  applyTheme(next);
+}
+
+// Apply theme immediately before render
+applyTheme(getTheme());
+
+// ── ApexCharts theme helper ───────────────────────────────────────────
+function apexThemeMode(): 'light' | 'dark' {
+  return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+}
+
+function cssVar(name: string): string {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
 // ── State ──────────────────────────────────────────────────────────────
@@ -536,73 +574,75 @@ function renderStats(t: Totals): void {
 }
 
 function renderDailyChart(daily: DailyAgg[]): void {
-  const ctx = (document.getElementById('chart-daily') as HTMLCanvasElement).getContext('2d')!;
+  const el = document.getElementById('chart-daily')!;
   if (charts.daily) charts.daily.destroy();
-  charts.daily = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: daily.map(d => d.day),
-      datasets: [
-        { label: 'Input',          data: daily.map(d => d.input),          backgroundColor: TOKEN_COLORS.input,          stack: 'tokens' },
-        { label: 'Output',         data: daily.map(d => d.output),         backgroundColor: TOKEN_COLORS.output,         stack: 'tokens' },
-        { label: 'Cache Read',     data: daily.map(d => d.cache_read),     backgroundColor: TOKEN_COLORS.cache_read,     stack: 'tokens' },
-        { label: 'Cache Creation', data: daily.map(d => d.cache_creation), backgroundColor: TOKEN_COLORS.cache_creation, stack: 'tokens' },
-      ],
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { labels: { color: '#8892a4', boxWidth: 12 } } },
-      scales: {
-        x: { ticks: { color: '#8892a4', maxTicksLimit: RANGE_TICKS[selectedRange] }, grid: { color: '#2a2d3a' } },
-        y: { ticks: { color: '#8892a4', callback: (v: number) => fmt(v) }, grid: { color: '#2a2d3a' } },
-      },
-    },
+  charts.daily = new ApexCharts(el, {
+    chart: { type: 'bar', height: '100%', stacked: true, background: 'transparent',
+             toolbar: { show: false }, fontFamily: 'inherit' },
+    theme: { mode: apexThemeMode() },
+    series: [
+      { name: 'Input',          data: daily.map(d => d.input) },
+      { name: 'Output',         data: daily.map(d => d.output) },
+      { name: 'Cache Read',     data: daily.map(d => d.cache_read) },
+      { name: 'Cache Creation', data: daily.map(d => d.cache_creation) },
+    ],
+    colors: [TOKEN_COLORS.input, TOKEN_COLORS.output, TOKEN_COLORS.cache_read, TOKEN_COLORS.cache_creation],
+    xaxis: { categories: daily.map(d => d.day),
+             labels: { rotate: -45, maxHeight: 60 },
+             tickAmount: Math.min(daily.length, RANGE_TICKS[selectedRange]) },
+    yaxis: { labels: { formatter: (v: number) => fmt(v) } },
+    legend: { position: 'top', fontSize: '11px' },
+    dataLabels: { enabled: false },
+    tooltip: { y: { formatter: (v: number) => fmt(v) + ' tokens' } },
+    grid: { borderColor: cssVar('--chart-grid') },
+    plotOptions: { bar: { columnWidth: '70%' } },
   });
+  charts.daily.render();
 }
 
 function renderModelChart(byModel: ModelAgg[]): void {
-  const ctx = (document.getElementById('chart-model') as HTMLCanvasElement).getContext('2d')!;
+  const el = document.getElementById('chart-model')!;
   if (charts.model) charts.model.destroy();
-  if (!byModel.length) { charts.model = null; return; }
-  charts.model = new Chart(ctx, {
-    type: 'doughnut',
-    data: {
-      labels: byModel.map(m => m.model),
-      datasets: [{ data: byModel.map(m => m.input + m.output), backgroundColor: MODEL_COLORS, borderWidth: 2, borderColor: '#1a1d27' }],
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: {
-        legend: { position: 'bottom', labels: { color: '#8892a4', boxWidth: 12, font: { size: 11 } } },
-        tooltip: { callbacks: { label: (ctx: any) => ` ${ctx.label}: ${fmt(ctx.raw)} tokens` } },
-      },
-    },
+  if (!byModel.length) { charts.model = null; el.innerHTML = ''; return; }
+  charts.model = new ApexCharts(el, {
+    chart: { type: 'donut', height: '100%', background: 'transparent', fontFamily: 'inherit' },
+    theme: { mode: apexThemeMode() },
+    series: byModel.map(m => m.input + m.output),
+    labels: byModel.map(m => m.model),
+    colors: MODEL_COLORS.slice(0, byModel.length),
+    legend: { position: 'bottom', fontSize: '11px' },
+    dataLabels: { enabled: false },
+    tooltip: { y: { formatter: (v: number) => fmt(v) + ' tokens' } },
+    stroke: { width: 2, colors: [cssVar('--card')] },
+    plotOptions: { pie: { donut: { size: '60%' } } },
   });
+  charts.model.render();
 }
 
 function renderProjectChart(byProject: ProjectAgg[]): void {
   const top = byProject.slice(0, 10);
-  const ctx = (document.getElementById('chart-project') as HTMLCanvasElement).getContext('2d')!;
+  const el = document.getElementById('chart-project')!;
   if (charts.project) charts.project.destroy();
-  if (!top.length) { charts.project = null; return; }
-  charts.project = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: top.map(p => p.project.length > 22 ? '\u2026' + p.project.slice(-20) : p.project),
-      datasets: [
-        { label: 'Input',  data: top.map(p => p.input),  backgroundColor: TOKEN_COLORS.input },
-        { label: 'Output', data: top.map(p => p.output), backgroundColor: TOKEN_COLORS.output },
-      ],
-    },
-    options: {
-      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { labels: { color: '#8892a4', boxWidth: 12 } } },
-      scales: {
-        x: { ticks: { color: '#8892a4', callback: (v: number) => fmt(v) }, grid: { color: '#2a2d3a' } },
-        y: { ticks: { color: '#8892a4', font: { size: 11 } }, grid: { color: '#2a2d3a' } },
-      },
-    },
+  if (!top.length) { charts.project = null; el.innerHTML = ''; return; }
+  charts.project = new ApexCharts(el, {
+    chart: { type: 'bar', height: '100%', background: 'transparent',
+             toolbar: { show: false }, fontFamily: 'inherit' },
+    theme: { mode: apexThemeMode() },
+    series: [
+      { name: 'Input',  data: top.map(p => p.input) },
+      { name: 'Output', data: top.map(p => p.output) },
+    ],
+    colors: [TOKEN_COLORS.input, TOKEN_COLORS.output],
+    plotOptions: { bar: { horizontal: true, barHeight: '60%' } },
+    xaxis: { categories: top.map(p => p.project.length > 22 ? '\u2026' + p.project.slice(-20) : p.project),
+             labels: { formatter: (v: number) => fmt(v) } },
+    yaxis: { labels: { maxWidth: 160 } },
+    legend: { position: 'top', fontSize: '11px' },
+    dataLabels: { enabled: false },
+    tooltip: { y: { formatter: (v: number) => fmt(v) + ' tokens' } },
+    grid: { borderColor: cssVar('--chart-grid') },
   });
+  charts.project.render();
 }
 
 function renderSessionsTable(sessions: SessionRow[]): void {
@@ -783,7 +823,7 @@ function renderUsageWindows(data: UsageWindowsResponse): void {
 
 function showSuccess(msg: string): void {
   const el = document.createElement('div');
-  el.style.cssText = 'position:fixed;top:16px;right:16px;background:#14532d;color:#86efac;padding:12px 20px;border-radius:8px;font-size:13px;z-index:999;max-width:400px;box-shadow:0 4px 12px rgba(0,0,0,0.3)';
+  el.style.cssText = 'position:fixed;top:16px;right:16px;background:var(--toast-success-bg);color:var(--toast-success-text);padding:12px 20px;border-radius:8px;font-size:13px;z-index:999;max-width:400px;box-shadow:0 4px 12px rgba(0,0,0,0.15)';
   el.textContent = msg;
   document.body.appendChild(el);
   setTimeout(() => el.remove(), 6000);
@@ -864,20 +904,21 @@ function renderServiceTiers(data: ServiceTierSummary[]): void {
 function renderCostSparkline(daily: DailyAgg[]): void {
   const container = $('cost-sparkline');
   if (!container) return;
-  // Show last 7 days of cost from daily data
   const last7 = daily.slice(-7);
   if (last7.length < 2) { container.style.display = 'none'; return; }
   container.style.display = '';
+  container.innerHTML = '<div class="sub" style="margin-bottom:4px">7-day trend</div><div id="sparkline-chart"></div>';
 
-  // Build a mini SVG sparkline
-  const costs = last7.map(d => d.input + d.output); // token-based approximation
-  const max = Math.max(...costs, 1);
-  const w = 120, h = 30;
-  const points = costs.map((v, i) => `${(i / (costs.length - 1)) * w},${h - (v / max) * h}`).join(' ');
-  container.innerHTML = `<div class="sub" style="margin-bottom:4px">7-day trend</div>
-    <svg width="${w}" height="${h}" style="display:block">
-      <polyline points="${points}" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>`;
+  if (charts.sparkline) charts.sparkline.destroy();
+  charts.sparkline = new ApexCharts(document.getElementById('sparkline-chart')!, {
+    chart: { type: 'line', height: 30, width: 120, sparkline: { enabled: true },
+             background: 'transparent', fontFamily: 'inherit' },
+    series: [{ data: last7.map(d => d.input + d.output) }],
+    stroke: { width: 1.5, curve: 'smooth' },
+    colors: [cssVar('--accent')],
+    tooltip: { enabled: false },
+  });
+  charts.sparkline.render();
 }
 
 async function loadUsageWindows(): Promise<void> {
@@ -892,7 +933,7 @@ async function loadUsageWindows(): Promise<void> {
 // ── Rescan ──────────────────────────────────────────────────────────────
 function showError(msg: string): void {
   const el = document.createElement('div');
-  el.style.cssText = 'position:fixed;top:16px;right:16px;background:#7f1d1d;color:#fca5a5;padding:12px 20px;border-radius:8px;font-size:13px;z-index:999;max-width:400px;box-shadow:0 4px 12px rgba(0,0,0,0.3)';
+  el.style.cssText = 'position:fixed;top:16px;right:16px;background:var(--toast-error-bg);color:var(--toast-error-text);padding:12px 20px;border-radius:8px;font-size:13px;z-index:999;max-width:400px;box-shadow:0 4px 12px rgba(0,0,0,0.15)';
   el.textContent = msg;
   document.body.appendChild(el);
   setTimeout(() => el.remove(), 6000);
@@ -974,7 +1015,7 @@ Object.assign(window, {
   setRange, onModelToggle, selectAllModels, clearAllModels,
   setSessionSort, setModelSort, setProjectSort,
   exportSessionsCSV, exportProjectsCSV, triggerRescan,
-  onProjectSearch, clearProjectSearch, sessionsPage,
+  onProjectSearch, clearProjectSearch, sessionsPage, toggleTheme,
 });
 
 loadData();

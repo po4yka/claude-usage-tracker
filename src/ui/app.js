@@ -9,6 +9,34 @@
   function $(id) {
     return document.getElementById(id);
   }
+  function getTheme() {
+    const stored = localStorage.getItem("theme");
+    if (stored === "light" || stored === "dark") return stored;
+    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  }
+  function applyTheme(theme) {
+    if (theme === "dark") {
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.removeAttribute("data-theme");
+    }
+    const icon = document.getElementById("theme-icon");
+    if (icon) icon.innerHTML = theme === "dark" ? "&#x2600;" : "&#x263E;";
+    if (rawData) applyFilter();
+  }
+  function toggleTheme() {
+    const current = document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+    const next = current === "dark" ? "light" : "dark";
+    localStorage.setItem("theme", next);
+    applyTheme(next);
+  }
+  applyTheme(getTheme());
+  function apexThemeMode() {
+    return document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+  }
+  function cssVar(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
   var rawData = null;
   var selectedModels = /* @__PURE__ */ new Set();
   var selectedRange = "30d";
@@ -355,81 +383,96 @@
   `).join("");
   }
   function renderDailyChart(daily) {
-    const ctx = document.getElementById("chart-daily").getContext("2d");
+    const el = document.getElementById("chart-daily");
     if (charts.daily) charts.daily.destroy();
-    charts.daily = new Chart(ctx, {
-      type: "bar",
-      data: {
-        labels: daily.map((d) => d.day),
-        datasets: [
-          { label: "Input", data: daily.map((d) => d.input), backgroundColor: TOKEN_COLORS.input, stack: "tokens" },
-          { label: "Output", data: daily.map((d) => d.output), backgroundColor: TOKEN_COLORS.output, stack: "tokens" },
-          { label: "Cache Read", data: daily.map((d) => d.cache_read), backgroundColor: TOKEN_COLORS.cache_read, stack: "tokens" },
-          { label: "Cache Creation", data: daily.map((d) => d.cache_creation), backgroundColor: TOKEN_COLORS.cache_creation, stack: "tokens" }
-        ]
+    charts.daily = new ApexCharts(el, {
+      chart: {
+        type: "bar",
+        height: "100%",
+        stacked: true,
+        background: "transparent",
+        toolbar: { show: false },
+        fontFamily: "inherit"
       },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { labels: { color: "#8892a4", boxWidth: 12 } } },
-        scales: {
-          x: { ticks: { color: "#8892a4", maxTicksLimit: RANGE_TICKS[selectedRange] }, grid: { color: "#2a2d3a" } },
-          y: { ticks: { color: "#8892a4", callback: (v) => fmt(v) }, grid: { color: "#2a2d3a" } }
-        }
-      }
+      theme: { mode: apexThemeMode() },
+      series: [
+        { name: "Input", data: daily.map((d) => d.input) },
+        { name: "Output", data: daily.map((d) => d.output) },
+        { name: "Cache Read", data: daily.map((d) => d.cache_read) },
+        { name: "Cache Creation", data: daily.map((d) => d.cache_creation) }
+      ],
+      colors: [TOKEN_COLORS.input, TOKEN_COLORS.output, TOKEN_COLORS.cache_read, TOKEN_COLORS.cache_creation],
+      xaxis: {
+        categories: daily.map((d) => d.day),
+        labels: { rotate: -45, maxHeight: 60 },
+        tickAmount: Math.min(daily.length, RANGE_TICKS[selectedRange])
+      },
+      yaxis: { labels: { formatter: (v) => fmt(v) } },
+      legend: { position: "top", fontSize: "11px" },
+      dataLabels: { enabled: false },
+      tooltip: { y: { formatter: (v) => fmt(v) + " tokens" } },
+      grid: { borderColor: cssVar("--chart-grid") },
+      plotOptions: { bar: { columnWidth: "70%" } }
     });
+    charts.daily.render();
   }
   function renderModelChart(byModel) {
-    const ctx = document.getElementById("chart-model").getContext("2d");
+    const el = document.getElementById("chart-model");
     if (charts.model) charts.model.destroy();
     if (!byModel.length) {
       charts.model = null;
+      el.innerHTML = "";
       return;
     }
-    charts.model = new Chart(ctx, {
-      type: "doughnut",
-      data: {
-        labels: byModel.map((m) => m.model),
-        datasets: [{ data: byModel.map((m) => m.input + m.output), backgroundColor: MODEL_COLORS, borderWidth: 2, borderColor: "#1a1d27" }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { position: "bottom", labels: { color: "#8892a4", boxWidth: 12, font: { size: 11 } } },
-          tooltip: { callbacks: { label: (ctx2) => ` ${ctx2.label}: ${fmt(ctx2.raw)} tokens` } }
-        }
-      }
+    charts.model = new ApexCharts(el, {
+      chart: { type: "donut", height: "100%", background: "transparent", fontFamily: "inherit" },
+      theme: { mode: apexThemeMode() },
+      series: byModel.map((m) => m.input + m.output),
+      labels: byModel.map((m) => m.model),
+      colors: MODEL_COLORS.slice(0, byModel.length),
+      legend: { position: "bottom", fontSize: "11px" },
+      dataLabels: { enabled: false },
+      tooltip: { y: { formatter: (v) => fmt(v) + " tokens" } },
+      stroke: { width: 2, colors: [cssVar("--card")] },
+      plotOptions: { pie: { donut: { size: "60%" } } }
     });
+    charts.model.render();
   }
   function renderProjectChart(byProject) {
     const top = byProject.slice(0, 10);
-    const ctx = document.getElementById("chart-project").getContext("2d");
+    const el = document.getElementById("chart-project");
     if (charts.project) charts.project.destroy();
     if (!top.length) {
       charts.project = null;
+      el.innerHTML = "";
       return;
     }
-    charts.project = new Chart(ctx, {
-      type: "bar",
-      data: {
-        labels: top.map((p) => p.project.length > 22 ? "\u2026" + p.project.slice(-20) : p.project),
-        datasets: [
-          { label: "Input", data: top.map((p) => p.input), backgroundColor: TOKEN_COLORS.input },
-          { label: "Output", data: top.map((p) => p.output), backgroundColor: TOKEN_COLORS.output }
-        ]
+    charts.project = new ApexCharts(el, {
+      chart: {
+        type: "bar",
+        height: "100%",
+        background: "transparent",
+        toolbar: { show: false },
+        fontFamily: "inherit"
       },
-      options: {
-        indexAxis: "y",
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { labels: { color: "#8892a4", boxWidth: 12 } } },
-        scales: {
-          x: { ticks: { color: "#8892a4", callback: (v) => fmt(v) }, grid: { color: "#2a2d3a" } },
-          y: { ticks: { color: "#8892a4", font: { size: 11 } }, grid: { color: "#2a2d3a" } }
-        }
-      }
+      theme: { mode: apexThemeMode() },
+      series: [
+        { name: "Input", data: top.map((p) => p.input) },
+        { name: "Output", data: top.map((p) => p.output) }
+      ],
+      colors: [TOKEN_COLORS.input, TOKEN_COLORS.output],
+      plotOptions: { bar: { horizontal: true, barHeight: "60%" } },
+      xaxis: {
+        categories: top.map((p) => p.project.length > 22 ? "\u2026" + p.project.slice(-20) : p.project),
+        labels: { formatter: (v) => fmt(v) }
+      },
+      yaxis: { labels: { maxWidth: 160 } },
+      legend: { position: "top", fontSize: "11px" },
+      dataLabels: { enabled: false },
+      tooltip: { y: { formatter: (v) => fmt(v) + " tokens" } },
+      grid: { borderColor: cssVar("--chart-grid") }
     });
+    charts.project.render();
   }
   function renderSessionsTable(sessions) {
     $("sessions-body").innerHTML = sessions.map((s) => {
@@ -582,7 +625,7 @@
   }
   function showSuccess(msg) {
     const el = document.createElement("div");
-    el.style.cssText = "position:fixed;top:16px;right:16px;background:#14532d;color:#86efac;padding:12px 20px;border-radius:8px;font-size:13px;z-index:999;max-width:400px;box-shadow:0 4px 12px rgba(0,0,0,0.3)";
+    el.style.cssText = "position:fixed;top:16px;right:16px;background:var(--toast-success-bg);color:var(--toast-success-text);padding:12px 20px;border-radius:8px;font-size:13px;z-index:999;max-width:400px;box-shadow:0 4px 12px rgba(0,0,0,0.15)";
     el.textContent = msg;
     document.body.appendChild(el);
     setTimeout(() => el.remove(), 6e3);
@@ -668,14 +711,23 @@
       return;
     }
     container.style.display = "";
-    const costs = last7.map((d) => d.input + d.output);
-    const max = Math.max(...costs, 1);
-    const w = 120, h = 30;
-    const points = costs.map((v, i) => `${i / (costs.length - 1) * w},${h - v / max * h}`).join(" ");
-    container.innerHTML = `<div class="sub" style="margin-bottom:4px">7-day trend</div>
-    <svg width="${w}" height="${h}" style="display:block">
-      <polyline points="${points}" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>`;
+    container.innerHTML = '<div class="sub" style="margin-bottom:4px">7-day trend</div><div id="sparkline-chart"></div>';
+    if (charts.sparkline) charts.sparkline.destroy();
+    charts.sparkline = new ApexCharts(document.getElementById("sparkline-chart"), {
+      chart: {
+        type: "line",
+        height: 30,
+        width: 120,
+        sparkline: { enabled: true },
+        background: "transparent",
+        fontFamily: "inherit"
+      },
+      series: [{ data: last7.map((d) => d.input + d.output) }],
+      stroke: { width: 1.5, curve: "smooth" },
+      colors: [cssVar("--accent")],
+      tooltip: { enabled: false }
+    });
+    charts.sparkline.render();
   }
   async function loadUsageWindows() {
     try {
@@ -688,7 +740,7 @@
   }
   function showError(msg) {
     const el = document.createElement("div");
-    el.style.cssText = "position:fixed;top:16px;right:16px;background:#7f1d1d;color:#fca5a5;padding:12px 20px;border-radius:8px;font-size:13px;z-index:999;max-width:400px;box-shadow:0 4px 12px rgba(0,0,0,0.3)";
+    el.style.cssText = "position:fixed;top:16px;right:16px;background:var(--toast-error-bg);color:var(--toast-error-text);padding:12px 20px;border-radius:8px;font-size:13px;z-index:999;max-width:400px;box-shadow:0 4px 12px rgba(0,0,0,0.15)";
     el.textContent = msg;
     document.body.appendChild(el);
     setTimeout(() => el.remove(), 6e3);
@@ -772,7 +824,8 @@
     triggerRescan,
     onProjectSearch,
     clearProjectSearch,
-    sessionsPage
+    sessionsPage,
+    toggleTheme
   });
   loadData();
   setInterval(loadData, 3e4);

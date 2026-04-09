@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Claude Code Usage Dashboard</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/apexcharts@4/dist/apexcharts.min.js"></script>
 <style>
 /* __STYLE_CSS__ */
 </style>
@@ -13,7 +13,12 @@
 <header>
   <h1>Claude Code Usage Dashboard <span id="plan-badge" style="display:none;font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(217,119,87,0.15);color:var(--accent);vertical-align:middle;margin-left:8px"></span></h1>
   <div class="meta" id="meta">Loading...</div>
-  <button id="rescan-btn" onclick="triggerRescan()" title="Rebuild the database from scratch">&#x21bb; Rescan</button>
+  <div style="display:flex;align-items:center;gap:8px">
+    <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark theme">
+      <span id="theme-icon">&#x263E;</span>
+    </button>
+    <button id="rescan-btn" onclick="triggerRescan()" title="Rebuild the database from scratch">&#x21bb; Rescan</button>
+  </div>
 </header>
 
 <div id="filter-bar">
@@ -42,15 +47,15 @@
   <div class="charts-grid">
     <div class="chart-card wide">
       <h2 id="daily-chart-title">Daily Token Usage</h2>
-      <div class="chart-wrap tall"><canvas id="chart-daily"></canvas></div>
+      <div class="chart-wrap tall"><div id="chart-daily"></div></div>
     </div>
     <div class="chart-card">
       <h2>By Model</h2>
-      <div class="chart-wrap"><canvas id="chart-model"></canvas></div>
+      <div class="chart-wrap"><div id="chart-model"></div></div>
     </div>
     <div class="chart-card">
       <h2>Top Projects by Tokens</h2>
-      <div class="chart-wrap"><canvas id="chart-project"></canvas></div>
+      <div class="chart-wrap"><div id="chart-project"></div></div>
     </div>
   </div>
   <div class="table-card" id="subagent-summary" style="display:none"></div>

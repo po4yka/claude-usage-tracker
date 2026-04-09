@@ -279,7 +279,7 @@ mod tests {
     fn test_render_dashboard_has_structure() {
         let html = assets::render_dashboard();
         assert!(html.contains("<!DOCTYPE html>"));
-        assert!(html.contains("chart.js"));
+        assert!(html.contains("apexcharts"));
         assert!(html.contains("Claude Code Usage Dashboard"));
     }
 
