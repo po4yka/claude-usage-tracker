@@ -31,7 +31,6 @@ import {
   selectedModels,
   selectedRange,
   projectSearchQuery,
-  sessionsCurrentPage,
   lastFilteredSessions,
   lastByProject,
 } from './state/store';
@@ -265,7 +264,6 @@ function applyFilter(): void {
   renderProjectChart(byProject);
   lastFilteredSessions.value = filteredSessions;
   lastByProject.value = byProject;
-  sessionsCurrentPage.value = 0;
   render(<ModelCostTable byModel={byModel} />, $('model-cost-mount'));
   render(<SessionsTable onExportCSV={exportSessionsCSV} />, $('sessions-mount'));
   render(<ProjectCostTable byProject={lastByProject.value.slice(0, 30)} onExportCSV={exportProjectsCSV} />, $('project-cost-mount'));

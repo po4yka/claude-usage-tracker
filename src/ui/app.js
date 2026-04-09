@@ -71,13 +71,13 @@
     }
   }
   function L(n3, l5, u5, t4, i4, r4, o4, e4, f5, c4, s4) {
-    var a4, h4, p5, v4, y5, _4, g4, m4 = t4 && t4.__k || w, b4 = l5.length;
-    for (f5 = T(u5, l5, m4, f5, b4), a4 = 0; a4 < b4; a4++) null != (p5 = u5.__k[a4]) && (h4 = -1 != p5.__i && m4[p5.__i] || d, p5.__i = a4, _4 = q(n3, p5, h4, i4, r4, o4, e4, f5, c4, s4), v4 = p5.__e, p5.ref && h4.ref != p5.ref && (h4.ref && J(h4.ref, null, p5), s4.push(p5.ref, p5.__c || v4, p5)), null == y5 && null != v4 && (y5 = v4), (g4 = !!(4 & p5.__u)) || h4.__k === p5.__k ? (f5 = j(p5, f5, n3, g4), g4 && h4.__e && (h4.__e = null)) : "function" == typeof p5.type && void 0 !== _4 ? f5 = _4 : v4 && (f5 = v4.nextSibling), p5.__u &= -7);
+    var a4, h5, p5, v4, y5, _4, g4, m4 = t4 && t4.__k || w, b4 = l5.length;
+    for (f5 = T(u5, l5, m4, f5, b4), a4 = 0; a4 < b4; a4++) null != (p5 = u5.__k[a4]) && (h5 = -1 != p5.__i && m4[p5.__i] || d, p5.__i = a4, _4 = q(n3, p5, h5, i4, r4, o4, e4, f5, c4, s4), v4 = p5.__e, p5.ref && h5.ref != p5.ref && (h5.ref && J(h5.ref, null, p5), s4.push(p5.ref, p5.__c || v4, p5)), null == y5 && null != v4 && (y5 = v4), (g4 = !!(4 & p5.__u)) || h5.__k === p5.__k ? (f5 = j(p5, f5, n3, g4), g4 && h5.__e && (h5.__e = null)) : "function" == typeof p5.type && void 0 !== _4 ? f5 = _4 : v4 && (f5 = v4.nextSibling), p5.__u &= -7);
     return u5.__e = y5, f5;
   }
   function T(n3, l5, u5, t4, i4) {
-    var r4, o4, e4, f5, c4, s4 = u5.length, a4 = s4, h4 = 0;
-    for (n3.__k = new Array(i4), r4 = 0; r4 < i4; r4++) null != (o4 = l5[r4]) && "boolean" != typeof o4 && "function" != typeof o4 ? ("string" == typeof o4 || "number" == typeof o4 || "bigint" == typeof o4 || o4.constructor == String ? o4 = n3.__k[r4] = x(null, o4, null, null, null) : g(o4) ? o4 = n3.__k[r4] = x(S, { children: o4 }, null, null, null) : void 0 === o4.constructor && o4.__b > 0 ? o4 = n3.__k[r4] = x(o4.type, o4.props, o4.key, o4.ref ? o4.ref : null, o4.__v) : n3.__k[r4] = o4, f5 = r4 + h4, o4.__ = n3, o4.__b = n3.__b + 1, e4 = null, -1 != (c4 = o4.__i = O(o4, u5, f5, a4)) && (a4--, (e4 = u5[c4]) && (e4.__u |= 2)), null == e4 || null == e4.__v ? (-1 == c4 && (i4 > s4 ? h4-- : i4 < s4 && h4++), "function" != typeof o4.type && (o4.__u |= 4)) : c4 != f5 && (c4 == f5 - 1 ? h4-- : c4 == f5 + 1 ? h4++ : (c4 > f5 ? h4-- : h4++, o4.__u |= 4))) : n3.__k[r4] = null;
+    var r4, o4, e4, f5, c4, s4 = u5.length, a4 = s4, h5 = 0;
+    for (n3.__k = new Array(i4), r4 = 0; r4 < i4; r4++) null != (o4 = l5[r4]) && "boolean" != typeof o4 && "function" != typeof o4 ? ("string" == typeof o4 || "number" == typeof o4 || "bigint" == typeof o4 || o4.constructor == String ? o4 = n3.__k[r4] = x(null, o4, null, null, null) : g(o4) ? o4 = n3.__k[r4] = x(S, { children: o4 }, null, null, null) : void 0 === o4.constructor && o4.__b > 0 ? o4 = n3.__k[r4] = x(o4.type, o4.props, o4.key, o4.ref ? o4.ref : null, o4.__v) : n3.__k[r4] = o4, f5 = r4 + h5, o4.__ = n3, o4.__b = n3.__b + 1, e4 = null, -1 != (c4 = o4.__i = O(o4, u5, f5, a4)) && (a4--, (e4 = u5[c4]) && (e4.__u |= 2)), null == e4 || null == e4.__v ? (-1 == c4 && (i4 > s4 ? h5-- : i4 < s4 && h5++), "function" != typeof o4.type && (o4.__u |= 4)) : c4 != f5 && (c4 == f5 - 1 ? h5-- : c4 == f5 + 1 ? h5++ : (c4 > f5 ? h5-- : h5++, o4.__u |= 4))) : n3.__k[r4] = null;
     if (a4) for (r4 = 0; r4 < s4; r4++) null != (e4 = u5[r4]) && 0 == (2 & e4.__u) && (e4.__e == t4 && (t4 = $(e4)), K(e4, e4));
     return t4;
   }
@@ -133,27 +133,27 @@
     };
   }
   function q(n3, u5, t4, i4, r4, o4, e4, f5, c4, s4) {
-    var a4, h4, p5, v4, y5, d4, _4, k3, x4, M, $3, I2, P2, A3, H2, T4 = u5.type;
+    var a4, h5, p5, v4, y5, d5, _4, k3, x4, M, $3, I2, P2, A3, H2, T4 = u5.type;
     if (void 0 !== u5.constructor) return null;
     128 & t4.__u && (c4 = !!(32 & t4.__u), o4 = [f5 = u5.__e = t4.__e]), (a4 = l.__b) && a4(u5);
     n: if ("function" == typeof T4) try {
-      if (k3 = u5.props, x4 = T4.prototype && T4.prototype.render, M = (a4 = T4.contextType) && i4[a4.__c], $3 = a4 ? M ? M.props.value : a4.__ : i4, t4.__c ? _4 = (h4 = u5.__c = t4.__c).__ = h4.__E : (x4 ? u5.__c = h4 = new T4(k3, $3) : (u5.__c = h4 = new C(k3, $3), h4.constructor = T4, h4.render = Q), M && M.sub(h4), h4.state || (h4.state = {}), h4.__n = i4, p5 = h4.__d = true, h4.__h = [], h4._sb = []), x4 && null == h4.__s && (h4.__s = h4.state), x4 && null != T4.getDerivedStateFromProps && (h4.__s == h4.state && (h4.__s = m({}, h4.__s)), m(h4.__s, T4.getDerivedStateFromProps(k3, h4.__s))), v4 = h4.props, y5 = h4.state, h4.__v = u5, p5) x4 && null == T4.getDerivedStateFromProps && null != h4.componentWillMount && h4.componentWillMount(), x4 && null != h4.componentDidMount && h4.__h.push(h4.componentDidMount);
+      if (k3 = u5.props, x4 = T4.prototype && T4.prototype.render, M = (a4 = T4.contextType) && i4[a4.__c], $3 = a4 ? M ? M.props.value : a4.__ : i4, t4.__c ? _4 = (h5 = u5.__c = t4.__c).__ = h5.__E : (x4 ? u5.__c = h5 = new T4(k3, $3) : (u5.__c = h5 = new C(k3, $3), h5.constructor = T4, h5.render = Q), M && M.sub(h5), h5.state || (h5.state = {}), h5.__n = i4, p5 = h5.__d = true, h5.__h = [], h5._sb = []), x4 && null == h5.__s && (h5.__s = h5.state), x4 && null != T4.getDerivedStateFromProps && (h5.__s == h5.state && (h5.__s = m({}, h5.__s)), m(h5.__s, T4.getDerivedStateFromProps(k3, h5.__s))), v4 = h5.props, y5 = h5.state, h5.__v = u5, p5) x4 && null == T4.getDerivedStateFromProps && null != h5.componentWillMount && h5.componentWillMount(), x4 && null != h5.componentDidMount && h5.__h.push(h5.componentDidMount);
       else {
-        if (x4 && null == T4.getDerivedStateFromProps && k3 !== v4 && null != h4.componentWillReceiveProps && h4.componentWillReceiveProps(k3, $3), u5.__v == t4.__v || !h4.__e && null != h4.shouldComponentUpdate && false === h4.shouldComponentUpdate(k3, h4.__s, $3)) {
-          u5.__v != t4.__v && (h4.props = k3, h4.state = h4.__s, h4.__d = false), u5.__e = t4.__e, u5.__k = t4.__k, u5.__k.some(function(n4) {
+        if (x4 && null == T4.getDerivedStateFromProps && k3 !== v4 && null != h5.componentWillReceiveProps && h5.componentWillReceiveProps(k3, $3), u5.__v == t4.__v || !h5.__e && null != h5.shouldComponentUpdate && false === h5.shouldComponentUpdate(k3, h5.__s, $3)) {
+          u5.__v != t4.__v && (h5.props = k3, h5.state = h5.__s, h5.__d = false), u5.__e = t4.__e, u5.__k = t4.__k, u5.__k.some(function(n4) {
             n4 && (n4.__ = u5);
-          }), w.push.apply(h4.__h, h4._sb), h4._sb = [], h4.__h.length && e4.push(h4);
+          }), w.push.apply(h5.__h, h5._sb), h5._sb = [], h5.__h.length && e4.push(h5);
           break n;
         }
-        null != h4.componentWillUpdate && h4.componentWillUpdate(k3, h4.__s, $3), x4 && null != h4.componentDidUpdate && h4.__h.push(function() {
-          h4.componentDidUpdate(v4, y5, d4);
+        null != h5.componentWillUpdate && h5.componentWillUpdate(k3, h5.__s, $3), x4 && null != h5.componentDidUpdate && h5.__h.push(function() {
+          h5.componentDidUpdate(v4, y5, d5);
         });
       }
-      if (h4.context = $3, h4.props = k3, h4.__P = n3, h4.__e = false, I2 = l.__r, P2 = 0, x4) h4.state = h4.__s, h4.__d = false, I2 && I2(u5), a4 = h4.render(h4.props, h4.state, h4.context), w.push.apply(h4.__h, h4._sb), h4._sb = [];
+      if (h5.context = $3, h5.props = k3, h5.__P = n3, h5.__e = false, I2 = l.__r, P2 = 0, x4) h5.state = h5.__s, h5.__d = false, I2 && I2(u5), a4 = h5.render(h5.props, h5.state, h5.context), w.push.apply(h5.__h, h5._sb), h5._sb = [];
       else do {
-        h4.__d = false, I2 && I2(u5), a4 = h4.render(h4.props, h4.state, h4.context), h4.state = h4.__s;
-      } while (h4.__d && ++P2 < 25);
-      h4.state = h4.__s, null != h4.getChildContext && (i4 = m(m({}, i4), h4.getChildContext())), x4 && !p5 && null != h4.getSnapshotBeforeUpdate && (d4 = h4.getSnapshotBeforeUpdate(v4, y5)), A3 = null != a4 && a4.type === S && null == a4.key ? E(a4.props.children) : a4, f5 = L(n3, g(A3) ? A3 : [A3], u5, t4, i4, r4, o4, e4, f5, c4, s4), h4.base = u5.__e, u5.__u &= -161, h4.__h.length && e4.push(h4), _4 && (h4.__E = h4.__ = null);
+        h5.__d = false, I2 && I2(u5), a4 = h5.render(h5.props, h5.state, h5.context), h5.state = h5.__s;
+      } while (h5.__d && ++P2 < 25);
+      h5.state = h5.__s, null != h5.getChildContext && (i4 = m(m({}, i4), h5.getChildContext())), x4 && !p5 && null != h5.getSnapshotBeforeUpdate && (d5 = h5.getSnapshotBeforeUpdate(v4, y5)), A3 = null != a4 && a4.type === S && null == a4.key ? E(a4.props.children) : a4, f5 = L(n3, g(A3) ? A3 : [A3], u5, t4, i4, r4, o4, e4, f5, c4, s4), h5.base = u5.__e, u5.__u &= -161, h5.__h.length && e4.push(h5), _4 && (h5.__E = h5.__ = null);
     } catch (n4) {
       if (u5.__v = null, c4 || null != o4) if (n4.then) {
         for (u5.__u |= c4 ? 160 : 128; f5 && 8 == f5.nodeType && f5.nextSibling; ) f5 = f5.nextSibling;
@@ -187,7 +187,7 @@
     return "object" != typeof n3 || null == n3 || n3.__b > 0 ? n3 : g(n3) ? n3.map(E) : m({}, n3);
   }
   function G(u5, t4, i4, r4, o4, e4, f5, c4, s4) {
-    var a4, h4, p5, v4, y5, w5, _4, m4 = i4.props || d, k3 = t4.props, x4 = t4.type;
+    var a4, h5, p5, v4, y5, w5, _4, m4 = i4.props || d, k3 = t4.props, x4 = t4.type;
     if ("svg" == x4 ? o4 = "http://www.w3.org/2000/svg" : "math" == x4 ? o4 = "http://www.w3.org/1998/Math/MathML" : o4 || (o4 = "http://www.w3.org/1999/xhtml"), null != e4) {
       for (a4 = 0; a4 < e4.length; a4++) if ((y5 = e4[a4]) && "setAttribute" in y5 == !!x4 && (x4 ? y5.localName == x4 : 3 == y5.nodeType)) {
         u5 = y5, e4[a4] = null;
@@ -202,8 +202,8 @@
     else {
       if (e4 = e4 && n.call(u5.childNodes), !c4 && null != e4) for (m4 = {}, a4 = 0; a4 < u5.attributes.length; a4++) m4[(y5 = u5.attributes[a4]).name] = y5.value;
       for (a4 in m4) y5 = m4[a4], "dangerouslySetInnerHTML" == a4 ? p5 = y5 : "children" == a4 || a4 in k3 || "value" == a4 && "defaultValue" in k3 || "checked" == a4 && "defaultChecked" in k3 || N(u5, a4, null, y5, o4);
-      for (a4 in k3) y5 = k3[a4], "children" == a4 ? v4 = y5 : "dangerouslySetInnerHTML" == a4 ? h4 = y5 : "value" == a4 ? w5 = y5 : "checked" == a4 ? _4 = y5 : c4 && "function" != typeof y5 || m4[a4] === y5 || N(u5, a4, y5, m4[a4], o4);
-      if (h4) c4 || p5 && (h4.__html == p5.__html || h4.__html == u5.innerHTML) || (u5.innerHTML = h4.__html), t4.__k = [];
+      for (a4 in k3) y5 = k3[a4], "children" == a4 ? v4 = y5 : "dangerouslySetInnerHTML" == a4 ? h5 = y5 : "value" == a4 ? w5 = y5 : "checked" == a4 ? _4 = y5 : c4 && "function" != typeof y5 || m4[a4] === y5 || N(u5, a4, y5, m4[a4], o4);
+      if (h5) c4 || p5 && (h5.__html == p5.__html || h5.__html == u5.innerHTML) || (u5.innerHTML = h5.__html), t4.__k = [];
       else if (p5 && (u5.innerHTML = ""), L("template" == t4.type ? u5.content : u5, g(v4) ? v4 : [v4], t4, i4, r4, "foreignObject" == x4 ? "http://www.w3.org/1999/xhtml" : o4, e4, f5, e4 ? e4[0] : i4.__k && $(i4, 0), c4, s4), null != e4) for (a4 = e4.length; a4--; ) b(e4[a4]);
       c4 || (a4 = "value", "progress" == x4 && null == w5 ? u5.removeAttribute("value") : null != w5 && (w5 !== u5[a4] || "progress" == x4 && !w5 || "option" == x4 && w5 != m4[a4]) && N(u5, a4, w5, m4[a4], o4), a4 = "checked", null != _4 && _4 != u5[a4] && N(u5, a4, _4, m4[a4], o4));
     }
@@ -304,9 +304,9 @@
 
   // src/ui/lib/format.ts
   function esc(s4) {
-    const d4 = document.createElement("div");
-    d4.textContent = String(s4);
-    return d4.innerHTML;
+    const d5 = document.createElement("div");
+    d5.textContent = String(s4);
+    return d5.innerHTML;
   }
   function $2(id) {
     return document.getElementById(id);
@@ -375,6 +375,43 @@
     c2.__h && c2.__h(r2, n3, o2 || t4), o2 = 0;
     var u5 = r2.__H || (r2.__H = { __: [], __h: [] });
     return n3 >= u5.__.length && u5.__.push({}), u5.__[n3];
+  }
+  function d2(n3) {
+    return o2 = 1, h2(D2, n3);
+  }
+  function h2(n3, u5, i4) {
+    var o4 = p2(t2++, 2);
+    if (o4.t = n3, !o4.__c && (o4.__ = [i4 ? i4(u5) : D2(void 0, u5), function(n4) {
+      var t4 = o4.__N ? o4.__N[0] : o4.__[0], r4 = o4.t(t4, n4);
+      t4 !== r4 && (o4.__N = [r4, o4.__[1]], o4.__c.setState({}));
+    }], o4.__c = r2, !r2.__f)) {
+      var f5 = function(n4, t4, r4) {
+        if (!o4.__c.__H) return true;
+        var u6 = o4.__c.__H.__.filter(function(n5) {
+          return n5.__c;
+        });
+        if (u6.every(function(n5) {
+          return !n5.__N;
+        })) return !c4 || c4.call(this, n4, t4, r4);
+        var i5 = o4.__c.props !== n4;
+        return u6.some(function(n5) {
+          if (n5.__N) {
+            var t5 = n5.__[0];
+            n5.__ = n5.__N, n5.__N = void 0, t5 !== n5.__[0] && (i5 = true);
+          }
+        }), c4 && c4.call(this, n4, t4, r4) || i5;
+      };
+      r2.__f = true;
+      var c4 = r2.shouldComponentUpdate, e4 = r2.componentWillUpdate;
+      r2.componentWillUpdate = function(n4, t4, r4) {
+        if (this.__e) {
+          var u6 = c4;
+          c4 = void 0, f5(n4, t4, r4), c4 = u6;
+        }
+        e4 && e4.call(this, n4, t4, r4);
+      }, r2.shouldComponentUpdate = f5;
+    }
+    return o4.__N || o4.__;
   }
   function y2(n3, u5) {
     var i4 = p2(t2++, 3);
@@ -458,6 +495,9 @@
       return t5 !== n3[r4];
     });
   }
+  function D2(n3, t4) {
+    return "function" == typeof t4 ? t4(n3) : t4;
+  }
 
   // node_modules/@preact/signals-core/dist/signals-core.module.js
   var i3 = /* @__PURE__ */ Symbol.for("preact-signals");
@@ -472,9 +512,9 @@
           i5 = i5.o;
         }
       })();
-      while (void 0 !== h2) {
-        var n3 = h2;
-        h2 = void 0;
+      while (void 0 !== h3) {
+        var n3 = h3;
+        h3 = void 0;
         v3++;
         while (void 0 !== n3) {
           var r4 = n3.u;
@@ -517,13 +557,13 @@
     }
   }
   var f4;
-  var h2 = void 0;
+  var h3 = void 0;
   var s3 = 0;
   var v3 = 0;
   var u4 = 0;
   var e3 = 0;
   var c3 = void 0;
-  var d2 = 0;
+  var d3 = 0;
   function a3(i4) {
     if (void 0 !== r3) {
       var t4 = i4.n;
@@ -642,7 +682,7 @@
       })(this);
       this.v = i4;
       this.i++;
-      d2++;
+      d3++;
       s3++;
       try {
         for (var n3 = this.t; void 0 !== n3; n3 = n3.x) n3.t.N();
@@ -689,7 +729,7 @@
     l3.call(this, void 0);
     this.x = i4;
     this.s = void 0;
-    this.g = d2 - 1;
+    this.g = d3 - 1;
     this.f = 4;
     this.W = null == t4 ? void 0 : t4.watched;
     this.Z = null == t4 ? void 0 : t4.unwatched;
@@ -701,8 +741,8 @@
     if (1 & this.f) return false;
     if (32 == (36 & this.f)) return true;
     this.f &= -5;
-    if (this.g === d2) return true;
-    this.g = d2;
+    if (this.g === d3) return true;
+    this.g = d3;
     this.f |= 1;
     if (this.i > 0 && !w3(this)) {
       this.f &= -2;
@@ -829,8 +869,8 @@
   E2.prototype.N = function() {
     if (!(2 & this.f)) {
       this.f |= 2;
-      this.u = h2;
-      h2 = this;
+      this.u = h3;
+      h3 = this;
     }
   };
   E2.prototype.d = function() {
@@ -855,8 +895,8 @@
 
   // node_modules/@preact/signals/dist/signals.module.js
   var l4;
-  var d3;
-  var h3;
+  var d4;
+  var h4;
   var p4 = "undefined" != typeof window && !!window.__PREACT_SIGNALS_DEVTOOLS__;
   var _3 = [];
   j3(function() {
@@ -867,12 +907,12 @@
     });
   }
   function b3(i4) {
-    if (h3) {
-      var n3 = h3;
-      h3 = void 0;
+    if (h4) {
+      var n3 = h4;
+      h4 = void 0;
       n3();
     }
-    h3 = i4 && i4.S();
+    h4 = i4 && i4.S();
   }
   function y4(i4) {
     var n3 = this, t4 = i4.data, e4 = useSignal(t4);
@@ -945,18 +985,18 @@
           o4.setState({});
         }, "function" == typeof n3.type ? n3.type.displayName || n3.type.name : "");
       }
-      d3 = o4;
+      d4 = o4;
       b3(r4);
     }
   });
   g3("__e", function(i4, n3, r4, t4) {
     b3();
-    d3 = void 0;
+    d4 = void 0;
     i4(n3, r4, t4);
   });
   g3("diffed", function(i4, n3) {
     b3();
-    d3 = void 0;
+    d4 = void 0;
     var r4;
     if ("string" == typeof n3.type && (r4 = n3.__e)) {
       var t4 = n3.__np, o4 = n3.props;
@@ -1072,13 +1112,6 @@
   var selectedModels = y3(/* @__PURE__ */ new Set());
   var selectedRange = y3("30d");
   var projectSearchQuery = y3("");
-  var sessionSortCol = y3("last");
-  var sessionSortDir = y3("desc");
-  var modelSortCol = y3("cost");
-  var modelSortDir = y3("desc");
-  var projectSortCol = y3("cost");
-  var projectSortDir = y3("desc");
-  var sessionsCurrentPage = y3(0);
   var SESSIONS_PAGE_SIZE = 25;
   var lastFilteredSessions = y3([]);
   var lastByProject = y3([]);
@@ -1196,301 +1229,3185 @@
     ] });
   }
 
+  // node_modules/@tanstack/table-core/build/lib/index.mjs
+  function functionalUpdate(updater, input) {
+    return typeof updater === "function" ? updater(input) : updater;
+  }
+  function makeStateUpdater(key, instance) {
+    return (updater) => {
+      instance.setState((old) => {
+        return {
+          ...old,
+          [key]: functionalUpdate(updater, old[key])
+        };
+      });
+    };
+  }
+  function isFunction(d5) {
+    return d5 instanceof Function;
+  }
+  function isNumberArray(d5) {
+    return Array.isArray(d5) && d5.every((val) => typeof val === "number");
+  }
+  function flattenBy(arr, getChildren) {
+    const flat = [];
+    const recurse = (subArr) => {
+      subArr.forEach((item) => {
+        flat.push(item);
+        const children = getChildren(item);
+        if (children != null && children.length) {
+          recurse(children);
+        }
+      });
+    };
+    recurse(arr);
+    return flat;
+  }
+  function memo(getDeps, fn, opts) {
+    let deps = [];
+    let result;
+    return (depArgs) => {
+      let depTime;
+      if (opts.key && opts.debug) depTime = Date.now();
+      const newDeps = getDeps(depArgs);
+      const depsChanged = newDeps.length !== deps.length || newDeps.some((dep, index) => deps[index] !== dep);
+      if (!depsChanged) {
+        return result;
+      }
+      deps = newDeps;
+      let resultTime;
+      if (opts.key && opts.debug) resultTime = Date.now();
+      result = fn(...newDeps);
+      opts == null || opts.onChange == null || opts.onChange(result);
+      if (opts.key && opts.debug) {
+        if (opts != null && opts.debug()) {
+          const depEndTime = Math.round((Date.now() - depTime) * 100) / 100;
+          const resultEndTime = Math.round((Date.now() - resultTime) * 100) / 100;
+          const resultFpsPercentage = resultEndTime / 16;
+          const pad = (str, num) => {
+            str = String(str);
+            while (str.length < num) {
+              str = " " + str;
+            }
+            return str;
+          };
+          console.info(`%c\u23F1 ${pad(resultEndTime, 5)} /${pad(depEndTime, 5)} ms`, `
+            font-size: .6rem;
+            font-weight: bold;
+            color: hsl(${Math.max(0, Math.min(120 - 120 * resultFpsPercentage, 120))}deg 100% 31%);`, opts == null ? void 0 : opts.key);
+        }
+      }
+      return result;
+    };
+  }
+  function getMemoOptions(tableOptions, debugLevel, key, onChange) {
+    return {
+      debug: () => {
+        var _tableOptions$debugAl;
+        return (_tableOptions$debugAl = tableOptions == null ? void 0 : tableOptions.debugAll) != null ? _tableOptions$debugAl : tableOptions[debugLevel];
+      },
+      key,
+      onChange
+    };
+  }
+  function createCell(table, row, column, columnId) {
+    const getRenderValue = () => {
+      var _cell$getValue;
+      return (_cell$getValue = cell.getValue()) != null ? _cell$getValue : table.options.renderFallbackValue;
+    };
+    const cell = {
+      id: `${row.id}_${column.id}`,
+      row,
+      column,
+      getValue: () => row.getValue(columnId),
+      renderValue: getRenderValue,
+      getContext: memo(() => [table, column, row, cell], (table2, column2, row2, cell2) => ({
+        table: table2,
+        column: column2,
+        row: row2,
+        cell: cell2,
+        getValue: cell2.getValue,
+        renderValue: cell2.renderValue
+      }), getMemoOptions(table.options, "debugCells", "cell.getContext"))
+    };
+    table._features.forEach((feature) => {
+      feature.createCell == null || feature.createCell(cell, column, row, table);
+    }, {});
+    return cell;
+  }
+  function createColumn(table, columnDef, depth, parent) {
+    var _ref, _resolvedColumnDef$id;
+    const defaultColumn = table._getDefaultColumnDef();
+    const resolvedColumnDef = {
+      ...defaultColumn,
+      ...columnDef
+    };
+    const accessorKey = resolvedColumnDef.accessorKey;
+    let id = (_ref = (_resolvedColumnDef$id = resolvedColumnDef.id) != null ? _resolvedColumnDef$id : accessorKey ? typeof String.prototype.replaceAll === "function" ? accessorKey.replaceAll(".", "_") : accessorKey.replace(/\./g, "_") : void 0) != null ? _ref : typeof resolvedColumnDef.header === "string" ? resolvedColumnDef.header : void 0;
+    let accessorFn;
+    if (resolvedColumnDef.accessorFn) {
+      accessorFn = resolvedColumnDef.accessorFn;
+    } else if (accessorKey) {
+      if (accessorKey.includes(".")) {
+        accessorFn = (originalRow) => {
+          let result = originalRow;
+          for (const key of accessorKey.split(".")) {
+            var _result;
+            result = (_result = result) == null ? void 0 : _result[key];
+            if (result === void 0) {
+              console.warn(`"${key}" in deeply nested key "${accessorKey}" returned undefined.`);
+            }
+          }
+          return result;
+        };
+      } else {
+        accessorFn = (originalRow) => originalRow[resolvedColumnDef.accessorKey];
+      }
+    }
+    if (!id) {
+      if (true) {
+        throw new Error(resolvedColumnDef.accessorFn ? `Columns require an id when using an accessorFn` : `Columns require an id when using a non-string header`);
+      }
+      throw new Error();
+    }
+    let column = {
+      id: `${String(id)}`,
+      accessorFn,
+      parent,
+      depth,
+      columnDef: resolvedColumnDef,
+      columns: [],
+      getFlatColumns: memo(() => [true], () => {
+        var _column$columns;
+        return [column, ...(_column$columns = column.columns) == null ? void 0 : _column$columns.flatMap((d5) => d5.getFlatColumns())];
+      }, getMemoOptions(table.options, "debugColumns", "column.getFlatColumns")),
+      getLeafColumns: memo(() => [table._getOrderColumnsFn()], (orderColumns2) => {
+        var _column$columns2;
+        if ((_column$columns2 = column.columns) != null && _column$columns2.length) {
+          let leafColumns = column.columns.flatMap((column2) => column2.getLeafColumns());
+          return orderColumns2(leafColumns);
+        }
+        return [column];
+      }, getMemoOptions(table.options, "debugColumns", "column.getLeafColumns"))
+    };
+    for (const feature of table._features) {
+      feature.createColumn == null || feature.createColumn(column, table);
+    }
+    return column;
+  }
+  var debug = "debugHeaders";
+  function createHeader(table, column, options) {
+    var _options$id;
+    const id = (_options$id = options.id) != null ? _options$id : column.id;
+    let header = {
+      id,
+      column,
+      index: options.index,
+      isPlaceholder: !!options.isPlaceholder,
+      placeholderId: options.placeholderId,
+      depth: options.depth,
+      subHeaders: [],
+      colSpan: 0,
+      rowSpan: 0,
+      headerGroup: null,
+      getLeafHeaders: () => {
+        const leafHeaders = [];
+        const recurseHeader = (h5) => {
+          if (h5.subHeaders && h5.subHeaders.length) {
+            h5.subHeaders.map(recurseHeader);
+          }
+          leafHeaders.push(h5);
+        };
+        recurseHeader(header);
+        return leafHeaders;
+      },
+      getContext: () => ({
+        table,
+        header,
+        column
+      })
+    };
+    table._features.forEach((feature) => {
+      feature.createHeader == null || feature.createHeader(header, table);
+    });
+    return header;
+  }
+  var Headers = {
+    createTable: (table) => {
+      table.getHeaderGroups = memo(() => [table.getAllColumns(), table.getVisibleLeafColumns(), table.getState().columnPinning.left, table.getState().columnPinning.right], (allColumns, leafColumns, left, right) => {
+        var _left$map$filter, _right$map$filter;
+        const leftColumns = (_left$map$filter = left == null ? void 0 : left.map((columnId) => leafColumns.find((d5) => d5.id === columnId)).filter(Boolean)) != null ? _left$map$filter : [];
+        const rightColumns = (_right$map$filter = right == null ? void 0 : right.map((columnId) => leafColumns.find((d5) => d5.id === columnId)).filter(Boolean)) != null ? _right$map$filter : [];
+        const centerColumns = leafColumns.filter((column) => !(left != null && left.includes(column.id)) && !(right != null && right.includes(column.id)));
+        const headerGroups = buildHeaderGroups(allColumns, [...leftColumns, ...centerColumns, ...rightColumns], table);
+        return headerGroups;
+      }, getMemoOptions(table.options, debug, "getHeaderGroups"));
+      table.getCenterHeaderGroups = memo(() => [table.getAllColumns(), table.getVisibleLeafColumns(), table.getState().columnPinning.left, table.getState().columnPinning.right], (allColumns, leafColumns, left, right) => {
+        leafColumns = leafColumns.filter((column) => !(left != null && left.includes(column.id)) && !(right != null && right.includes(column.id)));
+        return buildHeaderGroups(allColumns, leafColumns, table, "center");
+      }, getMemoOptions(table.options, debug, "getCenterHeaderGroups"));
+      table.getLeftHeaderGroups = memo(() => [table.getAllColumns(), table.getVisibleLeafColumns(), table.getState().columnPinning.left], (allColumns, leafColumns, left) => {
+        var _left$map$filter2;
+        const orderedLeafColumns = (_left$map$filter2 = left == null ? void 0 : left.map((columnId) => leafColumns.find((d5) => d5.id === columnId)).filter(Boolean)) != null ? _left$map$filter2 : [];
+        return buildHeaderGroups(allColumns, orderedLeafColumns, table, "left");
+      }, getMemoOptions(table.options, debug, "getLeftHeaderGroups"));
+      table.getRightHeaderGroups = memo(() => [table.getAllColumns(), table.getVisibleLeafColumns(), table.getState().columnPinning.right], (allColumns, leafColumns, right) => {
+        var _right$map$filter2;
+        const orderedLeafColumns = (_right$map$filter2 = right == null ? void 0 : right.map((columnId) => leafColumns.find((d5) => d5.id === columnId)).filter(Boolean)) != null ? _right$map$filter2 : [];
+        return buildHeaderGroups(allColumns, orderedLeafColumns, table, "right");
+      }, getMemoOptions(table.options, debug, "getRightHeaderGroups"));
+      table.getFooterGroups = memo(() => [table.getHeaderGroups()], (headerGroups) => {
+        return [...headerGroups].reverse();
+      }, getMemoOptions(table.options, debug, "getFooterGroups"));
+      table.getLeftFooterGroups = memo(() => [table.getLeftHeaderGroups()], (headerGroups) => {
+        return [...headerGroups].reverse();
+      }, getMemoOptions(table.options, debug, "getLeftFooterGroups"));
+      table.getCenterFooterGroups = memo(() => [table.getCenterHeaderGroups()], (headerGroups) => {
+        return [...headerGroups].reverse();
+      }, getMemoOptions(table.options, debug, "getCenterFooterGroups"));
+      table.getRightFooterGroups = memo(() => [table.getRightHeaderGroups()], (headerGroups) => {
+        return [...headerGroups].reverse();
+      }, getMemoOptions(table.options, debug, "getRightFooterGroups"));
+      table.getFlatHeaders = memo(() => [table.getHeaderGroups()], (headerGroups) => {
+        return headerGroups.map((headerGroup) => {
+          return headerGroup.headers;
+        }).flat();
+      }, getMemoOptions(table.options, debug, "getFlatHeaders"));
+      table.getLeftFlatHeaders = memo(() => [table.getLeftHeaderGroups()], (left) => {
+        return left.map((headerGroup) => {
+          return headerGroup.headers;
+        }).flat();
+      }, getMemoOptions(table.options, debug, "getLeftFlatHeaders"));
+      table.getCenterFlatHeaders = memo(() => [table.getCenterHeaderGroups()], (left) => {
+        return left.map((headerGroup) => {
+          return headerGroup.headers;
+        }).flat();
+      }, getMemoOptions(table.options, debug, "getCenterFlatHeaders"));
+      table.getRightFlatHeaders = memo(() => [table.getRightHeaderGroups()], (left) => {
+        return left.map((headerGroup) => {
+          return headerGroup.headers;
+        }).flat();
+      }, getMemoOptions(table.options, debug, "getRightFlatHeaders"));
+      table.getCenterLeafHeaders = memo(() => [table.getCenterFlatHeaders()], (flatHeaders) => {
+        return flatHeaders.filter((header) => {
+          var _header$subHeaders;
+          return !((_header$subHeaders = header.subHeaders) != null && _header$subHeaders.length);
+        });
+      }, getMemoOptions(table.options, debug, "getCenterLeafHeaders"));
+      table.getLeftLeafHeaders = memo(() => [table.getLeftFlatHeaders()], (flatHeaders) => {
+        return flatHeaders.filter((header) => {
+          var _header$subHeaders2;
+          return !((_header$subHeaders2 = header.subHeaders) != null && _header$subHeaders2.length);
+        });
+      }, getMemoOptions(table.options, debug, "getLeftLeafHeaders"));
+      table.getRightLeafHeaders = memo(() => [table.getRightFlatHeaders()], (flatHeaders) => {
+        return flatHeaders.filter((header) => {
+          var _header$subHeaders3;
+          return !((_header$subHeaders3 = header.subHeaders) != null && _header$subHeaders3.length);
+        });
+      }, getMemoOptions(table.options, debug, "getRightLeafHeaders"));
+      table.getLeafHeaders = memo(() => [table.getLeftHeaderGroups(), table.getCenterHeaderGroups(), table.getRightHeaderGroups()], (left, center, right) => {
+        var _left$0$headers, _left$, _center$0$headers, _center$, _right$0$headers, _right$;
+        return [...(_left$0$headers = (_left$ = left[0]) == null ? void 0 : _left$.headers) != null ? _left$0$headers : [], ...(_center$0$headers = (_center$ = center[0]) == null ? void 0 : _center$.headers) != null ? _center$0$headers : [], ...(_right$0$headers = (_right$ = right[0]) == null ? void 0 : _right$.headers) != null ? _right$0$headers : []].map((header) => {
+          return header.getLeafHeaders();
+        }).flat();
+      }, getMemoOptions(table.options, debug, "getLeafHeaders"));
+    }
+  };
+  function buildHeaderGroups(allColumns, columnsToGroup, table, headerFamily) {
+    var _headerGroups$0$heade, _headerGroups$;
+    let maxDepth = 0;
+    const findMaxDepth = function(columns3, depth) {
+      if (depth === void 0) {
+        depth = 1;
+      }
+      maxDepth = Math.max(maxDepth, depth);
+      columns3.filter((column) => column.getIsVisible()).forEach((column) => {
+        var _column$columns;
+        if ((_column$columns = column.columns) != null && _column$columns.length) {
+          findMaxDepth(column.columns, depth + 1);
+        }
+      }, 0);
+    };
+    findMaxDepth(allColumns);
+    let headerGroups = [];
+    const createHeaderGroup = (headersToGroup, depth) => {
+      const headerGroup = {
+        depth,
+        id: [headerFamily, `${depth}`].filter(Boolean).join("_"),
+        headers: []
+      };
+      const pendingParentHeaders = [];
+      headersToGroup.forEach((headerToGroup) => {
+        const latestPendingParentHeader = [...pendingParentHeaders].reverse()[0];
+        const isLeafHeader = headerToGroup.column.depth === headerGroup.depth;
+        let column;
+        let isPlaceholder = false;
+        if (isLeafHeader && headerToGroup.column.parent) {
+          column = headerToGroup.column.parent;
+        } else {
+          column = headerToGroup.column;
+          isPlaceholder = true;
+        }
+        if (latestPendingParentHeader && (latestPendingParentHeader == null ? void 0 : latestPendingParentHeader.column) === column) {
+          latestPendingParentHeader.subHeaders.push(headerToGroup);
+        } else {
+          const header = createHeader(table, column, {
+            id: [headerFamily, depth, column.id, headerToGroup == null ? void 0 : headerToGroup.id].filter(Boolean).join("_"),
+            isPlaceholder,
+            placeholderId: isPlaceholder ? `${pendingParentHeaders.filter((d5) => d5.column === column).length}` : void 0,
+            depth,
+            index: pendingParentHeaders.length
+          });
+          header.subHeaders.push(headerToGroup);
+          pendingParentHeaders.push(header);
+        }
+        headerGroup.headers.push(headerToGroup);
+        headerToGroup.headerGroup = headerGroup;
+      });
+      headerGroups.push(headerGroup);
+      if (depth > 0) {
+        createHeaderGroup(pendingParentHeaders, depth - 1);
+      }
+    };
+    const bottomHeaders = columnsToGroup.map((column, index) => createHeader(table, column, {
+      depth: maxDepth,
+      index
+    }));
+    createHeaderGroup(bottomHeaders, maxDepth - 1);
+    headerGroups.reverse();
+    const recurseHeadersForSpans = (headers) => {
+      const filteredHeaders = headers.filter((header) => header.column.getIsVisible());
+      return filteredHeaders.map((header) => {
+        let colSpan = 0;
+        let rowSpan = 0;
+        let childRowSpans = [0];
+        if (header.subHeaders && header.subHeaders.length) {
+          childRowSpans = [];
+          recurseHeadersForSpans(header.subHeaders).forEach((_ref) => {
+            let {
+              colSpan: childColSpan,
+              rowSpan: childRowSpan
+            } = _ref;
+            colSpan += childColSpan;
+            childRowSpans.push(childRowSpan);
+          });
+        } else {
+          colSpan = 1;
+        }
+        const minChildRowSpan = Math.min(...childRowSpans);
+        rowSpan = rowSpan + minChildRowSpan;
+        header.colSpan = colSpan;
+        header.rowSpan = rowSpan;
+        return {
+          colSpan,
+          rowSpan
+        };
+      });
+    };
+    recurseHeadersForSpans((_headerGroups$0$heade = (_headerGroups$ = headerGroups[0]) == null ? void 0 : _headerGroups$.headers) != null ? _headerGroups$0$heade : []);
+    return headerGroups;
+  }
+  var createRow = (table, id, original, rowIndex, depth, subRows, parentId) => {
+    let row = {
+      id,
+      index: rowIndex,
+      original,
+      depth,
+      parentId,
+      _valuesCache: {},
+      _uniqueValuesCache: {},
+      getValue: (columnId) => {
+        if (row._valuesCache.hasOwnProperty(columnId)) {
+          return row._valuesCache[columnId];
+        }
+        const column = table.getColumn(columnId);
+        if (!(column != null && column.accessorFn)) {
+          return void 0;
+        }
+        row._valuesCache[columnId] = column.accessorFn(row.original, rowIndex);
+        return row._valuesCache[columnId];
+      },
+      getUniqueValues: (columnId) => {
+        if (row._uniqueValuesCache.hasOwnProperty(columnId)) {
+          return row._uniqueValuesCache[columnId];
+        }
+        const column = table.getColumn(columnId);
+        if (!(column != null && column.accessorFn)) {
+          return void 0;
+        }
+        if (!column.columnDef.getUniqueValues) {
+          row._uniqueValuesCache[columnId] = [row.getValue(columnId)];
+          return row._uniqueValuesCache[columnId];
+        }
+        row._uniqueValuesCache[columnId] = column.columnDef.getUniqueValues(row.original, rowIndex);
+        return row._uniqueValuesCache[columnId];
+      },
+      renderValue: (columnId) => {
+        var _row$getValue;
+        return (_row$getValue = row.getValue(columnId)) != null ? _row$getValue : table.options.renderFallbackValue;
+      },
+      subRows: subRows != null ? subRows : [],
+      getLeafRows: () => flattenBy(row.subRows, (d5) => d5.subRows),
+      getParentRow: () => row.parentId ? table.getRow(row.parentId, true) : void 0,
+      getParentRows: () => {
+        let parentRows = [];
+        let currentRow = row;
+        while (true) {
+          const parentRow = currentRow.getParentRow();
+          if (!parentRow) break;
+          parentRows.push(parentRow);
+          currentRow = parentRow;
+        }
+        return parentRows.reverse();
+      },
+      getAllCells: memo(() => [table.getAllLeafColumns()], (leafColumns) => {
+        return leafColumns.map((column) => {
+          return createCell(table, row, column, column.id);
+        });
+      }, getMemoOptions(table.options, "debugRows", "getAllCells")),
+      _getAllCellsByColumnId: memo(() => [row.getAllCells()], (allCells) => {
+        return allCells.reduce((acc, cell) => {
+          acc[cell.column.id] = cell;
+          return acc;
+        }, {});
+      }, getMemoOptions(table.options, "debugRows", "getAllCellsByColumnId"))
+    };
+    for (let i4 = 0; i4 < table._features.length; i4++) {
+      const feature = table._features[i4];
+      feature == null || feature.createRow == null || feature.createRow(row, table);
+    }
+    return row;
+  };
+  var ColumnFaceting = {
+    createColumn: (column, table) => {
+      column._getFacetedRowModel = table.options.getFacetedRowModel && table.options.getFacetedRowModel(table, column.id);
+      column.getFacetedRowModel = () => {
+        if (!column._getFacetedRowModel) {
+          return table.getPreFilteredRowModel();
+        }
+        return column._getFacetedRowModel();
+      };
+      column._getFacetedUniqueValues = table.options.getFacetedUniqueValues && table.options.getFacetedUniqueValues(table, column.id);
+      column.getFacetedUniqueValues = () => {
+        if (!column._getFacetedUniqueValues) {
+          return /* @__PURE__ */ new Map();
+        }
+        return column._getFacetedUniqueValues();
+      };
+      column._getFacetedMinMaxValues = table.options.getFacetedMinMaxValues && table.options.getFacetedMinMaxValues(table, column.id);
+      column.getFacetedMinMaxValues = () => {
+        if (!column._getFacetedMinMaxValues) {
+          return void 0;
+        }
+        return column._getFacetedMinMaxValues();
+      };
+    }
+  };
+  var includesString = (row, columnId, filterValue) => {
+    var _filterValue$toString, _row$getValue;
+    const search = filterValue == null || (_filterValue$toString = filterValue.toString()) == null ? void 0 : _filterValue$toString.toLowerCase();
+    return Boolean((_row$getValue = row.getValue(columnId)) == null || (_row$getValue = _row$getValue.toString()) == null || (_row$getValue = _row$getValue.toLowerCase()) == null ? void 0 : _row$getValue.includes(search));
+  };
+  includesString.autoRemove = (val) => testFalsey(val);
+  var includesStringSensitive = (row, columnId, filterValue) => {
+    var _row$getValue2;
+    return Boolean((_row$getValue2 = row.getValue(columnId)) == null || (_row$getValue2 = _row$getValue2.toString()) == null ? void 0 : _row$getValue2.includes(filterValue));
+  };
+  includesStringSensitive.autoRemove = (val) => testFalsey(val);
+  var equalsString = (row, columnId, filterValue) => {
+    var _row$getValue3;
+    return ((_row$getValue3 = row.getValue(columnId)) == null || (_row$getValue3 = _row$getValue3.toString()) == null ? void 0 : _row$getValue3.toLowerCase()) === (filterValue == null ? void 0 : filterValue.toLowerCase());
+  };
+  equalsString.autoRemove = (val) => testFalsey(val);
+  var arrIncludes = (row, columnId, filterValue) => {
+    var _row$getValue4;
+    return (_row$getValue4 = row.getValue(columnId)) == null ? void 0 : _row$getValue4.includes(filterValue);
+  };
+  arrIncludes.autoRemove = (val) => testFalsey(val);
+  var arrIncludesAll = (row, columnId, filterValue) => {
+    return !filterValue.some((val) => {
+      var _row$getValue5;
+      return !((_row$getValue5 = row.getValue(columnId)) != null && _row$getValue5.includes(val));
+    });
+  };
+  arrIncludesAll.autoRemove = (val) => testFalsey(val) || !(val != null && val.length);
+  var arrIncludesSome = (row, columnId, filterValue) => {
+    return filterValue.some((val) => {
+      var _row$getValue6;
+      return (_row$getValue6 = row.getValue(columnId)) == null ? void 0 : _row$getValue6.includes(val);
+    });
+  };
+  arrIncludesSome.autoRemove = (val) => testFalsey(val) || !(val != null && val.length);
+  var equals = (row, columnId, filterValue) => {
+    return row.getValue(columnId) === filterValue;
+  };
+  equals.autoRemove = (val) => testFalsey(val);
+  var weakEquals = (row, columnId, filterValue) => {
+    return row.getValue(columnId) == filterValue;
+  };
+  weakEquals.autoRemove = (val) => testFalsey(val);
+  var inNumberRange = (row, columnId, filterValue) => {
+    let [min2, max2] = filterValue;
+    const rowValue = row.getValue(columnId);
+    return rowValue >= min2 && rowValue <= max2;
+  };
+  inNumberRange.resolveFilterValue = (val) => {
+    let [unsafeMin, unsafeMax] = val;
+    let parsedMin = typeof unsafeMin !== "number" ? parseFloat(unsafeMin) : unsafeMin;
+    let parsedMax = typeof unsafeMax !== "number" ? parseFloat(unsafeMax) : unsafeMax;
+    let min2 = unsafeMin === null || Number.isNaN(parsedMin) ? -Infinity : parsedMin;
+    let max2 = unsafeMax === null || Number.isNaN(parsedMax) ? Infinity : parsedMax;
+    if (min2 > max2) {
+      const temp = min2;
+      min2 = max2;
+      max2 = temp;
+    }
+    return [min2, max2];
+  };
+  inNumberRange.autoRemove = (val) => testFalsey(val) || testFalsey(val[0]) && testFalsey(val[1]);
+  var filterFns = {
+    includesString,
+    includesStringSensitive,
+    equalsString,
+    arrIncludes,
+    arrIncludesAll,
+    arrIncludesSome,
+    equals,
+    weakEquals,
+    inNumberRange
+  };
+  function testFalsey(val) {
+    return val === void 0 || val === null || val === "";
+  }
+  var ColumnFiltering = {
+    getDefaultColumnDef: () => {
+      return {
+        filterFn: "auto"
+      };
+    },
+    getInitialState: (state) => {
+      return {
+        columnFilters: [],
+        ...state
+      };
+    },
+    getDefaultOptions: (table) => {
+      return {
+        onColumnFiltersChange: makeStateUpdater("columnFilters", table),
+        filterFromLeafRows: false,
+        maxLeafRowFilterDepth: 100
+      };
+    },
+    createColumn: (column, table) => {
+      column.getAutoFilterFn = () => {
+        const firstRow = table.getCoreRowModel().flatRows[0];
+        const value = firstRow == null ? void 0 : firstRow.getValue(column.id);
+        if (typeof value === "string") {
+          return filterFns.includesString;
+        }
+        if (typeof value === "number") {
+          return filterFns.inNumberRange;
+        }
+        if (typeof value === "boolean") {
+          return filterFns.equals;
+        }
+        if (value !== null && typeof value === "object") {
+          return filterFns.equals;
+        }
+        if (Array.isArray(value)) {
+          return filterFns.arrIncludes;
+        }
+        return filterFns.weakEquals;
+      };
+      column.getFilterFn = () => {
+        var _table$options$filter, _table$options$filter2;
+        return isFunction(column.columnDef.filterFn) ? column.columnDef.filterFn : column.columnDef.filterFn === "auto" ? column.getAutoFilterFn() : (
+          // @ts-ignore
+          (_table$options$filter = (_table$options$filter2 = table.options.filterFns) == null ? void 0 : _table$options$filter2[column.columnDef.filterFn]) != null ? _table$options$filter : filterFns[column.columnDef.filterFn]
+        );
+      };
+      column.getCanFilter = () => {
+        var _column$columnDef$ena, _table$options$enable, _table$options$enable2;
+        return ((_column$columnDef$ena = column.columnDef.enableColumnFilter) != null ? _column$columnDef$ena : true) && ((_table$options$enable = table.options.enableColumnFilters) != null ? _table$options$enable : true) && ((_table$options$enable2 = table.options.enableFilters) != null ? _table$options$enable2 : true) && !!column.accessorFn;
+      };
+      column.getIsFiltered = () => column.getFilterIndex() > -1;
+      column.getFilterValue = () => {
+        var _table$getState$colum;
+        return (_table$getState$colum = table.getState().columnFilters) == null || (_table$getState$colum = _table$getState$colum.find((d5) => d5.id === column.id)) == null ? void 0 : _table$getState$colum.value;
+      };
+      column.getFilterIndex = () => {
+        var _table$getState$colum2, _table$getState$colum3;
+        return (_table$getState$colum2 = (_table$getState$colum3 = table.getState().columnFilters) == null ? void 0 : _table$getState$colum3.findIndex((d5) => d5.id === column.id)) != null ? _table$getState$colum2 : -1;
+      };
+      column.setFilterValue = (value) => {
+        table.setColumnFilters((old) => {
+          const filterFn = column.getFilterFn();
+          const previousFilter = old == null ? void 0 : old.find((d5) => d5.id === column.id);
+          const newFilter = functionalUpdate(value, previousFilter ? previousFilter.value : void 0);
+          if (shouldAutoRemoveFilter(filterFn, newFilter, column)) {
+            var _old$filter;
+            return (_old$filter = old == null ? void 0 : old.filter((d5) => d5.id !== column.id)) != null ? _old$filter : [];
+          }
+          const newFilterObj = {
+            id: column.id,
+            value: newFilter
+          };
+          if (previousFilter) {
+            var _old$map;
+            return (_old$map = old == null ? void 0 : old.map((d5) => {
+              if (d5.id === column.id) {
+                return newFilterObj;
+              }
+              return d5;
+            })) != null ? _old$map : [];
+          }
+          if (old != null && old.length) {
+            return [...old, newFilterObj];
+          }
+          return [newFilterObj];
+        });
+      };
+    },
+    createRow: (row, _table) => {
+      row.columnFilters = {};
+      row.columnFiltersMeta = {};
+    },
+    createTable: (table) => {
+      table.setColumnFilters = (updater) => {
+        const leafColumns = table.getAllLeafColumns();
+        const updateFn = (old) => {
+          var _functionalUpdate;
+          return (_functionalUpdate = functionalUpdate(updater, old)) == null ? void 0 : _functionalUpdate.filter((filter) => {
+            const column = leafColumns.find((d5) => d5.id === filter.id);
+            if (column) {
+              const filterFn = column.getFilterFn();
+              if (shouldAutoRemoveFilter(filterFn, filter.value, column)) {
+                return false;
+              }
+            }
+            return true;
+          });
+        };
+        table.options.onColumnFiltersChange == null || table.options.onColumnFiltersChange(updateFn);
+      };
+      table.resetColumnFilters = (defaultState) => {
+        var _table$initialState$c, _table$initialState;
+        table.setColumnFilters(defaultState ? [] : (_table$initialState$c = (_table$initialState = table.initialState) == null ? void 0 : _table$initialState.columnFilters) != null ? _table$initialState$c : []);
+      };
+      table.getPreFilteredRowModel = () => table.getCoreRowModel();
+      table.getFilteredRowModel = () => {
+        if (!table._getFilteredRowModel && table.options.getFilteredRowModel) {
+          table._getFilteredRowModel = table.options.getFilteredRowModel(table);
+        }
+        if (table.options.manualFiltering || !table._getFilteredRowModel) {
+          return table.getPreFilteredRowModel();
+        }
+        return table._getFilteredRowModel();
+      };
+    }
+  };
+  function shouldAutoRemoveFilter(filterFn, value, column) {
+    return (filterFn && filterFn.autoRemove ? filterFn.autoRemove(value, column) : false) || typeof value === "undefined" || typeof value === "string" && !value;
+  }
+  var sum = (columnId, _leafRows, childRows) => {
+    return childRows.reduce((sum2, next) => {
+      const nextValue = next.getValue(columnId);
+      return sum2 + (typeof nextValue === "number" ? nextValue : 0);
+    }, 0);
+  };
+  var min = (columnId, _leafRows, childRows) => {
+    let min2;
+    childRows.forEach((row) => {
+      const value = row.getValue(columnId);
+      if (value != null && (min2 > value || min2 === void 0 && value >= value)) {
+        min2 = value;
+      }
+    });
+    return min2;
+  };
+  var max = (columnId, _leafRows, childRows) => {
+    let max2;
+    childRows.forEach((row) => {
+      const value = row.getValue(columnId);
+      if (value != null && (max2 < value || max2 === void 0 && value >= value)) {
+        max2 = value;
+      }
+    });
+    return max2;
+  };
+  var extent = (columnId, _leafRows, childRows) => {
+    let min2;
+    let max2;
+    childRows.forEach((row) => {
+      const value = row.getValue(columnId);
+      if (value != null) {
+        if (min2 === void 0) {
+          if (value >= value) min2 = max2 = value;
+        } else {
+          if (min2 > value) min2 = value;
+          if (max2 < value) max2 = value;
+        }
+      }
+    });
+    return [min2, max2];
+  };
+  var mean = (columnId, leafRows) => {
+    let count2 = 0;
+    let sum2 = 0;
+    leafRows.forEach((row) => {
+      let value = row.getValue(columnId);
+      if (value != null && (value = +value) >= value) {
+        ++count2, sum2 += value;
+      }
+    });
+    if (count2) return sum2 / count2;
+    return;
+  };
+  var median = (columnId, leafRows) => {
+    if (!leafRows.length) {
+      return;
+    }
+    const values = leafRows.map((row) => row.getValue(columnId));
+    if (!isNumberArray(values)) {
+      return;
+    }
+    if (values.length === 1) {
+      return values[0];
+    }
+    const mid = Math.floor(values.length / 2);
+    const nums = values.sort((a4, b4) => a4 - b4);
+    return values.length % 2 !== 0 ? nums[mid] : (nums[mid - 1] + nums[mid]) / 2;
+  };
+  var unique = (columnId, leafRows) => {
+    return Array.from(new Set(leafRows.map((d5) => d5.getValue(columnId))).values());
+  };
+  var uniqueCount = (columnId, leafRows) => {
+    return new Set(leafRows.map((d5) => d5.getValue(columnId))).size;
+  };
+  var count = (_columnId, leafRows) => {
+    return leafRows.length;
+  };
+  var aggregationFns = {
+    sum,
+    min,
+    max,
+    extent,
+    mean,
+    median,
+    unique,
+    uniqueCount,
+    count
+  };
+  var ColumnGrouping = {
+    getDefaultColumnDef: () => {
+      return {
+        aggregatedCell: (props) => {
+          var _toString, _props$getValue;
+          return (_toString = (_props$getValue = props.getValue()) == null || _props$getValue.toString == null ? void 0 : _props$getValue.toString()) != null ? _toString : null;
+        },
+        aggregationFn: "auto"
+      };
+    },
+    getInitialState: (state) => {
+      return {
+        grouping: [],
+        ...state
+      };
+    },
+    getDefaultOptions: (table) => {
+      return {
+        onGroupingChange: makeStateUpdater("grouping", table),
+        groupedColumnMode: "reorder"
+      };
+    },
+    createColumn: (column, table) => {
+      column.toggleGrouping = () => {
+        table.setGrouping((old) => {
+          if (old != null && old.includes(column.id)) {
+            return old.filter((d5) => d5 !== column.id);
+          }
+          return [...old != null ? old : [], column.id];
+        });
+      };
+      column.getCanGroup = () => {
+        var _column$columnDef$ena, _table$options$enable;
+        return ((_column$columnDef$ena = column.columnDef.enableGrouping) != null ? _column$columnDef$ena : true) && ((_table$options$enable = table.options.enableGrouping) != null ? _table$options$enable : true) && (!!column.accessorFn || !!column.columnDef.getGroupingValue);
+      };
+      column.getIsGrouped = () => {
+        var _table$getState$group;
+        return (_table$getState$group = table.getState().grouping) == null ? void 0 : _table$getState$group.includes(column.id);
+      };
+      column.getGroupedIndex = () => {
+        var _table$getState$group2;
+        return (_table$getState$group2 = table.getState().grouping) == null ? void 0 : _table$getState$group2.indexOf(column.id);
+      };
+      column.getToggleGroupingHandler = () => {
+        const canGroup = column.getCanGroup();
+        return () => {
+          if (!canGroup) return;
+          column.toggleGrouping();
+        };
+      };
+      column.getAutoAggregationFn = () => {
+        const firstRow = table.getCoreRowModel().flatRows[0];
+        const value = firstRow == null ? void 0 : firstRow.getValue(column.id);
+        if (typeof value === "number") {
+          return aggregationFns.sum;
+        }
+        if (Object.prototype.toString.call(value) === "[object Date]") {
+          return aggregationFns.extent;
+        }
+      };
+      column.getAggregationFn = () => {
+        var _table$options$aggreg, _table$options$aggreg2;
+        if (!column) {
+          throw new Error();
+        }
+        return isFunction(column.columnDef.aggregationFn) ? column.columnDef.aggregationFn : column.columnDef.aggregationFn === "auto" ? column.getAutoAggregationFn() : (_table$options$aggreg = (_table$options$aggreg2 = table.options.aggregationFns) == null ? void 0 : _table$options$aggreg2[column.columnDef.aggregationFn]) != null ? _table$options$aggreg : aggregationFns[column.columnDef.aggregationFn];
+      };
+    },
+    createTable: (table) => {
+      table.setGrouping = (updater) => table.options.onGroupingChange == null ? void 0 : table.options.onGroupingChange(updater);
+      table.resetGrouping = (defaultState) => {
+        var _table$initialState$g, _table$initialState;
+        table.setGrouping(defaultState ? [] : (_table$initialState$g = (_table$initialState = table.initialState) == null ? void 0 : _table$initialState.grouping) != null ? _table$initialState$g : []);
+      };
+      table.getPreGroupedRowModel = () => table.getFilteredRowModel();
+      table.getGroupedRowModel = () => {
+        if (!table._getGroupedRowModel && table.options.getGroupedRowModel) {
+          table._getGroupedRowModel = table.options.getGroupedRowModel(table);
+        }
+        if (table.options.manualGrouping || !table._getGroupedRowModel) {
+          return table.getPreGroupedRowModel();
+        }
+        return table._getGroupedRowModel();
+      };
+    },
+    createRow: (row, table) => {
+      row.getIsGrouped = () => !!row.groupingColumnId;
+      row.getGroupingValue = (columnId) => {
+        if (row._groupingValuesCache.hasOwnProperty(columnId)) {
+          return row._groupingValuesCache[columnId];
+        }
+        const column = table.getColumn(columnId);
+        if (!(column != null && column.columnDef.getGroupingValue)) {
+          return row.getValue(columnId);
+        }
+        row._groupingValuesCache[columnId] = column.columnDef.getGroupingValue(row.original);
+        return row._groupingValuesCache[columnId];
+      };
+      row._groupingValuesCache = {};
+    },
+    createCell: (cell, column, row, table) => {
+      cell.getIsGrouped = () => column.getIsGrouped() && column.id === row.groupingColumnId;
+      cell.getIsPlaceholder = () => !cell.getIsGrouped() && column.getIsGrouped();
+      cell.getIsAggregated = () => {
+        var _row$subRows;
+        return !cell.getIsGrouped() && !cell.getIsPlaceholder() && !!((_row$subRows = row.subRows) != null && _row$subRows.length);
+      };
+    }
+  };
+  function orderColumns(leafColumns, grouping, groupedColumnMode) {
+    if (!(grouping != null && grouping.length) || !groupedColumnMode) {
+      return leafColumns;
+    }
+    const nonGroupingColumns = leafColumns.filter((col) => !grouping.includes(col.id));
+    if (groupedColumnMode === "remove") {
+      return nonGroupingColumns;
+    }
+    const groupingColumns = grouping.map((g4) => leafColumns.find((col) => col.id === g4)).filter(Boolean);
+    return [...groupingColumns, ...nonGroupingColumns];
+  }
+  var ColumnOrdering = {
+    getInitialState: (state) => {
+      return {
+        columnOrder: [],
+        ...state
+      };
+    },
+    getDefaultOptions: (table) => {
+      return {
+        onColumnOrderChange: makeStateUpdater("columnOrder", table)
+      };
+    },
+    createColumn: (column, table) => {
+      column.getIndex = memo((position) => [_getVisibleLeafColumns(table, position)], (columns3) => columns3.findIndex((d5) => d5.id === column.id), getMemoOptions(table.options, "debugColumns", "getIndex"));
+      column.getIsFirstColumn = (position) => {
+        var _columns$;
+        const columns3 = _getVisibleLeafColumns(table, position);
+        return ((_columns$ = columns3[0]) == null ? void 0 : _columns$.id) === column.id;
+      };
+      column.getIsLastColumn = (position) => {
+        var _columns;
+        const columns3 = _getVisibleLeafColumns(table, position);
+        return ((_columns = columns3[columns3.length - 1]) == null ? void 0 : _columns.id) === column.id;
+      };
+    },
+    createTable: (table) => {
+      table.setColumnOrder = (updater) => table.options.onColumnOrderChange == null ? void 0 : table.options.onColumnOrderChange(updater);
+      table.resetColumnOrder = (defaultState) => {
+        var _table$initialState$c;
+        table.setColumnOrder(defaultState ? [] : (_table$initialState$c = table.initialState.columnOrder) != null ? _table$initialState$c : []);
+      };
+      table._getOrderColumnsFn = memo(() => [table.getState().columnOrder, table.getState().grouping, table.options.groupedColumnMode], (columnOrder, grouping, groupedColumnMode) => (columns3) => {
+        let orderedColumns = [];
+        if (!(columnOrder != null && columnOrder.length)) {
+          orderedColumns = columns3;
+        } else {
+          const columnOrderCopy = [...columnOrder];
+          const columnsCopy = [...columns3];
+          while (columnsCopy.length && columnOrderCopy.length) {
+            const targetColumnId = columnOrderCopy.shift();
+            const foundIndex = columnsCopy.findIndex((d5) => d5.id === targetColumnId);
+            if (foundIndex > -1) {
+              orderedColumns.push(columnsCopy.splice(foundIndex, 1)[0]);
+            }
+          }
+          orderedColumns = [...orderedColumns, ...columnsCopy];
+        }
+        return orderColumns(orderedColumns, grouping, groupedColumnMode);
+      }, getMemoOptions(table.options, "debugTable", "_getOrderColumnsFn"));
+    }
+  };
+  var getDefaultColumnPinningState = () => ({
+    left: [],
+    right: []
+  });
+  var ColumnPinning = {
+    getInitialState: (state) => {
+      return {
+        columnPinning: getDefaultColumnPinningState(),
+        ...state
+      };
+    },
+    getDefaultOptions: (table) => {
+      return {
+        onColumnPinningChange: makeStateUpdater("columnPinning", table)
+      };
+    },
+    createColumn: (column, table) => {
+      column.pin = (position) => {
+        const columnIds = column.getLeafColumns().map((d5) => d5.id).filter(Boolean);
+        table.setColumnPinning((old) => {
+          var _old$left3, _old$right3;
+          if (position === "right") {
+            var _old$left, _old$right;
+            return {
+              left: ((_old$left = old == null ? void 0 : old.left) != null ? _old$left : []).filter((d5) => !(columnIds != null && columnIds.includes(d5))),
+              right: [...((_old$right = old == null ? void 0 : old.right) != null ? _old$right : []).filter((d5) => !(columnIds != null && columnIds.includes(d5))), ...columnIds]
+            };
+          }
+          if (position === "left") {
+            var _old$left2, _old$right2;
+            return {
+              left: [...((_old$left2 = old == null ? void 0 : old.left) != null ? _old$left2 : []).filter((d5) => !(columnIds != null && columnIds.includes(d5))), ...columnIds],
+              right: ((_old$right2 = old == null ? void 0 : old.right) != null ? _old$right2 : []).filter((d5) => !(columnIds != null && columnIds.includes(d5)))
+            };
+          }
+          return {
+            left: ((_old$left3 = old == null ? void 0 : old.left) != null ? _old$left3 : []).filter((d5) => !(columnIds != null && columnIds.includes(d5))),
+            right: ((_old$right3 = old == null ? void 0 : old.right) != null ? _old$right3 : []).filter((d5) => !(columnIds != null && columnIds.includes(d5)))
+          };
+        });
+      };
+      column.getCanPin = () => {
+        const leafColumns = column.getLeafColumns();
+        return leafColumns.some((d5) => {
+          var _d$columnDef$enablePi, _ref, _table$options$enable;
+          return ((_d$columnDef$enablePi = d5.columnDef.enablePinning) != null ? _d$columnDef$enablePi : true) && ((_ref = (_table$options$enable = table.options.enableColumnPinning) != null ? _table$options$enable : table.options.enablePinning) != null ? _ref : true);
+        });
+      };
+      column.getIsPinned = () => {
+        const leafColumnIds = column.getLeafColumns().map((d5) => d5.id);
+        const {
+          left,
+          right
+        } = table.getState().columnPinning;
+        const isLeft = leafColumnIds.some((d5) => left == null ? void 0 : left.includes(d5));
+        const isRight = leafColumnIds.some((d5) => right == null ? void 0 : right.includes(d5));
+        return isLeft ? "left" : isRight ? "right" : false;
+      };
+      column.getPinnedIndex = () => {
+        var _table$getState$colum, _table$getState$colum2;
+        const position = column.getIsPinned();
+        return position ? (_table$getState$colum = (_table$getState$colum2 = table.getState().columnPinning) == null || (_table$getState$colum2 = _table$getState$colum2[position]) == null ? void 0 : _table$getState$colum2.indexOf(column.id)) != null ? _table$getState$colum : -1 : 0;
+      };
+    },
+    createRow: (row, table) => {
+      row.getCenterVisibleCells = memo(() => [row._getAllVisibleCells(), table.getState().columnPinning.left, table.getState().columnPinning.right], (allCells, left, right) => {
+        const leftAndRight = [...left != null ? left : [], ...right != null ? right : []];
+        return allCells.filter((d5) => !leftAndRight.includes(d5.column.id));
+      }, getMemoOptions(table.options, "debugRows", "getCenterVisibleCells"));
+      row.getLeftVisibleCells = memo(() => [row._getAllVisibleCells(), table.getState().columnPinning.left], (allCells, left) => {
+        const cells = (left != null ? left : []).map((columnId) => allCells.find((cell) => cell.column.id === columnId)).filter(Boolean).map((d5) => ({
+          ...d5,
+          position: "left"
+        }));
+        return cells;
+      }, getMemoOptions(table.options, "debugRows", "getLeftVisibleCells"));
+      row.getRightVisibleCells = memo(() => [row._getAllVisibleCells(), table.getState().columnPinning.right], (allCells, right) => {
+        const cells = (right != null ? right : []).map((columnId) => allCells.find((cell) => cell.column.id === columnId)).filter(Boolean).map((d5) => ({
+          ...d5,
+          position: "right"
+        }));
+        return cells;
+      }, getMemoOptions(table.options, "debugRows", "getRightVisibleCells"));
+    },
+    createTable: (table) => {
+      table.setColumnPinning = (updater) => table.options.onColumnPinningChange == null ? void 0 : table.options.onColumnPinningChange(updater);
+      table.resetColumnPinning = (defaultState) => {
+        var _table$initialState$c, _table$initialState;
+        return table.setColumnPinning(defaultState ? getDefaultColumnPinningState() : (_table$initialState$c = (_table$initialState = table.initialState) == null ? void 0 : _table$initialState.columnPinning) != null ? _table$initialState$c : getDefaultColumnPinningState());
+      };
+      table.getIsSomeColumnsPinned = (position) => {
+        var _pinningState$positio;
+        const pinningState = table.getState().columnPinning;
+        if (!position) {
+          var _pinningState$left, _pinningState$right;
+          return Boolean(((_pinningState$left = pinningState.left) == null ? void 0 : _pinningState$left.length) || ((_pinningState$right = pinningState.right) == null ? void 0 : _pinningState$right.length));
+        }
+        return Boolean((_pinningState$positio = pinningState[position]) == null ? void 0 : _pinningState$positio.length);
+      };
+      table.getLeftLeafColumns = memo(() => [table.getAllLeafColumns(), table.getState().columnPinning.left], (allColumns, left) => {
+        return (left != null ? left : []).map((columnId) => allColumns.find((column) => column.id === columnId)).filter(Boolean);
+      }, getMemoOptions(table.options, "debugColumns", "getLeftLeafColumns"));
+      table.getRightLeafColumns = memo(() => [table.getAllLeafColumns(), table.getState().columnPinning.right], (allColumns, right) => {
+        return (right != null ? right : []).map((columnId) => allColumns.find((column) => column.id === columnId)).filter(Boolean);
+      }, getMemoOptions(table.options, "debugColumns", "getRightLeafColumns"));
+      table.getCenterLeafColumns = memo(() => [table.getAllLeafColumns(), table.getState().columnPinning.left, table.getState().columnPinning.right], (allColumns, left, right) => {
+        const leftAndRight = [...left != null ? left : [], ...right != null ? right : []];
+        return allColumns.filter((d5) => !leftAndRight.includes(d5.id));
+      }, getMemoOptions(table.options, "debugColumns", "getCenterLeafColumns"));
+    }
+  };
+  function safelyAccessDocument(_document) {
+    return _document || (typeof document !== "undefined" ? document : null);
+  }
+  var defaultColumnSizing = {
+    size: 150,
+    minSize: 20,
+    maxSize: Number.MAX_SAFE_INTEGER
+  };
+  var getDefaultColumnSizingInfoState = () => ({
+    startOffset: null,
+    startSize: null,
+    deltaOffset: null,
+    deltaPercentage: null,
+    isResizingColumn: false,
+    columnSizingStart: []
+  });
+  var ColumnSizing = {
+    getDefaultColumnDef: () => {
+      return defaultColumnSizing;
+    },
+    getInitialState: (state) => {
+      return {
+        columnSizing: {},
+        columnSizingInfo: getDefaultColumnSizingInfoState(),
+        ...state
+      };
+    },
+    getDefaultOptions: (table) => {
+      return {
+        columnResizeMode: "onEnd",
+        columnResizeDirection: "ltr",
+        onColumnSizingChange: makeStateUpdater("columnSizing", table),
+        onColumnSizingInfoChange: makeStateUpdater("columnSizingInfo", table)
+      };
+    },
+    createColumn: (column, table) => {
+      column.getSize = () => {
+        var _column$columnDef$min, _ref, _column$columnDef$max;
+        const columnSize = table.getState().columnSizing[column.id];
+        return Math.min(Math.max((_column$columnDef$min = column.columnDef.minSize) != null ? _column$columnDef$min : defaultColumnSizing.minSize, (_ref = columnSize != null ? columnSize : column.columnDef.size) != null ? _ref : defaultColumnSizing.size), (_column$columnDef$max = column.columnDef.maxSize) != null ? _column$columnDef$max : defaultColumnSizing.maxSize);
+      };
+      column.getStart = memo((position) => [position, _getVisibleLeafColumns(table, position), table.getState().columnSizing], (position, columns3) => columns3.slice(0, column.getIndex(position)).reduce((sum2, column2) => sum2 + column2.getSize(), 0), getMemoOptions(table.options, "debugColumns", "getStart"));
+      column.getAfter = memo((position) => [position, _getVisibleLeafColumns(table, position), table.getState().columnSizing], (position, columns3) => columns3.slice(column.getIndex(position) + 1).reduce((sum2, column2) => sum2 + column2.getSize(), 0), getMemoOptions(table.options, "debugColumns", "getAfter"));
+      column.resetSize = () => {
+        table.setColumnSizing((_ref2) => {
+          let {
+            [column.id]: _4,
+            ...rest
+          } = _ref2;
+          return rest;
+        });
+      };
+      column.getCanResize = () => {
+        var _column$columnDef$ena, _table$options$enable;
+        return ((_column$columnDef$ena = column.columnDef.enableResizing) != null ? _column$columnDef$ena : true) && ((_table$options$enable = table.options.enableColumnResizing) != null ? _table$options$enable : true);
+      };
+      column.getIsResizing = () => {
+        return table.getState().columnSizingInfo.isResizingColumn === column.id;
+      };
+    },
+    createHeader: (header, table) => {
+      header.getSize = () => {
+        let sum2 = 0;
+        const recurse = (header2) => {
+          if (header2.subHeaders.length) {
+            header2.subHeaders.forEach(recurse);
+          } else {
+            var _header$column$getSiz;
+            sum2 += (_header$column$getSiz = header2.column.getSize()) != null ? _header$column$getSiz : 0;
+          }
+        };
+        recurse(header);
+        return sum2;
+      };
+      header.getStart = () => {
+        if (header.index > 0) {
+          const prevSiblingHeader = header.headerGroup.headers[header.index - 1];
+          return prevSiblingHeader.getStart() + prevSiblingHeader.getSize();
+        }
+        return 0;
+      };
+      header.getResizeHandler = (_contextDocument) => {
+        const column = table.getColumn(header.column.id);
+        const canResize = column == null ? void 0 : column.getCanResize();
+        return (e4) => {
+          if (!column || !canResize) {
+            return;
+          }
+          e4.persist == null || e4.persist();
+          if (isTouchStartEvent(e4)) {
+            if (e4.touches && e4.touches.length > 1) {
+              return;
+            }
+          }
+          const startSize = header.getSize();
+          const columnSizingStart = header ? header.getLeafHeaders().map((d5) => [d5.column.id, d5.column.getSize()]) : [[column.id, column.getSize()]];
+          const clientX = isTouchStartEvent(e4) ? Math.round(e4.touches[0].clientX) : e4.clientX;
+          const newColumnSizing = {};
+          const updateOffset = (eventType, clientXPos) => {
+            if (typeof clientXPos !== "number") {
+              return;
+            }
+            table.setColumnSizingInfo((old) => {
+              var _old$startOffset, _old$startSize;
+              const deltaDirection = table.options.columnResizeDirection === "rtl" ? -1 : 1;
+              const deltaOffset = (clientXPos - ((_old$startOffset = old == null ? void 0 : old.startOffset) != null ? _old$startOffset : 0)) * deltaDirection;
+              const deltaPercentage = Math.max(deltaOffset / ((_old$startSize = old == null ? void 0 : old.startSize) != null ? _old$startSize : 0), -0.999999);
+              old.columnSizingStart.forEach((_ref3) => {
+                let [columnId, headerSize] = _ref3;
+                newColumnSizing[columnId] = Math.round(Math.max(headerSize + headerSize * deltaPercentage, 0) * 100) / 100;
+              });
+              return {
+                ...old,
+                deltaOffset,
+                deltaPercentage
+              };
+            });
+            if (table.options.columnResizeMode === "onChange" || eventType === "end") {
+              table.setColumnSizing((old) => ({
+                ...old,
+                ...newColumnSizing
+              }));
+            }
+          };
+          const onMove = (clientXPos) => updateOffset("move", clientXPos);
+          const onEnd = (clientXPos) => {
+            updateOffset("end", clientXPos);
+            table.setColumnSizingInfo((old) => ({
+              ...old,
+              isResizingColumn: false,
+              startOffset: null,
+              startSize: null,
+              deltaOffset: null,
+              deltaPercentage: null,
+              columnSizingStart: []
+            }));
+          };
+          const contextDocument = safelyAccessDocument(_contextDocument);
+          const mouseEvents = {
+            moveHandler: (e5) => onMove(e5.clientX),
+            upHandler: (e5) => {
+              contextDocument == null || contextDocument.removeEventListener("mousemove", mouseEvents.moveHandler);
+              contextDocument == null || contextDocument.removeEventListener("mouseup", mouseEvents.upHandler);
+              onEnd(e5.clientX);
+            }
+          };
+          const touchEvents = {
+            moveHandler: (e5) => {
+              if (e5.cancelable) {
+                e5.preventDefault();
+                e5.stopPropagation();
+              }
+              onMove(e5.touches[0].clientX);
+              return false;
+            },
+            upHandler: (e5) => {
+              var _e$touches$;
+              contextDocument == null || contextDocument.removeEventListener("touchmove", touchEvents.moveHandler);
+              contextDocument == null || contextDocument.removeEventListener("touchend", touchEvents.upHandler);
+              if (e5.cancelable) {
+                e5.preventDefault();
+                e5.stopPropagation();
+              }
+              onEnd((_e$touches$ = e5.touches[0]) == null ? void 0 : _e$touches$.clientX);
+            }
+          };
+          const passiveIfSupported = passiveEventSupported() ? {
+            passive: false
+          } : false;
+          if (isTouchStartEvent(e4)) {
+            contextDocument == null || contextDocument.addEventListener("touchmove", touchEvents.moveHandler, passiveIfSupported);
+            contextDocument == null || contextDocument.addEventListener("touchend", touchEvents.upHandler, passiveIfSupported);
+          } else {
+            contextDocument == null || contextDocument.addEventListener("mousemove", mouseEvents.moveHandler, passiveIfSupported);
+            contextDocument == null || contextDocument.addEventListener("mouseup", mouseEvents.upHandler, passiveIfSupported);
+          }
+          table.setColumnSizingInfo((old) => ({
+            ...old,
+            startOffset: clientX,
+            startSize,
+            deltaOffset: 0,
+            deltaPercentage: 0,
+            columnSizingStart,
+            isResizingColumn: column.id
+          }));
+        };
+      };
+    },
+    createTable: (table) => {
+      table.setColumnSizing = (updater) => table.options.onColumnSizingChange == null ? void 0 : table.options.onColumnSizingChange(updater);
+      table.setColumnSizingInfo = (updater) => table.options.onColumnSizingInfoChange == null ? void 0 : table.options.onColumnSizingInfoChange(updater);
+      table.resetColumnSizing = (defaultState) => {
+        var _table$initialState$c;
+        table.setColumnSizing(defaultState ? {} : (_table$initialState$c = table.initialState.columnSizing) != null ? _table$initialState$c : {});
+      };
+      table.resetHeaderSizeInfo = (defaultState) => {
+        var _table$initialState$c2;
+        table.setColumnSizingInfo(defaultState ? getDefaultColumnSizingInfoState() : (_table$initialState$c2 = table.initialState.columnSizingInfo) != null ? _table$initialState$c2 : getDefaultColumnSizingInfoState());
+      };
+      table.getTotalSize = () => {
+        var _table$getHeaderGroup, _table$getHeaderGroup2;
+        return (_table$getHeaderGroup = (_table$getHeaderGroup2 = table.getHeaderGroups()[0]) == null ? void 0 : _table$getHeaderGroup2.headers.reduce((sum2, header) => {
+          return sum2 + header.getSize();
+        }, 0)) != null ? _table$getHeaderGroup : 0;
+      };
+      table.getLeftTotalSize = () => {
+        var _table$getLeftHeaderG, _table$getLeftHeaderG2;
+        return (_table$getLeftHeaderG = (_table$getLeftHeaderG2 = table.getLeftHeaderGroups()[0]) == null ? void 0 : _table$getLeftHeaderG2.headers.reduce((sum2, header) => {
+          return sum2 + header.getSize();
+        }, 0)) != null ? _table$getLeftHeaderG : 0;
+      };
+      table.getCenterTotalSize = () => {
+        var _table$getCenterHeade, _table$getCenterHeade2;
+        return (_table$getCenterHeade = (_table$getCenterHeade2 = table.getCenterHeaderGroups()[0]) == null ? void 0 : _table$getCenterHeade2.headers.reduce((sum2, header) => {
+          return sum2 + header.getSize();
+        }, 0)) != null ? _table$getCenterHeade : 0;
+      };
+      table.getRightTotalSize = () => {
+        var _table$getRightHeader, _table$getRightHeader2;
+        return (_table$getRightHeader = (_table$getRightHeader2 = table.getRightHeaderGroups()[0]) == null ? void 0 : _table$getRightHeader2.headers.reduce((sum2, header) => {
+          return sum2 + header.getSize();
+        }, 0)) != null ? _table$getRightHeader : 0;
+      };
+    }
+  };
+  var passiveSupported = null;
+  function passiveEventSupported() {
+    if (typeof passiveSupported === "boolean") return passiveSupported;
+    let supported = false;
+    try {
+      const options = {
+        get passive() {
+          supported = true;
+          return false;
+        }
+      };
+      const noop = () => {
+      };
+      window.addEventListener("test", noop, options);
+      window.removeEventListener("test", noop);
+    } catch (err) {
+      supported = false;
+    }
+    passiveSupported = supported;
+    return passiveSupported;
+  }
+  function isTouchStartEvent(e4) {
+    return e4.type === "touchstart";
+  }
+  var ColumnVisibility = {
+    getInitialState: (state) => {
+      return {
+        columnVisibility: {},
+        ...state
+      };
+    },
+    getDefaultOptions: (table) => {
+      return {
+        onColumnVisibilityChange: makeStateUpdater("columnVisibility", table)
+      };
+    },
+    createColumn: (column, table) => {
+      column.toggleVisibility = (value) => {
+        if (column.getCanHide()) {
+          table.setColumnVisibility((old) => ({
+            ...old,
+            [column.id]: value != null ? value : !column.getIsVisible()
+          }));
+        }
+      };
+      column.getIsVisible = () => {
+        var _ref, _table$getState$colum;
+        const childColumns = column.columns;
+        return (_ref = childColumns.length ? childColumns.some((c4) => c4.getIsVisible()) : (_table$getState$colum = table.getState().columnVisibility) == null ? void 0 : _table$getState$colum[column.id]) != null ? _ref : true;
+      };
+      column.getCanHide = () => {
+        var _column$columnDef$ena, _table$options$enable;
+        return ((_column$columnDef$ena = column.columnDef.enableHiding) != null ? _column$columnDef$ena : true) && ((_table$options$enable = table.options.enableHiding) != null ? _table$options$enable : true);
+      };
+      column.getToggleVisibilityHandler = () => {
+        return (e4) => {
+          column.toggleVisibility == null || column.toggleVisibility(e4.target.checked);
+        };
+      };
+    },
+    createRow: (row, table) => {
+      row._getAllVisibleCells = memo(() => [row.getAllCells(), table.getState().columnVisibility], (cells) => {
+        return cells.filter((cell) => cell.column.getIsVisible());
+      }, getMemoOptions(table.options, "debugRows", "_getAllVisibleCells"));
+      row.getVisibleCells = memo(() => [row.getLeftVisibleCells(), row.getCenterVisibleCells(), row.getRightVisibleCells()], (left, center, right) => [...left, ...center, ...right], getMemoOptions(table.options, "debugRows", "getVisibleCells"));
+    },
+    createTable: (table) => {
+      const makeVisibleColumnsMethod = (key, getColumns) => {
+        return memo(() => [getColumns(), getColumns().filter((d5) => d5.getIsVisible()).map((d5) => d5.id).join("_")], (columns3) => {
+          return columns3.filter((d5) => d5.getIsVisible == null ? void 0 : d5.getIsVisible());
+        }, getMemoOptions(table.options, "debugColumns", key));
+      };
+      table.getVisibleFlatColumns = makeVisibleColumnsMethod("getVisibleFlatColumns", () => table.getAllFlatColumns());
+      table.getVisibleLeafColumns = makeVisibleColumnsMethod("getVisibleLeafColumns", () => table.getAllLeafColumns());
+      table.getLeftVisibleLeafColumns = makeVisibleColumnsMethod("getLeftVisibleLeafColumns", () => table.getLeftLeafColumns());
+      table.getRightVisibleLeafColumns = makeVisibleColumnsMethod("getRightVisibleLeafColumns", () => table.getRightLeafColumns());
+      table.getCenterVisibleLeafColumns = makeVisibleColumnsMethod("getCenterVisibleLeafColumns", () => table.getCenterLeafColumns());
+      table.setColumnVisibility = (updater) => table.options.onColumnVisibilityChange == null ? void 0 : table.options.onColumnVisibilityChange(updater);
+      table.resetColumnVisibility = (defaultState) => {
+        var _table$initialState$c;
+        table.setColumnVisibility(defaultState ? {} : (_table$initialState$c = table.initialState.columnVisibility) != null ? _table$initialState$c : {});
+      };
+      table.toggleAllColumnsVisible = (value) => {
+        var _value;
+        value = (_value = value) != null ? _value : !table.getIsAllColumnsVisible();
+        table.setColumnVisibility(table.getAllLeafColumns().reduce((obj, column) => ({
+          ...obj,
+          [column.id]: !value ? !(column.getCanHide != null && column.getCanHide()) : value
+        }), {}));
+      };
+      table.getIsAllColumnsVisible = () => !table.getAllLeafColumns().some((column) => !(column.getIsVisible != null && column.getIsVisible()));
+      table.getIsSomeColumnsVisible = () => table.getAllLeafColumns().some((column) => column.getIsVisible == null ? void 0 : column.getIsVisible());
+      table.getToggleAllColumnsVisibilityHandler = () => {
+        return (e4) => {
+          var _target;
+          table.toggleAllColumnsVisible((_target = e4.target) == null ? void 0 : _target.checked);
+        };
+      };
+    }
+  };
+  function _getVisibleLeafColumns(table, position) {
+    return !position ? table.getVisibleLeafColumns() : position === "center" ? table.getCenterVisibleLeafColumns() : position === "left" ? table.getLeftVisibleLeafColumns() : table.getRightVisibleLeafColumns();
+  }
+  var GlobalFaceting = {
+    createTable: (table) => {
+      table._getGlobalFacetedRowModel = table.options.getFacetedRowModel && table.options.getFacetedRowModel(table, "__global__");
+      table.getGlobalFacetedRowModel = () => {
+        if (table.options.manualFiltering || !table._getGlobalFacetedRowModel) {
+          return table.getPreFilteredRowModel();
+        }
+        return table._getGlobalFacetedRowModel();
+      };
+      table._getGlobalFacetedUniqueValues = table.options.getFacetedUniqueValues && table.options.getFacetedUniqueValues(table, "__global__");
+      table.getGlobalFacetedUniqueValues = () => {
+        if (!table._getGlobalFacetedUniqueValues) {
+          return /* @__PURE__ */ new Map();
+        }
+        return table._getGlobalFacetedUniqueValues();
+      };
+      table._getGlobalFacetedMinMaxValues = table.options.getFacetedMinMaxValues && table.options.getFacetedMinMaxValues(table, "__global__");
+      table.getGlobalFacetedMinMaxValues = () => {
+        if (!table._getGlobalFacetedMinMaxValues) {
+          return;
+        }
+        return table._getGlobalFacetedMinMaxValues();
+      };
+    }
+  };
+  var GlobalFiltering = {
+    getInitialState: (state) => {
+      return {
+        globalFilter: void 0,
+        ...state
+      };
+    },
+    getDefaultOptions: (table) => {
+      return {
+        onGlobalFilterChange: makeStateUpdater("globalFilter", table),
+        globalFilterFn: "auto",
+        getColumnCanGlobalFilter: (column) => {
+          var _table$getCoreRowMode;
+          const value = (_table$getCoreRowMode = table.getCoreRowModel().flatRows[0]) == null || (_table$getCoreRowMode = _table$getCoreRowMode._getAllCellsByColumnId()[column.id]) == null ? void 0 : _table$getCoreRowMode.getValue();
+          return typeof value === "string" || typeof value === "number";
+        }
+      };
+    },
+    createColumn: (column, table) => {
+      column.getCanGlobalFilter = () => {
+        var _column$columnDef$ena, _table$options$enable, _table$options$enable2, _table$options$getCol;
+        return ((_column$columnDef$ena = column.columnDef.enableGlobalFilter) != null ? _column$columnDef$ena : true) && ((_table$options$enable = table.options.enableGlobalFilter) != null ? _table$options$enable : true) && ((_table$options$enable2 = table.options.enableFilters) != null ? _table$options$enable2 : true) && ((_table$options$getCol = table.options.getColumnCanGlobalFilter == null ? void 0 : table.options.getColumnCanGlobalFilter(column)) != null ? _table$options$getCol : true) && !!column.accessorFn;
+      };
+    },
+    createTable: (table) => {
+      table.getGlobalAutoFilterFn = () => {
+        return filterFns.includesString;
+      };
+      table.getGlobalFilterFn = () => {
+        var _table$options$filter, _table$options$filter2;
+        const {
+          globalFilterFn
+        } = table.options;
+        return isFunction(globalFilterFn) ? globalFilterFn : globalFilterFn === "auto" ? table.getGlobalAutoFilterFn() : (_table$options$filter = (_table$options$filter2 = table.options.filterFns) == null ? void 0 : _table$options$filter2[globalFilterFn]) != null ? _table$options$filter : filterFns[globalFilterFn];
+      };
+      table.setGlobalFilter = (updater) => {
+        table.options.onGlobalFilterChange == null || table.options.onGlobalFilterChange(updater);
+      };
+      table.resetGlobalFilter = (defaultState) => {
+        table.setGlobalFilter(defaultState ? void 0 : table.initialState.globalFilter);
+      };
+    }
+  };
+  var RowExpanding = {
+    getInitialState: (state) => {
+      return {
+        expanded: {},
+        ...state
+      };
+    },
+    getDefaultOptions: (table) => {
+      return {
+        onExpandedChange: makeStateUpdater("expanded", table),
+        paginateExpandedRows: true
+      };
+    },
+    createTable: (table) => {
+      let registered = false;
+      let queued = false;
+      table._autoResetExpanded = () => {
+        var _ref, _table$options$autoRe;
+        if (!registered) {
+          table._queue(() => {
+            registered = true;
+          });
+          return;
+        }
+        if ((_ref = (_table$options$autoRe = table.options.autoResetAll) != null ? _table$options$autoRe : table.options.autoResetExpanded) != null ? _ref : !table.options.manualExpanding) {
+          if (queued) return;
+          queued = true;
+          table._queue(() => {
+            table.resetExpanded();
+            queued = false;
+          });
+        }
+      };
+      table.setExpanded = (updater) => table.options.onExpandedChange == null ? void 0 : table.options.onExpandedChange(updater);
+      table.toggleAllRowsExpanded = (expanded) => {
+        if (expanded != null ? expanded : !table.getIsAllRowsExpanded()) {
+          table.setExpanded(true);
+        } else {
+          table.setExpanded({});
+        }
+      };
+      table.resetExpanded = (defaultState) => {
+        var _table$initialState$e, _table$initialState;
+        table.setExpanded(defaultState ? {} : (_table$initialState$e = (_table$initialState = table.initialState) == null ? void 0 : _table$initialState.expanded) != null ? _table$initialState$e : {});
+      };
+      table.getCanSomeRowsExpand = () => {
+        return table.getPrePaginationRowModel().flatRows.some((row) => row.getCanExpand());
+      };
+      table.getToggleAllRowsExpandedHandler = () => {
+        return (e4) => {
+          e4.persist == null || e4.persist();
+          table.toggleAllRowsExpanded();
+        };
+      };
+      table.getIsSomeRowsExpanded = () => {
+        const expanded = table.getState().expanded;
+        return expanded === true || Object.values(expanded).some(Boolean);
+      };
+      table.getIsAllRowsExpanded = () => {
+        const expanded = table.getState().expanded;
+        if (typeof expanded === "boolean") {
+          return expanded === true;
+        }
+        if (!Object.keys(expanded).length) {
+          return false;
+        }
+        if (table.getRowModel().flatRows.some((row) => !row.getIsExpanded())) {
+          return false;
+        }
+        return true;
+      };
+      table.getExpandedDepth = () => {
+        let maxDepth = 0;
+        const rowIds = table.getState().expanded === true ? Object.keys(table.getRowModel().rowsById) : Object.keys(table.getState().expanded);
+        rowIds.forEach((id) => {
+          const splitId = id.split(".");
+          maxDepth = Math.max(maxDepth, splitId.length);
+        });
+        return maxDepth;
+      };
+      table.getPreExpandedRowModel = () => table.getSortedRowModel();
+      table.getExpandedRowModel = () => {
+        if (!table._getExpandedRowModel && table.options.getExpandedRowModel) {
+          table._getExpandedRowModel = table.options.getExpandedRowModel(table);
+        }
+        if (table.options.manualExpanding || !table._getExpandedRowModel) {
+          return table.getPreExpandedRowModel();
+        }
+        return table._getExpandedRowModel();
+      };
+    },
+    createRow: (row, table) => {
+      row.toggleExpanded = (expanded) => {
+        table.setExpanded((old) => {
+          var _expanded;
+          const exists = old === true ? true : !!(old != null && old[row.id]);
+          let oldExpanded = {};
+          if (old === true) {
+            Object.keys(table.getRowModel().rowsById).forEach((rowId) => {
+              oldExpanded[rowId] = true;
+            });
+          } else {
+            oldExpanded = old;
+          }
+          expanded = (_expanded = expanded) != null ? _expanded : !exists;
+          if (!exists && expanded) {
+            return {
+              ...oldExpanded,
+              [row.id]: true
+            };
+          }
+          if (exists && !expanded) {
+            const {
+              [row.id]: _4,
+              ...rest
+            } = oldExpanded;
+            return rest;
+          }
+          return old;
+        });
+      };
+      row.getIsExpanded = () => {
+        var _table$options$getIsR;
+        const expanded = table.getState().expanded;
+        return !!((_table$options$getIsR = table.options.getIsRowExpanded == null ? void 0 : table.options.getIsRowExpanded(row)) != null ? _table$options$getIsR : expanded === true || (expanded == null ? void 0 : expanded[row.id]));
+      };
+      row.getCanExpand = () => {
+        var _table$options$getRow, _table$options$enable, _row$subRows;
+        return (_table$options$getRow = table.options.getRowCanExpand == null ? void 0 : table.options.getRowCanExpand(row)) != null ? _table$options$getRow : ((_table$options$enable = table.options.enableExpanding) != null ? _table$options$enable : true) && !!((_row$subRows = row.subRows) != null && _row$subRows.length);
+      };
+      row.getIsAllParentsExpanded = () => {
+        let isFullyExpanded = true;
+        let currentRow = row;
+        while (isFullyExpanded && currentRow.parentId) {
+          currentRow = table.getRow(currentRow.parentId, true);
+          isFullyExpanded = currentRow.getIsExpanded();
+        }
+        return isFullyExpanded;
+      };
+      row.getToggleExpandedHandler = () => {
+        const canExpand = row.getCanExpand();
+        return () => {
+          if (!canExpand) return;
+          row.toggleExpanded();
+        };
+      };
+    }
+  };
+  var defaultPageIndex = 0;
+  var defaultPageSize = 10;
+  var getDefaultPaginationState = () => ({
+    pageIndex: defaultPageIndex,
+    pageSize: defaultPageSize
+  });
+  var RowPagination = {
+    getInitialState: (state) => {
+      return {
+        ...state,
+        pagination: {
+          ...getDefaultPaginationState(),
+          ...state == null ? void 0 : state.pagination
+        }
+      };
+    },
+    getDefaultOptions: (table) => {
+      return {
+        onPaginationChange: makeStateUpdater("pagination", table)
+      };
+    },
+    createTable: (table) => {
+      let registered = false;
+      let queued = false;
+      table._autoResetPageIndex = () => {
+        var _ref, _table$options$autoRe;
+        if (!registered) {
+          table._queue(() => {
+            registered = true;
+          });
+          return;
+        }
+        if ((_ref = (_table$options$autoRe = table.options.autoResetAll) != null ? _table$options$autoRe : table.options.autoResetPageIndex) != null ? _ref : !table.options.manualPagination) {
+          if (queued) return;
+          queued = true;
+          table._queue(() => {
+            table.resetPageIndex();
+            queued = false;
+          });
+        }
+      };
+      table.setPagination = (updater) => {
+        const safeUpdater = (old) => {
+          let newState = functionalUpdate(updater, old);
+          return newState;
+        };
+        return table.options.onPaginationChange == null ? void 0 : table.options.onPaginationChange(safeUpdater);
+      };
+      table.resetPagination = (defaultState) => {
+        var _table$initialState$p;
+        table.setPagination(defaultState ? getDefaultPaginationState() : (_table$initialState$p = table.initialState.pagination) != null ? _table$initialState$p : getDefaultPaginationState());
+      };
+      table.setPageIndex = (updater) => {
+        table.setPagination((old) => {
+          let pageIndex = functionalUpdate(updater, old.pageIndex);
+          const maxPageIndex = typeof table.options.pageCount === "undefined" || table.options.pageCount === -1 ? Number.MAX_SAFE_INTEGER : table.options.pageCount - 1;
+          pageIndex = Math.max(0, Math.min(pageIndex, maxPageIndex));
+          return {
+            ...old,
+            pageIndex
+          };
+        });
+      };
+      table.resetPageIndex = (defaultState) => {
+        var _table$initialState$p2, _table$initialState;
+        table.setPageIndex(defaultState ? defaultPageIndex : (_table$initialState$p2 = (_table$initialState = table.initialState) == null || (_table$initialState = _table$initialState.pagination) == null ? void 0 : _table$initialState.pageIndex) != null ? _table$initialState$p2 : defaultPageIndex);
+      };
+      table.resetPageSize = (defaultState) => {
+        var _table$initialState$p3, _table$initialState2;
+        table.setPageSize(defaultState ? defaultPageSize : (_table$initialState$p3 = (_table$initialState2 = table.initialState) == null || (_table$initialState2 = _table$initialState2.pagination) == null ? void 0 : _table$initialState2.pageSize) != null ? _table$initialState$p3 : defaultPageSize);
+      };
+      table.setPageSize = (updater) => {
+        table.setPagination((old) => {
+          const pageSize = Math.max(1, functionalUpdate(updater, old.pageSize));
+          const topRowIndex = old.pageSize * old.pageIndex;
+          const pageIndex = Math.floor(topRowIndex / pageSize);
+          return {
+            ...old,
+            pageIndex,
+            pageSize
+          };
+        });
+      };
+      table.setPageCount = (updater) => table.setPagination((old) => {
+        var _table$options$pageCo;
+        let newPageCount = functionalUpdate(updater, (_table$options$pageCo = table.options.pageCount) != null ? _table$options$pageCo : -1);
+        if (typeof newPageCount === "number") {
+          newPageCount = Math.max(-1, newPageCount);
+        }
+        return {
+          ...old,
+          pageCount: newPageCount
+        };
+      });
+      table.getPageOptions = memo(() => [table.getPageCount()], (pageCount) => {
+        let pageOptions = [];
+        if (pageCount && pageCount > 0) {
+          pageOptions = [...new Array(pageCount)].fill(null).map((_4, i4) => i4);
+        }
+        return pageOptions;
+      }, getMemoOptions(table.options, "debugTable", "getPageOptions"));
+      table.getCanPreviousPage = () => table.getState().pagination.pageIndex > 0;
+      table.getCanNextPage = () => {
+        const {
+          pageIndex
+        } = table.getState().pagination;
+        const pageCount = table.getPageCount();
+        if (pageCount === -1) {
+          return true;
+        }
+        if (pageCount === 0) {
+          return false;
+        }
+        return pageIndex < pageCount - 1;
+      };
+      table.previousPage = () => {
+        return table.setPageIndex((old) => old - 1);
+      };
+      table.nextPage = () => {
+        return table.setPageIndex((old) => {
+          return old + 1;
+        });
+      };
+      table.firstPage = () => {
+        return table.setPageIndex(0);
+      };
+      table.lastPage = () => {
+        return table.setPageIndex(table.getPageCount() - 1);
+      };
+      table.getPrePaginationRowModel = () => table.getExpandedRowModel();
+      table.getPaginationRowModel = () => {
+        if (!table._getPaginationRowModel && table.options.getPaginationRowModel) {
+          table._getPaginationRowModel = table.options.getPaginationRowModel(table);
+        }
+        if (table.options.manualPagination || !table._getPaginationRowModel) {
+          return table.getPrePaginationRowModel();
+        }
+        return table._getPaginationRowModel();
+      };
+      table.getPageCount = () => {
+        var _table$options$pageCo2;
+        return (_table$options$pageCo2 = table.options.pageCount) != null ? _table$options$pageCo2 : Math.ceil(table.getRowCount() / table.getState().pagination.pageSize);
+      };
+      table.getRowCount = () => {
+        var _table$options$rowCou;
+        return (_table$options$rowCou = table.options.rowCount) != null ? _table$options$rowCou : table.getPrePaginationRowModel().rows.length;
+      };
+    }
+  };
+  var getDefaultRowPinningState = () => ({
+    top: [],
+    bottom: []
+  });
+  var RowPinning = {
+    getInitialState: (state) => {
+      return {
+        rowPinning: getDefaultRowPinningState(),
+        ...state
+      };
+    },
+    getDefaultOptions: (table) => {
+      return {
+        onRowPinningChange: makeStateUpdater("rowPinning", table)
+      };
+    },
+    createRow: (row, table) => {
+      row.pin = (position, includeLeafRows, includeParentRows) => {
+        const leafRowIds = includeLeafRows ? row.getLeafRows().map((_ref) => {
+          let {
+            id
+          } = _ref;
+          return id;
+        }) : [];
+        const parentRowIds = includeParentRows ? row.getParentRows().map((_ref2) => {
+          let {
+            id
+          } = _ref2;
+          return id;
+        }) : [];
+        const rowIds = /* @__PURE__ */ new Set([...parentRowIds, row.id, ...leafRowIds]);
+        table.setRowPinning((old) => {
+          var _old$top3, _old$bottom3;
+          if (position === "bottom") {
+            var _old$top, _old$bottom;
+            return {
+              top: ((_old$top = old == null ? void 0 : old.top) != null ? _old$top : []).filter((d5) => !(rowIds != null && rowIds.has(d5))),
+              bottom: [...((_old$bottom = old == null ? void 0 : old.bottom) != null ? _old$bottom : []).filter((d5) => !(rowIds != null && rowIds.has(d5))), ...Array.from(rowIds)]
+            };
+          }
+          if (position === "top") {
+            var _old$top2, _old$bottom2;
+            return {
+              top: [...((_old$top2 = old == null ? void 0 : old.top) != null ? _old$top2 : []).filter((d5) => !(rowIds != null && rowIds.has(d5))), ...Array.from(rowIds)],
+              bottom: ((_old$bottom2 = old == null ? void 0 : old.bottom) != null ? _old$bottom2 : []).filter((d5) => !(rowIds != null && rowIds.has(d5)))
+            };
+          }
+          return {
+            top: ((_old$top3 = old == null ? void 0 : old.top) != null ? _old$top3 : []).filter((d5) => !(rowIds != null && rowIds.has(d5))),
+            bottom: ((_old$bottom3 = old == null ? void 0 : old.bottom) != null ? _old$bottom3 : []).filter((d5) => !(rowIds != null && rowIds.has(d5)))
+          };
+        });
+      };
+      row.getCanPin = () => {
+        var _ref3;
+        const {
+          enableRowPinning,
+          enablePinning
+        } = table.options;
+        if (typeof enableRowPinning === "function") {
+          return enableRowPinning(row);
+        }
+        return (_ref3 = enableRowPinning != null ? enableRowPinning : enablePinning) != null ? _ref3 : true;
+      };
+      row.getIsPinned = () => {
+        const rowIds = [row.id];
+        const {
+          top,
+          bottom
+        } = table.getState().rowPinning;
+        const isTop = rowIds.some((d5) => top == null ? void 0 : top.includes(d5));
+        const isBottom = rowIds.some((d5) => bottom == null ? void 0 : bottom.includes(d5));
+        return isTop ? "top" : isBottom ? "bottom" : false;
+      };
+      row.getPinnedIndex = () => {
+        var _ref4, _visiblePinnedRowIds$;
+        const position = row.getIsPinned();
+        if (!position) return -1;
+        const visiblePinnedRowIds = (_ref4 = position === "top" ? table.getTopRows() : table.getBottomRows()) == null ? void 0 : _ref4.map((_ref5) => {
+          let {
+            id
+          } = _ref5;
+          return id;
+        });
+        return (_visiblePinnedRowIds$ = visiblePinnedRowIds == null ? void 0 : visiblePinnedRowIds.indexOf(row.id)) != null ? _visiblePinnedRowIds$ : -1;
+      };
+    },
+    createTable: (table) => {
+      table.setRowPinning = (updater) => table.options.onRowPinningChange == null ? void 0 : table.options.onRowPinningChange(updater);
+      table.resetRowPinning = (defaultState) => {
+        var _table$initialState$r, _table$initialState;
+        return table.setRowPinning(defaultState ? getDefaultRowPinningState() : (_table$initialState$r = (_table$initialState = table.initialState) == null ? void 0 : _table$initialState.rowPinning) != null ? _table$initialState$r : getDefaultRowPinningState());
+      };
+      table.getIsSomeRowsPinned = (position) => {
+        var _pinningState$positio;
+        const pinningState = table.getState().rowPinning;
+        if (!position) {
+          var _pinningState$top, _pinningState$bottom;
+          return Boolean(((_pinningState$top = pinningState.top) == null ? void 0 : _pinningState$top.length) || ((_pinningState$bottom = pinningState.bottom) == null ? void 0 : _pinningState$bottom.length));
+        }
+        return Boolean((_pinningState$positio = pinningState[position]) == null ? void 0 : _pinningState$positio.length);
+      };
+      table._getPinnedRows = (visibleRows, pinnedRowIds, position) => {
+        var _table$options$keepPi;
+        const rows = ((_table$options$keepPi = table.options.keepPinnedRows) != null ? _table$options$keepPi : true) ? (
+          //get all rows that are pinned even if they would not be otherwise visible
+          //account for expanded parent rows, but not pagination or filtering
+          (pinnedRowIds != null ? pinnedRowIds : []).map((rowId) => {
+            const row = table.getRow(rowId, true);
+            return row.getIsAllParentsExpanded() ? row : null;
+          })
+        ) : (
+          //else get only visible rows that are pinned
+          (pinnedRowIds != null ? pinnedRowIds : []).map((rowId) => visibleRows.find((row) => row.id === rowId))
+        );
+        return rows.filter(Boolean).map((d5) => ({
+          ...d5,
+          position
+        }));
+      };
+      table.getTopRows = memo(() => [table.getRowModel().rows, table.getState().rowPinning.top], (allRows, topPinnedRowIds) => table._getPinnedRows(allRows, topPinnedRowIds, "top"), getMemoOptions(table.options, "debugRows", "getTopRows"));
+      table.getBottomRows = memo(() => [table.getRowModel().rows, table.getState().rowPinning.bottom], (allRows, bottomPinnedRowIds) => table._getPinnedRows(allRows, bottomPinnedRowIds, "bottom"), getMemoOptions(table.options, "debugRows", "getBottomRows"));
+      table.getCenterRows = memo(() => [table.getRowModel().rows, table.getState().rowPinning.top, table.getState().rowPinning.bottom], (allRows, top, bottom) => {
+        const topAndBottom = /* @__PURE__ */ new Set([...top != null ? top : [], ...bottom != null ? bottom : []]);
+        return allRows.filter((d5) => !topAndBottom.has(d5.id));
+      }, getMemoOptions(table.options, "debugRows", "getCenterRows"));
+    }
+  };
+  var RowSelection = {
+    getInitialState: (state) => {
+      return {
+        rowSelection: {},
+        ...state
+      };
+    },
+    getDefaultOptions: (table) => {
+      return {
+        onRowSelectionChange: makeStateUpdater("rowSelection", table),
+        enableRowSelection: true,
+        enableMultiRowSelection: true,
+        enableSubRowSelection: true
+        // enableGroupingRowSelection: false,
+        // isAdditiveSelectEvent: (e: unknown) => !!e.metaKey,
+        // isInclusiveSelectEvent: (e: unknown) => !!e.shiftKey,
+      };
+    },
+    createTable: (table) => {
+      table.setRowSelection = (updater) => table.options.onRowSelectionChange == null ? void 0 : table.options.onRowSelectionChange(updater);
+      table.resetRowSelection = (defaultState) => {
+        var _table$initialState$r;
+        return table.setRowSelection(defaultState ? {} : (_table$initialState$r = table.initialState.rowSelection) != null ? _table$initialState$r : {});
+      };
+      table.toggleAllRowsSelected = (value) => {
+        table.setRowSelection((old) => {
+          value = typeof value !== "undefined" ? value : !table.getIsAllRowsSelected();
+          const rowSelection = {
+            ...old
+          };
+          const preGroupedFlatRows = table.getPreGroupedRowModel().flatRows;
+          if (value) {
+            preGroupedFlatRows.forEach((row) => {
+              if (!row.getCanSelect()) {
+                return;
+              }
+              rowSelection[row.id] = true;
+            });
+          } else {
+            preGroupedFlatRows.forEach((row) => {
+              delete rowSelection[row.id];
+            });
+          }
+          return rowSelection;
+        });
+      };
+      table.toggleAllPageRowsSelected = (value) => table.setRowSelection((old) => {
+        const resolvedValue = typeof value !== "undefined" ? value : !table.getIsAllPageRowsSelected();
+        const rowSelection = {
+          ...old
+        };
+        table.getRowModel().rows.forEach((row) => {
+          mutateRowIsSelected(rowSelection, row.id, resolvedValue, true, table);
+        });
+        return rowSelection;
+      });
+      table.getPreSelectedRowModel = () => table.getCoreRowModel();
+      table.getSelectedRowModel = memo(() => [table.getState().rowSelection, table.getCoreRowModel()], (rowSelection, rowModel) => {
+        if (!Object.keys(rowSelection).length) {
+          return {
+            rows: [],
+            flatRows: [],
+            rowsById: {}
+          };
+        }
+        return selectRowsFn(table, rowModel);
+      }, getMemoOptions(table.options, "debugTable", "getSelectedRowModel"));
+      table.getFilteredSelectedRowModel = memo(() => [table.getState().rowSelection, table.getFilteredRowModel()], (rowSelection, rowModel) => {
+        if (!Object.keys(rowSelection).length) {
+          return {
+            rows: [],
+            flatRows: [],
+            rowsById: {}
+          };
+        }
+        return selectRowsFn(table, rowModel);
+      }, getMemoOptions(table.options, "debugTable", "getFilteredSelectedRowModel"));
+      table.getGroupedSelectedRowModel = memo(() => [table.getState().rowSelection, table.getSortedRowModel()], (rowSelection, rowModel) => {
+        if (!Object.keys(rowSelection).length) {
+          return {
+            rows: [],
+            flatRows: [],
+            rowsById: {}
+          };
+        }
+        return selectRowsFn(table, rowModel);
+      }, getMemoOptions(table.options, "debugTable", "getGroupedSelectedRowModel"));
+      table.getIsAllRowsSelected = () => {
+        const preGroupedFlatRows = table.getFilteredRowModel().flatRows;
+        const {
+          rowSelection
+        } = table.getState();
+        let isAllRowsSelected = Boolean(preGroupedFlatRows.length && Object.keys(rowSelection).length);
+        if (isAllRowsSelected) {
+          if (preGroupedFlatRows.some((row) => row.getCanSelect() && !rowSelection[row.id])) {
+            isAllRowsSelected = false;
+          }
+        }
+        return isAllRowsSelected;
+      };
+      table.getIsAllPageRowsSelected = () => {
+        const paginationFlatRows = table.getPaginationRowModel().flatRows.filter((row) => row.getCanSelect());
+        const {
+          rowSelection
+        } = table.getState();
+        let isAllPageRowsSelected = !!paginationFlatRows.length;
+        if (isAllPageRowsSelected && paginationFlatRows.some((row) => !rowSelection[row.id])) {
+          isAllPageRowsSelected = false;
+        }
+        return isAllPageRowsSelected;
+      };
+      table.getIsSomeRowsSelected = () => {
+        var _table$getState$rowSe;
+        const totalSelected = Object.keys((_table$getState$rowSe = table.getState().rowSelection) != null ? _table$getState$rowSe : {}).length;
+        return totalSelected > 0 && totalSelected < table.getFilteredRowModel().flatRows.length;
+      };
+      table.getIsSomePageRowsSelected = () => {
+        const paginationFlatRows = table.getPaginationRowModel().flatRows;
+        return table.getIsAllPageRowsSelected() ? false : paginationFlatRows.filter((row) => row.getCanSelect()).some((d5) => d5.getIsSelected() || d5.getIsSomeSelected());
+      };
+      table.getToggleAllRowsSelectedHandler = () => {
+        return (e4) => {
+          table.toggleAllRowsSelected(e4.target.checked);
+        };
+      };
+      table.getToggleAllPageRowsSelectedHandler = () => {
+        return (e4) => {
+          table.toggleAllPageRowsSelected(e4.target.checked);
+        };
+      };
+    },
+    createRow: (row, table) => {
+      row.toggleSelected = (value, opts) => {
+        const isSelected = row.getIsSelected();
+        table.setRowSelection((old) => {
+          var _opts$selectChildren;
+          value = typeof value !== "undefined" ? value : !isSelected;
+          if (row.getCanSelect() && isSelected === value) {
+            return old;
+          }
+          const selectedRowIds = {
+            ...old
+          };
+          mutateRowIsSelected(selectedRowIds, row.id, value, (_opts$selectChildren = opts == null ? void 0 : opts.selectChildren) != null ? _opts$selectChildren : true, table);
+          return selectedRowIds;
+        });
+      };
+      row.getIsSelected = () => {
+        const {
+          rowSelection
+        } = table.getState();
+        return isRowSelected(row, rowSelection);
+      };
+      row.getIsSomeSelected = () => {
+        const {
+          rowSelection
+        } = table.getState();
+        return isSubRowSelected(row, rowSelection) === "some";
+      };
+      row.getIsAllSubRowsSelected = () => {
+        const {
+          rowSelection
+        } = table.getState();
+        return isSubRowSelected(row, rowSelection) === "all";
+      };
+      row.getCanSelect = () => {
+        var _table$options$enable;
+        if (typeof table.options.enableRowSelection === "function") {
+          return table.options.enableRowSelection(row);
+        }
+        return (_table$options$enable = table.options.enableRowSelection) != null ? _table$options$enable : true;
+      };
+      row.getCanSelectSubRows = () => {
+        var _table$options$enable2;
+        if (typeof table.options.enableSubRowSelection === "function") {
+          return table.options.enableSubRowSelection(row);
+        }
+        return (_table$options$enable2 = table.options.enableSubRowSelection) != null ? _table$options$enable2 : true;
+      };
+      row.getCanMultiSelect = () => {
+        var _table$options$enable3;
+        if (typeof table.options.enableMultiRowSelection === "function") {
+          return table.options.enableMultiRowSelection(row);
+        }
+        return (_table$options$enable3 = table.options.enableMultiRowSelection) != null ? _table$options$enable3 : true;
+      };
+      row.getToggleSelectedHandler = () => {
+        const canSelect = row.getCanSelect();
+        return (e4) => {
+          var _target;
+          if (!canSelect) return;
+          row.toggleSelected((_target = e4.target) == null ? void 0 : _target.checked);
+        };
+      };
+    }
+  };
+  var mutateRowIsSelected = (selectedRowIds, id, value, includeChildren, table) => {
+    var _row$subRows;
+    const row = table.getRow(id, true);
+    if (value) {
+      if (!row.getCanMultiSelect()) {
+        Object.keys(selectedRowIds).forEach((key) => delete selectedRowIds[key]);
+      }
+      if (row.getCanSelect()) {
+        selectedRowIds[id] = true;
+      }
+    } else {
+      delete selectedRowIds[id];
+    }
+    if (includeChildren && (_row$subRows = row.subRows) != null && _row$subRows.length && row.getCanSelectSubRows()) {
+      row.subRows.forEach((row2) => mutateRowIsSelected(selectedRowIds, row2.id, value, includeChildren, table));
+    }
+  };
+  function selectRowsFn(table, rowModel) {
+    const rowSelection = table.getState().rowSelection;
+    const newSelectedFlatRows = [];
+    const newSelectedRowsById = {};
+    const recurseRows = function(rows, depth) {
+      return rows.map((row) => {
+        var _row$subRows2;
+        const isSelected = isRowSelected(row, rowSelection);
+        if (isSelected) {
+          newSelectedFlatRows.push(row);
+          newSelectedRowsById[row.id] = row;
+        }
+        if ((_row$subRows2 = row.subRows) != null && _row$subRows2.length) {
+          row = {
+            ...row,
+            subRows: recurseRows(row.subRows)
+          };
+        }
+        if (isSelected) {
+          return row;
+        }
+      }).filter(Boolean);
+    };
+    return {
+      rows: recurseRows(rowModel.rows),
+      flatRows: newSelectedFlatRows,
+      rowsById: newSelectedRowsById
+    };
+  }
+  function isRowSelected(row, selection) {
+    var _selection$row$id;
+    return (_selection$row$id = selection[row.id]) != null ? _selection$row$id : false;
+  }
+  function isSubRowSelected(row, selection, table) {
+    var _row$subRows3;
+    if (!((_row$subRows3 = row.subRows) != null && _row$subRows3.length)) return false;
+    let allChildrenSelected = true;
+    let someSelected = false;
+    row.subRows.forEach((subRow) => {
+      if (someSelected && !allChildrenSelected) {
+        return;
+      }
+      if (subRow.getCanSelect()) {
+        if (isRowSelected(subRow, selection)) {
+          someSelected = true;
+        } else {
+          allChildrenSelected = false;
+        }
+      }
+      if (subRow.subRows && subRow.subRows.length) {
+        const subRowChildrenSelected = isSubRowSelected(subRow, selection);
+        if (subRowChildrenSelected === "all") {
+          someSelected = true;
+        } else if (subRowChildrenSelected === "some") {
+          someSelected = true;
+          allChildrenSelected = false;
+        } else {
+          allChildrenSelected = false;
+        }
+      }
+    });
+    return allChildrenSelected ? "all" : someSelected ? "some" : false;
+  }
+  var reSplitAlphaNumeric = /([0-9]+)/gm;
+  var alphanumeric = (rowA, rowB, columnId) => {
+    return compareAlphanumeric(toString(rowA.getValue(columnId)).toLowerCase(), toString(rowB.getValue(columnId)).toLowerCase());
+  };
+  var alphanumericCaseSensitive = (rowA, rowB, columnId) => {
+    return compareAlphanumeric(toString(rowA.getValue(columnId)), toString(rowB.getValue(columnId)));
+  };
+  var text = (rowA, rowB, columnId) => {
+    return compareBasic(toString(rowA.getValue(columnId)).toLowerCase(), toString(rowB.getValue(columnId)).toLowerCase());
+  };
+  var textCaseSensitive = (rowA, rowB, columnId) => {
+    return compareBasic(toString(rowA.getValue(columnId)), toString(rowB.getValue(columnId)));
+  };
+  var datetime = (rowA, rowB, columnId) => {
+    const a4 = rowA.getValue(columnId);
+    const b4 = rowB.getValue(columnId);
+    return a4 > b4 ? 1 : a4 < b4 ? -1 : 0;
+  };
+  var basic = (rowA, rowB, columnId) => {
+    return compareBasic(rowA.getValue(columnId), rowB.getValue(columnId));
+  };
+  function compareBasic(a4, b4) {
+    return a4 === b4 ? 0 : a4 > b4 ? 1 : -1;
+  }
+  function toString(a4) {
+    if (typeof a4 === "number") {
+      if (isNaN(a4) || a4 === Infinity || a4 === -Infinity) {
+        return "";
+      }
+      return String(a4);
+    }
+    if (typeof a4 === "string") {
+      return a4;
+    }
+    return "";
+  }
+  function compareAlphanumeric(aStr, bStr) {
+    const a4 = aStr.split(reSplitAlphaNumeric).filter(Boolean);
+    const b4 = bStr.split(reSplitAlphaNumeric).filter(Boolean);
+    while (a4.length && b4.length) {
+      const aa = a4.shift();
+      const bb = b4.shift();
+      const an = parseInt(aa, 10);
+      const bn = parseInt(bb, 10);
+      const combo = [an, bn].sort();
+      if (isNaN(combo[0])) {
+        if (aa > bb) {
+          return 1;
+        }
+        if (bb > aa) {
+          return -1;
+        }
+        continue;
+      }
+      if (isNaN(combo[1])) {
+        return isNaN(an) ? -1 : 1;
+      }
+      if (an > bn) {
+        return 1;
+      }
+      if (bn > an) {
+        return -1;
+      }
+    }
+    return a4.length - b4.length;
+  }
+  var sortingFns = {
+    alphanumeric,
+    alphanumericCaseSensitive,
+    text,
+    textCaseSensitive,
+    datetime,
+    basic
+  };
+  var RowSorting = {
+    getInitialState: (state) => {
+      return {
+        sorting: [],
+        ...state
+      };
+    },
+    getDefaultColumnDef: () => {
+      return {
+        sortingFn: "auto",
+        sortUndefined: 1
+      };
+    },
+    getDefaultOptions: (table) => {
+      return {
+        onSortingChange: makeStateUpdater("sorting", table),
+        isMultiSortEvent: (e4) => {
+          return e4.shiftKey;
+        }
+      };
+    },
+    createColumn: (column, table) => {
+      column.getAutoSortingFn = () => {
+        const firstRows = table.getFilteredRowModel().flatRows.slice(10);
+        let isString = false;
+        for (const row of firstRows) {
+          const value = row == null ? void 0 : row.getValue(column.id);
+          if (Object.prototype.toString.call(value) === "[object Date]") {
+            return sortingFns.datetime;
+          }
+          if (typeof value === "string") {
+            isString = true;
+            if (value.split(reSplitAlphaNumeric).length > 1) {
+              return sortingFns.alphanumeric;
+            }
+          }
+        }
+        if (isString) {
+          return sortingFns.text;
+        }
+        return sortingFns.basic;
+      };
+      column.getAutoSortDir = () => {
+        const firstRow = table.getFilteredRowModel().flatRows[0];
+        const value = firstRow == null ? void 0 : firstRow.getValue(column.id);
+        if (typeof value === "string") {
+          return "asc";
+        }
+        return "desc";
+      };
+      column.getSortingFn = () => {
+        var _table$options$sortin, _table$options$sortin2;
+        if (!column) {
+          throw new Error();
+        }
+        return isFunction(column.columnDef.sortingFn) ? column.columnDef.sortingFn : column.columnDef.sortingFn === "auto" ? column.getAutoSortingFn() : (_table$options$sortin = (_table$options$sortin2 = table.options.sortingFns) == null ? void 0 : _table$options$sortin2[column.columnDef.sortingFn]) != null ? _table$options$sortin : sortingFns[column.columnDef.sortingFn];
+      };
+      column.toggleSorting = (desc, multi) => {
+        const nextSortingOrder = column.getNextSortingOrder();
+        const hasManualValue = typeof desc !== "undefined" && desc !== null;
+        table.setSorting((old) => {
+          const existingSorting = old == null ? void 0 : old.find((d5) => d5.id === column.id);
+          const existingIndex = old == null ? void 0 : old.findIndex((d5) => d5.id === column.id);
+          let newSorting = [];
+          let sortAction;
+          let nextDesc = hasManualValue ? desc : nextSortingOrder === "desc";
+          if (old != null && old.length && column.getCanMultiSort() && multi) {
+            if (existingSorting) {
+              sortAction = "toggle";
+            } else {
+              sortAction = "add";
+            }
+          } else {
+            if (old != null && old.length && existingIndex !== old.length - 1) {
+              sortAction = "replace";
+            } else if (existingSorting) {
+              sortAction = "toggle";
+            } else {
+              sortAction = "replace";
+            }
+          }
+          if (sortAction === "toggle") {
+            if (!hasManualValue) {
+              if (!nextSortingOrder) {
+                sortAction = "remove";
+              }
+            }
+          }
+          if (sortAction === "add") {
+            var _table$options$maxMul;
+            newSorting = [...old, {
+              id: column.id,
+              desc: nextDesc
+            }];
+            newSorting.splice(0, newSorting.length - ((_table$options$maxMul = table.options.maxMultiSortColCount) != null ? _table$options$maxMul : Number.MAX_SAFE_INTEGER));
+          } else if (sortAction === "toggle") {
+            newSorting = old.map((d5) => {
+              if (d5.id === column.id) {
+                return {
+                  ...d5,
+                  desc: nextDesc
+                };
+              }
+              return d5;
+            });
+          } else if (sortAction === "remove") {
+            newSorting = old.filter((d5) => d5.id !== column.id);
+          } else {
+            newSorting = [{
+              id: column.id,
+              desc: nextDesc
+            }];
+          }
+          return newSorting;
+        });
+      };
+      column.getFirstSortDir = () => {
+        var _ref, _column$columnDef$sor;
+        const sortDescFirst = (_ref = (_column$columnDef$sor = column.columnDef.sortDescFirst) != null ? _column$columnDef$sor : table.options.sortDescFirst) != null ? _ref : column.getAutoSortDir() === "desc";
+        return sortDescFirst ? "desc" : "asc";
+      };
+      column.getNextSortingOrder = (multi) => {
+        var _table$options$enable, _table$options$enable2;
+        const firstSortDirection = column.getFirstSortDir();
+        const isSorted = column.getIsSorted();
+        if (!isSorted) {
+          return firstSortDirection;
+        }
+        if (isSorted !== firstSortDirection && ((_table$options$enable = table.options.enableSortingRemoval) != null ? _table$options$enable : true) && // If enableSortRemove, enable in general
+        (multi ? (_table$options$enable2 = table.options.enableMultiRemove) != null ? _table$options$enable2 : true : true)) {
+          return false;
+        }
+        return isSorted === "desc" ? "asc" : "desc";
+      };
+      column.getCanSort = () => {
+        var _column$columnDef$ena, _table$options$enable3;
+        return ((_column$columnDef$ena = column.columnDef.enableSorting) != null ? _column$columnDef$ena : true) && ((_table$options$enable3 = table.options.enableSorting) != null ? _table$options$enable3 : true) && !!column.accessorFn;
+      };
+      column.getCanMultiSort = () => {
+        var _ref2, _column$columnDef$ena2;
+        return (_ref2 = (_column$columnDef$ena2 = column.columnDef.enableMultiSort) != null ? _column$columnDef$ena2 : table.options.enableMultiSort) != null ? _ref2 : !!column.accessorFn;
+      };
+      column.getIsSorted = () => {
+        var _table$getState$sorti;
+        const columnSort = (_table$getState$sorti = table.getState().sorting) == null ? void 0 : _table$getState$sorti.find((d5) => d5.id === column.id);
+        return !columnSort ? false : columnSort.desc ? "desc" : "asc";
+      };
+      column.getSortIndex = () => {
+        var _table$getState$sorti2, _table$getState$sorti3;
+        return (_table$getState$sorti2 = (_table$getState$sorti3 = table.getState().sorting) == null ? void 0 : _table$getState$sorti3.findIndex((d5) => d5.id === column.id)) != null ? _table$getState$sorti2 : -1;
+      };
+      column.clearSorting = () => {
+        table.setSorting((old) => old != null && old.length ? old.filter((d5) => d5.id !== column.id) : []);
+      };
+      column.getToggleSortingHandler = () => {
+        const canSort = column.getCanSort();
+        return (e4) => {
+          if (!canSort) return;
+          e4.persist == null || e4.persist();
+          column.toggleSorting == null || column.toggleSorting(void 0, column.getCanMultiSort() ? table.options.isMultiSortEvent == null ? void 0 : table.options.isMultiSortEvent(e4) : false);
+        };
+      };
+    },
+    createTable: (table) => {
+      table.setSorting = (updater) => table.options.onSortingChange == null ? void 0 : table.options.onSortingChange(updater);
+      table.resetSorting = (defaultState) => {
+        var _table$initialState$s, _table$initialState;
+        table.setSorting(defaultState ? [] : (_table$initialState$s = (_table$initialState = table.initialState) == null ? void 0 : _table$initialState.sorting) != null ? _table$initialState$s : []);
+      };
+      table.getPreSortedRowModel = () => table.getGroupedRowModel();
+      table.getSortedRowModel = () => {
+        if (!table._getSortedRowModel && table.options.getSortedRowModel) {
+          table._getSortedRowModel = table.options.getSortedRowModel(table);
+        }
+        if (table.options.manualSorting || !table._getSortedRowModel) {
+          return table.getPreSortedRowModel();
+        }
+        return table._getSortedRowModel();
+      };
+    }
+  };
+  var builtInFeatures = [
+    Headers,
+    ColumnVisibility,
+    ColumnOrdering,
+    ColumnPinning,
+    ColumnFaceting,
+    ColumnFiltering,
+    GlobalFaceting,
+    //depends on ColumnFaceting
+    GlobalFiltering,
+    //depends on ColumnFiltering
+    RowSorting,
+    ColumnGrouping,
+    //depends on RowSorting
+    RowExpanding,
+    RowPagination,
+    RowPinning,
+    RowSelection,
+    ColumnSizing
+  ];
+  function createTable(options) {
+    var _options$_features, _options$initialState;
+    if (options.debugAll || options.debugTable) {
+      console.info("Creating Table Instance...");
+    }
+    const _features = [...builtInFeatures, ...(_options$_features = options._features) != null ? _options$_features : []];
+    let table = {
+      _features
+    };
+    const defaultOptions = table._features.reduce((obj, feature) => {
+      return Object.assign(obj, feature.getDefaultOptions == null ? void 0 : feature.getDefaultOptions(table));
+    }, {});
+    const mergeOptions = (options2) => {
+      if (table.options.mergeOptions) {
+        return table.options.mergeOptions(defaultOptions, options2);
+      }
+      return {
+        ...defaultOptions,
+        ...options2
+      };
+    };
+    const coreInitialState = {};
+    let initialState = {
+      ...coreInitialState,
+      ...(_options$initialState = options.initialState) != null ? _options$initialState : {}
+    };
+    table._features.forEach((feature) => {
+      var _feature$getInitialSt;
+      initialState = (_feature$getInitialSt = feature.getInitialState == null ? void 0 : feature.getInitialState(initialState)) != null ? _feature$getInitialSt : initialState;
+    });
+    const queued = [];
+    let queuedTimeout = false;
+    const coreInstance = {
+      _features,
+      options: {
+        ...defaultOptions,
+        ...options
+      },
+      initialState,
+      _queue: (cb) => {
+        queued.push(cb);
+        if (!queuedTimeout) {
+          queuedTimeout = true;
+          Promise.resolve().then(() => {
+            while (queued.length) {
+              queued.shift()();
+            }
+            queuedTimeout = false;
+          }).catch((error) => setTimeout(() => {
+            throw error;
+          }));
+        }
+      },
+      reset: () => {
+        table.setState(table.initialState);
+      },
+      setOptions: (updater) => {
+        const newOptions = functionalUpdate(updater, table.options);
+        table.options = mergeOptions(newOptions);
+      },
+      getState: () => {
+        return table.options.state;
+      },
+      setState: (updater) => {
+        table.options.onStateChange == null || table.options.onStateChange(updater);
+      },
+      _getRowId: (row, index, parent) => {
+        var _table$options$getRow;
+        return (_table$options$getRow = table.options.getRowId == null ? void 0 : table.options.getRowId(row, index, parent)) != null ? _table$options$getRow : `${parent ? [parent.id, index].join(".") : index}`;
+      },
+      getCoreRowModel: () => {
+        if (!table._getCoreRowModel) {
+          table._getCoreRowModel = table.options.getCoreRowModel(table);
+        }
+        return table._getCoreRowModel();
+      },
+      // The final calls start at the bottom of the model,
+      // expanded rows, which then work their way up
+      getRowModel: () => {
+        return table.getPaginationRowModel();
+      },
+      //in next version, we should just pass in the row model as the optional 2nd arg
+      getRow: (id, searchAll) => {
+        let row = (searchAll ? table.getPrePaginationRowModel() : table.getRowModel()).rowsById[id];
+        if (!row) {
+          row = table.getCoreRowModel().rowsById[id];
+          if (!row) {
+            if (true) {
+              throw new Error(`getRow could not find row with ID: ${id}`);
+            }
+            throw new Error();
+          }
+        }
+        return row;
+      },
+      _getDefaultColumnDef: memo(() => [table.options.defaultColumn], (defaultColumn) => {
+        var _defaultColumn;
+        defaultColumn = (_defaultColumn = defaultColumn) != null ? _defaultColumn : {};
+        return {
+          header: (props) => {
+            const resolvedColumnDef = props.header.column.columnDef;
+            if (resolvedColumnDef.accessorKey) {
+              return resolvedColumnDef.accessorKey;
+            }
+            if (resolvedColumnDef.accessorFn) {
+              return resolvedColumnDef.id;
+            }
+            return null;
+          },
+          // footer: props => props.header.column.id,
+          cell: (props) => {
+            var _props$renderValue$to, _props$renderValue;
+            return (_props$renderValue$to = (_props$renderValue = props.renderValue()) == null || _props$renderValue.toString == null ? void 0 : _props$renderValue.toString()) != null ? _props$renderValue$to : null;
+          },
+          ...table._features.reduce((obj, feature) => {
+            return Object.assign(obj, feature.getDefaultColumnDef == null ? void 0 : feature.getDefaultColumnDef());
+          }, {}),
+          ...defaultColumn
+        };
+      }, getMemoOptions(options, "debugColumns", "_getDefaultColumnDef")),
+      _getColumnDefs: () => table.options.columns,
+      getAllColumns: memo(() => [table._getColumnDefs()], (columnDefs) => {
+        const recurseColumns = function(columnDefs2, parent, depth) {
+          if (depth === void 0) {
+            depth = 0;
+          }
+          return columnDefs2.map((columnDef) => {
+            const column = createColumn(table, columnDef, depth, parent);
+            const groupingColumnDef = columnDef;
+            column.columns = groupingColumnDef.columns ? recurseColumns(groupingColumnDef.columns, column, depth + 1) : [];
+            return column;
+          });
+        };
+        return recurseColumns(columnDefs);
+      }, getMemoOptions(options, "debugColumns", "getAllColumns")),
+      getAllFlatColumns: memo(() => [table.getAllColumns()], (allColumns) => {
+        return allColumns.flatMap((column) => {
+          return column.getFlatColumns();
+        });
+      }, getMemoOptions(options, "debugColumns", "getAllFlatColumns")),
+      _getAllFlatColumnsById: memo(() => [table.getAllFlatColumns()], (flatColumns) => {
+        return flatColumns.reduce((acc, column) => {
+          acc[column.id] = column;
+          return acc;
+        }, {});
+      }, getMemoOptions(options, "debugColumns", "getAllFlatColumnsById")),
+      getAllLeafColumns: memo(() => [table.getAllColumns(), table._getOrderColumnsFn()], (allColumns, orderColumns2) => {
+        let leafColumns = allColumns.flatMap((column) => column.getLeafColumns());
+        return orderColumns2(leafColumns);
+      }, getMemoOptions(options, "debugColumns", "getAllLeafColumns")),
+      getColumn: (columnId) => {
+        const column = table._getAllFlatColumnsById()[columnId];
+        if (!column) {
+          console.error(`[Table] Column with id '${columnId}' does not exist.`);
+        }
+        return column;
+      }
+    };
+    Object.assign(table, coreInstance);
+    for (let index = 0; index < table._features.length; index++) {
+      const feature = table._features[index];
+      feature == null || feature.createTable == null || feature.createTable(table);
+    }
+    return table;
+  }
+  function getCoreRowModel() {
+    return (table) => memo(() => [table.options.data], (data) => {
+      const rowModel = {
+        rows: [],
+        flatRows: [],
+        rowsById: {}
+      };
+      const accessRows = function(originalRows, depth, parentRow) {
+        if (depth === void 0) {
+          depth = 0;
+        }
+        const rows = [];
+        for (let i4 = 0; i4 < originalRows.length; i4++) {
+          const row = createRow(table, table._getRowId(originalRows[i4], i4, parentRow), originalRows[i4], i4, depth, void 0, parentRow == null ? void 0 : parentRow.id);
+          rowModel.flatRows.push(row);
+          rowModel.rowsById[row.id] = row;
+          rows.push(row);
+          if (table.options.getSubRows) {
+            var _row$originalSubRows;
+            row.originalSubRows = table.options.getSubRows(originalRows[i4], i4);
+            if ((_row$originalSubRows = row.originalSubRows) != null && _row$originalSubRows.length) {
+              row.subRows = accessRows(row.originalSubRows, depth + 1, row);
+            }
+          }
+        }
+        return rows;
+      };
+      rowModel.rows = accessRows(data);
+      return rowModel;
+    }, getMemoOptions(table.options, "debugTable", "getRowModel", () => table._autoResetPageIndex()));
+  }
+  function expandRows(rowModel) {
+    const expandedRows = [];
+    const handleRow = (row) => {
+      var _row$subRows;
+      expandedRows.push(row);
+      if ((_row$subRows = row.subRows) != null && _row$subRows.length && row.getIsExpanded()) {
+        row.subRows.forEach(handleRow);
+      }
+    };
+    rowModel.rows.forEach(handleRow);
+    return {
+      rows: expandedRows,
+      flatRows: rowModel.flatRows,
+      rowsById: rowModel.rowsById
+    };
+  }
+  function getPaginationRowModel(opts) {
+    return (table) => memo(() => [table.getState().pagination, table.getPrePaginationRowModel(), table.options.paginateExpandedRows ? void 0 : table.getState().expanded], (pagination, rowModel) => {
+      if (!rowModel.rows.length) {
+        return rowModel;
+      }
+      const {
+        pageSize,
+        pageIndex
+      } = pagination;
+      let {
+        rows,
+        flatRows,
+        rowsById
+      } = rowModel;
+      const pageStart = pageSize * pageIndex;
+      const pageEnd = pageStart + pageSize;
+      rows = rows.slice(pageStart, pageEnd);
+      let paginatedRowModel;
+      if (!table.options.paginateExpandedRows) {
+        paginatedRowModel = expandRows({
+          rows,
+          flatRows,
+          rowsById
+        });
+      } else {
+        paginatedRowModel = {
+          rows,
+          flatRows,
+          rowsById
+        };
+      }
+      paginatedRowModel.flatRows = [];
+      const handleRow = (row) => {
+        paginatedRowModel.flatRows.push(row);
+        if (row.subRows.length) {
+          row.subRows.forEach(handleRow);
+        }
+      };
+      paginatedRowModel.rows.forEach(handleRow);
+      return paginatedRowModel;
+    }, getMemoOptions(table.options, "debugTable", "getPaginationRowModel"));
+  }
+  function getSortedRowModel() {
+    return (table) => memo(() => [table.getState().sorting, table.getPreSortedRowModel()], (sorting, rowModel) => {
+      if (!rowModel.rows.length || !(sorting != null && sorting.length)) {
+        return rowModel;
+      }
+      const sortingState = table.getState().sorting;
+      const sortedFlatRows = [];
+      const availableSorting = sortingState.filter((sort) => {
+        var _table$getColumn;
+        return (_table$getColumn = table.getColumn(sort.id)) == null ? void 0 : _table$getColumn.getCanSort();
+      });
+      const columnInfoById = {};
+      availableSorting.forEach((sortEntry) => {
+        const column = table.getColumn(sortEntry.id);
+        if (!column) return;
+        columnInfoById[sortEntry.id] = {
+          sortUndefined: column.columnDef.sortUndefined,
+          invertSorting: column.columnDef.invertSorting,
+          sortingFn: column.getSortingFn()
+        };
+      });
+      const sortData = (rows) => {
+        const sortedData = rows.map((row) => ({
+          ...row
+        }));
+        sortedData.sort((rowA, rowB) => {
+          for (let i4 = 0; i4 < availableSorting.length; i4 += 1) {
+            var _sortEntry$desc;
+            const sortEntry = availableSorting[i4];
+            const columnInfo = columnInfoById[sortEntry.id];
+            const sortUndefined = columnInfo.sortUndefined;
+            const isDesc = (_sortEntry$desc = sortEntry == null ? void 0 : sortEntry.desc) != null ? _sortEntry$desc : false;
+            let sortInt = 0;
+            if (sortUndefined) {
+              const aValue = rowA.getValue(sortEntry.id);
+              const bValue = rowB.getValue(sortEntry.id);
+              const aUndefined = aValue === void 0;
+              const bUndefined = bValue === void 0;
+              if (aUndefined || bUndefined) {
+                if (sortUndefined === "first") return aUndefined ? -1 : 1;
+                if (sortUndefined === "last") return aUndefined ? 1 : -1;
+                sortInt = aUndefined && bUndefined ? 0 : aUndefined ? sortUndefined : -sortUndefined;
+              }
+            }
+            if (sortInt === 0) {
+              sortInt = columnInfo.sortingFn(rowA, rowB, sortEntry.id);
+            }
+            if (sortInt !== 0) {
+              if (isDesc) {
+                sortInt *= -1;
+              }
+              if (columnInfo.invertSorting) {
+                sortInt *= -1;
+              }
+              return sortInt;
+            }
+          }
+          return rowA.index - rowB.index;
+        });
+        sortedData.forEach((row) => {
+          var _row$subRows;
+          sortedFlatRows.push(row);
+          if ((_row$subRows = row.subRows) != null && _row$subRows.length) {
+            row.subRows = sortData(row.subRows);
+          }
+        });
+        return sortedData;
+      };
+      return {
+        rows: sortData(rowModel.rows),
+        flatRows: sortedFlatRows,
+        rowsById: rowModel.rowsById
+      };
+    }, getMemoOptions(table.options, "debugTable", "getSortedRowModel", () => table._autoResetPageIndex()));
+  }
+
+  // src/ui/components/DataTable.tsx
+  function renderCell(cell) {
+    const def = cell.column.columnDef.cell;
+    if (typeof def === "function") {
+      return def(cell.getContext());
+    }
+    return cell.getValue();
+  }
+  function renderHeader(header) {
+    const def = header.column.columnDef.header;
+    if (typeof def === "function") {
+      return def(header.getContext());
+    }
+    return def;
+  }
+  function resolveUpdater(updater, prev) {
+    return typeof updater === "function" ? updater(prev) : updater;
+  }
+  function DataTable({
+    columns: columns3,
+    data,
+    title,
+    exportFn,
+    pageSize,
+    defaultSort: defaultSort4,
+    enableColumnVisibility
+  }) {
+    const [sorting, setSorting] = d2(defaultSort4 || []);
+    const [pagination, setPagination] = d2({
+      pageIndex: 0,
+      pageSize: pageSize || data.length || 100
+    });
+    const [columnVisibility, setColumnVisibility] = d2({});
+    const [, rerender] = d2(0);
+    y2(() => {
+      setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+    }, [data]);
+    const tableRef = A2(null);
+    const stateRef = A2({ sorting, pagination, columnVisibility });
+    stateRef.current = { sorting, pagination, columnVisibility };
+    if (!tableRef.current) {
+      tableRef.current = createTable({
+        columns: columns3,
+        data,
+        state: { sorting, pagination, columnVisibility, columnPinning: { left: [], right: [] } },
+        onStateChange: (updater) => {
+          const newState = resolveUpdater(updater, tableRef.current.getState());
+          if (newState.sorting !== stateRef.current.sorting) setSorting(newState.sorting);
+          if (newState.pagination !== stateRef.current.pagination) setPagination(newState.pagination);
+          if (newState.columnVisibility !== stateRef.current.columnVisibility) setColumnVisibility(newState.columnVisibility);
+          rerender((n3) => n3 + 1);
+        },
+        onSortingChange: (updater) => setSorting((prev) => resolveUpdater(updater, prev)),
+        onPaginationChange: (updater) => setPagination((prev) => resolveUpdater(updater, prev)),
+        onColumnVisibilityChange: (updater) => setColumnVisibility((prev) => resolveUpdater(updater, prev)),
+        getCoreRowModel: getCoreRowModel(),
+        getSortedRowModel: getSortedRowModel(),
+        ...pageSize ? { getPaginationRowModel: getPaginationRowModel() } : {},
+        renderFallbackValue: ""
+      });
+    }
+    tableRef.current.setOptions((prev) => ({
+      ...prev,
+      columns: columns3,
+      data,
+      state: { ...tableRef.current.getState(), sorting, pagination, columnVisibility }
+    }));
+    const table = tableRef.current;
+    const headerGroups = table.getHeaderGroups();
+    const rows = table.getRowModel().rows;
+    return /* @__PURE__ */ u2("div", { class: "table-card", children: [
+      (title || exportFn) && /* @__PURE__ */ u2("div", { class: exportFn ? "section-header" : "", children: [
+        title && /* @__PURE__ */ u2("div", { class: "section-title", children: title }),
+        exportFn && /* @__PURE__ */ u2("button", { class: "export-btn", onClick: exportFn, title: "Export to CSV", children: "\u2913 CSV" })
+      ] }),
+      enableColumnVisibility && /* @__PURE__ */ u2("div", { class: "column-toggle", children: table.getAllLeafColumns().map((column) => /* @__PURE__ */ u2("label", { children: [
+        /* @__PURE__ */ u2(
+          "input",
+          {
+            type: "checkbox",
+            checked: column.getIsVisible(),
+            onChange: column.getToggleVisibilityHandler()
+          }
+        ),
+        typeof column.columnDef.header === "string" ? column.columnDef.header : column.id
+      ] }, column.id)) }),
+      /* @__PURE__ */ u2("table", { children: [
+        /* @__PURE__ */ u2("thead", { children: headerGroups.map((headerGroup) => /* @__PURE__ */ u2("tr", { children: headerGroup.headers.map((header) => {
+          const canSort = header.column.getCanSort();
+          const sorted = header.column.getIsSorted();
+          return /* @__PURE__ */ u2(
+            "th",
+            {
+              class: canSort ? "sortable" : void 0,
+              onClick: canSort ? header.column.getToggleSortingHandler() : void 0,
+              children: [
+                renderHeader(header),
+                canSort && /* @__PURE__ */ u2("span", { class: "sort-icon", children: sorted === "desc" ? " \u25BC" : sorted === "asc" ? " \u25B2" : "" })
+              ]
+            },
+            header.id
+          );
+        }) }, headerGroup.id)) }),
+        /* @__PURE__ */ u2("tbody", { children: rows.map((row) => /* @__PURE__ */ u2("tr", { children: row.getVisibleCells().map((cell) => /* @__PURE__ */ u2("td", { children: renderCell(cell) }, cell.id)) }, row.id)) })
+      ] }),
+      pageSize && /* @__PURE__ */ u2(
+        "div",
+        {
+          style: {
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginTop: "12px",
+            fontSize: "12px",
+            color: "var(--muted)"
+          },
+          children: [
+            /* @__PURE__ */ u2("span", { children: table.getRowCount() > 0 ? `Showing ${pagination.pageIndex * pagination.pageSize + 1}\u2013${Math.min(
+              (pagination.pageIndex + 1) * pagination.pageSize,
+              table.getRowCount()
+            )} of ${table.getRowCount()}` : "No sessions" }),
+            /* @__PURE__ */ u2("div", { style: { display: "flex", gap: "6px" }, children: [
+              /* @__PURE__ */ u2(
+                "button",
+                {
+                  class: "filter-btn",
+                  disabled: !table.getCanPreviousPage(),
+                  onClick: () => table.previousPage(),
+                  children: "\xAB Prev"
+                }
+              ),
+              /* @__PURE__ */ u2(
+                "button",
+                {
+                  class: "filter-btn",
+                  disabled: !table.getCanNextPage(),
+                  onClick: () => table.nextPage(),
+                  children: "Next \xBB"
+                }
+              )
+            ] })
+          ]
+        }
+      )
+    ] });
+  }
+
   // src/ui/components/EntrypointTable.tsx
+  var columns = [
+    {
+      accessorKey: "entrypoint",
+      header: "Entrypoint",
+      cell: ({ getValue }) => /* @__PURE__ */ u2("span", { class: "model-tag", children: String(getValue()) })
+    },
+    {
+      accessorKey: "sessions",
+      header: "Sessions",
+      cell: ({ getValue }) => /* @__PURE__ */ u2("span", { class: "num", children: getValue() })
+    },
+    {
+      accessorKey: "turns",
+      header: "Turns",
+      cell: ({ getValue }) => /* @__PURE__ */ u2("span", { class: "num", children: fmt(getValue()) })
+    },
+    {
+      accessorKey: "input",
+      header: "Input",
+      cell: ({ getValue }) => /* @__PURE__ */ u2("span", { class: "num", children: fmt(getValue()) })
+    },
+    {
+      accessorKey: "output",
+      header: "Output",
+      cell: ({ getValue }) => /* @__PURE__ */ u2("span", { class: "num", children: fmt(getValue()) })
+    }
+  ];
   function EntrypointTable({ data }) {
     if (!data.length) return null;
-    return /* @__PURE__ */ u2("div", { class: "table-card", children: [
-      /* @__PURE__ */ u2("div", { class: "section-title", children: "Usage by Entrypoint" }),
-      /* @__PURE__ */ u2("table", { children: [
-        /* @__PURE__ */ u2("thead", { children: /* @__PURE__ */ u2("tr", { children: [
-          /* @__PURE__ */ u2("th", { children: "Entrypoint" }),
-          /* @__PURE__ */ u2("th", { children: "Sessions" }),
-          /* @__PURE__ */ u2("th", { children: "Turns" }),
-          /* @__PURE__ */ u2("th", { children: "Input" }),
-          /* @__PURE__ */ u2("th", { children: "Output" })
-        ] }) }),
-        /* @__PURE__ */ u2("tbody", { children: data.map((e4) => /* @__PURE__ */ u2("tr", { children: [
-          /* @__PURE__ */ u2("td", { children: /* @__PURE__ */ u2("span", { class: "model-tag", children: e4.entrypoint }) }),
-          /* @__PURE__ */ u2("td", { class: "num", children: e4.sessions }),
-          /* @__PURE__ */ u2("td", { class: "num", children: fmt(e4.turns) }),
-          /* @__PURE__ */ u2("td", { class: "num", children: fmt(e4.input) }),
-          /* @__PURE__ */ u2("td", { class: "num", children: fmt(e4.output) })
-        ] }, e4.entrypoint)) })
-      ] })
-    ] });
+    return /* @__PURE__ */ u2(DataTable, { columns, data, title: "Usage by Entrypoint" });
   }
 
   // src/ui/components/ServiceTiers.tsx
+  var columns2 = [
+    { accessorKey: "service_tier", header: "Tier" },
+    { accessorKey: "inference_geo", header: "Region" },
+    {
+      accessorKey: "turns",
+      header: "Turns",
+      cell: ({ getValue }) => /* @__PURE__ */ u2("span", { class: "num", children: fmt(getValue()) })
+    }
+  ];
   function ServiceTiersTable({ data }) {
     if (!data.length) return null;
-    return /* @__PURE__ */ u2("div", { class: "table-card", children: [
-      /* @__PURE__ */ u2("div", { class: "section-title", children: "Service Tiers" }),
-      /* @__PURE__ */ u2("table", { children: [
-        /* @__PURE__ */ u2("thead", { children: /* @__PURE__ */ u2("tr", { children: [
-          /* @__PURE__ */ u2("th", { children: "Tier" }),
-          /* @__PURE__ */ u2("th", { children: "Region" }),
-          /* @__PURE__ */ u2("th", { children: "Turns" })
-        ] }) }),
-        /* @__PURE__ */ u2("tbody", { children: data.map((s4) => /* @__PURE__ */ u2("tr", { children: [
-          /* @__PURE__ */ u2("td", { children: s4.service_tier }),
-          /* @__PURE__ */ u2("td", { children: s4.inference_geo }),
-          /* @__PURE__ */ u2("td", { class: "num", children: fmt(s4.turns) })
-        ] }, `${s4.service_tier}-${s4.inference_geo}`)) })
-      ] })
-    ] });
+    return /* @__PURE__ */ u2(DataTable, { columns: columns2, data, title: "Service Tiers" });
   }
 
   // src/ui/components/SessionsTable.tsx
-  function setSessionSort(col) {
-    if (sessionSortCol.value === col) {
-      sessionSortDir.value = sessionSortDir.value === "desc" ? "asc" : "desc";
-    } else {
-      sessionSortCol.value = col;
-      sessionSortDir.value = "desc";
-    }
-  }
-  function sortSessions(sessions) {
-    const col = sessionSortCol.value;
-    const dir = sessionSortDir.value;
-    return [...sessions].sort((a4, b4) => {
-      let av, bv;
-      if (col === "cost") {
-        av = a4.cost;
-        bv = b4.cost;
-      } else if (col === "duration_min") {
-        av = a4.duration_min || 0;
-        bv = b4.duration_min || 0;
-      } else {
-        av = a4[col] ?? 0;
-        bv = b4[col] ?? 0;
-      }
-      if (av < bv) return dir === "desc" ? 1 : -1;
-      if (av > bv) return dir === "desc" ? -1 : 1;
-      return 0;
-    });
+  var defaultSort = [{ id: "last", desc: true }];
+  function useSessionColumns() {
+    return T2(
+      () => [
+        {
+          id: "session",
+          accessorKey: "session_id",
+          header: "Session",
+          enableSorting: false,
+          cell: (info) => /* @__PURE__ */ u2("span", { class: "muted", style: { fontFamily: "monospace" }, children: [
+            info.getValue(),
+            "\u2026"
+          ] })
+        },
+        {
+          id: "project",
+          accessorKey: "project",
+          header: "Project",
+          enableSorting: false
+        },
+        {
+          id: "last",
+          accessorKey: "last",
+          header: "Last Active",
+          cell: (info) => /* @__PURE__ */ u2("span", { class: "muted", children: info.getValue() })
+        },
+        {
+          id: "duration_min",
+          accessorKey: "duration_min",
+          header: "Duration",
+          cell: (info) => /* @__PURE__ */ u2("span", { class: "muted", children: [
+            info.getValue(),
+            "m"
+          ] })
+        },
+        {
+          id: "model",
+          accessorKey: "model",
+          header: "Model",
+          enableSorting: false,
+          cell: (info) => /* @__PURE__ */ u2("span", { class: "model-tag", children: info.getValue() })
+        },
+        {
+          id: "turns",
+          accessorKey: "turns",
+          header: "Turns",
+          cell: (info) => {
+            const row = info.row.original;
+            return /* @__PURE__ */ u2("span", { class: "num", children: [
+              fmt(info.getValue()),
+              row.subagent_count > 0 && /* @__PURE__ */ u2("span", { class: "muted", style: { fontSize: "10px" }, children: [
+                " ",
+                "(",
+                row.subagent_count,
+                " agents)"
+              ] })
+            ] });
+          }
+        },
+        {
+          id: "input",
+          accessorKey: "input",
+          header: "Input",
+          cell: (info) => /* @__PURE__ */ u2("span", { class: "num", children: fmt(info.getValue()) })
+        },
+        {
+          id: "output",
+          accessorKey: "output",
+          header: "Output",
+          cell: (info) => /* @__PURE__ */ u2("span", { class: "num", children: fmt(info.getValue()) })
+        },
+        {
+          id: "cost",
+          accessorKey: "cost",
+          header: "Est. Cost",
+          cell: (info) => {
+            const row = info.row.original;
+            return row.is_billable ? /* @__PURE__ */ u2("span", { class: "cost", children: fmtCost(info.getValue()) }) : /* @__PURE__ */ u2("span", { class: "cost-na", children: "n/a" });
+          }
+        }
+      ],
+      []
+    );
   }
   function SessionsTable({ onExportCSV }) {
-    const sortCol = sessionSortCol.value;
-    const sortDir = sessionSortDir.value;
-    const page = sessionsCurrentPage.value;
-    const allSessions = lastFilteredSessions.value;
-    const sorted = sortSessions(allSessions);
-    const start = page * SESSIONS_PAGE_SIZE;
-    const pageData = sorted.slice(start, start + SESSIONS_PAGE_SIZE);
-    const maxPage = Math.max(0, Math.ceil(sorted.length / SESSIONS_PAGE_SIZE) - 1);
-    const sortIcon = (col) => sortCol === col ? sortDir === "desc" ? " \u25BC" : " \u25B2" : "";
-    return /* @__PURE__ */ u2("div", { class: "table-card", children: [
-      /* @__PURE__ */ u2("div", { class: "section-header", children: [
-        /* @__PURE__ */ u2("div", { class: "section-title", children: "Recent Sessions" }),
-        /* @__PURE__ */ u2("button", { class: "export-btn", onClick: onExportCSV, title: "Export filtered sessions to CSV", children: "\u2913 CSV" })
-      ] }),
-      /* @__PURE__ */ u2("table", { children: [
-        /* @__PURE__ */ u2("thead", { children: /* @__PURE__ */ u2("tr", { children: [
-          /* @__PURE__ */ u2("th", { children: "Session" }),
-          /* @__PURE__ */ u2("th", { children: "Project" }),
-          /* @__PURE__ */ u2("th", { class: "sortable", onClick: () => setSessionSort("last"), children: [
-            "Last Active",
-            /* @__PURE__ */ u2("span", { class: "sort-icon", children: sortIcon("last") })
-          ] }),
-          /* @__PURE__ */ u2("th", { class: "sortable", onClick: () => setSessionSort("duration_min"), children: [
-            "Duration",
-            /* @__PURE__ */ u2("span", { class: "sort-icon", children: sortIcon("duration_min") })
-          ] }),
-          /* @__PURE__ */ u2("th", { children: "Model" }),
-          /* @__PURE__ */ u2("th", { class: "sortable", onClick: () => setSessionSort("turns"), children: [
-            "Turns",
-            /* @__PURE__ */ u2("span", { class: "sort-icon", children: sortIcon("turns") })
-          ] }),
-          /* @__PURE__ */ u2("th", { class: "sortable", onClick: () => setSessionSort("input"), children: [
-            "Input",
-            /* @__PURE__ */ u2("span", { class: "sort-icon", children: sortIcon("input") })
-          ] }),
-          /* @__PURE__ */ u2("th", { class: "sortable", onClick: () => setSessionSort("output"), children: [
-            "Output",
-            /* @__PURE__ */ u2("span", { class: "sort-icon", children: sortIcon("output") })
-          ] }),
-          /* @__PURE__ */ u2("th", { class: "sortable", onClick: () => setSessionSort("cost"), children: [
-            "Est. Cost",
-            /* @__PURE__ */ u2("span", { class: "sort-icon", children: sortIcon("cost") })
-          ] })
-        ] }) }),
-        /* @__PURE__ */ u2("tbody", { children: pageData.map((s4) => /* @__PURE__ */ u2("tr", { children: [
-          /* @__PURE__ */ u2("td", { class: "muted", style: { fontFamily: "monospace" }, children: [
-            s4.session_id,
-            "\u2026"
-          ] }),
-          /* @__PURE__ */ u2("td", { children: s4.project }),
-          /* @__PURE__ */ u2("td", { class: "muted", children: s4.last }),
-          /* @__PURE__ */ u2("td", { class: "muted", children: [
-            s4.duration_min,
-            "m"
-          ] }),
-          /* @__PURE__ */ u2("td", { children: /* @__PURE__ */ u2("span", { class: "model-tag", children: s4.model }) }),
-          /* @__PURE__ */ u2("td", { class: "num", children: [
-            s4.turns,
-            s4.subagent_count > 0 && /* @__PURE__ */ u2("span", { class: "muted", style: { fontSize: "10px" }, children: [
-              " (",
-              s4.subagent_count,
-              " agents)"
-            ] })
-          ] }),
-          /* @__PURE__ */ u2("td", { class: "num", children: fmt(s4.input) }),
-          /* @__PURE__ */ u2("td", { class: "num", children: fmt(s4.output) }),
-          s4.is_billable ? /* @__PURE__ */ u2("td", { class: "cost", children: fmtCost(s4.cost) }) : /* @__PURE__ */ u2("td", { class: "cost-na", children: "n/a" })
-        ] }, s4.session_id)) })
-      ] }),
-      /* @__PURE__ */ u2("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "12px", fontSize: "12px", color: "var(--muted)" }, children: [
-        /* @__PURE__ */ u2("span", { children: sorted.length > 0 ? `Showing ${start + 1}\u2013${Math.min(start + SESSIONS_PAGE_SIZE, sorted.length)} of ${sorted.length}` : "No sessions" }),
-        /* @__PURE__ */ u2("div", { style: { display: "flex", gap: "6px" }, children: [
-          /* @__PURE__ */ u2("button", { class: "filter-btn", disabled: page <= 0, onClick: () => {
-            sessionsCurrentPage.value = Math.max(0, page - 1);
-          }, children: "\xAB Prev" }),
-          /* @__PURE__ */ u2("button", { class: "filter-btn", disabled: page >= maxPage, onClick: () => {
-            sessionsCurrentPage.value = Math.min(maxPage, page + 1);
-          }, children: "Next \xBB" })
-        ] })
-      ] })
-    ] });
+    const columns3 = useSessionColumns();
+    const data = lastFilteredSessions.value;
+    return /* @__PURE__ */ u2(
+      DataTable,
+      {
+        columns: columns3,
+        data,
+        title: "Recent Sessions",
+        exportFn: onExportCSV,
+        pageSize: SESSIONS_PAGE_SIZE,
+        defaultSort,
+        enableColumnVisibility: true
+      }
+    );
   }
 
   // src/ui/components/ModelCostTable.tsx
-  function setModelSort(col) {
-    if (modelSortCol.value === col) {
-      modelSortDir.value = modelSortDir.value === "desc" ? "asc" : "desc";
-    } else {
-      modelSortCol.value = col;
-      modelSortDir.value = "desc";
-    }
-  }
-  function sortModels(byModel) {
-    const col = modelSortCol.value;
-    const dir = modelSortDir.value;
-    return [...byModel].sort((a4, b4) => {
-      let av, bv;
-      if (col === "cost") {
-        av = a4.cost;
-        bv = b4.cost;
-      } else {
-        av = a4[col] ?? 0;
-        bv = b4[col] ?? 0;
-      }
-      if (av < bv) return dir === "desc" ? 1 : -1;
-      if (av > bv) return dir === "desc" ? -1 : 1;
-      return 0;
-    });
+  var defaultSort2 = [{ id: "cost", desc: true }];
+  function useModelColumns() {
+    return T2(
+      () => [
+        {
+          id: "model",
+          accessorKey: "model",
+          header: "Model",
+          enableSorting: false,
+          cell: (info) => /* @__PURE__ */ u2("span", { class: "model-tag", children: info.getValue() })
+        },
+        {
+          id: "turns",
+          accessorKey: "turns",
+          header: "Turns",
+          cell: (info) => /* @__PURE__ */ u2("span", { class: "num", children: fmt(info.getValue()) })
+        },
+        {
+          id: "input",
+          accessorKey: "input",
+          header: "Input",
+          cell: (info) => /* @__PURE__ */ u2("span", { class: "num", children: fmt(info.getValue()) })
+        },
+        {
+          id: "output",
+          accessorKey: "output",
+          header: "Output",
+          cell: (info) => /* @__PURE__ */ u2("span", { class: "num", children: fmt(info.getValue()) })
+        },
+        {
+          id: "cache_read",
+          accessorKey: "cache_read",
+          header: "Cache Read",
+          cell: (info) => /* @__PURE__ */ u2("span", { class: "num", children: fmt(info.getValue()) })
+        },
+        {
+          id: "cache_creation",
+          accessorKey: "cache_creation",
+          header: "Cache Creation",
+          cell: (info) => /* @__PURE__ */ u2("span", { class: "num", children: fmt(info.getValue()) })
+        },
+        {
+          id: "cost",
+          accessorKey: "cost",
+          header: "Est. Cost",
+          cell: (info) => {
+            const row = info.row.original;
+            return row.is_billable ? /* @__PURE__ */ u2("span", { class: "cost", children: fmtCost(info.getValue()) }) : /* @__PURE__ */ u2("span", { class: "cost-na", children: "n/a" });
+          }
+        }
+      ],
+      []
+    );
   }
   function ModelCostTable({ byModel }) {
-    const sortCol = modelSortCol.value;
-    const sortDir = modelSortDir.value;
-    const sorted = sortModels(byModel);
-    const sortIcon = (col) => sortCol === col ? sortDir === "desc" ? " \u25BC" : " \u25B2" : "";
-    return /* @__PURE__ */ u2("div", { class: "table-card", children: [
-      /* @__PURE__ */ u2("div", { class: "section-title", children: "Cost by Model" }),
-      /* @__PURE__ */ u2("table", { children: [
-        /* @__PURE__ */ u2("thead", { children: /* @__PURE__ */ u2("tr", { children: [
-          /* @__PURE__ */ u2("th", { children: "Model" }),
-          /* @__PURE__ */ u2("th", { class: "sortable", onClick: () => setModelSort("turns"), children: [
-            "Turns",
-            /* @__PURE__ */ u2("span", { class: "sort-icon", children: sortIcon("turns") })
-          ] }),
-          /* @__PURE__ */ u2("th", { class: "sortable", onClick: () => setModelSort("input"), children: [
-            "Input",
-            /* @__PURE__ */ u2("span", { class: "sort-icon", children: sortIcon("input") })
-          ] }),
-          /* @__PURE__ */ u2("th", { class: "sortable", onClick: () => setModelSort("output"), children: [
-            "Output",
-            /* @__PURE__ */ u2("span", { class: "sort-icon", children: sortIcon("output") })
-          ] }),
-          /* @__PURE__ */ u2("th", { class: "sortable", onClick: () => setModelSort("cache_read"), children: [
-            "Cache Read",
-            /* @__PURE__ */ u2("span", { class: "sort-icon", children: sortIcon("cache_read") })
-          ] }),
-          /* @__PURE__ */ u2("th", { class: "sortable", onClick: () => setModelSort("cache_creation"), children: [
-            "Cache Creation",
-            /* @__PURE__ */ u2("span", { class: "sort-icon", children: sortIcon("cache_creation") })
-          ] }),
-          /* @__PURE__ */ u2("th", { class: "sortable", onClick: () => setModelSort("cost"), children: [
-            "Est. Cost",
-            /* @__PURE__ */ u2("span", { class: "sort-icon", children: sortIcon("cost") })
-          ] })
-        ] }) }),
-        /* @__PURE__ */ u2("tbody", { children: sorted.map((m4) => /* @__PURE__ */ u2("tr", { children: [
-          /* @__PURE__ */ u2("td", { children: /* @__PURE__ */ u2("span", { class: "model-tag", children: m4.model }) }),
-          /* @__PURE__ */ u2("td", { class: "num", children: fmt(m4.turns) }),
-          /* @__PURE__ */ u2("td", { class: "num", children: fmt(m4.input) }),
-          /* @__PURE__ */ u2("td", { class: "num", children: fmt(m4.output) }),
-          /* @__PURE__ */ u2("td", { class: "num", children: fmt(m4.cache_read) }),
-          /* @__PURE__ */ u2("td", { class: "num", children: fmt(m4.cache_creation) }),
-          m4.is_billable ? /* @__PURE__ */ u2("td", { class: "cost", children: fmtCost(m4.cost) }) : /* @__PURE__ */ u2("td", { class: "cost-na", children: "n/a" })
-        ] }, m4.model)) })
-      ] })
-    ] });
+    const columns3 = useModelColumns();
+    return /* @__PURE__ */ u2(
+      DataTable,
+      {
+        columns: columns3,
+        data: byModel,
+        title: "Cost by Model",
+        defaultSort: defaultSort2
+      }
+    );
   }
 
   // src/ui/components/ProjectCostTable.tsx
-  function setProjectSort(col) {
-    if (projectSortCol.value === col) {
-      projectSortDir.value = projectSortDir.value === "desc" ? "asc" : "desc";
-    } else {
-      projectSortCol.value = col;
-      projectSortDir.value = "desc";
-    }
+  var defaultSort3 = [{ id: "cost", desc: true }];
+  function useProjectColumns() {
+    return T2(
+      () => [
+        {
+          id: "project",
+          accessorKey: "project",
+          header: "Project",
+          enableSorting: false
+        },
+        {
+          id: "sessions",
+          accessorKey: "sessions",
+          header: "Sessions",
+          cell: (info) => /* @__PURE__ */ u2("span", { class: "num", children: info.getValue() })
+        },
+        {
+          id: "turns",
+          accessorKey: "turns",
+          header: "Turns",
+          cell: (info) => /* @__PURE__ */ u2("span", { class: "num", children: fmt(info.getValue()) })
+        },
+        {
+          id: "input",
+          accessorKey: "input",
+          header: "Input",
+          cell: (info) => /* @__PURE__ */ u2("span", { class: "num", children: fmt(info.getValue()) })
+        },
+        {
+          id: "output",
+          accessorKey: "output",
+          header: "Output",
+          cell: (info) => /* @__PURE__ */ u2("span", { class: "num", children: fmt(info.getValue()) })
+        },
+        {
+          id: "cost",
+          accessorKey: "cost",
+          header: "Est. Cost",
+          cell: (info) => /* @__PURE__ */ u2("span", { class: "cost", children: fmtCost(info.getValue()) })
+        }
+      ],
+      []
+    );
   }
-  function sortProjects(byProject) {
-    const col = projectSortCol.value;
-    const dir = projectSortDir.value;
-    return [...byProject].sort((a4, b4) => {
-      const av = a4[col] ?? 0;
-      const bv = b4[col] ?? 0;
-      if (av < bv) return dir === "desc" ? 1 : -1;
-      if (av > bv) return dir === "desc" ? -1 : 1;
-      return 0;
-    });
-  }
-  function ProjectCostTable({ byProject, onExportCSV }) {
-    const sortCol = projectSortCol.value;
-    const sortDir = projectSortDir.value;
-    const sorted = sortProjects(byProject);
-    const sortIcon = (col) => sortCol === col ? sortDir === "desc" ? " \u25BC" : " \u25B2" : "";
-    return /* @__PURE__ */ u2("div", { class: "table-card", children: [
-      /* @__PURE__ */ u2("div", { class: "section-header", children: [
-        /* @__PURE__ */ u2("div", { class: "section-title", children: "Cost by Project" }),
-        /* @__PURE__ */ u2("button", { class: "export-btn", onClick: onExportCSV, title: "Export projects to CSV", children: "\u2913 CSV" })
-      ] }),
-      /* @__PURE__ */ u2("table", { children: [
-        /* @__PURE__ */ u2("thead", { children: /* @__PURE__ */ u2("tr", { children: [
-          /* @__PURE__ */ u2("th", { children: "Project" }),
-          /* @__PURE__ */ u2("th", { class: "sortable", onClick: () => setProjectSort("sessions"), children: [
-            "Sessions",
-            /* @__PURE__ */ u2("span", { class: "sort-icon", children: sortIcon("sessions") })
-          ] }),
-          /* @__PURE__ */ u2("th", { class: "sortable", onClick: () => setProjectSort("turns"), children: [
-            "Turns",
-            /* @__PURE__ */ u2("span", { class: "sort-icon", children: sortIcon("turns") })
-          ] }),
-          /* @__PURE__ */ u2("th", { class: "sortable", onClick: () => setProjectSort("input"), children: [
-            "Input",
-            /* @__PURE__ */ u2("span", { class: "sort-icon", children: sortIcon("input") })
-          ] }),
-          /* @__PURE__ */ u2("th", { class: "sortable", onClick: () => setProjectSort("output"), children: [
-            "Output",
-            /* @__PURE__ */ u2("span", { class: "sort-icon", children: sortIcon("output") })
-          ] }),
-          /* @__PURE__ */ u2("th", { class: "sortable", onClick: () => setProjectSort("cost"), children: [
-            "Est. Cost",
-            /* @__PURE__ */ u2("span", { class: "sort-icon", children: sortIcon("cost") })
-          ] })
-        ] }) }),
-        /* @__PURE__ */ u2("tbody", { children: sorted.map((p5) => /* @__PURE__ */ u2("tr", { children: [
-          /* @__PURE__ */ u2("td", { children: p5.project }),
-          /* @__PURE__ */ u2("td", { class: "num", children: p5.sessions }),
-          /* @__PURE__ */ u2("td", { class: "num", children: fmt(p5.turns) }),
-          /* @__PURE__ */ u2("td", { class: "num", children: fmt(p5.input) }),
-          /* @__PURE__ */ u2("td", { class: "num", children: fmt(p5.output) }),
-          /* @__PURE__ */ u2("td", { class: "cost", children: fmtCost(p5.cost) })
-        ] }, p5.project)) })
-      ] })
-    ] });
+  function ProjectCostTable({
+    byProject,
+    onExportCSV
+  }) {
+    const columns3 = useProjectColumns();
+    return /* @__PURE__ */ u2(
+      DataTable,
+      {
+        columns: columns3,
+        data: byProject,
+        title: "Cost by Project",
+        exportFn: onExportCSV,
+        defaultSort: defaultSort3
+      }
+    );
   }
 
   // src/ui/components/ApexChart.tsx
@@ -1524,14 +4441,14 @@
       },
       theme: { mode: apexThemeMode() },
       series: [
-        { name: "Input", data: daily.map((d4) => d4.input) },
-        { name: "Output", data: daily.map((d4) => d4.output) },
-        { name: "Cache Read", data: daily.map((d4) => d4.cache_read) },
-        { name: "Cache Creation", data: daily.map((d4) => d4.cache_creation) }
+        { name: "Input", data: daily.map((d5) => d5.input) },
+        { name: "Output", data: daily.map((d5) => d5.output) },
+        { name: "Cache Read", data: daily.map((d5) => d5.cache_read) },
+        { name: "Cache Creation", data: daily.map((d5) => d5.cache_creation) }
       ],
       colors: [TOKEN_COLORS.input, TOKEN_COLORS.output, TOKEN_COLORS.cache_read, TOKEN_COLORS.cache_creation],
       xaxis: {
-        categories: daily.map((d4) => d4.day),
+        categories: daily.map((d5) => d5.day),
         labels: { rotate: -45, maxHeight: 60 },
         tickAmount: Math.min(daily.length, RANGE_TICKS[selectedRange.value])
       },
@@ -1608,7 +4525,7 @@
         background: "transparent",
         fontFamily: "inherit"
       },
-      series: [{ data: last7.map((d4) => d4.input + d4.output) }],
+      series: [{ data: last7.map((d5) => d5.input + d5.output) }],
       stroke: { width: 1.5, curve: "smooth" },
       colors: [cssVar("--accent")],
       tooltip: { enabled: false }
@@ -1628,8 +4545,8 @@
     return s4;
   }
   function csvTimestamp() {
-    const d4 = /* @__PURE__ */ new Date();
-    return d4.getFullYear() + "-" + String(d4.getMonth() + 1).padStart(2, "0") + "-" + String(d4.getDate()).padStart(2, "0") + "_" + String(d4.getHours()).padStart(2, "0") + String(d4.getMinutes()).padStart(2, "0");
+    const d5 = /* @__PURE__ */ new Date();
+    return d5.getFullYear() + "-" + String(d5.getMonth() + 1).padStart(2, "0") + "-" + String(d5.getDate()).padStart(2, "0") + "_" + String(d5.getHours()).padStart(2, "0") + String(d5.getMinutes()).padStart(2, "0");
   }
   function downloadCSV(reportType, header, rows) {
     const lines = [header.map(csvField).join(",")];
@@ -1676,9 +4593,9 @@
   function getRangeCutoff(range) {
     if (range === "all") return null;
     const days = range === "7d" ? 7 : range === "30d" ? 30 : 90;
-    const d4 = /* @__PURE__ */ new Date();
-    d4.setDate(d4.getDate() - days);
-    return d4.toISOString().slice(0, 10);
+    const d5 = /* @__PURE__ */ new Date();
+    d5.setDate(d5.getDate() - days);
+    return d5.toISOString().slice(0, 10);
   }
   function readURLRange() {
     const p5 = new URLSearchParams(window.location.search).get("range");
@@ -1797,11 +4714,11 @@
     const dailyMap = {};
     for (const r4 of filteredDaily) {
       if (!dailyMap[r4.day]) dailyMap[r4.day] = { day: r4.day, input: 0, output: 0, cache_read: 0, cache_creation: 0 };
-      const d4 = dailyMap[r4.day];
-      d4.input += r4.input;
-      d4.output += r4.output;
-      d4.cache_read += r4.cache_read;
-      d4.cache_creation += r4.cache_creation;
+      const d5 = dailyMap[r4.day];
+      d5.input += r4.input;
+      d5.output += r4.output;
+      d5.cache_read += r4.cache_read;
+      d5.cache_creation += r4.cache_creation;
     }
     const daily = Object.values(dailyMap).sort((a4, b4) => a4.day.localeCompare(b4.day));
     const modelMap = {};
@@ -1852,7 +4769,6 @@
     renderProjectChart(byProject);
     lastFilteredSessions.value = filteredSessions;
     lastByProject.value = byProject;
-    sessionsCurrentPage.value = 0;
     R(/* @__PURE__ */ u2(ModelCostTable, { byModel }), $2("model-cost-mount"));
     R(/* @__PURE__ */ u2(SessionsTable, { onExportCSV: exportSessionsCSV }), $2("sessions-mount"));
     R(/* @__PURE__ */ u2(ProjectCostTable, { byProject: lastByProject.value.slice(0, 30), onExportCSV: exportProjectsCSV }), $2("project-cost-mount"));
@@ -2012,8 +4928,8 @@
         btn.textContent = "\u21BB Rescan (failed)";
         return;
       }
-      const d4 = await resp.json();
-      btn.textContent = "\u21BB Rescan (" + d4.new + " new, " + d4.updated + " updated)";
+      const d5 = await resp.json();
+      btn.textContent = "\u21BB Rescan (" + d5.new + " new, " + d5.updated + " updated)";
       await loadData();
     } catch (e4) {
       const msg = e4 instanceof Error ? e4.message : String(e4);
@@ -2033,20 +4949,20 @@
         showError(`Failed to load data: HTTP ${resp.status}`);
         return;
       }
-      const d4 = await resp.json();
-      if (d4.error) {
-        document.body.innerHTML = '<div style="padding:40px;color:#f87171;font-family:monospace">' + esc(d4.error) + "</div>";
+      const d5 = await resp.json();
+      if (d5.error) {
+        document.body.innerHTML = '<div style="padding:40px;color:#f87171;font-family:monospace">' + esc(d5.error) + "</div>";
         return;
       }
-      $2("meta").textContent = "Updated: " + d4.generated_at + " \xB7 Auto-refresh 30s";
+      $2("meta").textContent = "Updated: " + d5.generated_at + " \xB7 Auto-refresh 30s";
       const isFirstLoad = rawData.value === null;
-      rawData.value = d4;
+      rawData.value = d5;
       if (isFirstLoad) {
         selectedRange.value = readURLRange();
         document.querySelectorAll(".range-btn").forEach(
           (btn) => btn.classList.toggle("active", btn.dataset.range === selectedRange.value)
         );
-        buildFilterUI(d4.all_models);
+        buildFilterUI(d5.all_models);
         const urlProject = new URLSearchParams(window.location.search).get("project");
         if (urlProject) {
           projectSearchQuery.value = urlProject;
@@ -2088,3 +5004,17 @@
   document.body.appendChild(toastRoot);
   R(/* @__PURE__ */ u2(ToastContainer, {}), toastRoot);
 })();
+/*! Bundled license information:
+
+@tanstack/table-core/build/lib/index.mjs:
+  (**
+     * table-core
+     *
+     * Copyright (c) TanStack
+     *
+     * This source code is licensed under the MIT license found in the
+     * LICENSE.md file in the root directory of this source tree.
+     *
+     * @license MIT
+     *)
+*/

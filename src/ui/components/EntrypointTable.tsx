@@ -1,34 +1,22 @@
+import { type ColumnDef } from '@tanstack/table-core';
 import { fmt } from '../lib/format';
 import type { EntrypointSummary } from '../state/types';
+import { DataTable } from './DataTable';
+
+const columns: ColumnDef<EntrypointSummary, any>[] = [
+  { accessorKey: 'entrypoint', header: 'Entrypoint',
+    cell: ({ getValue }) => <span class="model-tag">{String(getValue())}</span> },
+  { accessorKey: 'sessions', header: 'Sessions',
+    cell: ({ getValue }) => <span class="num">{getValue()}</span> },
+  { accessorKey: 'turns', header: 'Turns',
+    cell: ({ getValue }) => <span class="num">{fmt(getValue() as number)}</span> },
+  { accessorKey: 'input', header: 'Input',
+    cell: ({ getValue }) => <span class="num">{fmt(getValue() as number)}</span> },
+  { accessorKey: 'output', header: 'Output',
+    cell: ({ getValue }) => <span class="num">{fmt(getValue() as number)}</span> },
+];
 
 export function EntrypointTable({ data }: { data: EntrypointSummary[] }) {
   if (!data.length) return null;
-
-  return (
-    <div class="table-card">
-      <div class="section-title">Usage by Entrypoint</div>
-      <table>
-        <thead>
-          <tr>
-            <th>Entrypoint</th>
-            <th>Sessions</th>
-            <th>Turns</th>
-            <th>Input</th>
-            <th>Output</th>
-          </tr>
-        </thead>
-        <tbody>
-          {data.map(e => (
-            <tr key={e.entrypoint}>
-              <td><span class="model-tag">{e.entrypoint}</span></td>
-              <td class="num">{e.sessions}</td>
-              <td class="num">{fmt(e.turns)}</td>
-              <td class="num">{fmt(e.input)}</td>
-              <td class="num">{fmt(e.output)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
+  return <DataTable columns={columns} data={data} title="Usage by Entrypoint" />;
 }

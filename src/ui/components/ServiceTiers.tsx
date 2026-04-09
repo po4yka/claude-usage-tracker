@@ -1,30 +1,16 @@
+import { type ColumnDef } from '@tanstack/table-core';
 import { fmt } from '../lib/format';
 import type { ServiceTierSummary } from '../state/types';
+import { DataTable } from './DataTable';
+
+const columns: ColumnDef<ServiceTierSummary, any>[] = [
+  { accessorKey: 'service_tier', header: 'Tier' },
+  { accessorKey: 'inference_geo', header: 'Region' },
+  { accessorKey: 'turns', header: 'Turns',
+    cell: ({ getValue }) => <span class="num">{fmt(getValue() as number)}</span> },
+];
 
 export function ServiceTiersTable({ data }: { data: ServiceTierSummary[] }) {
   if (!data.length) return null;
-
-  return (
-    <div class="table-card">
-      <div class="section-title">Service Tiers</div>
-      <table>
-        <thead>
-          <tr>
-            <th>Tier</th>
-            <th>Region</th>
-            <th>Turns</th>
-          </tr>
-        </thead>
-        <tbody>
-          {data.map(s => (
-            <tr key={`${s.service_tier}-${s.inference_geo}`}>
-              <td>{s.service_tier}</td>
-              <td>{s.inference_geo}</td>
-              <td class="num">{fmt(s.turns)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
+  return <DataTable columns={columns} data={data} title="Service Tiers" />;
 }
