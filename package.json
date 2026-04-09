@@ -1,12 +1,20 @@
 {
   "private": true,
   "scripts": {
-    "build:ts": "esbuild src/ui/app.ts --outfile=src/ui/app.js --bundle --format=iife --target=es2020 --minify=false",
-    "watch:ts": "esbuild src/ui/app.ts --outfile=src/ui/app.js --bundle --format=iife --target=es2020 --watch",
+    "build:ts": "esbuild src/ui/app.tsx --outfile=src/ui/app.js --bundle --format=iife --target=es2020 --jsx=automatic --jsx-import-source=preact",
+    "build:css": "tailwindcss -i src/ui/input.css -o src/ui/style.css --minify",
+    "build:ui": "npm run build:ts && npm run build:css",
+    "watch:ts": "esbuild src/ui/app.tsx --outfile=src/ui/app.js --bundle --format=iife --target=es2020 --jsx=automatic --jsx-import-source=preact --watch",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@tailwindcss/cli": "^4.2.2",
     "esbuild": "^0.28.0",
     "typescript": "^6.0.0"
+  },
+  "dependencies": {
+    "@preact/signals": "^2.9.0",
+    "@tanstack/table-core": "^8.21.3",
+    "preact": "^10.29.1"
   }
 }

@@ -1,6 +1,6 @@
 "use strict";
 (() => {
-  // src/ui/app.ts
+  // src/ui/app.tsx
   function esc(s) {
     const d = document.createElement("div");
     d.textContent = String(s);
