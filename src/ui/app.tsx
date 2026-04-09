@@ -1,6 +1,9 @@
 // ── External declarations ──────────────────────────────────────────────
 declare const ApexCharts: any;
 
+import { render } from 'preact';
+import { Footer } from './components/Footer';
+
 import type {
   WindowInfo,
   BudgetInfo,
@@ -804,3 +807,9 @@ loadData();
 setInterval(loadData, 30000);
 loadUsageWindows();
 setInterval(loadUsageWindows, 60000);
+
+// ── Preact mount: replace static footer with component ────────────────
+const footerEl = document.querySelector('footer');
+if (footerEl && footerEl.parentElement) {
+  render(<Footer />, footerEl.parentElement, footerEl);
+}
