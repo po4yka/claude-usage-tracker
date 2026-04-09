@@ -1,6 +1,6 @@
 "use strict";
 (() => {
-  // src/ui/app.tsx
+  // src/ui/lib/format.ts
   function esc(s) {
     const d = document.createElement("div");
     d.textContent = String(s);
@@ -9,11 +9,83 @@
   function $(id) {
     return document.getElementById(id);
   }
+  function fmt(n) {
+    if (n >= 1e9) return (n / 1e9).toFixed(2) + "B";
+    if (n >= 1e6) return (n / 1e6).toFixed(2) + "M";
+    if (n >= 1e3) return (n / 1e3).toFixed(1) + "K";
+    return n.toLocaleString();
+  }
+  function fmtCost(c) {
+    return "$" + c.toFixed(4);
+  }
+  function fmtCostBig(c) {
+    return "$" + c.toFixed(2);
+  }
+  function fmtResetTime(minutes) {
+    if (minutes == null || minutes <= 0) return "now";
+    if (minutes >= 1440) return Math.floor(minutes / 1440) + "d " + Math.floor(minutes % 1440 / 60) + "h";
+    if (minutes >= 60) return Math.floor(minutes / 60) + "h " + minutes % 60 + "m";
+    return minutes + "m";
+  }
+  function progressColor(percent) {
+    if (percent >= 90) return "#ef4444";
+    if (percent >= 70) return "#fbbf24";
+    return "#4ade80";
+  }
+
+  // src/ui/lib/csv.ts
+  function csvField(val) {
+    const s = String(val);
+    if (s.includes(",") || s.includes('"') || s.includes("\n")) {
+      return '"' + s.replace(/"/g, '""') + '"';
+    }
+    return s;
+  }
+  function csvTimestamp() {
+    const d = /* @__PURE__ */ new Date();
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0") + "_" + String(d.getHours()).padStart(2, "0") + String(d.getMinutes()).padStart(2, "0");
+  }
+  function downloadCSV(reportType, header, rows) {
+    const lines = [header.map(csvField).join(",")];
+    for (const row of rows) lines.push(row.map(csvField).join(","));
+    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = reportType + "_" + csvTimestamp() + ".csv";
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  // src/ui/lib/charts.ts
+  var TOKEN_COLORS = {
+    input: "rgba(79,142,247,0.8)",
+    output: "rgba(167,139,250,0.8)",
+    cache_read: "rgba(74,222,128,0.6)",
+    cache_creation: "rgba(251,191,36,0.6)"
+  };
+  var MODEL_COLORS = ["#d97757", "#4f8ef7", "#4ade80", "#a78bfa", "#fbbf24", "#f472b6", "#34d399", "#60a5fa"];
+  var RANGE_LABELS = {
+    "7d": "Last 7 Days",
+    "30d": "Last 30 Days",
+    "90d": "Last 90 Days",
+    "all": "All Time"
+  };
+  var RANGE_TICKS = { "7d": 7, "30d": 15, "90d": 13, "all": 12 };
+  function apexThemeMode() {
+    return document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+  }
+  function cssVar(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+
+  // src/ui/lib/theme.ts
   function getTheme() {
     const stored = localStorage.getItem("theme");
     if (stored === "light" || stored === "dark") return stored;
     return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
   }
+
+  // src/ui/app.tsx
   function applyTheme(theme) {
     if (theme === "dark") {
       document.documentElement.setAttribute("data-theme", "dark");
@@ -31,12 +103,6 @@
     applyTheme(next);
   }
   applyTheme(getTheme());
-  function apexThemeMode() {
-    return document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
-  }
-  function cssVar(name) {
-    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-  }
   var rawData = null;
   var selectedModels = /* @__PURE__ */ new Set();
   var selectedRange = "30d";
@@ -58,32 +124,6 @@
     const m = model.toLowerCase();
     return m.includes("opus") || m.includes("sonnet") || m.includes("haiku");
   }
-  function fmt(n) {
-    if (n >= 1e9) return (n / 1e9).toFixed(2) + "B";
-    if (n >= 1e6) return (n / 1e6).toFixed(2) + "M";
-    if (n >= 1e3) return (n / 1e3).toFixed(1) + "K";
-    return n.toLocaleString();
-  }
-  function fmtCost(c) {
-    return "$" + c.toFixed(4);
-  }
-  function fmtCostBig(c) {
-    return "$" + c.toFixed(2);
-  }
-  var TOKEN_COLORS = {
-    input: "rgba(79,142,247,0.8)",
-    output: "rgba(167,139,250,0.8)",
-    cache_read: "rgba(74,222,128,0.6)",
-    cache_creation: "rgba(251,191,36,0.6)"
-  };
-  var MODEL_COLORS = ["#d97757", "#4f8ef7", "#4ade80", "#a78bfa", "#fbbf24", "#f472b6", "#34d399", "#60a5fa"];
-  var RANGE_LABELS = {
-    "7d": "Last 7 Days",
-    "30d": "Last 30 Days",
-    "90d": "Last 90 Days",
-    "all": "All Time"
-  };
-  var RANGE_TICKS = { "7d": 7, "30d": 15, "90d": 13, "all": 12 };
   function getRangeCutoff(range) {
     if (range === "all") return null;
     const days = range === "7d" ? 7 : range === "30d" ? 30 : 90;
@@ -516,27 +556,6 @@
       <td class="cost">${fmtCost(p.cost)}</td>
     </tr>`).join("");
   }
-  function csvField(val) {
-    const s = String(val);
-    if (s.includes(",") || s.includes('"') || s.includes("\n")) {
-      return '"' + s.replace(/"/g, '""') + '"';
-    }
-    return s;
-  }
-  function csvTimestamp() {
-    const d = /* @__PURE__ */ new Date();
-    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0") + "_" + String(d.getHours()).padStart(2, "0") + String(d.getMinutes()).padStart(2, "0");
-  }
-  function downloadCSV(reportType, header, rows) {
-    const lines = [header.map(csvField).join(",")];
-    for (const row of rows) lines.push(row.map(csvField).join(","));
-    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = reportType + "_" + csvTimestamp() + ".csv";
-    a.click();
-    URL.revokeObjectURL(a.href);
-  }
   function exportSessionsCSV() {
     const header = ["Session", "Project", "Last Active", "Duration (min)", "Model", "Turns", "Input", "Output", "Cache Read", "Cache Creation", "Est. Cost"];
     const rows = lastFilteredSessions.map((s) => {
@@ -551,17 +570,6 @@
       (p) => [p.project, p.sessions, p.turns, p.input, p.output, p.cache_read, p.cache_creation, p.cost.toFixed(4)]
     );
     downloadCSV("projects", header, rows);
-  }
-  function progressColor(percent) {
-    if (percent >= 90) return "#ef4444";
-    if (percent >= 70) return "#fbbf24";
-    return "#4ade80";
-  }
-  function fmtResetTime(minutes) {
-    if (minutes == null || minutes <= 0) return "now";
-    if (minutes >= 1440) return Math.floor(minutes / 1440) + "d " + Math.floor(minutes % 1440 / 60) + "h";
-    if (minutes >= 60) return Math.floor(minutes / 60) + "h " + minutes % 60 + "m";
-    return minutes + "m";
   }
   function renderWindowCard(label, w) {
     const pct = Math.min(100, w.used_percent);

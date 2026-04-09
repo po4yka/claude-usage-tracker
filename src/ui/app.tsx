@@ -1,177 +1,31 @@
 // ── External declarations ──────────────────────────────────────────────
 declare const ApexCharts: any;
 
-// ── Types ──────────────────────────────────────────────────────────────
-interface WindowInfo {
-  used_percent: number;
-  resets_at: string | null;
-  resets_in_minutes: number | null;
-}
+import type {
+  WindowInfo,
+  BudgetInfo,
+  IdentityInfo,
+  UsageWindowsResponse,
+  SubagentSummary,
+  EntrypointSummary,
+  ServiceTierSummary,
+  DashboardData,
+  DailyModelRow,
+  SessionRow,
+  DailyAgg,
+  ModelAgg,
+  ProjectAgg,
+  Totals,
+  StatCard,
+  SortDir,
+  RangeKey,
+} from './state/types';
+import { esc, $, fmt, fmtCost, fmtCostBig, fmtResetTime, progressColor } from './lib/format';
+import { csvField, csvTimestamp, downloadCSV } from './lib/csv';
+import { TOKEN_COLORS, MODEL_COLORS, RANGE_LABELS, RANGE_TICKS, apexThemeMode, cssVar } from './lib/charts';
+import { getTheme } from './lib/theme';
 
-interface BudgetInfo {
-  used: number;
-  limit: number;
-  currency: string;
-  utilization: number;
-}
-
-interface IdentityInfo {
-  plan: string | null;
-  rate_limit_tier: string | null;
-}
-
-interface UsageWindowsResponse {
-  available: boolean;
-  session?: WindowInfo;
-  weekly?: WindowInfo;
-  weekly_opus?: WindowInfo;
-  weekly_sonnet?: WindowInfo;
-  budget?: BudgetInfo;
-  identity?: IdentityInfo;
-  error?: string;
-}
-
-interface SubagentSummary {
-  parent_turns: number;
-  parent_input: number;
-  parent_output: number;
-  subagent_turns: number;
-  subagent_input: number;
-  subagent_output: number;
-  unique_agents: number;
-}
-
-interface EntrypointSummary {
-  entrypoint: string;
-  sessions: number;
-  turns: number;
-  input: number;
-  output: number;
-}
-
-interface ServiceTierSummary {
-  service_tier: string;
-  inference_geo: string;
-  turns: number;
-}
-
-interface DashboardData {
-  all_models: string[];
-  daily_by_model: DailyModelRow[];
-  sessions_all: SessionRow[];
-  subagent_summary: SubagentSummary;
-  entrypoint_breakdown: EntrypointSummary[];
-  service_tiers: ServiceTierSummary[];
-  generated_at: string;
-  error?: string;
-}
-
-interface DailyModelRow {
-  day: string;
-  model: string;
-  input: number;
-  output: number;
-  cache_read: number;
-  cache_creation: number;
-  turns: number;
-  cost: number;
-}
-
-interface SessionRow {
-  session_id: string;
-  project: string;
-  last: string;
-  last_date: string;
-  duration_min: number;
-  model: string;
-  turns: number;
-  input: number;
-  output: number;
-  cache_read: number;
-  cache_creation: number;
-  cost: number;
-  is_billable: boolean;
-  subagent_count: number;
-  subagent_turns: number;
-}
-
-interface DashboardData {
-  all_models: string[];
-  daily_by_model: DailyModelRow[];
-  sessions_all: SessionRow[];
-  generated_at: string;
-  error?: string;
-}
-
-interface DailyAgg {
-  day: string;
-  input: number;
-  output: number;
-  cache_read: number;
-  cache_creation: number;
-}
-
-interface ModelAgg {
-  model: string;
-  input: number;
-  output: number;
-  cache_read: number;
-  cache_creation: number;
-  turns: number;
-  sessions: number;
-  cost: number;
-  is_billable: boolean;
-}
-
-interface ProjectAgg {
-  project: string;
-  input: number;
-  output: number;
-  cache_read: number;
-  cache_creation: number;
-  turns: number;
-  sessions: number;
-  cost: number;
-}
-
-interface Totals {
-  sessions: number;
-  turns: number;
-  input: number;
-  output: number;
-  cache_read: number;
-  cache_creation: number;
-  cost: number;
-}
-
-interface StatCard {
-  label: string;
-  value: string;
-  sub: string;
-  color?: string;
-}
-
-type SortDir = 'asc' | 'desc';
-type RangeKey = '7d' | '30d' | '90d' | 'all';
-
-// ── Helpers ────────────────────────────────────────────────────────────
-function esc(s: unknown): string {
-  const d = document.createElement('div');
-  d.textContent = String(s);
-  return d.innerHTML;
-}
-
-function $(id: string): HTMLElement {
-  return document.getElementById(id)!;
-}
-
-// ── Theme ─────────────────────────────────────────────────────────────
-function getTheme(): 'light' | 'dark' {
-  const stored = localStorage.getItem('theme');
-  if (stored === 'light' || stored === 'dark') return stored;
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-}
-
+// ── Theme (app-level, depends on state) ───────────────────────────────
 function applyTheme(theme: 'light' | 'dark'): void {
   if (theme === 'dark') {
     document.documentElement.setAttribute('data-theme', 'dark');
@@ -193,15 +47,6 @@ function toggleTheme(): void {
 
 // Apply theme immediately before render
 applyTheme(getTheme());
-
-// ── ApexCharts theme helper ───────────────────────────────────────────
-function apexThemeMode(): 'light' | 'dark' {
-  return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
-}
-
-function cssVar(name: string): string {
-  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-}
 
 // ── State ──────────────────────────────────────────────────────────────
 let rawData: DashboardData | null = null;
@@ -228,37 +73,6 @@ function isAnthropicModel(model: string): boolean {
   const m = model.toLowerCase();
   return m.includes('opus') || m.includes('sonnet') || m.includes('haiku');
 }
-
-// ── Formatting ─────────────────────────────────────────────────────────
-function fmt(n: number): string {
-  if (n >= 1e9) return (n / 1e9).toFixed(2) + 'B';
-  if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
-  if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
-  return n.toLocaleString();
-}
-
-function fmtCost(c: number): string {
-  return '$' + c.toFixed(4);
-}
-
-function fmtCostBig(c: number): string {
-  return '$' + c.toFixed(2);
-}
-
-// ── Chart colors ───────────────────────────────────────────────────────
-const TOKEN_COLORS: Record<string, string> = {
-  input:          'rgba(79,142,247,0.8)',
-  output:         'rgba(167,139,250,0.8)',
-  cache_read:     'rgba(74,222,128,0.6)',
-  cache_creation: 'rgba(251,191,36,0.6)',
-};
-const MODEL_COLORS = ['#d97757', '#4f8ef7', '#4ade80', '#a78bfa', '#fbbf24', '#f472b6', '#34d399', '#60a5fa'];
-
-// ── Time range ─────────────────────────────────────────────────────────
-const RANGE_LABELS: Record<RangeKey, string> = {
-  '7d': 'Last 7 Days', '30d': 'Last 30 Days', '90d': 'Last 90 Days', 'all': 'All Time',
-};
-const RANGE_TICKS: Record<RangeKey, number> = { '7d': 7, '30d': 15, '90d': 13, 'all': 12 };
 
 function getRangeCutoff(range: RangeKey): string | null {
   if (range === 'all') return null;
@@ -695,31 +509,6 @@ function renderProjectCostTable(byProject: ProjectAgg[]): void {
 }
 
 // ── CSV Export ──────────────────────────────────────────────────────────
-function csvField(val: unknown): string {
-  const s = String(val);
-  if (s.includes(',') || s.includes('"') || s.includes('\n')) {
-    return '"' + s.replace(/"/g, '""') + '"';
-  }
-  return s;
-}
-
-function csvTimestamp(): string {
-  const d = new Date();
-  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0')
-    + '_' + String(d.getHours()).padStart(2, '0') + String(d.getMinutes()).padStart(2, '0');
-}
-
-function downloadCSV(reportType: string, header: string[], rows: unknown[][]): void {
-  const lines = [header.map(csvField).join(',')];
-  for (const row of rows) lines.push(row.map(csvField).join(','));
-  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = reportType + '_' + csvTimestamp() + '.csv';
-  a.click();
-  URL.revokeObjectURL(a.href);
-}
-
 function exportSessionsCSV(): void {
   const header = ['Session', 'Project', 'Last Active', 'Duration (min)', 'Model', 'Turns', 'Input', 'Output', 'Cache Read', 'Cache Creation', 'Est. Cost'];
   const rows = lastFilteredSessions.map(s => {
@@ -738,19 +527,6 @@ function exportProjectsCSV(): void {
 }
 
 // ── Usage Windows & Budget ──────────────────────────────────────────────
-function progressColor(percent: number): string {
-  if (percent >= 90) return '#ef4444';
-  if (percent >= 70) return '#fbbf24';
-  return '#4ade80';
-}
-
-function fmtResetTime(minutes: number | null | undefined): string {
-  if (minutes == null || minutes <= 0) return 'now';
-  if (minutes >= 1440) return Math.floor(minutes / 1440) + 'd ' + Math.floor((minutes % 1440) / 60) + 'h';
-  if (minutes >= 60) return Math.floor(minutes / 60) + 'h ' + (minutes % 60) + 'm';
-  return minutes + 'm';
-}
-
 function renderWindowCard(label: string, w: WindowInfo): string {
   const pct = Math.min(100, w.used_percent);
   const color = progressColor(pct);
