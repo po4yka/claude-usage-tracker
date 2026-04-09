@@ -1,0 +1,12 @@
+{
+  "private": true,
+  "scripts": {
+    "build:ts": "esbuild src/ui/app.ts --outfile=src/ui/app.js --bundle --format=iife --target=es2020 --minify=false",
+    "watch:ts": "esbuild src/ui/app.ts --outfile=src/ui/app.js --bundle --format=iife --target=es2020 --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.0",
+    "typescript": "^6.0.0"
+  }
+}
