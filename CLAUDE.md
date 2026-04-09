@@ -132,3 +132,12 @@ Always use additive migrations (ALTER TABLE ADD COLUMN). Check for column existe
 2. Extract in `main.rs` before the match
 3. Pass through to where it's needed (server, scanner, etc.)
 4. Add test for parsing in `config.rs` tests
+
+## Dashboard UI
+
+When editing dashboard files (`src/ui/`), follow the design skill at `.claude/skills/dashboard-design/SKILL.md`. Key rules:
+- All colors via CSS variables (light + dark theme support)
+- Numbers in monospace, costs in green
+- No emojis, no gradients, no heavy shadows
+- XSS protection: all dynamic text through `esc()` function
+- Recompile TS after changes: `./node_modules/.bin/esbuild src/ui/app.ts --outfile=src/ui/app.js --bundle --format=iife --target=es2020`

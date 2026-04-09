@@ -1,0 +1,10 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "command": "if echo \"$TOOL_INPUT\" | grep -q '\\.rs'; then cargo clippy --quiet -- -D warnings 2>&1 | head -20; fi"
+      }
+    ]
+  }
+}
