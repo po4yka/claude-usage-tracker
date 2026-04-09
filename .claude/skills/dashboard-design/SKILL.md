@@ -9,8 +9,12 @@ description: Premium data dashboard design rules for claude-usage-tracker. Enfor
 
 Apply these rules when editing:
 - `src/ui/index.html` -- dashboard HTML structure
-- `src/ui/style.css` -- theme variables and component styles
-- `src/ui/app.ts` -- rendering functions, chart configs, DOM generation
+- `src/ui/input.css` -- Tailwind v4 entry (source)
+- `src/ui/style.css` -- generated CSS (committed)
+- `src/ui/app.tsx` -- entry point, data loading, filter logic
+- `src/ui/components/*.tsx` -- Preact JSX components
+- `src/ui/state/store.ts` -- Preact signals state
+- `src/ui/lib/*.ts` -- shared utilities
 
 ## 2. Design Parameters
 
@@ -207,7 +211,7 @@ When modifying the dashboard UI:
 4. Numbers and token counts must use monospace font
 5. New sections need proper section-title styling (uppercase, muted, letter-spacing)
 6. After CSS changes: verify no hardcoded colors leaked into app.ts
-7. After TS changes: recompile with esbuild, rebuild Rust binary
+7. After TS changes: run `npm run build:ui`, rebuild Rust binary
 8. New UI elements must be responsive (collapse to single column below 768px)
 9. XSS protection: all dynamic text must pass through `esc()` function
 10. Progress bars must use semantic colors: green (<70%), yellow (70-90%), red (>90%)

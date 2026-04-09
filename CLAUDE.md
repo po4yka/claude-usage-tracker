@@ -7,11 +7,11 @@ Local Claude Code usage analytics dashboard. Rust binary with embedded web UI, O
 ## Build & Run
 
 ```bash
-# TypeScript (dashboard UI) -- only needed when modifying src/ui/app.ts
-npm install                                    # one-time: install esbuild + typescript
-./node_modules/.bin/esbuild src/ui/app.ts \
-  --outfile=src/ui/app.js --bundle \
-  --format=iife --target=es2020                # compile TS -> JS
+# TypeScript (dashboard UI) -- only needed when modifying src/ui/*.tsx
+npm install                                    # one-time: install deps
+npm run build:ts                               # compile TSX -> JS
+npm run build:css                              # compile Tailwind -> CSS
+npm run build:ui                               # both JS + CSS
 
 # Rust
 cargo build                    # debug build
@@ -24,7 +24,7 @@ cargo run -- stats --json      # JSON output
 cargo run -- scan              # scan only
 ```
 
-The compiled `src/ui/app.js` is committed to git so `cargo build` works without Node.js installed. Only re-run esbuild after editing `src/ui/app.ts`.
+The compiled `src/ui/app.js` and `src/ui/style.css` are committed to git so `cargo build` works without Node.js installed. Only re-run the build after editing `src/ui/*.tsx` or `src/ui/input.css`.
 
 ## Test
 
@@ -74,9 +74,33 @@ src/
     tests.rs           -- HTTP endpoint tests
   ui/
     index.html         -- Dashboard HTML shell
-    style.css          -- Dark theme CSS
-    app.ts             -- Dashboard TypeScript source (types, rendering, filtering, charts)
+    input.css          -- Tailwind v4 entry (source)
+    style.css          -- Generated CSS (committed)
+    app.tsx            -- Entry point, data loading, filter logic
     app.js             -- Compiled JS (committed, do not edit directly)
+    components/
+      Footer.tsx       -- Static footer
+      StatsCards.tsx    -- Summary stat cards
+      Toast.tsx        -- Signal-driven toast notifications
+      SubagentSummary.tsx  -- Subagent breakdown
+      EntrypointTable.tsx  -- Entrypoint usage table
+      ServiceTiers.tsx     -- Service tiers table
+      ApexChart.tsx        -- Generic ApexCharts wrapper
+      DailyChart.tsx       -- Daily token usage bar chart
+      ModelChart.tsx       -- Model distribution donut
+      ProjectChart.tsx     -- Top projects horizontal bar
+      Sparkline.tsx        -- 7-day trend sparkline
+      SessionsTable.tsx    -- Sessions table with sort/pagination
+      ModelCostTable.tsx   -- Cost by model table
+      ProjectCostTable.tsx -- Cost by project table
+    state/
+      types.ts         -- TypeScript interfaces
+      store.ts         -- Preact signals state
+    lib/
+      format.ts        -- Number/cost formatting utilities
+      csv.ts           -- CSV export utilities
+      charts.ts        -- Chart constants and theme helpers
+      theme.ts         -- Theme detection
 ```
 
 ## Key Design Decisions
@@ -86,7 +110,7 @@ src/
 - **Volume discounts**: `ModelPricing` has optional `threshold_tokens` + above-threshold rates. Sonnet 4.5 has a 200K threshold.
 - **Pricing overrides**: Config file can override any model's rates. Applied via `OnceLock<HashMap>` at startup.
 - **Embedded assets**: HTML/CSS/JS embedded via `include_str!` at compile time.
-- **TypeScript source**: `src/ui/app.ts` is the source of truth. Compiled via esbuild. Committed so `cargo build` works without Node.js.
+- **TypeScript source**: `src/ui/app.tsx` and `src/ui/components/*.tsx` are the source of truth. Compiled via esbuild. Committed so `cargo build` works without Node.js.
 - **Incremental scanning**: Track file mtime + line count in `processed_files` table. Skip already-processed lines.
 - **Dedup correctness**: After all turn inserts, recompute session totals from turns table via `SELECT SUM(...)`.
 - **Atomic rescan**: Write to temp DB, then atomically rename. No data loss on crash.
@@ -114,7 +138,7 @@ Edit `pricing.rs` only. Add to `PRICING_TABLE`. Set `threshold_tokens: None` unl
 2. Parse it in `parser.rs`
 3. Add column migration in `db.rs` (ALTER TABLE with try/catch pattern)
 4. Expose via API in `api.rs` if needed by the dashboard
-5. Update `app.ts` if it should appear in the UI, then recompile
+5. Update the relevant `.tsx` files in `src/ui/` if it should appear in the UI, then run `npm run build:ui`
 
 ### Adding a new API endpoint
 
@@ -140,4 +164,4 @@ When editing dashboard files (`src/ui/`), follow the design skill at `.claude/sk
 - Numbers in monospace, costs in green
 - No emojis, no gradients, no heavy shadows
 - XSS protection: all dynamic text through `esc()` function
-- Recompile TS after changes: `./node_modules/.bin/esbuild src/ui/app.ts --outfile=src/ui/app.js --bundle --format=iife --target=es2020`
+- Recompile after changes: `npm run build:ui`
