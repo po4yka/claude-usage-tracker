@@ -376,6 +376,15 @@
     var u5 = r2.__H || (r2.__H = { __: [], __h: [] });
     return n3 >= u5.__.length && u5.__.push({}), u5.__[n3];
   }
+  function y2(n3, u5) {
+    var i4 = p2(t2++, 3);
+    !c2.__s && C2(i4.__H, u5) && (i4.__ = n3, i4.u = u5, r2.__H.__h.push(i4));
+  }
+  function A2(n3) {
+    return o2 = 5, T2(function() {
+      return { current: n3 };
+    }, []);
+  }
   function T2(n3, r4) {
     var u5 = p2(t2++, 7);
     return C2(u5.__H, r4) && (u5.__ = n3(), u5.__H = r4, u5.__h = n3), u5.__;
@@ -642,7 +651,7 @@
       }
     }
   } });
-  function y2(i4, t4) {
+  function y3(i4, t4) {
     return new l3(i4, t4);
   }
   function w3(i4) {
@@ -977,7 +986,7 @@
     i4(n3);
   });
   function w4(i4, n3, r4, t4) {
-    var o4 = n3 in i4 && void 0 === i4.ownerSVGElement, e4 = y2(r4), f5 = r4.peek();
+    var o4 = n3 in i4 && void 0 === i4.ownerSVGElement, e4 = y3(r4), f5 = r4.peek();
     return { o: function(i5, n4) {
       e4.value = i5;
       f5 = i5.peek();
@@ -1040,7 +1049,7 @@
   };
   function useSignal(i4, n3) {
     return T2(function() {
-      return y2(i4, n3);
+      return y3(i4, n3);
     }, []);
   }
   var q2 = function(i4) {
@@ -1059,20 +1068,20 @@
   }
 
   // src/ui/state/store.ts
-  var rawData = y2(null);
-  var selectedModels = y2(/* @__PURE__ */ new Set());
-  var selectedRange = y2("30d");
-  var projectSearchQuery = y2("");
-  var sessionSortCol = y2("last");
-  var sessionSortDir = y2("desc");
-  var modelSortCol = y2("cost");
-  var modelSortDir = y2("desc");
-  var projectSortCol = y2("cost");
-  var projectSortDir = y2("desc");
-  var sessionsCurrentPage = y2(0);
+  var rawData = y3(null);
+  var selectedModels = y3(/* @__PURE__ */ new Set());
+  var selectedRange = y3("30d");
+  var projectSearchQuery = y3("");
+  var sessionSortCol = y3("last");
+  var sessionSortDir = y3("desc");
+  var modelSortCol = y3("cost");
+  var modelSortDir = y3("desc");
+  var projectSortCol = y3("cost");
+  var projectSortDir = y3("desc");
+  var sessionsCurrentPage = y3(0);
   var SESSIONS_PAGE_SIZE = 25;
-  var lastFilteredSessions = y2([]);
-  var lastByProject = y2([]);
+  var lastFilteredSessions = y3([]);
+  var lastByProject = y3([]);
 
   // src/ui/components/StatsCards.tsx
   function StatsCards({ totals }) {
@@ -1094,7 +1103,7 @@
   }
 
   // src/ui/components/Toast.tsx
-  var toasts = y2([]);
+  var toasts = y3([]);
   var toastId = 0;
   function showError(msg) {
     const id = ++toastId;
@@ -1231,6 +1240,385 @@
     ] });
   }
 
+  // src/ui/components/SessionsTable.tsx
+  function setSessionSort(col) {
+    if (sessionSortCol.value === col) {
+      sessionSortDir.value = sessionSortDir.value === "desc" ? "asc" : "desc";
+    } else {
+      sessionSortCol.value = col;
+      sessionSortDir.value = "desc";
+    }
+  }
+  function sortSessions(sessions) {
+    const col = sessionSortCol.value;
+    const dir = sessionSortDir.value;
+    return [...sessions].sort((a4, b4) => {
+      let av, bv;
+      if (col === "cost") {
+        av = a4.cost;
+        bv = b4.cost;
+      } else if (col === "duration_min") {
+        av = a4.duration_min || 0;
+        bv = b4.duration_min || 0;
+      } else {
+        av = a4[col] ?? 0;
+        bv = b4[col] ?? 0;
+      }
+      if (av < bv) return dir === "desc" ? 1 : -1;
+      if (av > bv) return dir === "desc" ? -1 : 1;
+      return 0;
+    });
+  }
+  function SessionsTable({ onExportCSV }) {
+    const sortCol = sessionSortCol.value;
+    const sortDir = sessionSortDir.value;
+    const page = sessionsCurrentPage.value;
+    const allSessions = lastFilteredSessions.value;
+    const sorted = sortSessions(allSessions);
+    const start = page * SESSIONS_PAGE_SIZE;
+    const pageData = sorted.slice(start, start + SESSIONS_PAGE_SIZE);
+    const maxPage = Math.max(0, Math.ceil(sorted.length / SESSIONS_PAGE_SIZE) - 1);
+    const sortIcon = (col) => sortCol === col ? sortDir === "desc" ? " \u25BC" : " \u25B2" : "";
+    return /* @__PURE__ */ u2("div", { class: "table-card", children: [
+      /* @__PURE__ */ u2("div", { class: "section-header", children: [
+        /* @__PURE__ */ u2("div", { class: "section-title", children: "Recent Sessions" }),
+        /* @__PURE__ */ u2("button", { class: "export-btn", onClick: onExportCSV, title: "Export filtered sessions to CSV", children: "\u2913 CSV" })
+      ] }),
+      /* @__PURE__ */ u2("table", { children: [
+        /* @__PURE__ */ u2("thead", { children: /* @__PURE__ */ u2("tr", { children: [
+          /* @__PURE__ */ u2("th", { children: "Session" }),
+          /* @__PURE__ */ u2("th", { children: "Project" }),
+          /* @__PURE__ */ u2("th", { class: "sortable", onClick: () => setSessionSort("last"), children: [
+            "Last Active",
+            /* @__PURE__ */ u2("span", { class: "sort-icon", children: sortIcon("last") })
+          ] }),
+          /* @__PURE__ */ u2("th", { class: "sortable", onClick: () => setSessionSort("duration_min"), children: [
+            "Duration",
+            /* @__PURE__ */ u2("span", { class: "sort-icon", children: sortIcon("duration_min") })
+          ] }),
+          /* @__PURE__ */ u2("th", { children: "Model" }),
+          /* @__PURE__ */ u2("th", { class: "sortable", onClick: () => setSessionSort("turns"), children: [
+            "Turns",
+            /* @__PURE__ */ u2("span", { class: "sort-icon", children: sortIcon("turns") })
+          ] }),
+          /* @__PURE__ */ u2("th", { class: "sortable", onClick: () => setSessionSort("input"), children: [
+            "Input",
+            /* @__PURE__ */ u2("span", { class: "sort-icon", children: sortIcon("input") })
+          ] }),
+          /* @__PURE__ */ u2("th", { class: "sortable", onClick: () => setSessionSort("output"), children: [
+            "Output",
+            /* @__PURE__ */ u2("span", { class: "sort-icon", children: sortIcon("output") })
+          ] }),
+          /* @__PURE__ */ u2("th", { class: "sortable", onClick: () => setSessionSort("cost"), children: [
+            "Est. Cost",
+            /* @__PURE__ */ u2("span", { class: "sort-icon", children: sortIcon("cost") })
+          ] })
+        ] }) }),
+        /* @__PURE__ */ u2("tbody", { children: pageData.map((s4) => /* @__PURE__ */ u2("tr", { children: [
+          /* @__PURE__ */ u2("td", { class: "muted", style: { fontFamily: "monospace" }, children: [
+            s4.session_id,
+            "\u2026"
+          ] }),
+          /* @__PURE__ */ u2("td", { children: s4.project }),
+          /* @__PURE__ */ u2("td", { class: "muted", children: s4.last }),
+          /* @__PURE__ */ u2("td", { class: "muted", children: [
+            s4.duration_min,
+            "m"
+          ] }),
+          /* @__PURE__ */ u2("td", { children: /* @__PURE__ */ u2("span", { class: "model-tag", children: s4.model }) }),
+          /* @__PURE__ */ u2("td", { class: "num", children: [
+            s4.turns,
+            s4.subagent_count > 0 && /* @__PURE__ */ u2("span", { class: "muted", style: { fontSize: "10px" }, children: [
+              " (",
+              s4.subagent_count,
+              " agents)"
+            ] })
+          ] }),
+          /* @__PURE__ */ u2("td", { class: "num", children: fmt(s4.input) }),
+          /* @__PURE__ */ u2("td", { class: "num", children: fmt(s4.output) }),
+          s4.is_billable ? /* @__PURE__ */ u2("td", { class: "cost", children: fmtCost(s4.cost) }) : /* @__PURE__ */ u2("td", { class: "cost-na", children: "n/a" })
+        ] }, s4.session_id)) })
+      ] }),
+      /* @__PURE__ */ u2("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "12px", fontSize: "12px", color: "var(--muted)" }, children: [
+        /* @__PURE__ */ u2("span", { children: sorted.length > 0 ? `Showing ${start + 1}\u2013${Math.min(start + SESSIONS_PAGE_SIZE, sorted.length)} of ${sorted.length}` : "No sessions" }),
+        /* @__PURE__ */ u2("div", { style: { display: "flex", gap: "6px" }, children: [
+          /* @__PURE__ */ u2("button", { class: "filter-btn", disabled: page <= 0, onClick: () => {
+            sessionsCurrentPage.value = Math.max(0, page - 1);
+          }, children: "\xAB Prev" }),
+          /* @__PURE__ */ u2("button", { class: "filter-btn", disabled: page >= maxPage, onClick: () => {
+            sessionsCurrentPage.value = Math.min(maxPage, page + 1);
+          }, children: "Next \xBB" })
+        ] })
+      ] })
+    ] });
+  }
+
+  // src/ui/components/ModelCostTable.tsx
+  function setModelSort(col) {
+    if (modelSortCol.value === col) {
+      modelSortDir.value = modelSortDir.value === "desc" ? "asc" : "desc";
+    } else {
+      modelSortCol.value = col;
+      modelSortDir.value = "desc";
+    }
+  }
+  function sortModels(byModel) {
+    const col = modelSortCol.value;
+    const dir = modelSortDir.value;
+    return [...byModel].sort((a4, b4) => {
+      let av, bv;
+      if (col === "cost") {
+        av = a4.cost;
+        bv = b4.cost;
+      } else {
+        av = a4[col] ?? 0;
+        bv = b4[col] ?? 0;
+      }
+      if (av < bv) return dir === "desc" ? 1 : -1;
+      if (av > bv) return dir === "desc" ? -1 : 1;
+      return 0;
+    });
+  }
+  function ModelCostTable({ byModel }) {
+    const sortCol = modelSortCol.value;
+    const sortDir = modelSortDir.value;
+    const sorted = sortModels(byModel);
+    const sortIcon = (col) => sortCol === col ? sortDir === "desc" ? " \u25BC" : " \u25B2" : "";
+    return /* @__PURE__ */ u2("div", { class: "table-card", children: [
+      /* @__PURE__ */ u2("div", { class: "section-title", children: "Cost by Model" }),
+      /* @__PURE__ */ u2("table", { children: [
+        /* @__PURE__ */ u2("thead", { children: /* @__PURE__ */ u2("tr", { children: [
+          /* @__PURE__ */ u2("th", { children: "Model" }),
+          /* @__PURE__ */ u2("th", { class: "sortable", onClick: () => setModelSort("turns"), children: [
+            "Turns",
+            /* @__PURE__ */ u2("span", { class: "sort-icon", children: sortIcon("turns") })
+          ] }),
+          /* @__PURE__ */ u2("th", { class: "sortable", onClick: () => setModelSort("input"), children: [
+            "Input",
+            /* @__PURE__ */ u2("span", { class: "sort-icon", children: sortIcon("input") })
+          ] }),
+          /* @__PURE__ */ u2("th", { class: "sortable", onClick: () => setModelSort("output"), children: [
+            "Output",
+            /* @__PURE__ */ u2("span", { class: "sort-icon", children: sortIcon("output") })
+          ] }),
+          /* @__PURE__ */ u2("th", { class: "sortable", onClick: () => setModelSort("cache_read"), children: [
+            "Cache Read",
+            /* @__PURE__ */ u2("span", { class: "sort-icon", children: sortIcon("cache_read") })
+          ] }),
+          /* @__PURE__ */ u2("th", { class: "sortable", onClick: () => setModelSort("cache_creation"), children: [
+            "Cache Creation",
+            /* @__PURE__ */ u2("span", { class: "sort-icon", children: sortIcon("cache_creation") })
+          ] }),
+          /* @__PURE__ */ u2("th", { class: "sortable", onClick: () => setModelSort("cost"), children: [
+            "Est. Cost",
+            /* @__PURE__ */ u2("span", { class: "sort-icon", children: sortIcon("cost") })
+          ] })
+        ] }) }),
+        /* @__PURE__ */ u2("tbody", { children: sorted.map((m4) => /* @__PURE__ */ u2("tr", { children: [
+          /* @__PURE__ */ u2("td", { children: /* @__PURE__ */ u2("span", { class: "model-tag", children: m4.model }) }),
+          /* @__PURE__ */ u2("td", { class: "num", children: fmt(m4.turns) }),
+          /* @__PURE__ */ u2("td", { class: "num", children: fmt(m4.input) }),
+          /* @__PURE__ */ u2("td", { class: "num", children: fmt(m4.output) }),
+          /* @__PURE__ */ u2("td", { class: "num", children: fmt(m4.cache_read) }),
+          /* @__PURE__ */ u2("td", { class: "num", children: fmt(m4.cache_creation) }),
+          m4.is_billable ? /* @__PURE__ */ u2("td", { class: "cost", children: fmtCost(m4.cost) }) : /* @__PURE__ */ u2("td", { class: "cost-na", children: "n/a" })
+        ] }, m4.model)) })
+      ] })
+    ] });
+  }
+
+  // src/ui/components/ProjectCostTable.tsx
+  function setProjectSort(col) {
+    if (projectSortCol.value === col) {
+      projectSortDir.value = projectSortDir.value === "desc" ? "asc" : "desc";
+    } else {
+      projectSortCol.value = col;
+      projectSortDir.value = "desc";
+    }
+  }
+  function sortProjects(byProject) {
+    const col = projectSortCol.value;
+    const dir = projectSortDir.value;
+    return [...byProject].sort((a4, b4) => {
+      const av = a4[col] ?? 0;
+      const bv = b4[col] ?? 0;
+      if (av < bv) return dir === "desc" ? 1 : -1;
+      if (av > bv) return dir === "desc" ? -1 : 1;
+      return 0;
+    });
+  }
+  function ProjectCostTable({ byProject, onExportCSV }) {
+    const sortCol = projectSortCol.value;
+    const sortDir = projectSortDir.value;
+    const sorted = sortProjects(byProject);
+    const sortIcon = (col) => sortCol === col ? sortDir === "desc" ? " \u25BC" : " \u25B2" : "";
+    return /* @__PURE__ */ u2("div", { class: "table-card", children: [
+      /* @__PURE__ */ u2("div", { class: "section-header", children: [
+        /* @__PURE__ */ u2("div", { class: "section-title", children: "Cost by Project" }),
+        /* @__PURE__ */ u2("button", { class: "export-btn", onClick: onExportCSV, title: "Export projects to CSV", children: "\u2913 CSV" })
+      ] }),
+      /* @__PURE__ */ u2("table", { children: [
+        /* @__PURE__ */ u2("thead", { children: /* @__PURE__ */ u2("tr", { children: [
+          /* @__PURE__ */ u2("th", { children: "Project" }),
+          /* @__PURE__ */ u2("th", { class: "sortable", onClick: () => setProjectSort("sessions"), children: [
+            "Sessions",
+            /* @__PURE__ */ u2("span", { class: "sort-icon", children: sortIcon("sessions") })
+          ] }),
+          /* @__PURE__ */ u2("th", { class: "sortable", onClick: () => setProjectSort("turns"), children: [
+            "Turns",
+            /* @__PURE__ */ u2("span", { class: "sort-icon", children: sortIcon("turns") })
+          ] }),
+          /* @__PURE__ */ u2("th", { class: "sortable", onClick: () => setProjectSort("input"), children: [
+            "Input",
+            /* @__PURE__ */ u2("span", { class: "sort-icon", children: sortIcon("input") })
+          ] }),
+          /* @__PURE__ */ u2("th", { class: "sortable", onClick: () => setProjectSort("output"), children: [
+            "Output",
+            /* @__PURE__ */ u2("span", { class: "sort-icon", children: sortIcon("output") })
+          ] }),
+          /* @__PURE__ */ u2("th", { class: "sortable", onClick: () => setProjectSort("cost"), children: [
+            "Est. Cost",
+            /* @__PURE__ */ u2("span", { class: "sort-icon", children: sortIcon("cost") })
+          ] })
+        ] }) }),
+        /* @__PURE__ */ u2("tbody", { children: sorted.map((p5) => /* @__PURE__ */ u2("tr", { children: [
+          /* @__PURE__ */ u2("td", { children: p5.project }),
+          /* @__PURE__ */ u2("td", { class: "num", children: p5.sessions }),
+          /* @__PURE__ */ u2("td", { class: "num", children: fmt(p5.turns) }),
+          /* @__PURE__ */ u2("td", { class: "num", children: fmt(p5.input) }),
+          /* @__PURE__ */ u2("td", { class: "num", children: fmt(p5.output) }),
+          /* @__PURE__ */ u2("td", { class: "cost", children: fmtCost(p5.cost) })
+        ] }, p5.project)) })
+      ] })
+    ] });
+  }
+
+  // src/ui/components/ApexChart.tsx
+  function ApexChart({ options, id }) {
+    const ref = A2(null);
+    const chartRef = A2(null);
+    y2(() => {
+      if (chartRef.current) chartRef.current.destroy();
+      if (ref.current && options) {
+        chartRef.current = new ApexCharts(ref.current, options);
+        chartRef.current.render();
+      }
+      return () => {
+        chartRef.current?.destroy();
+        chartRef.current = null;
+      };
+    });
+    return /* @__PURE__ */ u2("div", { ref, id, style: { width: "100%", height: "100%" } });
+  }
+
+  // src/ui/components/DailyChart.tsx
+  function DailyChart({ daily }) {
+    const options = {
+      chart: {
+        type: "bar",
+        height: "100%",
+        stacked: true,
+        background: "transparent",
+        toolbar: { show: false },
+        fontFamily: "inherit"
+      },
+      theme: { mode: apexThemeMode() },
+      series: [
+        { name: "Input", data: daily.map((d4) => d4.input) },
+        { name: "Output", data: daily.map((d4) => d4.output) },
+        { name: "Cache Read", data: daily.map((d4) => d4.cache_read) },
+        { name: "Cache Creation", data: daily.map((d4) => d4.cache_creation) }
+      ],
+      colors: [TOKEN_COLORS.input, TOKEN_COLORS.output, TOKEN_COLORS.cache_read, TOKEN_COLORS.cache_creation],
+      xaxis: {
+        categories: daily.map((d4) => d4.day),
+        labels: { rotate: -45, maxHeight: 60 },
+        tickAmount: Math.min(daily.length, RANGE_TICKS[selectedRange.value])
+      },
+      yaxis: { labels: { formatter: (v4) => fmt(v4) } },
+      legend: { position: "top", fontSize: "11px" },
+      dataLabels: { enabled: false },
+      tooltip: { y: { formatter: (v4) => fmt(v4) + " tokens" } },
+      grid: { borderColor: cssVar("--chart-grid") },
+      plotOptions: { bar: { columnWidth: "70%" } }
+    };
+    return /* @__PURE__ */ u2(ApexChart, { options, id: "chart-daily" });
+  }
+
+  // src/ui/components/ModelChart.tsx
+  function ModelChart({ byModel }) {
+    if (!byModel.length) return null;
+    const options = {
+      chart: { type: "donut", height: "100%", background: "transparent", fontFamily: "inherit" },
+      theme: { mode: apexThemeMode() },
+      series: byModel.map((m4) => m4.input + m4.output),
+      labels: byModel.map((m4) => m4.model),
+      colors: MODEL_COLORS.slice(0, byModel.length),
+      legend: { position: "bottom", fontSize: "11px" },
+      dataLabels: { enabled: false },
+      tooltip: { y: { formatter: (v4) => fmt(v4) + " tokens" } },
+      stroke: { width: 2, colors: [cssVar("--card")] },
+      plotOptions: { pie: { donut: { size: "60%" } } }
+    };
+    return /* @__PURE__ */ u2(ApexChart, { options, id: "chart-model" });
+  }
+
+  // src/ui/components/ProjectChart.tsx
+  function ProjectChart({ byProject }) {
+    const top = byProject.slice(0, 10);
+    if (!top.length) return null;
+    const options = {
+      chart: {
+        type: "bar",
+        height: "100%",
+        background: "transparent",
+        toolbar: { show: false },
+        fontFamily: "inherit"
+      },
+      theme: { mode: apexThemeMode() },
+      series: [
+        { name: "Input", data: top.map((p5) => p5.input) },
+        { name: "Output", data: top.map((p5) => p5.output) }
+      ],
+      colors: [TOKEN_COLORS.input, TOKEN_COLORS.output],
+      plotOptions: { bar: { horizontal: true, barHeight: "60%" } },
+      xaxis: {
+        categories: top.map((p5) => p5.project.length > 22 ? "\u2026" + p5.project.slice(-20) : p5.project),
+        labels: { formatter: (v4) => fmt(v4) }
+      },
+      yaxis: { labels: { maxWidth: 160 } },
+      legend: { position: "top", fontSize: "11px" },
+      dataLabels: { enabled: false },
+      tooltip: { y: { formatter: (v4) => fmt(v4) + " tokens" } },
+      grid: { borderColor: cssVar("--chart-grid") }
+    };
+    return /* @__PURE__ */ u2(ApexChart, { options, id: "chart-project" });
+  }
+
+  // src/ui/components/Sparkline.tsx
+  function Sparkline({ daily }) {
+    const last7 = daily.slice(-7);
+    if (last7.length < 2) return null;
+    const options = {
+      chart: {
+        type: "line",
+        height: 30,
+        width: 120,
+        sparkline: { enabled: true },
+        background: "transparent",
+        fontFamily: "inherit"
+      },
+      series: [{ data: last7.map((d4) => d4.input + d4.output) }],
+      stroke: { width: 1.5, curve: "smooth" },
+      colors: [cssVar("--accent")],
+      tooltip: { enabled: false }
+    };
+    return /* @__PURE__ */ u2("div", { children: [
+      /* @__PURE__ */ u2("div", { class: "sub", style: { marginBottom: "4px" }, children: "7-day trend" }),
+      /* @__PURE__ */ u2(ApexChart, { options })
+    ] });
+  }
+
   // src/ui/lib/csv.ts
   function csvField(val) {
     const s4 = String(val);
@@ -1279,7 +1667,6 @@
     applyTheme(next);
   }
   applyTheme(getTheme());
-  var charts = {};
   var previousSessionPercent = null;
   function isAnthropicModel(model) {
     if (!model) return false;
@@ -1379,21 +1766,6 @@
     updateURL();
     applyFilter();
   }
-  function sessionsPage(delta) {
-    const maxPage = Math.max(0, Math.ceil(lastFilteredSessions.value.length / SESSIONS_PAGE_SIZE) - 1);
-    sessionsCurrentPage.value = Math.max(0, Math.min(maxPage, sessionsCurrentPage.value + delta));
-    renderSessionsPage();
-  }
-  function renderSessionsPage() {
-    const start = sessionsCurrentPage.value * SESSIONS_PAGE_SIZE;
-    const page = lastFilteredSessions.value.slice(start, start + SESSIONS_PAGE_SIZE);
-    renderSessionsTable(page);
-    const total = lastFilteredSessions.value.length;
-    const maxPage = Math.max(0, Math.ceil(total / SESSIONS_PAGE_SIZE) - 1);
-    $2("sessions-page-info").textContent = total > 0 ? `Showing ${start + 1}\u2013${Math.min(start + SESSIONS_PAGE_SIZE, total)} of ${total}` : "No sessions";
-    $2("sessions-prev").disabled = sessionsCurrentPage.value <= 0;
-    $2("sessions-next").disabled = sessionsCurrentPage.value >= maxPage;
-  }
   function clearProjectSearch() {
     projectSearchQuery.value = "";
     const input = document.getElementById("project-search");
@@ -1415,90 +1787,6 @@
     if (projectSearchQuery.value) params.set("project", projectSearchQuery.value);
     const search = params.toString() ? "?" + params.toString() : "";
     history.replaceState(null, "", window.location.pathname + search);
-  }
-  function setSessionSort(col) {
-    if (sessionSortCol.value === col) sessionSortDir.value = sessionSortDir.value === "desc" ? "asc" : "desc";
-    else {
-      sessionSortCol.value = col;
-      sessionSortDir.value = "desc";
-    }
-    updateSortIcons();
-    applyFilter();
-  }
-  function updateSortIcons() {
-    document.querySelectorAll(".sort-icon").forEach((el) => el.textContent = "");
-    const icon = document.getElementById("sort-icon-" + sessionSortCol.value);
-    if (icon) icon.textContent = sessionSortDir.value === "desc" ? " \u25BC" : " \u25B2";
-  }
-  function sortSessions(sessions) {
-    return [...sessions].sort((a4, b4) => {
-      let av, bv;
-      if (sessionSortCol.value === "cost") {
-        av = a4.cost;
-        bv = b4.cost;
-      } else if (sessionSortCol.value === "duration_min") {
-        av = a4.duration_min || 0;
-        bv = b4.duration_min || 0;
-      } else {
-        av = a4[sessionSortCol.value] ?? 0;
-        bv = b4[sessionSortCol.value] ?? 0;
-      }
-      if (av < bv) return sessionSortDir.value === "desc" ? 1 : -1;
-      if (av > bv) return sessionSortDir.value === "desc" ? -1 : 1;
-      return 0;
-    });
-  }
-  function setModelSort(col) {
-    if (modelSortCol.value === col) modelSortDir.value = modelSortDir.value === "desc" ? "asc" : "desc";
-    else {
-      modelSortCol.value = col;
-      modelSortDir.value = "desc";
-    }
-    updateModelSortIcons();
-    applyFilter();
-  }
-  function updateModelSortIcons() {
-    document.querySelectorAll('[id^="msort-"]').forEach((el) => el.textContent = "");
-    const icon = document.getElementById("msort-" + modelSortCol.value);
-    if (icon) icon.textContent = modelSortDir.value === "desc" ? " \u25BC" : " \u25B2";
-  }
-  function sortModels(byModel) {
-    return [...byModel].sort((a4, b4) => {
-      let av, bv;
-      if (modelSortCol.value === "cost") {
-        av = a4.cost;
-        bv = b4.cost;
-      } else {
-        av = a4[modelSortCol.value] ?? 0;
-        bv = b4[modelSortCol.value] ?? 0;
-      }
-      if (av < bv) return modelSortDir.value === "desc" ? 1 : -1;
-      if (av > bv) return modelSortDir.value === "desc" ? -1 : 1;
-      return 0;
-    });
-  }
-  function setProjectSort(col) {
-    if (projectSortCol.value === col) projectSortDir.value = projectSortDir.value === "desc" ? "asc" : "desc";
-    else {
-      projectSortCol.value = col;
-      projectSortDir.value = "desc";
-    }
-    updateProjectSortIcons();
-    applyFilter();
-  }
-  function updateProjectSortIcons() {
-    document.querySelectorAll('[id^="psort-"]').forEach((el) => el.textContent = "");
-    const icon = document.getElementById("psort-" + projectSortCol.value);
-    if (icon) icon.textContent = projectSortDir.value === "desc" ? " \u25BC" : " \u25B2";
-  }
-  function sortProjects(byProject) {
-    return [...byProject].sort((a4, b4) => {
-      const av = a4[projectSortCol.value] ?? 0;
-      const bv = b4[projectSortCol.value] ?? 0;
-      if (av < bv) return projectSortDir.value === "desc" ? 1 : -1;
-      if (av > bv) return projectSortDir.value === "desc" ? -1 : 1;
-      return 0;
-    });
   }
   function applyFilter() {
     if (!rawData.value) return;
@@ -1562,149 +1850,27 @@
     renderDailyChart(daily);
     renderModelChart(byModel);
     renderProjectChart(byProject);
-    lastFilteredSessions.value = sortSessions(filteredSessions);
-    lastByProject.value = sortProjects(byProject);
+    lastFilteredSessions.value = filteredSessions;
+    lastByProject.value = byProject;
     sessionsCurrentPage.value = 0;
-    renderSessionsPage();
-    renderModelCostTable(byModel);
-    renderProjectCostTable(lastByProject.value.slice(0, 30));
+    R(/* @__PURE__ */ u2(ModelCostTable, { byModel }), $2("model-cost-mount"));
+    R(/* @__PURE__ */ u2(SessionsTable, { onExportCSV: exportSessionsCSV }), $2("sessions-mount"));
+    R(/* @__PURE__ */ u2(ProjectCostTable, { byProject: lastByProject.value.slice(0, 30), onExportCSV: exportProjectsCSV }), $2("project-cost-mount"));
   }
   function renderStats(t4) {
     R(/* @__PURE__ */ u2(StatsCards, { totals: t4 }), $2("stats-row"));
   }
   function renderDailyChart(daily) {
-    const el = document.getElementById("chart-daily");
-    if (charts.daily) charts.daily.destroy();
-    charts.daily = new ApexCharts(el, {
-      chart: {
-        type: "bar",
-        height: "100%",
-        stacked: true,
-        background: "transparent",
-        toolbar: { show: false },
-        fontFamily: "inherit"
-      },
-      theme: { mode: apexThemeMode() },
-      series: [
-        { name: "Input", data: daily.map((d4) => d4.input) },
-        { name: "Output", data: daily.map((d4) => d4.output) },
-        { name: "Cache Read", data: daily.map((d4) => d4.cache_read) },
-        { name: "Cache Creation", data: daily.map((d4) => d4.cache_creation) }
-      ],
-      colors: [TOKEN_COLORS.input, TOKEN_COLORS.output, TOKEN_COLORS.cache_read, TOKEN_COLORS.cache_creation],
-      xaxis: {
-        categories: daily.map((d4) => d4.day),
-        labels: { rotate: -45, maxHeight: 60 },
-        tickAmount: Math.min(daily.length, RANGE_TICKS[selectedRange.value])
-      },
-      yaxis: { labels: { formatter: (v4) => fmt(v4) } },
-      legend: { position: "top", fontSize: "11px" },
-      dataLabels: { enabled: false },
-      tooltip: { y: { formatter: (v4) => fmt(v4) + " tokens" } },
-      grid: { borderColor: cssVar("--chart-grid") },
-      plotOptions: { bar: { columnWidth: "70%" } }
-    });
-    charts.daily.render();
+    const container = document.getElementById("chart-daily");
+    R(/* @__PURE__ */ u2(DailyChart, { daily }), container);
   }
   function renderModelChart(byModel) {
-    const el = document.getElementById("chart-model");
-    if (charts.model) charts.model.destroy();
-    if (!byModel.length) {
-      charts.model = null;
-      el.innerHTML = "";
-      return;
-    }
-    charts.model = new ApexCharts(el, {
-      chart: { type: "donut", height: "100%", background: "transparent", fontFamily: "inherit" },
-      theme: { mode: apexThemeMode() },
-      series: byModel.map((m4) => m4.input + m4.output),
-      labels: byModel.map((m4) => m4.model),
-      colors: MODEL_COLORS.slice(0, byModel.length),
-      legend: { position: "bottom", fontSize: "11px" },
-      dataLabels: { enabled: false },
-      tooltip: { y: { formatter: (v4) => fmt(v4) + " tokens" } },
-      stroke: { width: 2, colors: [cssVar("--card")] },
-      plotOptions: { pie: { donut: { size: "60%" } } }
-    });
-    charts.model.render();
+    const container = document.getElementById("chart-model");
+    R(/* @__PURE__ */ u2(ModelChart, { byModel }), container);
   }
   function renderProjectChart(byProject) {
-    const top = byProject.slice(0, 10);
-    const el = document.getElementById("chart-project");
-    if (charts.project) charts.project.destroy();
-    if (!top.length) {
-      charts.project = null;
-      el.innerHTML = "";
-      return;
-    }
-    charts.project = new ApexCharts(el, {
-      chart: {
-        type: "bar",
-        height: "100%",
-        background: "transparent",
-        toolbar: { show: false },
-        fontFamily: "inherit"
-      },
-      theme: { mode: apexThemeMode() },
-      series: [
-        { name: "Input", data: top.map((p5) => p5.input) },
-        { name: "Output", data: top.map((p5) => p5.output) }
-      ],
-      colors: [TOKEN_COLORS.input, TOKEN_COLORS.output],
-      plotOptions: { bar: { horizontal: true, barHeight: "60%" } },
-      xaxis: {
-        categories: top.map((p5) => p5.project.length > 22 ? "\u2026" + p5.project.slice(-20) : p5.project),
-        labels: { formatter: (v4) => fmt(v4) }
-      },
-      yaxis: { labels: { maxWidth: 160 } },
-      legend: { position: "top", fontSize: "11px" },
-      dataLabels: { enabled: false },
-      tooltip: { y: { formatter: (v4) => fmt(v4) + " tokens" } },
-      grid: { borderColor: cssVar("--chart-grid") }
-    });
-    charts.project.render();
-  }
-  function renderSessionsTable(sessions) {
-    $2("sessions-body").innerHTML = sessions.map((s4) => {
-      const cost = s4.cost;
-      const costCell = s4.is_billable ? `<td class="cost">${fmtCost(cost)}</td>` : `<td class="cost-na">n/a</td>`;
-      return `<tr>
-      <td class="muted" style="font-family:monospace">${esc(s4.session_id)}&hellip;</td>
-      <td>${esc(s4.project)}</td>
-      <td class="muted">${esc(s4.last)}</td>
-      <td class="muted">${esc(s4.duration_min)}m</td>
-      <td><span class="model-tag">${esc(s4.model)}</span></td>
-      <td class="num">${s4.turns}${s4.subagent_count > 0 ? `<span class="muted" style="font-size:10px"> (${s4.subagent_count} agents)</span>` : ""}</td>
-      <td class="num">${fmt(s4.input)}</td>
-      <td class="num">${fmt(s4.output)}</td>
-      ${costCell}
-    </tr>`;
-    }).join("");
-  }
-  function renderModelCostTable(byModel) {
-    $2("model-cost-body").innerHTML = sortModels(byModel).map((m4) => {
-      const cost = m4.cost;
-      const costCell = m4.is_billable ? `<td class="cost">${fmtCost(cost)}</td>` : `<td class="cost-na">n/a</td>`;
-      return `<tr>
-      <td><span class="model-tag">${esc(m4.model)}</span></td>
-      <td class="num">${fmt(m4.turns)}</td>
-      <td class="num">${fmt(m4.input)}</td>
-      <td class="num">${fmt(m4.output)}</td>
-      <td class="num">${fmt(m4.cache_read)}</td>
-      <td class="num">${fmt(m4.cache_creation)}</td>
-      ${costCell}
-    </tr>`;
-    }).join("");
-  }
-  function renderProjectCostTable(byProject) {
-    $2("project-cost-body").innerHTML = sortProjects(byProject).map((p5) => `<tr>
-      <td>${esc(p5.project)}</td>
-      <td class="num">${p5.sessions}</td>
-      <td class="num">${fmt(p5.turns)}</td>
-      <td class="num">${fmt(p5.input)}</td>
-      <td class="num">${fmt(p5.output)}</td>
-      <td class="cost">${fmtCost(p5.cost)}</td>
-    </tr>`).join("");
+    const container = document.getElementById("chart-project");
+    R(/* @__PURE__ */ u2(ProjectChart, { byProject }), container);
   }
   function exportSessionsCSV() {
     const header = ["Session", "Project", "Last Active", "Duration (min)", "Model", "Turns", "Input", "Output", "Cache Read", "Cache Creation", "Est. Cost"];
@@ -1820,26 +1986,11 @@
     const last7 = daily.slice(-7);
     if (last7.length < 2) {
       container.style.display = "none";
+      R(null, container);
       return;
     }
     container.style.display = "";
-    container.innerHTML = '<div class="sub" style="margin-bottom:4px">7-day trend</div><div id="sparkline-chart"></div>';
-    if (charts.sparkline) charts.sparkline.destroy();
-    charts.sparkline = new ApexCharts(document.getElementById("sparkline-chart"), {
-      chart: {
-        type: "line",
-        height: 30,
-        width: 120,
-        sparkline: { enabled: true },
-        background: "transparent",
-        fontFamily: "inherit"
-      },
-      series: [{ data: last7.map((d4) => d4.input + d4.output) }],
-      stroke: { width: 1.5, curve: "smooth" },
-      colors: [cssVar("--accent")],
-      tooltip: { enabled: false }
-    });
-    charts.sparkline.render();
+    R(/* @__PURE__ */ u2(Sparkline, { daily }), container);
   }
   async function loadUsageWindows() {
     try {
@@ -1896,9 +2047,6 @@
           (btn) => btn.classList.toggle("active", btn.dataset.range === selectedRange.value)
         );
         buildFilterUI(d4.all_models);
-        updateSortIcons();
-        updateModelSortIcons();
-        updateProjectSortIcons();
         const urlProject = new URLSearchParams(window.location.search).get("project");
         if (urlProject) {
           projectSearchQuery.value = urlProject;
@@ -1921,15 +2069,11 @@
     onModelToggle,
     selectAllModels,
     clearAllModels,
-    setSessionSort,
-    setModelSort,
-    setProjectSort,
     exportSessionsCSV,
     exportProjectsCSV,
     triggerRescan,
     onProjectSearch,
     clearProjectSearch,
-    sessionsPage,
     toggleTheme
   });
   loadData();

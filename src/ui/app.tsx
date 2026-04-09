@@ -1,6 +1,3 @@
-// ── External declarations ──────────────────────────────────────────────
-declare const ApexCharts: any;
-
 import { render } from 'preact';
 import { Footer } from './components/Footer';
 import { StatsCards } from './components/StatsCards';
@@ -8,23 +5,25 @@ import { showError, showSuccess, ToastContainer } from './components/Toast';
 import { SubagentSummary as SubagentSummaryComponent } from './components/SubagentSummary';
 import { EntrypointTable } from './components/EntrypointTable';
 import { ServiceTiersTable } from './components/ServiceTiers';
+import { SessionsTable } from './components/SessionsTable';
+import { ModelCostTable } from './components/ModelCostTable';
+import { ProjectCostTable } from './components/ProjectCostTable';
+import { DailyChart } from './components/DailyChart';
+import { ModelChart } from './components/ModelChart';
+import { ProjectChart } from './components/ProjectChart';
+import { Sparkline } from './components/Sparkline';
 
 import type {
   WindowInfo,
-  BudgetInfo,
-  IdentityInfo,
   UsageWindowsResponse,
   SubagentSummary,
   EntrypointSummary,
   ServiceTierSummary,
   DashboardData,
-  DailyModelRow,
-  SessionRow,
   DailyAgg,
   ModelAgg,
   ProjectAgg,
   Totals,
-  SortDir,
   RangeKey,
 } from './state/types';
 import {
@@ -32,20 +31,13 @@ import {
   selectedModels,
   selectedRange,
   projectSearchQuery,
-  sessionSortCol,
-  sessionSortDir,
-  modelSortCol,
-  modelSortDir,
-  projectSortCol,
-  projectSortDir,
   sessionsCurrentPage,
-  SESSIONS_PAGE_SIZE,
   lastFilteredSessions,
   lastByProject,
 } from './state/store';
-import { esc, $, fmt, fmtCost, fmtResetTime, progressColor } from './lib/format';
-import { csvField, csvTimestamp, downloadCSV } from './lib/csv';
-import { TOKEN_COLORS, MODEL_COLORS, RANGE_LABELS, RANGE_TICKS, apexThemeMode, cssVar } from './lib/charts';
+import { esc, $, fmtResetTime, progressColor } from './lib/format';
+import { downloadCSV } from './lib/csv';
+import { RANGE_LABELS } from './lib/charts';
 import { getTheme } from './lib/theme';
 
 // ── Theme (app-level, depends on state) ───────────────────────────────
@@ -72,7 +64,6 @@ function toggleTheme(): void {
 applyTheme(getTheme());
 
 // ── Local-only state (not reactive) ───────────────────────────────────
-let charts: Record<string, any> = {};
 let previousSessionPercent: number | null = null;
 
 // ── Model classification (for filter defaults only, costs come from server) ──
@@ -178,25 +169,6 @@ function onProjectSearch(query: string): void {
   applyFilter();
 }
 
-function sessionsPage(delta: number): void {
-  const maxPage = Math.max(0, Math.ceil(lastFilteredSessions.value.length / SESSIONS_PAGE_SIZE) - 1);
-  sessionsCurrentPage.value = Math.max(0, Math.min(maxPage, sessionsCurrentPage.value + delta));
-  renderSessionsPage();
-}
-
-function renderSessionsPage(): void {
-  const start = sessionsCurrentPage.value * SESSIONS_PAGE_SIZE;
-  const page = lastFilteredSessions.value.slice(start, start + SESSIONS_PAGE_SIZE);
-  renderSessionsTable(page);
-
-  const total = lastFilteredSessions.value.length;
-  const maxPage = Math.max(0, Math.ceil(total / SESSIONS_PAGE_SIZE) - 1);
-  $('sessions-page-info').textContent = total > 0
-    ? `Showing ${start + 1}\u2013${Math.min(start + SESSIONS_PAGE_SIZE, total)} of ${total}`
-    : 'No sessions';
-  ($('sessions-prev') as HTMLButtonElement).disabled = sessionsCurrentPage.value <= 0;
-  ($('sessions-next') as HTMLButtonElement).disabled = sessionsCurrentPage.value >= maxPage;
-}
 
 function clearProjectSearch(): void {
   projectSearchQuery.value = '';
@@ -224,87 +196,7 @@ function updateURL(): void {
   history.replaceState(null, '', window.location.pathname + search);
 }
 
-// ── Sort helpers ───────────────────────────────────────────────────────
-function setSessionSort(col: string): void {
-  if (sessionSortCol.value === col) sessionSortDir.value = sessionSortDir.value === 'desc' ? 'asc' : 'desc';
-  else { sessionSortCol.value = col; sessionSortDir.value = 'desc'; }
-  updateSortIcons(); applyFilter();
-}
-
-function updateSortIcons(): void {
-  document.querySelectorAll('.sort-icon').forEach(el => el.textContent = '');
-  const icon = document.getElementById('sort-icon-' + sessionSortCol.value);
-  if (icon) icon.textContent = sessionSortDir.value === 'desc' ? ' \u25bc' : ' \u25b2';
-}
-
-function sortSessions(sessions: SessionRow[]): SessionRow[] {
-  return [...sessions].sort((a, b) => {
-    let av: number | string, bv: number | string;
-    if (sessionSortCol.value === 'cost') {
-      av = a.cost;
-      bv = b.cost;
-    } else if (sessionSortCol.value === 'duration_min') {
-      av = a.duration_min || 0;
-      bv = b.duration_min || 0;
-    } else {
-      av = (a as any)[sessionSortCol.value] ?? 0;
-      bv = (b as any)[sessionSortCol.value] ?? 0;
-    }
-    if (av < bv) return sessionSortDir.value === 'desc' ? 1 : -1;
-    if (av > bv) return sessionSortDir.value === 'desc' ? -1 : 1;
-    return 0;
-  });
-}
-
-function setModelSort(col: string): void {
-  if (modelSortCol.value === col) modelSortDir.value = modelSortDir.value === 'desc' ? 'asc' : 'desc';
-  else { modelSortCol.value = col; modelSortDir.value = 'desc'; }
-  updateModelSortIcons(); applyFilter();
-}
-
-function updateModelSortIcons(): void {
-  document.querySelectorAll('[id^="msort-"]').forEach(el => el.textContent = '');
-  const icon = document.getElementById('msort-' + modelSortCol.value);
-  if (icon) icon.textContent = modelSortDir.value === 'desc' ? ' \u25bc' : ' \u25b2';
-}
-
-function sortModels(byModel: ModelAgg[]): ModelAgg[] {
-  return [...byModel].sort((a, b) => {
-    let av: number, bv: number;
-    if (modelSortCol.value === 'cost') {
-      av = a.cost;
-      bv = b.cost;
-    } else {
-      av = (a as any)[modelSortCol.value] ?? 0;
-      bv = (b as any)[modelSortCol.value] ?? 0;
-    }
-    if (av < bv) return modelSortDir.value === 'desc' ? 1 : -1;
-    if (av > bv) return modelSortDir.value === 'desc' ? -1 : 1;
-    return 0;
-  });
-}
-
-function setProjectSort(col: string): void {
-  if (projectSortCol.value === col) projectSortDir.value = projectSortDir.value === 'desc' ? 'asc' : 'desc';
-  else { projectSortCol.value = col; projectSortDir.value = 'desc'; }
-  updateProjectSortIcons(); applyFilter();
-}
-
-function updateProjectSortIcons(): void {
-  document.querySelectorAll('[id^="psort-"]').forEach(el => el.textContent = '');
-  const icon = document.getElementById('psort-' + projectSortCol.value);
-  if (icon) icon.textContent = projectSortDir.value === 'desc' ? ' \u25bc' : ' \u25b2';
-}
-
-function sortProjects(byProject: ProjectAgg[]): ProjectAgg[] {
-  return [...byProject].sort((a, b) => {
-    const av = (a as any)[projectSortCol.value] ?? 0;
-    const bv = (b as any)[projectSortCol.value] ?? 0;
-    if (av < bv) return projectSortDir.value === 'desc' ? 1 : -1;
-    if (av > bv) return projectSortDir.value === 'desc' ? -1 : 1;
-    return 0;
-  });
-}
+// ── Sort helpers (moved to Preact table components) ───────────────────
 
 // ── Aggregation & filtering ────────────────────────────────────────────
 function applyFilter(): void {
@@ -371,12 +263,12 @@ function applyFilter(): void {
   renderDailyChart(daily);
   renderModelChart(byModel);
   renderProjectChart(byProject);
-  lastFilteredSessions.value = sortSessions(filteredSessions);
-  lastByProject.value = sortProjects(byProject);
+  lastFilteredSessions.value = filteredSessions;
+  lastByProject.value = byProject;
   sessionsCurrentPage.value = 0;
-  renderSessionsPage();
-  renderModelCostTable(byModel);
-  renderProjectCostTable(lastByProject.value.slice(0, 30));
+  render(<ModelCostTable byModel={byModel} />, $('model-cost-mount'));
+  render(<SessionsTable onExportCSV={exportSessionsCSV} />, $('sessions-mount'));
+  render(<ProjectCostTable byProject={lastByProject.value.slice(0, 30)} onExportCSV={exportProjectsCSV} />, $('project-cost-mount'));
 }
 
 // ── Renderers ──────────────────────────────────────────────────────────
@@ -385,125 +277,20 @@ function renderStats(t: Totals): void {
 }
 
 function renderDailyChart(daily: DailyAgg[]): void {
-  const el = document.getElementById('chart-daily')!;
-  if (charts.daily) charts.daily.destroy();
-  charts.daily = new ApexCharts(el, {
-    chart: { type: 'bar', height: '100%', stacked: true, background: 'transparent',
-             toolbar: { show: false }, fontFamily: 'inherit' },
-    theme: { mode: apexThemeMode() },
-    series: [
-      { name: 'Input',          data: daily.map(d => d.input) },
-      { name: 'Output',         data: daily.map(d => d.output) },
-      { name: 'Cache Read',     data: daily.map(d => d.cache_read) },
-      { name: 'Cache Creation', data: daily.map(d => d.cache_creation) },
-    ],
-    colors: [TOKEN_COLORS.input, TOKEN_COLORS.output, TOKEN_COLORS.cache_read, TOKEN_COLORS.cache_creation],
-    xaxis: { categories: daily.map(d => d.day),
-             labels: { rotate: -45, maxHeight: 60 },
-             tickAmount: Math.min(daily.length, RANGE_TICKS[selectedRange.value]) },
-    yaxis: { labels: { formatter: (v: number) => fmt(v) } },
-    legend: { position: 'top', fontSize: '11px' },
-    dataLabels: { enabled: false },
-    tooltip: { y: { formatter: (v: number) => fmt(v) + ' tokens' } },
-    grid: { borderColor: cssVar('--chart-grid') },
-    plotOptions: { bar: { columnWidth: '70%' } },
-  });
-  charts.daily.render();
+  const container = document.getElementById('chart-daily')!;
+  render(<DailyChart daily={daily} />, container);
 }
 
 function renderModelChart(byModel: ModelAgg[]): void {
-  const el = document.getElementById('chart-model')!;
-  if (charts.model) charts.model.destroy();
-  if (!byModel.length) { charts.model = null; el.innerHTML = ''; return; }
-  charts.model = new ApexCharts(el, {
-    chart: { type: 'donut', height: '100%', background: 'transparent', fontFamily: 'inherit' },
-    theme: { mode: apexThemeMode() },
-    series: byModel.map(m => m.input + m.output),
-    labels: byModel.map(m => m.model),
-    colors: MODEL_COLORS.slice(0, byModel.length),
-    legend: { position: 'bottom', fontSize: '11px' },
-    dataLabels: { enabled: false },
-    tooltip: { y: { formatter: (v: number) => fmt(v) + ' tokens' } },
-    stroke: { width: 2, colors: [cssVar('--card')] },
-    plotOptions: { pie: { donut: { size: '60%' } } },
-  });
-  charts.model.render();
+  const container = document.getElementById('chart-model')!;
+  render(<ModelChart byModel={byModel} />, container);
 }
 
 function renderProjectChart(byProject: ProjectAgg[]): void {
-  const top = byProject.slice(0, 10);
-  const el = document.getElementById('chart-project')!;
-  if (charts.project) charts.project.destroy();
-  if (!top.length) { charts.project = null; el.innerHTML = ''; return; }
-  charts.project = new ApexCharts(el, {
-    chart: { type: 'bar', height: '100%', background: 'transparent',
-             toolbar: { show: false }, fontFamily: 'inherit' },
-    theme: { mode: apexThemeMode() },
-    series: [
-      { name: 'Input',  data: top.map(p => p.input) },
-      { name: 'Output', data: top.map(p => p.output) },
-    ],
-    colors: [TOKEN_COLORS.input, TOKEN_COLORS.output],
-    plotOptions: { bar: { horizontal: true, barHeight: '60%' } },
-    xaxis: { categories: top.map(p => p.project.length > 22 ? '\u2026' + p.project.slice(-20) : p.project),
-             labels: { formatter: (v: number) => fmt(v) } },
-    yaxis: { labels: { maxWidth: 160 } },
-    legend: { position: 'top', fontSize: '11px' },
-    dataLabels: { enabled: false },
-    tooltip: { y: { formatter: (v: number) => fmt(v) + ' tokens' } },
-    grid: { borderColor: cssVar('--chart-grid') },
-  });
-  charts.project.render();
+  const container = document.getElementById('chart-project')!;
+  render(<ProjectChart byProject={byProject} />, container);
 }
 
-function renderSessionsTable(sessions: SessionRow[]): void {
-  $('sessions-body').innerHTML = sessions.map(s => {
-    const cost = s.cost;
-    const costCell = s.is_billable
-      ? `<td class="cost">${fmtCost(cost)}</td>`
-      : `<td class="cost-na">n/a</td>`;
-    return `<tr>
-      <td class="muted" style="font-family:monospace">${esc(s.session_id)}&hellip;</td>
-      <td>${esc(s.project)}</td>
-      <td class="muted">${esc(s.last)}</td>
-      <td class="muted">${esc(s.duration_min)}m</td>
-      <td><span class="model-tag">${esc(s.model)}</span></td>
-      <td class="num">${s.turns}${s.subagent_count > 0 ? `<span class="muted" style="font-size:10px"> (${s.subagent_count} agents)</span>` : ''}</td>
-      <td class="num">${fmt(s.input)}</td>
-      <td class="num">${fmt(s.output)}</td>
-      ${costCell}
-    </tr>`;
-  }).join('');
-}
-
-function renderModelCostTable(byModel: ModelAgg[]): void {
-  $('model-cost-body').innerHTML = sortModels(byModel).map(m => {
-    const cost = m.cost;
-    const costCell = m.is_billable
-      ? `<td class="cost">${fmtCost(cost)}</td>`
-      : `<td class="cost-na">n/a</td>`;
-    return `<tr>
-      <td><span class="model-tag">${esc(m.model)}</span></td>
-      <td class="num">${fmt(m.turns)}</td>
-      <td class="num">${fmt(m.input)}</td>
-      <td class="num">${fmt(m.output)}</td>
-      <td class="num">${fmt(m.cache_read)}</td>
-      <td class="num">${fmt(m.cache_creation)}</td>
-      ${costCell}
-    </tr>`;
-  }).join('');
-}
-
-function renderProjectCostTable(byProject: ProjectAgg[]): void {
-  $('project-cost-body').innerHTML = sortProjects(byProject).map(p => `<tr>
-      <td>${esc(p.project)}</td>
-      <td class="num">${p.sessions}</td>
-      <td class="num">${fmt(p.turns)}</td>
-      <td class="num">${fmt(p.input)}</td>
-      <td class="num">${fmt(p.output)}</td>
-      <td class="cost">${fmtCost(p.cost)}</td>
-    </tr>`).join('');
-}
 
 // ── CSV Export ──────────────────────────────────────────────────────────
 function exportSessionsCSV(): void {
@@ -636,20 +423,13 @@ function renderCostSparkline(daily: DailyAgg[]): void {
   const container = $('cost-sparkline');
   if (!container) return;
   const last7 = daily.slice(-7);
-  if (last7.length < 2) { container.style.display = 'none'; return; }
+  if (last7.length < 2) {
+    container.style.display = 'none';
+    render(null, container);
+    return;
+  }
   container.style.display = '';
-  container.innerHTML = '<div class="sub" style="margin-bottom:4px">7-day trend</div><div id="sparkline-chart"></div>';
-
-  if (charts.sparkline) charts.sparkline.destroy();
-  charts.sparkline = new ApexCharts(document.getElementById('sparkline-chart')!, {
-    chart: { type: 'line', height: 30, width: 120, sparkline: { enabled: true },
-             background: 'transparent', fontFamily: 'inherit' },
-    series: [{ data: last7.map(d => d.input + d.output) }],
-    stroke: { width: 1.5, curve: 'smooth' },
-    colors: [cssVar('--accent')],
-    tooltip: { enabled: false },
-  });
-  charts.sparkline.render();
+  render(<Sparkline daily={daily} />, container);
 }
 
 async function loadUsageWindows(): Promise<void> {
@@ -709,9 +489,6 @@ async function loadData(): Promise<void> {
         btn.classList.toggle('active', btn.dataset.range === selectedRange.value)
       );
       buildFilterUI(d.all_models);
-      updateSortIcons();
-      updateModelSortIcons();
-      updateProjectSortIcons();
 
       // Restore project search from URL
       const urlProject = new URLSearchParams(window.location.search).get('project');
@@ -736,9 +513,8 @@ async function loadData(): Promise<void> {
 // Expose functions to global scope for inline HTML event handlers
 Object.assign(window, {
   setRange, onModelToggle, selectAllModels, clearAllModels,
-  setSessionSort, setModelSort, setProjectSort,
   exportSessionsCSV, exportProjectsCSV, triggerRescan,
-  onProjectSearch, clearProjectSearch, sessionsPage, toggleTheme,
+  onProjectSearch, clearProjectSearch, toggleTheme,
 });
 
 loadData();

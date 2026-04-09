@@ -61,65 +61,9 @@
   <div class="table-card" id="subagent-summary" style="display:none"></div>
   <div class="table-card" id="entrypoint-breakdown" style="display:none"></div>
   <div class="table-card" id="service-tiers" style="display:none"></div>
-  <div class="table-card">
-    <div class="section-title">Cost by Model</div>
-    <table>
-      <thead><tr>
-        <th>Model</th>
-        <th class="sortable" onclick="setModelSort('turns')">Turns <span class="sort-icon" id="msort-turns"></span></th>
-        <th class="sortable" onclick="setModelSort('input')">Input <span class="sort-icon" id="msort-input"></span></th>
-        <th class="sortable" onclick="setModelSort('output')">Output <span class="sort-icon" id="msort-output"></span></th>
-        <th class="sortable" onclick="setModelSort('cache_read')">Cache Read <span class="sort-icon" id="msort-cache_read"></span></th>
-        <th class="sortable" onclick="setModelSort('cache_creation')">Cache Creation <span class="sort-icon" id="msort-cache_creation"></span></th>
-        <th class="sortable" onclick="setModelSort('cost')">Est. Cost <span class="sort-icon" id="msort-cost"></span></th>
-      </tr></thead>
-      <tbody id="model-cost-body"></tbody>
-    </table>
-  </div>
-  <div class="table-card">
-    <div class="section-header">
-      <div class="section-title">Recent Sessions</div>
-      <button class="export-btn" onclick="exportSessionsCSV()" title="Export filtered sessions to CSV">&#x2913; CSV</button>
-    </div>
-    <table>
-      <thead><tr>
-        <th>Session</th>
-        <th>Project</th>
-        <th class="sortable" onclick="setSessionSort('last')">Last Active <span class="sort-icon" id="sort-icon-last"></span></th>
-        <th class="sortable" onclick="setSessionSort('duration_min')">Duration <span class="sort-icon" id="sort-icon-duration_min"></span></th>
-        <th>Model</th>
-        <th class="sortable" onclick="setSessionSort('turns')">Turns <span class="sort-icon" id="sort-icon-turns"></span></th>
-        <th class="sortable" onclick="setSessionSort('input')">Input <span class="sort-icon" id="sort-icon-input"></span></th>
-        <th class="sortable" onclick="setSessionSort('output')">Output <span class="sort-icon" id="sort-icon-output"></span></th>
-        <th class="sortable" onclick="setSessionSort('cost')">Est. Cost <span class="sort-icon" id="sort-icon-cost"></span></th>
-      </tr></thead>
-      <tbody id="sessions-body"></tbody>
-    </table>
-    <div id="sessions-pagination" style="display:flex;align-items:center;justify-content:space-between;margin-top:12px;font-size:12px;color:var(--muted)">
-      <span id="sessions-page-info"></span>
-      <div style="display:flex;gap:6px">
-        <button class="filter-btn" id="sessions-prev" onclick="sessionsPage(-1)">&laquo; Prev</button>
-        <button class="filter-btn" id="sessions-next" onclick="sessionsPage(1)">Next &raquo;</button>
-      </div>
-    </div>
-  </div>
-  <div class="table-card">
-    <div class="section-header">
-      <div class="section-title">Cost by Project</div>
-      <button class="export-btn" onclick="exportProjectsCSV()" title="Export projects to CSV">&#x2913; CSV</button>
-    </div>
-    <table>
-      <thead><tr>
-        <th>Project</th>
-        <th class="sortable" onclick="setProjectSort('sessions')">Sessions <span class="sort-icon" id="psort-sessions"></span></th>
-        <th class="sortable" onclick="setProjectSort('turns')">Turns <span class="sort-icon" id="psort-turns"></span></th>
-        <th class="sortable" onclick="setProjectSort('input')">Input <span class="sort-icon" id="psort-input"></span></th>
-        <th class="sortable" onclick="setProjectSort('output')">Output <span class="sort-icon" id="psort-output"></span></th>
-        <th class="sortable" onclick="setProjectSort('cost')">Est. Cost <span class="sort-icon" id="psort-cost"></span></th>
-      </tr></thead>
-      <tbody id="project-cost-body"></tbody>
-    </table>
-  </div>
+  <div id="model-cost-mount"></div>
+  <div id="sessions-mount"></div>
+  <div id="project-cost-mount"></div>
 </div>
 
 <footer>
