@@ -861,7 +861,7 @@ function resolveUpdater(updater, prev) {
   return typeof updater === "function" ? updater(prev) : updater;
 }
 function DataTable({
-  columns: columns5,
+  columns: columns7,
   data,
   title,
   exportFn,
@@ -884,7 +884,7 @@ function DataTable({
   stateRef.current = { sorting, pagination, columnVisibility };
   if (!tableRef.current) {
     tableRef.current = createTable({
-      columns: columns5,
+      columns: columns7,
       data,
       state: { sorting, pagination, columnVisibility, columnPinning: { left: [], right: [] } },
       onStateChange: (updater) => {
@@ -905,7 +905,7 @@ function DataTable({
   }
   tableRef.current.setOptions((prev) => ({
     ...prev,
-    columns: columns5,
+    columns: columns7,
     data,
     state: { ...tableRef.current.getState(), sorting, pagination, columnVisibility }
   }));
@@ -1079,6 +1079,21 @@ var columns3 = [
     accessorKey: "sessions_used",
     header: "Sessions",
     cell: ({ getValue }) => /* @__PURE__ */ jsx8("span", { class: "num", children: fmt(getValue()) })
+  },
+  {
+    accessorKey: "errors",
+    header: "Errors",
+    cell: ({ row }) => {
+      const e3 = row.original.errors;
+      if (!e3) return /* @__PURE__ */ jsx8("span", { class: "dim", children: "0" });
+      const pct = row.original.invocations > 0 ? (e3 / row.original.invocations * 100).toFixed(1) : "0";
+      return /* @__PURE__ */ jsxs5("span", { class: "num", style: { color: "var(--red)" }, children: [
+        e3,
+        " (",
+        pct,
+        "%)"
+      ] });
+    }
   }
 ];
 function ToolUsageTable({ data }) {
@@ -1115,9 +1130,105 @@ function McpSummaryTable({ data }) {
   return /* @__PURE__ */ jsx9(DataTable, { columns: columns4, data, title: "MCP Server Usage" });
 }
 
+// src/ui/components/BranchTable.tsx
+import { jsx as jsx10 } from "preact/jsx-runtime";
+var columns5 = [
+  {
+    accessorKey: "branch",
+    header: "Branch",
+    cell: ({ getValue }) => /* @__PURE__ */ jsx10("span", { class: "model-tag", children: String(getValue()) })
+  },
+  {
+    accessorKey: "sessions",
+    header: "Sessions",
+    cell: ({ getValue }) => /* @__PURE__ */ jsx10("span", { class: "num", children: getValue() })
+  },
+  {
+    accessorKey: "turns",
+    header: "Turns",
+    cell: ({ getValue }) => /* @__PURE__ */ jsx10("span", { class: "num", children: fmt(getValue()) })
+  },
+  {
+    accessorKey: "input",
+    header: "Input",
+    cell: ({ getValue }) => /* @__PURE__ */ jsx10("span", { class: "num", children: fmt(getValue()) })
+  },
+  {
+    accessorKey: "output",
+    header: "Output",
+    cell: ({ getValue }) => /* @__PURE__ */ jsx10("span", { class: "num", children: fmt(getValue()) })
+  },
+  {
+    accessorKey: "cost",
+    header: "Est. Cost",
+    cell: ({ getValue }) => /* @__PURE__ */ jsx10("span", { class: "cost", children: fmtCost(getValue()) })
+  }
+];
+function BranchTable({ data }) {
+  if (!data.length) return null;
+  return /* @__PURE__ */ jsx10(DataTable, { columns: columns5, data, title: "Usage by Git Branch" });
+}
+
+// src/ui/components/VersionTable.tsx
+import { jsx as jsx11 } from "preact/jsx-runtime";
+var columns6 = [
+  {
+    accessorKey: "version",
+    header: "Version",
+    cell: ({ getValue }) => /* @__PURE__ */ jsx11("span", { class: "model-tag", children: String(getValue()) })
+  },
+  {
+    accessorKey: "turns",
+    header: "Turns",
+    cell: ({ getValue }) => /* @__PURE__ */ jsx11("span", { class: "num", children: fmt(getValue()) })
+  },
+  {
+    accessorKey: "sessions",
+    header: "Sessions",
+    cell: ({ getValue }) => /* @__PURE__ */ jsx11("span", { class: "num", children: getValue() })
+  }
+];
+function VersionTable({ data }) {
+  if (!data.length) return null;
+  return /* @__PURE__ */ jsx11(DataTable, { columns: columns6, data, title: "Claude Code Versions" });
+}
+
+// src/ui/components/HourlyChart.tsx
+import { jsx as jsx12, jsxs as jsxs6 } from "preact/jsx-runtime";
+function HourlyChart({ data }) {
+  if (!data.length) return null;
+  const maxTurns = Math.max(...data.map((d3) => d3.turns), 1);
+  return /* @__PURE__ */ jsxs6("div", { children: [
+    /* @__PURE__ */ jsx12("h3", { style: { margin: "0 0 12px", fontSize: "13px", fontWeight: 600, letterSpacing: "0.02em", textTransform: "uppercase", color: "var(--text-secondary)" }, children: "Activity by Hour of Day" }),
+    /* @__PURE__ */ jsx12("div", { style: { display: "flex", alignItems: "flex-end", gap: "2px", height: "80px" }, children: Array.from({ length: 24 }, (_3, h3) => {
+      const row = data.find((d3) => d3.hour === h3);
+      const turns = row?.turns ?? 0;
+      const pct = turns / maxTurns * 100;
+      return /* @__PURE__ */ jsx12(
+        "div",
+        {
+          title: `${h3}:00 -- ${fmt(turns)} turns`,
+          style: {
+            flex: 1,
+            height: `${Math.max(pct, 2)}%`,
+            background: turns > 0 ? "var(--accent)" : "var(--border)",
+            borderRadius: "2px 2px 0 0",
+            opacity: turns > 0 ? 0.6 + pct / 100 * 0.4 : 0.3
+          }
+        },
+        h3
+      );
+    }) }),
+    /* @__PURE__ */ jsx12("div", { style: { display: "flex", gap: "2px", marginTop: "4px" }, children: [0, 6, 12, 18, 23].map((h3) => /* @__PURE__ */ jsxs6("span", { class: "muted", style: { flex: 1, fontSize: "9px", textAlign: h3 === 0 ? "left" : h3 === 23 ? "right" : "center" }, children: [
+      h3,
+      ":00"
+    ] }, h3)) })
+  ] });
+}
+
 // src/ui/components/SessionsTable.tsx
 import { useMemo } from "preact/hooks";
-import { jsx as jsx10, jsxs as jsxs6 } from "preact/jsx-runtime";
+import { Fragment as Fragment2, jsx as jsx13, jsxs as jsxs7 } from "preact/jsx-runtime";
 var defaultSort = [{ id: "last", desc: true }];
 function useSessionColumns() {
   return useMemo(
@@ -1127,10 +1238,14 @@ function useSessionColumns() {
         accessorKey: "session_id",
         header: "Session",
         enableSorting: false,
-        cell: (info) => /* @__PURE__ */ jsxs6("span", { class: "muted", style: { fontFamily: "monospace" }, children: [
-          info.getValue(),
-          "\u2026"
-        ] })
+        cell: (info) => {
+          const row = info.row.original;
+          const title = row.title;
+          return /* @__PURE__ */ jsx13("span", { class: "muted", style: { fontFamily: "monospace" }, title: title || void 0, children: title || /* @__PURE__ */ jsxs7(Fragment2, { children: [
+            info.getValue(),
+            "\u2026"
+          ] }) });
+        }
       },
       {
         id: "project",
@@ -1142,13 +1257,13 @@ function useSessionColumns() {
         id: "last",
         accessorKey: "last",
         header: "Last Active",
-        cell: (info) => /* @__PURE__ */ jsx10("span", { class: "muted", children: info.getValue() })
+        cell: (info) => /* @__PURE__ */ jsx13("span", { class: "muted", children: info.getValue() })
       },
       {
         id: "duration_min",
         accessorKey: "duration_min",
         header: "Duration",
-        cell: (info) => /* @__PURE__ */ jsxs6("span", { class: "muted", children: [
+        cell: (info) => /* @__PURE__ */ jsxs7("span", { class: "muted", children: [
           info.getValue(),
           "m"
         ] })
@@ -1158,7 +1273,7 @@ function useSessionColumns() {
         accessorKey: "model",
         header: "Model",
         enableSorting: false,
-        cell: (info) => /* @__PURE__ */ jsx10("span", { class: "model-tag", children: info.getValue() })
+        cell: (info) => /* @__PURE__ */ jsx13("span", { class: "model-tag", children: info.getValue() })
       },
       {
         id: "turns",
@@ -1166,9 +1281,9 @@ function useSessionColumns() {
         header: "Turns",
         cell: (info) => {
           const row = info.row.original;
-          return /* @__PURE__ */ jsxs6("span", { class: "num", children: [
+          return /* @__PURE__ */ jsxs7("span", { class: "num", children: [
             fmt(info.getValue()),
-            row.subagent_count > 0 && /* @__PURE__ */ jsxs6("span", { class: "muted", style: { fontSize: "10px" }, children: [
+            row.subagent_count > 0 && /* @__PURE__ */ jsxs7("span", { class: "muted", style: { fontSize: "10px" }, children: [
               " ",
               "(",
               row.subagent_count,
@@ -1181,13 +1296,13 @@ function useSessionColumns() {
         id: "input",
         accessorKey: "input",
         header: "Input",
-        cell: (info) => /* @__PURE__ */ jsx10("span", { class: "num", children: fmt(info.getValue()) })
+        cell: (info) => /* @__PURE__ */ jsx13("span", { class: "num", children: fmt(info.getValue()) })
       },
       {
         id: "output",
         accessorKey: "output",
         header: "Output",
-        cell: (info) => /* @__PURE__ */ jsx10("span", { class: "num", children: fmt(info.getValue()) })
+        cell: (info) => /* @__PURE__ */ jsx13("span", { class: "num", children: fmt(info.getValue()) })
       },
       {
         id: "cost",
@@ -1195,7 +1310,28 @@ function useSessionColumns() {
         header: "Est. Cost",
         cell: (info) => {
           const row = info.row.original;
-          return row.is_billable ? /* @__PURE__ */ jsx10("span", { class: "cost", children: fmtCost(info.getValue()) }) : /* @__PURE__ */ jsx10("span", { class: "cost-na", children: "n/a" });
+          return row.is_billable ? /* @__PURE__ */ jsx13("span", { class: "cost", children: fmtCost(info.getValue()) }) : /* @__PURE__ */ jsx13("span", { class: "cost-na", children: "n/a" });
+        }
+      },
+      {
+        id: "cache_hit_ratio",
+        accessorKey: "cache_hit_ratio",
+        header: "Cache %",
+        cell: (info) => {
+          const v2 = info.getValue();
+          return /* @__PURE__ */ jsxs7("span", { class: "num", children: [
+            (v2 * 100).toFixed(0),
+            "%"
+          ] });
+        }
+      },
+      {
+        id: "tokens_per_min",
+        accessorKey: "tokens_per_min",
+        header: "Tok/min",
+        cell: (info) => {
+          const v2 = info.getValue();
+          return /* @__PURE__ */ jsx13("span", { class: "num", children: v2 > 0 ? fmt(Math.round(v2)) : "--" });
         }
       }
     ],
@@ -1203,12 +1339,12 @@ function useSessionColumns() {
   );
 }
 function SessionsTable({ onExportCSV }) {
-  const columns5 = useSessionColumns();
+  const columns7 = useSessionColumns();
   const data = lastFilteredSessions.value;
-  return /* @__PURE__ */ jsx10(
+  return /* @__PURE__ */ jsx13(
     DataTable,
     {
-      columns: columns5,
+      columns: columns7,
       data,
       title: "Recent Sessions",
       exportFn: onExportCSV,
@@ -1221,7 +1357,7 @@ function SessionsTable({ onExportCSV }) {
 
 // src/ui/components/ModelCostTable.tsx
 import { useMemo as useMemo2 } from "preact/hooks";
-import { jsx as jsx11 } from "preact/jsx-runtime";
+import { jsx as jsx14 } from "preact/jsx-runtime";
 var defaultSort2 = [{ id: "cost", desc: true }];
 function useModelColumns() {
   return useMemo2(
@@ -1231,37 +1367,37 @@ function useModelColumns() {
         accessorKey: "model",
         header: "Model",
         enableSorting: false,
-        cell: (info) => /* @__PURE__ */ jsx11("span", { class: "model-tag", children: info.getValue() })
+        cell: (info) => /* @__PURE__ */ jsx14("span", { class: "model-tag", children: info.getValue() })
       },
       {
         id: "turns",
         accessorKey: "turns",
         header: "Turns",
-        cell: (info) => /* @__PURE__ */ jsx11("span", { class: "num", children: fmt(info.getValue()) })
+        cell: (info) => /* @__PURE__ */ jsx14("span", { class: "num", children: fmt(info.getValue()) })
       },
       {
         id: "input",
         accessorKey: "input",
         header: "Input",
-        cell: (info) => /* @__PURE__ */ jsx11("span", { class: "num", children: fmt(info.getValue()) })
+        cell: (info) => /* @__PURE__ */ jsx14("span", { class: "num", children: fmt(info.getValue()) })
       },
       {
         id: "output",
         accessorKey: "output",
         header: "Output",
-        cell: (info) => /* @__PURE__ */ jsx11("span", { class: "num", children: fmt(info.getValue()) })
+        cell: (info) => /* @__PURE__ */ jsx14("span", { class: "num", children: fmt(info.getValue()) })
       },
       {
         id: "cache_read",
         accessorKey: "cache_read",
         header: "Cache Read",
-        cell: (info) => /* @__PURE__ */ jsx11("span", { class: "num", children: fmt(info.getValue()) })
+        cell: (info) => /* @__PURE__ */ jsx14("span", { class: "num", children: fmt(info.getValue()) })
       },
       {
         id: "cache_creation",
         accessorKey: "cache_creation",
         header: "Cache Creation",
-        cell: (info) => /* @__PURE__ */ jsx11("span", { class: "num", children: fmt(info.getValue()) })
+        cell: (info) => /* @__PURE__ */ jsx14("span", { class: "num", children: fmt(info.getValue()) })
       },
       {
         id: "cost",
@@ -1269,7 +1405,7 @@ function useModelColumns() {
         header: "Est. Cost",
         cell: (info) => {
           const row = info.row.original;
-          return row.is_billable ? /* @__PURE__ */ jsx11("span", { class: "cost", children: fmtCost(info.getValue()) }) : /* @__PURE__ */ jsx11("span", { class: "cost-na", children: "n/a" });
+          return row.is_billable ? /* @__PURE__ */ jsx14("span", { class: "cost", children: fmtCost(info.getValue()) }) : /* @__PURE__ */ jsx14("span", { class: "cost-na", children: "n/a" });
         }
       }
     ],
@@ -1277,11 +1413,11 @@ function useModelColumns() {
   );
 }
 function ModelCostTable({ byModel }) {
-  const columns5 = useModelColumns();
-  return /* @__PURE__ */ jsx11(
+  const columns7 = useModelColumns();
+  return /* @__PURE__ */ jsx14(
     DataTable,
     {
-      columns: columns5,
+      columns: columns7,
       data: byModel,
       title: "Cost by Model",
       defaultSort: defaultSort2
@@ -1291,7 +1427,7 @@ function ModelCostTable({ byModel }) {
 
 // src/ui/components/ProjectCostTable.tsx
 import { useMemo as useMemo3 } from "preact/hooks";
-import { jsx as jsx12 } from "preact/jsx-runtime";
+import { jsx as jsx15 } from "preact/jsx-runtime";
 var defaultSort3 = [{ id: "cost", desc: true }];
 function useProjectColumns() {
   return useMemo3(
@@ -1306,31 +1442,31 @@ function useProjectColumns() {
         id: "sessions",
         accessorKey: "sessions",
         header: "Sessions",
-        cell: (info) => /* @__PURE__ */ jsx12("span", { class: "num", children: info.getValue() })
+        cell: (info) => /* @__PURE__ */ jsx15("span", { class: "num", children: info.getValue() })
       },
       {
         id: "turns",
         accessorKey: "turns",
         header: "Turns",
-        cell: (info) => /* @__PURE__ */ jsx12("span", { class: "num", children: fmt(info.getValue()) })
+        cell: (info) => /* @__PURE__ */ jsx15("span", { class: "num", children: fmt(info.getValue()) })
       },
       {
         id: "input",
         accessorKey: "input",
         header: "Input",
-        cell: (info) => /* @__PURE__ */ jsx12("span", { class: "num", children: fmt(info.getValue()) })
+        cell: (info) => /* @__PURE__ */ jsx15("span", { class: "num", children: fmt(info.getValue()) })
       },
       {
         id: "output",
         accessorKey: "output",
         header: "Output",
-        cell: (info) => /* @__PURE__ */ jsx12("span", { class: "num", children: fmt(info.getValue()) })
+        cell: (info) => /* @__PURE__ */ jsx15("span", { class: "num", children: fmt(info.getValue()) })
       },
       {
         id: "cost",
         accessorKey: "cost",
         header: "Est. Cost",
-        cell: (info) => /* @__PURE__ */ jsx12("span", { class: "cost", children: fmtCost(info.getValue()) })
+        cell: (info) => /* @__PURE__ */ jsx15("span", { class: "cost", children: fmtCost(info.getValue()) })
       }
     ],
     []
@@ -1340,11 +1476,11 @@ function ProjectCostTable({
   byProject,
   onExportCSV
 }) {
-  const columns5 = useProjectColumns();
-  return /* @__PURE__ */ jsx12(
+  const columns7 = useProjectColumns();
+  return /* @__PURE__ */ jsx15(
     DataTable,
     {
-      columns: columns5,
+      columns: columns7,
       data: byProject,
       title: "Cost by Project",
       exportFn: onExportCSV,
@@ -1355,7 +1491,7 @@ function ProjectCostTable({
 
 // src/ui/components/ApexChart.tsx
 import { useRef as useRef2, useEffect as useEffect2, useMemo as useMemo4 } from "preact/hooks";
-import { jsx as jsx13 } from "preact/jsx-runtime";
+import { jsx as jsx16 } from "preact/jsx-runtime";
 function ApexChart({ options, id }) {
   const ref = useRef2(null);
   const chartRef = useRef2(null);
@@ -1374,11 +1510,11 @@ function ApexChart({ options, id }) {
       chartRef.current = null;
     };
   }, [optionsKey]);
-  return /* @__PURE__ */ jsx13("div", { ref, id, style: { width: "100%", height: "100%" } });
+  return /* @__PURE__ */ jsx16("div", { ref, id, style: { width: "100%", height: "100%" } });
 }
 
 // src/ui/components/DailyChart.tsx
-import { jsx as jsx14 } from "preact/jsx-runtime";
+import { jsx as jsx17 } from "preact/jsx-runtime";
 function DailyChart({ daily }) {
   const options = {
     chart: {
@@ -1418,11 +1554,11 @@ function DailyChart({ daily }) {
     tooltip: { y: { formatter: (v2) => fmt(v2) + " tokens" } },
     grid: { borderColor: cssVar("--chart-grid"), strokeDashArray: 3 }
   };
-  return /* @__PURE__ */ jsx14(ApexChart, { options, id: "chart-daily" });
+  return /* @__PURE__ */ jsx17(ApexChart, { options, id: "chart-daily" });
 }
 
 // src/ui/components/ModelChart.tsx
-import { jsx as jsx15 } from "preact/jsx-runtime";
+import { jsx as jsx18 } from "preact/jsx-runtime";
 function ModelChart({ byModel }) {
   if (!byModel.length) return null;
   const options = {
@@ -1437,11 +1573,11 @@ function ModelChart({ byModel }) {
     stroke: { width: 2, colors: [cssVar("--card")] },
     plotOptions: { pie: { donut: { size: "60%" } } }
   };
-  return /* @__PURE__ */ jsx15(ApexChart, { options, id: "chart-model" });
+  return /* @__PURE__ */ jsx18(ApexChart, { options, id: "chart-model" });
 }
 
 // src/ui/components/ProjectChart.tsx
-import { jsx as jsx16 } from "preact/jsx-runtime";
+import { jsx as jsx19 } from "preact/jsx-runtime";
 function ProjectChart({ byProject }) {
   const top = byProject.slice(0, 10);
   if (!top.length) return null;
@@ -1470,11 +1606,11 @@ function ProjectChart({ byProject }) {
     tooltip: { y: { formatter: (v2) => fmt(v2) + " tokens" } },
     grid: { borderColor: cssVar("--chart-grid") }
   };
-  return /* @__PURE__ */ jsx16(ApexChart, { options, id: "chart-project" });
+  return /* @__PURE__ */ jsx19(ApexChart, { options, id: "chart-project" });
 }
 
 // src/ui/components/Sparkline.tsx
-import { jsx as jsx17, jsxs as jsxs7 } from "preact/jsx-runtime";
+import { jsx as jsx20, jsxs as jsxs8 } from "preact/jsx-runtime";
 function Sparkline({ daily }) {
   const last7 = daily.slice(-7);
   if (last7.length < 2) return null;
@@ -1492,9 +1628,9 @@ function Sparkline({ daily }) {
     colors: [cssVar("--accent")],
     tooltip: { enabled: false }
   };
-  return /* @__PURE__ */ jsxs7("div", { children: [
-    /* @__PURE__ */ jsx17("div", { class: "sub", style: { marginBottom: "4px" }, children: "7-day trend" }),
-    /* @__PURE__ */ jsx17(ApexChart, { options })
+  return /* @__PURE__ */ jsxs8("div", { children: [
+    /* @__PURE__ */ jsx20("div", { class: "sub", style: { marginBottom: "4px" }, children: "7-day trend" }),
+    /* @__PURE__ */ jsx20(ApexChart, { options })
   ] });
 }
 
@@ -1523,6 +1659,42 @@ function downloadCSV(reportType, header, rows) {
   setTimeout(() => URL.revokeObjectURL(a2.href), 1e3);
 }
 
+// src/ui/lib/rescan.ts
+function createTriggerRescan({
+  button,
+  fetchImpl,
+  loadData: loadData2,
+  showError: showError2,
+  setTimer,
+  logError = () => void 0
+}) {
+  return async function triggerRescan2() {
+    button.disabled = true;
+    button.textContent = "\u21BB Scanning...";
+    try {
+      const resp = await fetchImpl("/api/rescan", { method: "POST" });
+      if (!resp.ok) {
+        showError2(`Rescan failed: HTTP ${resp.status} ${resp.statusText}`);
+        button.textContent = "\u21BB Rescan (failed)";
+        return;
+      }
+      const data = await resp.json();
+      button.textContent = "\u21BB Rescan (" + data.new + " new, " + data.updated + " updated)";
+      await loadData2(true);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      showError2("Rescan failed: " + msg);
+      button.textContent = "\u21BB Rescan (error)";
+      logError(error);
+    } finally {
+      setTimer(() => {
+        button.textContent = "\u21BB Rescan";
+        button.disabled = false;
+      }, 3e3);
+    }
+  };
+}
+
 // src/ui/lib/theme.ts
 function getTheme() {
   const stored = localStorage.getItem("theme");
@@ -1531,7 +1703,7 @@ function getTheme() {
 }
 
 // src/ui/app.tsx
-import { jsx as jsx18 } from "preact/jsx-runtime";
+import { jsx as jsx21 } from "preact/jsx-runtime";
 function applyTheme(theme) {
   if (theme === "light") {
     document.documentElement.setAttribute("data-theme", "light");
@@ -1736,24 +1908,24 @@ function applyFilter() {
   renderProjectChart(byProject);
   lastFilteredSessions.value = filteredSessions;
   lastByProject.value = byProject;
-  render(/* @__PURE__ */ jsx18(ModelCostTable, { byModel }), $("model-cost-mount"));
-  render(/* @__PURE__ */ jsx18(SessionsTable, { onExportCSV: exportSessionsCSV }), $("sessions-mount"));
-  render(/* @__PURE__ */ jsx18(ProjectCostTable, { byProject: lastByProject.value.slice(0, 30), onExportCSV: exportProjectsCSV }), $("project-cost-mount"));
+  render(/* @__PURE__ */ jsx21(ModelCostTable, { byModel }), $("model-cost-mount"));
+  render(/* @__PURE__ */ jsx21(SessionsTable, { onExportCSV: exportSessionsCSV }), $("sessions-mount"));
+  render(/* @__PURE__ */ jsx21(ProjectCostTable, { byProject: lastByProject.value.slice(0, 30), onExportCSV: exportProjectsCSV }), $("project-cost-mount"));
 }
 function renderStats(t3) {
-  render(/* @__PURE__ */ jsx18(StatsCards, { totals: t3 }), $("stats-row"));
+  render(/* @__PURE__ */ jsx21(StatsCards, { totals: t3 }), $("stats-row"));
 }
 function renderDailyChart(daily) {
   const container = document.getElementById("chart-daily");
-  render(/* @__PURE__ */ jsx18(DailyChart, { daily }), container);
+  render(/* @__PURE__ */ jsx21(DailyChart, { daily }), container);
 }
 function renderModelChart(byModel) {
   const container = document.getElementById("chart-model");
-  render(/* @__PURE__ */ jsx18(ModelChart, { byModel }), container);
+  render(/* @__PURE__ */ jsx21(ModelChart, { byModel }), container);
 }
 function renderProjectChart(byProject) {
   const container = document.getElementById("chart-project");
-  render(/* @__PURE__ */ jsx18(ProjectChart, { byProject }), container);
+  render(/* @__PURE__ */ jsx21(ProjectChart, { byProject }), container);
 }
 function exportSessionsCSV() {
   const header = ["Session", "Project", "Last Active", "Duration (min)", "Model", "Turns", "Input", "Output", "Cache Read", "Cache Creation", "Est. Cost"];
@@ -1850,7 +2022,7 @@ function renderSubagentSummary(summary) {
     return;
   }
   container.style.display = "";
-  render(/* @__PURE__ */ jsx18(SubagentSummary, { summary }), container);
+  render(/* @__PURE__ */ jsx21(SubagentSummary, { summary }), container);
 }
 function renderEntrypointBreakdown(data) {
   const container = $("entrypoint-breakdown");
@@ -1861,7 +2033,7 @@ function renderEntrypointBreakdown(data) {
     return;
   }
   container.style.display = "";
-  render(/* @__PURE__ */ jsx18(EntrypointTable, { data }), container);
+  render(/* @__PURE__ */ jsx21(EntrypointTable, { data }), container);
 }
 function renderServiceTiers(data) {
   const container = $("service-tiers");
@@ -1872,7 +2044,7 @@ function renderServiceTiers(data) {
     return;
   }
   container.style.display = "";
-  render(/* @__PURE__ */ jsx18(ServiceTiersTable, { data }), container);
+  render(/* @__PURE__ */ jsx21(ServiceTiersTable, { data }), container);
 }
 function renderToolSummary(data) {
   const container = $("tool-summary");
@@ -1883,7 +2055,7 @@ function renderToolSummary(data) {
     return;
   }
   container.style.display = "";
-  render(/* @__PURE__ */ jsx18(ToolUsageTable, { data }), container);
+  render(/* @__PURE__ */ jsx21(ToolUsageTable, { data }), container);
 }
 function renderMcpSummary(data) {
   const container = $("mcp-summary");
@@ -1894,7 +2066,40 @@ function renderMcpSummary(data) {
     return;
   }
   container.style.display = "";
-  render(/* @__PURE__ */ jsx18(McpSummaryTable, { data }), container);
+  render(/* @__PURE__ */ jsx21(McpSummaryTable, { data }), container);
+}
+function renderBranchSummary(data) {
+  const container = $("branch-summary");
+  if (!container) return;
+  if (!data.length) {
+    container.style.display = "none";
+    render(null, container);
+    return;
+  }
+  container.style.display = "";
+  render(/* @__PURE__ */ jsx21(BranchTable, { data }), container);
+}
+function renderVersionSummary(data) {
+  const container = $("version-summary");
+  if (!container) return;
+  if (!data.length) {
+    container.style.display = "none";
+    render(null, container);
+    return;
+  }
+  container.style.display = "";
+  render(/* @__PURE__ */ jsx21(VersionTable, { data }), container);
+}
+function renderHourlyChart(data) {
+  const container = $("hourly-chart");
+  if (!container) return;
+  if (!data.length) {
+    container.style.display = "none";
+    render(null, container);
+    return;
+  }
+  container.style.display = "";
+  render(/* @__PURE__ */ jsx21(HourlyChart, { data }), container);
 }
 function renderCostSparkline(daily) {
   const container = $("cost-sparkline");
@@ -1906,7 +2111,7 @@ function renderCostSparkline(daily) {
     return;
   }
   container.style.display = "";
-  render(/* @__PURE__ */ jsx18(Sparkline, { daily }), container);
+  render(/* @__PURE__ */ jsx21(Sparkline, { daily }), container);
 }
 async function loadUsageWindows() {
   if (loadUsageWindowsInFlight) return;
@@ -1921,32 +2126,14 @@ async function loadUsageWindows() {
     loadUsageWindowsInFlight = false;
   }
 }
-async function triggerRescan() {
-  const btn = $("rescan-btn");
-  btn.disabled = true;
-  btn.textContent = "\u21BB Scanning...";
-  try {
-    const resp = await fetch("/api/rescan", { method: "POST" });
-    if (!resp.ok) {
-      showError(`Rescan failed: HTTP ${resp.status} ${resp.statusText}`);
-      btn.textContent = "\u21BB Rescan (failed)";
-      return;
-    }
-    const d3 = await resp.json();
-    btn.textContent = "\u21BB Rescan (" + d3.new + " new, " + d3.updated + " updated)";
-    await loadData(true);
-  } catch (e3) {
-    const msg = e3 instanceof Error ? e3.message : String(e3);
-    showError("Rescan failed: " + msg);
-    btn.textContent = "\u21BB Rescan (error)";
-    console.error(e3);
-  } finally {
-    setTimeout(() => {
-      btn.textContent = "\u21BB Rescan";
-      btn.disabled = false;
-    }, 3e3);
-  }
-}
+var triggerRescan = createTriggerRescan({
+  button: $("rescan-btn"),
+  fetchImpl: (input, init) => fetch(input, init),
+  loadData,
+  showError,
+  setTimer: (callback, delayMs) => window.setTimeout(callback, delayMs),
+  logError: (error) => console.error(error)
+});
 function renderLoadingSkeleton() {
   const statsRow = document.getElementById("stats-row");
   if (statsRow && !rawData.value) {
@@ -1995,6 +2182,9 @@ async function loadData(force = false) {
     if (rawData.value.service_tiers) renderServiceTiers(rawData.value.service_tiers);
     if (rawData.value.tool_summary) renderToolSummary(rawData.value.tool_summary);
     if (rawData.value.mcp_summary) renderMcpSummary(rawData.value.mcp_summary);
+    if (rawData.value.git_branch_summary) renderBranchSummary(rawData.value.git_branch_summary);
+    if (rawData.value.version_summary) renderVersionSummary(rawData.value.version_summary);
+    if (rawData.value.hourly_distribution) renderHourlyChart(rawData.value.hourly_distribution);
   } catch (e3) {
     console.error(e3);
   } finally {
@@ -2019,8 +2209,8 @@ loadUsageWindows();
 setInterval(loadUsageWindows, 6e4);
 var footerEl = document.querySelector("footer");
 if (footerEl && footerEl.parentElement) {
-  render(/* @__PURE__ */ jsx18(Footer, {}), footerEl.parentElement, footerEl);
+  render(/* @__PURE__ */ jsx21(Footer, {}), footerEl.parentElement, footerEl);
 }
 var toastRoot = document.createElement("div");
 document.body.appendChild(toastRoot);
-render(/* @__PURE__ */ jsx18(ToastContainer, {}), toastRoot);
+render(/* @__PURE__ */ jsx21(ToastContainer, {}), toastRoot);

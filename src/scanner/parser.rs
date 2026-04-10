@@ -39,6 +39,9 @@ pub struct ParseResult {
     pub session_metas: Vec<SessionMeta>,
     pub turns: Vec<Turn>,
     pub line_count: i64,
+    #[allow(dead_code)]
+    pub session_titles: HashMap<String, String>,
+    pub tool_results: HashMap<String, bool>,
 }
 
 /// Parse a JSONL file, deduplicating streaming events by message.id.
@@ -47,6 +50,8 @@ pub fn parse_jsonl_file(filepath: &Path, skip_lines: i64) -> ParseResult {
     let mut seen_messages: HashMap<String, Turn> = HashMap::new();
     let mut turns_no_id: Vec<Turn> = Vec::new();
     let mut session_meta: HashMap<String, SessionMeta> = HashMap::new();
+    let mut session_titles: HashMap<String, String> = HashMap::new();
+    let mut tool_results: HashMap<String, bool> = HashMap::new();
     let mut line_count: i64 = 0;
     let source_path = filepath.to_string_lossy().to_string();
 
@@ -58,6 +63,8 @@ pub fn parse_jsonl_file(filepath: &Path, skip_lines: i64) -> ParseResult {
                 session_metas: vec![],
                 turns: vec![],
                 line_count: 0,
+                session_titles: HashMap::new(),
+                tool_results: HashMap::new(),
             };
         }
     };
@@ -84,6 +91,17 @@ pub fn parse_jsonl_file(filepath: &Path, skip_lines: i64) -> ParseResult {
         };
 
         let rtype = record.get("type").and_then(|v| v.as_str()).unwrap_or("");
+
+        if rtype == "custom-title" {
+            if let (Some(sid), Some(title)) = (
+                record.get("sessionId").and_then(|v| v.as_str()),
+                record.get("customTitle").and_then(|v| v.as_str()),
+            ) {
+                session_titles.insert(sid.to_string(), title.to_string());
+            }
+            continue;
+        }
+
         if rtype != "assistant" && rtype != "user" {
             continue;
         }
@@ -92,6 +110,11 @@ pub fn parse_jsonl_file(filepath: &Path, skip_lines: i64) -> ParseResult {
             Some(s) if !s.is_empty() => s.to_string(),
             _ => continue,
         };
+
+        let version = record
+            .get("version")
+            .and_then(|v| v.as_str())
+            .map(String::from);
 
         let timestamp = record
             .get("timestamp")
@@ -220,6 +243,22 @@ pub fn parse_jsonl_file(filepath: &Path, skip_lines: i64) -> ParseResult {
                 })
                 .unwrap_or_default();
 
+            let tool_use_ids: Vec<(String, String)> = content_arr
+                .map(|arr| {
+                    arr.iter()
+                        .filter(|item| {
+                            item.get("type").and_then(|t| t.as_str()) == Some("tool_use")
+                        })
+                        .filter_map(|item| {
+                            let id = item.get("id").and_then(|v| v.as_str())?.to_string();
+                            let name =
+                                item.get("name").and_then(|v| v.as_str())?.to_string();
+                            Some((id, name))
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+
             let service_tier = usage
                 .get("service_tier")
                 .and_then(|v| v.as_str())
@@ -251,13 +290,35 @@ pub fn parse_jsonl_file(filepath: &Path, skip_lines: i64) -> ParseResult {
                 is_subagent,
                 agent_id: agent_id.clone(),
                 source_path: source_path.clone(),
+                version: version.clone(),
                 all_tools,
+                tool_use_ids,
             };
 
             if !message_id.is_empty() {
                 seen_messages.insert(message_id, turn);
             } else {
                 turns_no_id.push(turn);
+            }
+        }
+
+        if rtype == "user"
+            && let Some(content) = record
+                .get("message")
+                .and_then(|m| m.get("content"))
+                .and_then(|c| c.as_array())
+        {
+            for block in content {
+                if block.get("type").and_then(|t| t.as_str()) == Some("tool_result")
+                    && let Some(tool_use_id) =
+                        block.get("tool_use_id").and_then(|v| v.as_str())
+                {
+                    let is_error = block
+                        .get("is_error")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false);
+                    tool_results.insert(tool_use_id.to_string(), is_error);
+                }
             }
         }
     }
@@ -276,6 +337,8 @@ pub fn parse_jsonl_file(filepath: &Path, skip_lines: i64) -> ParseResult {
         session_metas: session_meta.into_values().collect(),
         turns,
         line_count,
+        session_titles,
+        tool_results,
     }
 }
 
@@ -336,6 +399,7 @@ pub fn aggregate_sessions(metas: &[SessionMeta], turns: &[Turn]) -> Vec<Session>
                 total_cache_read: s.total_cache_read,
                 total_cache_creation: s.total_cache_creation,
                 turn_count: s.turn_count,
+                title: None,
             }
         })
         .collect()

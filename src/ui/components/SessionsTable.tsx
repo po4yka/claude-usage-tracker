@@ -15,11 +15,15 @@ function useSessionColumns(): ColumnDef<SessionRow, any>[] {
         accessorKey: 'session_id',
         header: 'Session',
         enableSorting: false,
-        cell: (info: any) => (
-          <span class="muted" style={{ fontFamily: 'monospace' }}>
-            {info.getValue()}&hellip;
-          </span>
-        ),
+        cell: (info: any) => {
+          const row = info.row.original as SessionRow;
+          const title = row.title;
+          return (
+            <span class="muted" style={{ fontFamily: 'monospace' }} title={title || undefined}>
+              {title || <>{info.getValue()}&hellip;</>}
+            </span>
+          );
+        },
       },
       {
         id: 'project',
@@ -88,6 +92,24 @@ function useSessionColumns(): ColumnDef<SessionRow, any>[] {
           ) : (
             <span class="cost-na">n/a</span>
           );
+        },
+      },
+      {
+        id: 'cache_hit_ratio',
+        accessorKey: 'cache_hit_ratio',
+        header: 'Cache %',
+        cell: (info: any) => {
+          const v = info.getValue() as number;
+          return <span class="num">{(v * 100).toFixed(0)}%</span>;
+        },
+      },
+      {
+        id: 'tokens_per_min',
+        accessorKey: 'tokens_per_min',
+        header: 'Tok/min',
+        cell: (info: any) => {
+          const v = info.getValue() as number;
+          return <span class="num">{v > 0 ? fmt(Math.round(v)) : '--'}</span>;
         },
       },
     ],

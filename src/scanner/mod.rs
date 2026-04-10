@@ -113,7 +113,16 @@ pub fn scan(
             let sessions = aggregate_sessions(&parsed.session_metas, &parsed.turns);
             upsert_sessions(&conn, &sessions)?;
             insert_turns(&conn, &parsed.turns)?;
-            insert_tool_invocations(&conn, &parsed.turns)?;
+            insert_tool_invocations(&conn, &parsed.turns, &parsed.tool_results)?;
+
+            // Apply session titles from custom-title records
+            for (sid, title) in &parsed.session_titles {
+                conn.execute(
+                    "UPDATE sessions SET title = ?1 WHERE session_id = ?2 AND (title IS NULL OR title = '')",
+                    rusqlite::params![title, sid],
+                )?;
+            }
+
             result.sessions += sessions.len();
             result.turns += parsed.turns.len();
             any_changes = true;

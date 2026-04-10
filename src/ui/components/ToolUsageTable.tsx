@@ -26,6 +26,15 @@ const columns: ColumnDef<ToolSummary, any>[] = [
     cell: ({ getValue }) => <span class="num">{fmt(getValue() as number)}</span> },
   { accessorKey: 'sessions_used', header: 'Sessions',
     cell: ({ getValue }) => <span class="num">{fmt(getValue() as number)}</span> },
+  { accessorKey: 'errors', header: 'Errors',
+    cell: ({ row }) => {
+      const e = row.original.errors;
+      if (!e) return <span class="dim">0</span>;
+      const pct = row.original.invocations > 0
+        ? ((e / row.original.invocations) * 100).toFixed(1)
+        : '0';
+      return <span class="num" style={{ color: 'var(--red)' }}>{e} ({pct}%)</span>;
+    } },
 ];
 
 export function ToolUsageTable({ data }: { data: ToolSummary[] }) {

@@ -79,6 +79,9 @@ export interface SessionRow {
   is_billable: boolean;
   subagent_count: number;
   subagent_turns: number;
+  title: string | null;
+  cache_hit_ratio: number;
+  tokens_per_min: number;
 }
 
 export interface ToolSummary {
@@ -88,6 +91,7 @@ export interface ToolSummary {
   invocations: number;
   turns_used: number;
   sessions_used: number;
+  errors: number;
 }
 
 export interface McpServerSummary {
@@ -95,6 +99,36 @@ export interface McpServerSummary {
   tools_used: number;
   invocations: number;
   sessions_used: number;
+}
+
+export interface HourlyRow {
+  hour: number;
+  turns: number;
+  input: number;
+  output: number;
+}
+
+export interface BranchSummary {
+  branch: string;
+  sessions: number;
+  turns: number;
+  input: number;
+  output: number;
+  cost: number;
+}
+
+export interface VersionSummary {
+  version: string;
+  turns: number;
+  sessions: number;
+}
+
+export interface DailyProjectRow {
+  day: string;
+  project: string;
+  input: number;
+  output: number;
+  cost: number;
 }
 
 export interface DashboardData {
@@ -106,6 +140,10 @@ export interface DashboardData {
   service_tiers: ServiceTierSummary[];
   tool_summary: ToolSummary[];
   mcp_summary: McpServerSummary[];
+  hourly_distribution: HourlyRow[];
+  git_branch_summary: BranchSummary[];
+  version_summary: VersionSummary[];
+  daily_by_project: DailyProjectRow[];
   generated_at: string;
   error?: string;
 }

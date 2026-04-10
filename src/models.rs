@@ -15,6 +15,7 @@ pub struct Session {
     pub total_cache_read: i64,
     pub total_cache_creation: i64,
     pub turn_count: i64,
+    pub title: Option<String>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -34,9 +35,12 @@ pub struct Turn {
     pub is_subagent: bool,
     pub agent_id: Option<String>,
     pub source_path: String,
+    pub version: Option<String>,
     /// All tool names from content blocks (transient, not persisted to turns table).
     #[allow(dead_code)]
     pub all_tools: Vec<String>,
+    /// Pairs of (tool_use_id, tool_name) from content blocks (transient, not persisted to turns table).
+    pub tool_use_ids: Vec<(String, String)>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -70,6 +74,10 @@ pub struct DashboardData {
     pub service_tiers: Vec<ServiceTierSummary>,
     pub tool_summary: Vec<ToolSummary>,
     pub mcp_summary: Vec<McpServerSummary>,
+    pub hourly_distribution: Vec<HourlyRow>,
+    pub git_branch_summary: Vec<BranchSummary>,
+    pub version_summary: Vec<VersionSummary>,
+    pub daily_by_project: Vec<DailyProjectRow>,
     pub generated_at: String,
 }
 
@@ -120,6 +128,7 @@ pub struct ToolSummary {
     pub invocations: i64,
     pub turns_used: i64,
     pub sessions_used: i64,
+    pub errors: i64,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -128,6 +137,40 @@ pub struct McpServerSummary {
     pub tools_used: i64,
     pub invocations: i64,
     pub sessions_used: i64,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct HourlyRow {
+    pub hour: i64,
+    pub turns: i64,
+    pub input: i64,
+    pub output: i64,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct BranchSummary {
+    pub branch: String,
+    pub sessions: i64,
+    pub turns: i64,
+    pub input: i64,
+    pub output: i64,
+    pub cost: f64,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct VersionSummary {
+    pub version: String,
+    pub turns: i64,
+    pub sessions: i64,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct DailyProjectRow {
+    pub day: String,
+    pub project: String,
+    pub input: i64,
+    pub output: i64,
+    pub cost: f64,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -147,4 +190,7 @@ pub struct SessionRow {
     pub is_billable: bool,
     pub subagent_count: i64,
     pub subagent_turns: i64,
+    pub title: Option<String>,
+    pub cache_hit_ratio: f64,
+    pub tokens_per_min: f64,
 }

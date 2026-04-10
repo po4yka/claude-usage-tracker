@@ -223,6 +223,94 @@ mod tests {
     }
 
     #[test]
+    fn test_scan_truncated_file_removes_stale_turns() {
+        let tmp = TempDir::new().unwrap();
+        let projects = tmp.path().join("projects");
+        let db_path = tmp.path().join("usage.db");
+
+        let filepath = write_project_jsonl(
+            &projects,
+            "user/proj",
+            "sess-1.jsonl",
+            &[
+                make_user("s1", "2026-04-08T09:00:00Z"),
+                make_assistant("s1", "2026-04-08T09:01:00Z", 100, 50, "msg-1"),
+                make_assistant("s1", "2026-04-08T09:02:00Z", 200, 100, "msg-2"),
+            ],
+        );
+
+        scanner::scan(Some(vec![projects.clone()]), &db_path, false).unwrap();
+
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        let mut f = std::fs::File::create(&filepath).unwrap();
+        writeln!(f, "{}", make_user("s1", "2026-04-08T09:00:00Z")).unwrap();
+
+        let result = scanner::scan(Some(vec![projects.clone()]), &db_path, false).unwrap();
+        assert_eq!(result.updated, 1);
+        assert_eq!(result.turns, 0);
+
+        let conn = db::open_db(&db_path).unwrap();
+        let (turn_count, session_turn_count): (i64, i64) = conn
+            .query_row(
+                "SELECT
+                    (SELECT COUNT(*) FROM turns),
+                    COALESCE((SELECT turn_count FROM sessions WHERE session_id = 's1'), 0)",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(turn_count, 0);
+        assert_eq!(session_turn_count, 0);
+    }
+
+    #[test]
+    fn test_scan_mixed_model_session_uses_latest_model() {
+        let tmp = TempDir::new().unwrap();
+        let projects = tmp.path().join("projects");
+        let db_path = tmp.path().join("usage.db");
+
+        write_project_jsonl(
+            &projects,
+            "user/proj",
+            "sess-1.jsonl",
+            &[
+                make_user("s1", "2026-04-08T09:00:00Z"),
+                make_assistant("s1", "2026-04-08T09:01:00Z", 100, 50, "msg-1"),
+                serde_json::json!({
+                    "type": "assistant",
+                    "sessionId": "s1",
+                    "timestamp": "2026-04-08T09:10:00Z",
+                    "cwd": "/home/user/project",
+                    "message": {
+                        "id": "msg-2",
+                        "model": "claude-opus-4-6",
+                        "usage": {
+                            "input_tokens": 120,
+                            "output_tokens": 60,
+                            "cache_read_input_tokens": 0,
+                            "cache_creation_input_tokens": 0
+                        },
+                        "content": []
+                    }
+                })
+                .to_string(),
+            ],
+        );
+
+        scanner::scan(Some(vec![projects.clone()]), &db_path, false).unwrap();
+
+        let conn = db::open_db(&db_path).unwrap();
+        let session_model: Option<String> = conn
+            .query_row(
+                "SELECT model FROM sessions WHERE session_id = 's1'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(session_model.as_deref(), Some("claude-opus-4-6"));
+    }
+
+    #[test]
     fn test_scan_multiple_files() {
         let tmp = TempDir::new().unwrap();
         let projects = tmp.path().join("projects");

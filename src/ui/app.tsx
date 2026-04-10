@@ -7,6 +7,9 @@ import { EntrypointTable } from './components/EntrypointTable';
 import { ServiceTiersTable } from './components/ServiceTiers';
 import { ToolUsageTable } from './components/ToolUsageTable';
 import { McpSummaryTable } from './components/McpSummaryTable';
+import { BranchTable } from './components/BranchTable';
+import { VersionTable } from './components/VersionTable';
+import { HourlyChart } from './components/HourlyChart';
 import { SessionsTable } from './components/SessionsTable';
 import { ModelCostTable } from './components/ModelCostTable';
 import { ProjectCostTable } from './components/ProjectCostTable';
@@ -23,6 +26,9 @@ import type {
   ServiceTierSummary,
   ToolSummary,
   McpServerSummary,
+  HourlyRow,
+  BranchSummary,
+  VersionSummary,
   DashboardData,
   DailyAgg,
   ModelAgg,
@@ -41,6 +47,7 @@ import {
 import { esc, $, fmtResetTime, progressColor } from './lib/format';
 import { downloadCSV } from './lib/csv';
 import { RANGE_LABELS } from './lib/charts';
+import { createTriggerRescan } from './lib/rescan';
 import { getTheme } from './lib/theme';
 
 // ── Theme (app-level, depends on state) ───────────────────────────────
@@ -459,6 +466,42 @@ function renderMcpSummary(data: McpServerSummary[]): void {
   render(<McpSummaryTable data={data} />, container);
 }
 
+function renderBranchSummary(data: BranchSummary[]): void {
+  const container = $('branch-summary');
+  if (!container) return;
+  if (!data.length) {
+    container.style.display = 'none';
+    render(null, container);
+    return;
+  }
+  container.style.display = '';
+  render(<BranchTable data={data} />, container);
+}
+
+function renderVersionSummary(data: VersionSummary[]): void {
+  const container = $('version-summary');
+  if (!container) return;
+  if (!data.length) {
+    container.style.display = 'none';
+    render(null, container);
+    return;
+  }
+  container.style.display = '';
+  render(<VersionTable data={data} />, container);
+}
+
+function renderHourlyChart(data: HourlyRow[]): void {
+  const container = $('hourly-chart');
+  if (!container) return;
+  if (!data.length) {
+    container.style.display = 'none';
+    render(null, container);
+    return;
+  }
+  container.style.display = '';
+  render(<HourlyChart data={data} />, container);
+}
+
 function renderCostSparkline(daily: DailyAgg[]): void {
   const container = $('cost-sparkline');
   if (!container) return;
@@ -487,30 +530,14 @@ async function loadUsageWindows(): Promise<void> {
 }
 
 // ── Rescan ──────────────────────────────────────────────────────────────
-async function triggerRescan(): Promise<void> {
-  const btn = $('rescan-btn') as HTMLButtonElement;
-  btn.disabled = true;
-  btn.textContent = '\u21bb Scanning...';
-  try {
-    const resp = await fetch('/api/rescan', { method: 'POST' });
-    if (!resp.ok) {
-      showError(`Rescan failed: HTTP ${resp.status} ${resp.statusText}`);
-      btn.textContent = '\u21bb Rescan (failed)';
-      return;
-    }
-    const d = await resp.json();
-    btn.textContent = '\u21bb Rescan (' + d.new + ' new, ' + d.updated + ' updated)';
-    await loadData(true);
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    showError('Rescan failed: ' + msg);
-    btn.textContent = '\u21bb Rescan (error)';
-    console.error(e);
-  }
-  finally {
-    setTimeout(() => { btn.textContent = '\u21bb Rescan'; btn.disabled = false; }, 3000);
-  }
-}
+const triggerRescan = createTriggerRescan({
+  button: $('rescan-btn') as HTMLButtonElement,
+  fetchImpl: (input, init) => fetch(input, init),
+  loadData,
+  showError,
+  setTimer: (callback, delayMs) => window.setTimeout(callback, delayMs),
+  logError: (error) => console.error(error),
+});
 
 // ── Loading skeleton ──────────────────────────────────────────────────
 function renderLoadingSkeleton(): void {
@@ -567,6 +594,9 @@ async function loadData(force = false): Promise<void> {
     if (rawData.value.service_tiers) renderServiceTiers(rawData.value.service_tiers);
     if (rawData.value.tool_summary) renderToolSummary(rawData.value.tool_summary);
     if (rawData.value.mcp_summary) renderMcpSummary(rawData.value.mcp_summary);
+    if (rawData.value.git_branch_summary) renderBranchSummary(rawData.value.git_branch_summary);
+    if (rawData.value.version_summary) renderVersionSummary(rawData.value.version_summary);
+    if (rawData.value.hourly_distribution) renderHourlyChart(rawData.value.hourly_distribution);
   } catch (e) {
     console.error(e);
   }
