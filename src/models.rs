@@ -33,6 +33,10 @@ pub struct Turn {
     pub inference_geo: Option<String>,
     pub is_subagent: bool,
     pub agent_id: Option<String>,
+    pub source_path: String,
+    /// All tool names from content blocks (transient, not persisted to turns table).
+    #[allow(dead_code)]
+    pub all_tools: Vec<String>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -64,6 +68,8 @@ pub struct DashboardData {
     pub subagent_summary: SubagentSummary,
     pub entrypoint_breakdown: Vec<EntrypointSummary>,
     pub service_tiers: Vec<ServiceTierSummary>,
+    pub tool_summary: Vec<ToolSummary>,
+    pub mcp_summary: Vec<McpServerSummary>,
     pub generated_at: String,
 }
 
@@ -104,6 +110,24 @@ pub struct ServiceTierSummary {
     pub service_tier: String,
     pub inference_geo: String,
     pub turns: i64,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct ToolSummary {
+    pub tool_name: String,
+    pub category: String,
+    pub mcp_server: Option<String>,
+    pub invocations: i64,
+    pub turns_used: i64,
+    pub sessions_used: i64,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct McpServerSummary {
+    pub server: String,
+    pub tools_used: i64,
+    pub invocations: i64,
+    pub sessions_used: i64,
 }
 
 #[derive(Debug, Clone, Serialize)]

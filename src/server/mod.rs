@@ -9,9 +9,10 @@ use std::sync::Arc;
 use axum::Router;
 use axum::response::Html;
 use axum::routing::{get, post};
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 
 use crate::config::WebhookConfig;
+use crate::webhooks::WebhookState;
 use api::AppState;
 
 pub async fn serve(
@@ -29,6 +30,8 @@ pub async fn serve(
         oauth_enabled,
         oauth_refresh_interval,
         oauth_cache: RwLock::new(None),
+        db_lock: Mutex::new(()),
+        webhook_state: Mutex::new(WebhookState::default()),
         webhook_config,
     });
     let dashboard_html = assets::render_dashboard();

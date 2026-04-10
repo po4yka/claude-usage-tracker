@@ -16,6 +16,7 @@ mod tests {
     use crate::scanner;
     use crate::server::api::{AppState, api_data, api_health, api_rescan};
     use crate::server::assets;
+    use crate::webhooks::WebhookState;
 
     fn make_assistant(session_id: &str, input: i64, output: i64, msg_id: &str) -> String {
         let mut msg = serde_json::json!({
@@ -69,6 +70,8 @@ mod tests {
             oauth_enabled: false,
             oauth_refresh_interval: 60,
             oauth_cache: tokio::sync::RwLock::new(None),
+            db_lock: tokio::sync::Mutex::new(()),
+            webhook_state: tokio::sync::Mutex::new(WebhookState::default()),
             webhook_config: WebhookConfig::default(),
         });
         let html = assets::render_dashboard();

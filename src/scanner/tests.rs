@@ -157,7 +157,7 @@ mod tests {
 
         let result = scanner::scan(Some(vec![projects.clone()]), &db_path, false).unwrap();
         assert_eq!(result.updated, 1);
-        assert_eq!(result.turns, 1); // only the new turn
+        assert_eq!(result.turns, 2); // changed files are reparsed from scratch
 
         let conn = db::open_db(&db_path).unwrap();
         let total_turns: i64 = conn
@@ -172,6 +172,52 @@ mod tests {
                 |r| Ok((r.get(0)?, r.get(1)?)),
             )
             .unwrap();
+        assert_eq!(total_in, 300);
+        assert_eq!(total_out, 150);
+    }
+
+    #[test]
+    fn test_scan_rewritten_file_replaces_old_turns() {
+        let tmp = TempDir::new().unwrap();
+        let projects = tmp.path().join("projects");
+        let db_path = tmp.path().join("usage.db");
+
+        let filepath = write_project_jsonl(
+            &projects,
+            "user/proj",
+            "sess-1.jsonl",
+            &[
+                make_user("s1", "2026-04-08T09:00:00Z"),
+                make_assistant("s1", "2026-04-08T09:01:00Z", 100, 50, "msg-1"),
+                make_assistant("s1", "2026-04-08T09:02:00Z", 200, 100, "msg-2"),
+            ],
+        );
+
+        scanner::scan(Some(vec![projects.clone()]), &db_path, false).unwrap();
+
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        let mut f = std::fs::File::create(&filepath).unwrap();
+        writeln!(f, "{}", make_user("s1", "2026-04-08T09:00:00Z")).unwrap();
+        writeln!(
+            f,
+            "{}",
+            make_assistant("s1", "2026-04-08T09:10:00Z", 300, 150, "msg-3")
+        )
+        .unwrap();
+
+        let result = scanner::scan(Some(vec![projects.clone()]), &db_path, false).unwrap();
+        assert_eq!(result.updated, 1);
+        assert_eq!(result.turns, 1);
+
+        let conn = db::open_db(&db_path).unwrap();
+        let (turn_count, total_in, total_out): (i64, i64, i64) = conn
+            .query_row(
+                "SELECT COUNT(*), COALESCE(SUM(input_tokens), 0), COALESCE(SUM(output_tokens), 0) FROM turns",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(turn_count, 1);
         assert_eq!(total_in, 300);
         assert_eq!(total_out, 150);
     }

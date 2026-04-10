@@ -4,6 +4,7 @@ pub mod parser;
 mod tests;
 
 use std::path::{Path, PathBuf};
+use std::collections::HashSet;
 
 use anyhow::Result;
 use tracing::{debug, info};
@@ -11,8 +12,9 @@ use walkdir::WalkDir;
 
 use crate::models::ScanResult;
 use db::{
-    get_processed_file, init_db, insert_turns, open_db, recompute_session_totals,
-    upsert_processed_file, upsert_sessions,
+    delete_processed_file, delete_turns_by_source_path, get_processed_file, init_db,
+    insert_tool_invocations, insert_turns, list_processed_files, open_db,
+    recompute_session_totals, upsert_processed_file, upsert_sessions,
 };
 use parser::{aggregate_sessions, parse_jsonl_file};
 
@@ -57,9 +59,23 @@ pub fn scan(
         }
     }
     jsonl_files.sort();
+    let current_files: HashSet<String> = jsonl_files
+        .iter()
+        .map(|path| path.to_string_lossy().to_string())
+        .collect();
 
     let mut result = ScanResult::default();
     let mut any_changes = false;
+
+    for stale_path in list_processed_files(&conn)?
+        .into_iter()
+        .filter(|path| !current_files.contains(path))
+    {
+        debug!("[DEL] {}", stale_path);
+        delete_turns_by_source_path(&conn, &stale_path)?;
+        delete_processed_file(&conn, &stale_path)?;
+        any_changes = true;
+    }
 
     for filepath in &jsonl_files {
         let filepath_str = filepath.to_string_lossy().to_string();
@@ -83,23 +99,21 @@ pub fn scan(
         }
 
         let is_new = prev.is_none();
-        let skip_lines = if is_new { 0 } else { prev.unwrap().1 };
 
         debug!("[{}] {}", if is_new { "NEW" } else { "UPD" }, filepath_str);
 
-        let parsed = parse_jsonl_file(filepath, skip_lines);
-
-        // If file didn't grow, just update mtime
-        if !is_new && parsed.line_count <= skip_lines {
-            upsert_processed_file(&conn, &filepath_str, mtime, skip_lines)?;
-            result.skipped += 1;
-            continue;
+        if !is_new {
+            delete_turns_by_source_path(&conn, &filepath_str)?;
+            any_changes = true;
         }
+
+        let parsed = parse_jsonl_file(filepath, 0);
 
         if !parsed.turns.is_empty() || !parsed.session_metas.is_empty() {
             let sessions = aggregate_sessions(&parsed.session_metas, &parsed.turns);
             upsert_sessions(&conn, &sessions)?;
             insert_turns(&conn, &parsed.turns)?;
+            insert_tool_invocations(&conn, &parsed.turns)?;
             result.sessions += sessions.len();
             result.turns += parsed.turns.len();
             any_changes = true;

@@ -5,6 +5,21 @@ use tracing::warn;
 
 use crate::models::{Session, SessionMeta, Turn};
 
+/// Classify a tool name into (category, mcp_server, mcp_tool).
+/// MCP tools follow the pattern: `mcp__<server>__<tool>`.
+#[cfg_attr(not(test), allow(dead_code))]
+pub fn classify_tool(name: &str) -> (&str, Option<&str>, Option<&str>) {
+    if let Some(rest) = name.strip_prefix("mcp__") {
+        if let Some(idx) = rest.find("__") {
+            let server = &rest[..idx];
+            let tool = &rest[idx + 2..];
+            return ("mcp", Some(server), Some(tool));
+        }
+        return ("mcp", Some(rest), None);
+    }
+    ("builtin", None, None)
+}
+
 /// Derive a friendly project name from cwd (last 2 path components).
 pub fn project_name_from_cwd(cwd: &str) -> String {
     if cwd.is_empty() {
@@ -33,6 +48,7 @@ pub fn parse_jsonl_file(filepath: &Path, skip_lines: i64) -> ParseResult {
     let mut turns_no_id: Vec<Turn> = Vec::new();
     let mut session_meta: HashMap<String, SessionMeta> = HashMap::new();
     let mut line_count: i64 = 0;
+    let source_path = filepath.to_string_lossy().to_string();
 
     let file = match std::fs::File::open(filepath) {
         Ok(f) => f,
@@ -180,16 +196,29 @@ pub fn parse_jsonl_file(filepath: &Path, skip_lines: i64) -> ParseResult {
                 continue;
             }
 
-            // Extract tool name
-            let tool_name = msg
-                .get("content")
-                .and_then(|c| c.as_array())
+            // Extract tool names
+            let content_arr = msg.get("content").and_then(|c| c.as_array());
+
+            let tool_name = content_arr
                 .and_then(|arr| {
                     arr.iter()
                         .find(|item| item.get("type").and_then(|t| t.as_str()) == Some("tool_use"))
                 })
                 .and_then(|item| item.get("name").and_then(|n| n.as_str()))
                 .map(String::from);
+
+            let all_tools: Vec<String> = content_arr
+                .map(|arr| {
+                    arr.iter()
+                        .filter(|item| {
+                            item.get("type").and_then(|t| t.as_str()) == Some("tool_use")
+                        })
+                        .filter_map(|item| {
+                            item.get("name").and_then(|n| n.as_str()).map(String::from)
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
 
             let service_tier = usage
                 .get("service_tier")
@@ -221,6 +250,8 @@ pub fn parse_jsonl_file(filepath: &Path, skip_lines: i64) -> ParseResult {
                 inference_geo,
                 is_subagent,
                 agent_id: agent_id.clone(),
+                source_path: source_path.clone(),
+                all_tools,
             };
 
             if !message_id.is_empty() {
@@ -233,6 +264,13 @@ pub fn parse_jsonl_file(filepath: &Path, skip_lines: i64) -> ParseResult {
 
     let mut turns = turns_no_id;
     turns.extend(seen_messages.into_values());
+    turns.sort_by(|a, b| {
+        a.session_id
+            .cmp(&b.session_id)
+            .then_with(|| a.timestamp.cmp(&b.timestamp))
+            .then_with(|| a.message_id.cmp(&b.message_id))
+            .then_with(|| a.model.cmp(&b.model))
+    });
 
     ParseResult {
         session_metas: session_meta.into_values().collect(),
@@ -492,6 +530,31 @@ mod tests {
     }
 
     #[test]
+    fn test_aggregate_sessions_uses_latest_model() {
+        let metas = vec![SessionMeta {
+            session_id: "s1".into(),
+            project_name: "test".into(),
+            ..Default::default()
+        }];
+        let turns = vec![
+            Turn {
+                session_id: "s1".into(),
+                timestamp: "2026-04-08T09:01:00Z".into(),
+                model: "claude-sonnet-4-6".into(),
+                ..Default::default()
+            },
+            Turn {
+                session_id: "s1".into(),
+                timestamp: "2026-04-08T09:05:00Z".into(),
+                model: "claude-opus-4-6".into(),
+                ..Default::default()
+            },
+        ];
+        let sessions = aggregate_sessions(&metas, &turns);
+        assert_eq!(sessions[0].model.as_deref(), Some("claude-opus-4-6"));
+    }
+
+    #[test]
     fn test_subagent_record_parsed() {
         let dir = TempDir::new().unwrap();
         let record = serde_json::json!({
@@ -574,5 +637,58 @@ mod tests {
         let path = write_jsonl(&dir, "test.jsonl", &[record]);
         let result = parse_jsonl_file(&path, 0);
         assert_eq!(result.turns[0].tool_name.as_deref(), Some("Read"));
+        assert_eq!(result.turns[0].all_tools, vec!["Read", "Write"]);
+    }
+
+    #[test]
+    fn test_all_tools_with_mcp() {
+        let dir = TempDir::new().unwrap();
+        let record = serde_json::json!({
+            "type": "assistant", "sessionId": "s1",
+            "timestamp": "2026-04-08T10:00:00Z", "cwd": "/tmp",
+            "message": {
+                "model": "claude-sonnet-4-6",
+                "usage": { "input_tokens": 100, "output_tokens": 50, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0 },
+                "content": [
+                    { "type": "tool_use", "name": "Read" },
+                    { "type": "tool_use", "name": "mcp__codex__codex" },
+                    { "type": "tool_use", "name": "Bash" }
+                ],
+            },
+        })
+        .to_string();
+        let path = write_jsonl(&dir, "test.jsonl", &[record]);
+        let result = parse_jsonl_file(&path, 0);
+        assert_eq!(
+            result.turns[0].all_tools,
+            vec!["Read", "mcp__codex__codex", "Bash"]
+        );
+    }
+
+    #[test]
+    fn test_classify_tool_builtin() {
+        assert_eq!(classify_tool("Read"), ("builtin", None, None));
+        assert_eq!(classify_tool("Write"), ("builtin", None, None));
+        assert_eq!(classify_tool("Bash"), ("builtin", None, None));
+    }
+
+    #[test]
+    fn test_classify_tool_mcp() {
+        assert_eq!(
+            classify_tool("mcp__codex__codex"),
+            ("mcp", Some("codex"), Some("codex"))
+        );
+        assert_eq!(
+            classify_tool("mcp__chrome-devtools__click"),
+            ("mcp", Some("chrome-devtools"), Some("click"))
+        );
+    }
+
+    #[test]
+    fn test_classify_tool_mcp_server_only() {
+        assert_eq!(
+            classify_tool("mcp__someserver"),
+            ("mcp", Some("someserver"), None)
+        );
     }
 }

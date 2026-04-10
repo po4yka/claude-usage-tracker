@@ -4608,6 +4608,8 @@
   }
   applyTheme(getTheme());
   var previousSessionPercent = null;
+  var loadDataInFlight = false;
+  var loadUsageWindowsInFlight = false;
   function isAnthropicModel(model) {
     if (!model) return false;
     const m4 = model.toLowerCase();
@@ -4843,8 +4845,19 @@
     const container = $2("usage-windows");
     if (!container) return;
     if (!data.available) {
-      container.innerHTML = "";
-      container.style.display = "none";
+      const badge2 = $2("plan-badge");
+      if (badge2) badge2.style.display = "none";
+      if (data.error) {
+        container.style.display = "";
+        container.innerHTML = `<div class="stat-card">
+        <div class="label">Rate Windows</div>
+        <div class="value" style="font-size:16px">Unavailable</div>
+        <div class="sub">${esc(data.error)}</div>
+      </div>`;
+      } else {
+        container.innerHTML = "";
+        container.style.display = "none";
+      }
       return;
     }
     container.style.display = "";
@@ -4932,12 +4945,16 @@
     R(/* @__PURE__ */ u2(Sparkline, { daily }), container);
   }
   async function loadUsageWindows() {
+    if (loadUsageWindowsInFlight) return;
+    loadUsageWindowsInFlight = true;
     try {
       const resp = await fetch("/api/usage-windows");
       if (!resp.ok) return;
       const data = await resp.json();
       renderUsageWindows(data);
     } catch {
+    } finally {
+      loadUsageWindowsInFlight = false;
     }
   }
   async function triggerRescan() {
@@ -4953,17 +4970,18 @@
       }
       const d5 = await resp.json();
       btn.textContent = "\u21BB Rescan (" + d5.new + " new, " + d5.updated + " updated)";
-      await loadData();
+      await loadData(true);
     } catch (e4) {
       const msg = e4 instanceof Error ? e4.message : String(e4);
       showError("Rescan failed: " + msg);
       btn.textContent = "\u21BB Rescan (error)";
       console.error(e4);
+    } finally {
+      setTimeout(() => {
+        btn.textContent = "\u21BB Rescan";
+        btn.disabled = false;
+      }, 3e3);
     }
-    setTimeout(() => {
-      btn.textContent = "\u21BB Rescan";
-      btn.disabled = false;
-    }, 3e3);
   }
   function renderLoadingSkeleton() {
     const statsRow = document.getElementById("stats-row");
@@ -4975,7 +4993,9 @@
     }
   }
   renderLoadingSkeleton();
-  async function loadData() {
+  async function loadData(force = false) {
+    if (loadDataInFlight && !force) return;
+    loadDataInFlight = true;
     try {
       const resp = await fetch("/api/data");
       if (!resp.ok) {
@@ -5011,6 +5031,8 @@
       if (rawData.value.service_tiers) renderServiceTiers(rawData.value.service_tiers);
     } catch (e4) {
       console.error(e4);
+    } finally {
+      loadDataInFlight = false;
     }
   }
   Object.assign(window, {

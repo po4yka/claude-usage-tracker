@@ -3,9 +3,11 @@ use rusqlite::Connection;
 use tracing::warn;
 
 use crate::models::{
-    DailyModelRow, DashboardData, EntrypointSummary, ServiceTierSummary, SessionRow, Turn,
+    DailyModelRow, DashboardData, EntrypointSummary, McpServerSummary, ServiceTierSummary,
+    SessionRow, ToolSummary, Turn,
 };
 use crate::pricing;
+use crate::scanner::parser::classify_tool;
 
 pub fn open_db(path: &std::path::Path) -> Result<Connection> {
     let conn = Connection::open(path)?;
@@ -46,7 +48,8 @@ pub fn init_db(conn: &Connection) -> Result<()> {
             service_tier            TEXT,
             inference_geo           TEXT,
             is_subagent             INTEGER DEFAULT 0,
-            agent_id                TEXT
+            agent_id                TEXT,
+            source_path             TEXT NOT NULL DEFAULT ''
         );
 
         CREATE TABLE IF NOT EXISTS processed_files (
@@ -78,15 +81,45 @@ pub fn init_db(conn: &Connection) -> Result<()> {
     )?;
 
     // Migration: add subagent columns if upgrading from older schema
-    let has_agent_id = conn.prepare("SELECT agent_id FROM turns LIMIT 1").is_ok();
-    if !has_agent_id {
+    if !has_column(conn, "turns", "agent_id") {
         conn.execute_batch(
             "ALTER TABLE turns ADD COLUMN is_subagent INTEGER DEFAULT 0;
              ALTER TABLE turns ADD COLUMN agent_id TEXT;",
         )?;
     }
+    if !has_column(conn, "turns", "source_path") {
+        conn.execute_batch("ALTER TABLE turns ADD COLUMN source_path TEXT NOT NULL DEFAULT '';")?;
+    }
+
+    // Tool invocations table for multi-tool and MCP tracking
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS tool_invocations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id TEXT NOT NULL,
+            message_id TEXT,
+            tool_name TEXT NOT NULL,
+            mcp_server TEXT,
+            mcp_tool TEXT,
+            tool_category TEXT NOT NULL DEFAULT 'builtin'
+        );
+        CREATE INDEX IF NOT EXISTS idx_ti_session ON tool_invocations(session_id);
+        CREATE INDEX IF NOT EXISTS idx_ti_tool ON tool_invocations(tool_name);
+        CREATE INDEX IF NOT EXISTS idx_ti_mcp ON tool_invocations(mcp_server);",
+    )?;
+
+    // Dedup index for incremental rescans
+    conn.execute_batch(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_ti_dedup
+         ON tool_invocations(session_id, message_id, tool_name)
+         WHERE message_id IS NOT NULL AND message_id != '';",
+    )?;
 
     Ok(())
+}
+
+fn has_column(conn: &Connection, table: &str, column: &str) -> bool {
+    conn.prepare(&format!("SELECT {column} FROM {table} LIMIT 1"))
+        .is_ok()
 }
 
 pub fn get_processed_file(conn: &Connection, path: &str) -> Result<Option<(f64, i64)>> {
@@ -109,13 +142,38 @@ pub fn upsert_processed_file(conn: &Connection, path: &str, mtime: f64, lines: i
     Ok(())
 }
 
+pub fn list_processed_files(conn: &Connection) -> Result<Vec<String>> {
+    let mut stmt = conn.prepare("SELECT path FROM processed_files")?;
+    let paths = stmt
+        .query_map([], |row| row.get(0))?
+        .filter_map(|r| match r {
+            Ok(val) => Some(val),
+            Err(e) => {
+                warn!("Failed to read row: {}", e);
+                None
+            }
+        })
+        .collect();
+    Ok(paths)
+}
+
+pub fn delete_processed_file(conn: &Connection, path: &str) -> Result<()> {
+    conn.execute("DELETE FROM processed_files WHERE path = ?1", [path])?;
+    Ok(())
+}
+
+pub fn delete_turns_by_source_path(conn: &Connection, path: &str) -> Result<()> {
+    conn.execute("DELETE FROM turns WHERE source_path = ?1", [path])?;
+    Ok(())
+}
+
 pub fn insert_turns(conn: &Connection, turns: &[Turn]) -> Result<()> {
     let mut stmt = conn.prepare(
         "INSERT OR IGNORE INTO turns
             (session_id, timestamp, model, input_tokens, output_tokens,
              cache_read_tokens, cache_creation_tokens, tool_name, cwd,
-             message_id, service_tier, inference_geo, is_subagent, agent_id)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+             message_id, service_tier, inference_geo, is_subagent, agent_id, source_path)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
     )?;
     for t in turns {
         let msg_id: Option<&str> = if t.message_id.is_empty() {
@@ -138,65 +196,88 @@ pub fn insert_turns(conn: &Connection, turns: &[Turn]) -> Result<()> {
             t.inference_geo,
             t.is_subagent as i32,
             t.agent_id,
+            t.source_path,
         ])?;
+    }
+    Ok(())
+}
+
+#[allow(dead_code)]
+pub fn insert_tool_invocations(conn: &Connection, turns: &[Turn]) -> Result<()> {
+    let mut stmt = conn.prepare(
+        "INSERT OR IGNORE INTO tool_invocations
+            (session_id, message_id, tool_name, mcp_server, mcp_tool, tool_category)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+    )?;
+    for t in turns {
+        let msg_id: Option<&str> = if t.message_id.is_empty() {
+            None
+        } else {
+            Some(&t.message_id)
+        };
+        for tool in &t.all_tools {
+            let (category, server, mcp_tool) = classify_tool(tool);
+            stmt.execute(rusqlite::params![
+                t.session_id,
+                msg_id,
+                tool,
+                server,
+                mcp_tool,
+                category,
+            ])?;
+        }
+    }
+    Ok(())
+}
+
+#[allow(dead_code)]
+pub fn delete_tool_invocations_by_session(conn: &Connection, session_ids: &[String]) -> Result<()> {
+    for sid in session_ids {
+        conn.execute(
+            "DELETE FROM tool_invocations WHERE session_id = ?1",
+            [sid],
+        )?;
     }
     Ok(())
 }
 
 pub fn upsert_sessions(conn: &Connection, sessions: &[crate::models::Session]) -> Result<()> {
     for s in sessions {
-        let exists: bool = conn.query_row(
-            "SELECT COUNT(*) FROM sessions WHERE session_id = ?1",
-            [&s.session_id],
-            |row| row.get::<_, i64>(0).map(|c| c > 0),
+        conn.execute(
+            "INSERT INTO sessions
+                (session_id, project_name, project_slug, first_timestamp, last_timestamp,
+                 git_branch, total_input_tokens, total_output_tokens,
+                 total_cache_read, total_cache_creation, model, entrypoint, turn_count)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
+             ON CONFLICT(session_id) DO UPDATE SET
+                project_name = excluded.project_name,
+                project_slug = excluded.project_slug,
+                first_timestamp = excluded.first_timestamp,
+                last_timestamp = excluded.last_timestamp,
+                git_branch = excluded.git_branch,
+                total_input_tokens = excluded.total_input_tokens,
+                total_output_tokens = excluded.total_output_tokens,
+                total_cache_read = excluded.total_cache_read,
+                total_cache_creation = excluded.total_cache_creation,
+                model = excluded.model,
+                entrypoint = excluded.entrypoint,
+                turn_count = excluded.turn_count",
+            rusqlite::params![
+                s.session_id,
+                s.project_name,
+                s.project_slug,
+                s.first_timestamp,
+                s.last_timestamp,
+                s.git_branch,
+                s.total_input_tokens,
+                s.total_output_tokens,
+                s.total_cache_read,
+                s.total_cache_creation,
+                s.model,
+                s.entrypoint,
+                s.turn_count,
+            ],
         )?;
-
-        if exists {
-            conn.execute(
-                "UPDATE sessions SET
-                    last_timestamp = MAX(last_timestamp, ?1),
-                    total_input_tokens = total_input_tokens + ?2,
-                    total_output_tokens = total_output_tokens + ?3,
-                    total_cache_read = total_cache_read + ?4,
-                    total_cache_creation = total_cache_creation + ?5,
-                    turn_count = turn_count + ?6,
-                    model = COALESCE(?7, model)
-                WHERE session_id = ?8",
-                rusqlite::params![
-                    s.last_timestamp,
-                    s.total_input_tokens,
-                    s.total_output_tokens,
-                    s.total_cache_read,
-                    s.total_cache_creation,
-                    s.turn_count,
-                    s.model,
-                    s.session_id,
-                ],
-            )?;
-        } else {
-            conn.execute(
-                "INSERT INTO sessions
-                    (session_id, project_name, project_slug, first_timestamp, last_timestamp,
-                     git_branch, total_input_tokens, total_output_tokens,
-                     total_cache_read, total_cache_creation, model, entrypoint, turn_count)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
-                rusqlite::params![
-                    s.session_id,
-                    s.project_name,
-                    s.project_slug,
-                    s.first_timestamp,
-                    s.last_timestamp,
-                    s.git_branch,
-                    s.total_input_tokens,
-                    s.total_output_tokens,
-                    s.total_cache_read,
-                    s.total_cache_creation,
-                    s.model,
-                    s.entrypoint,
-                    s.turn_count,
-                ],
-            )?;
-        }
     }
     Ok(())
 }
@@ -209,7 +290,15 @@ pub fn recompute_session_totals(conn: &Connection) -> Result<()> {
             total_output_tokens = COALESCE((SELECT SUM(output_tokens) FROM turns WHERE turns.session_id = sessions.session_id), 0),
             total_cache_read = COALESCE((SELECT SUM(cache_read_tokens) FROM turns WHERE turns.session_id = sessions.session_id), 0),
             total_cache_creation = COALESCE((SELECT SUM(cache_creation_tokens) FROM turns WHERE turns.session_id = sessions.session_id), 0),
-            turn_count = COALESCE((SELECT COUNT(*) FROM turns WHERE turns.session_id = sessions.session_id), 0)",
+            turn_count = COALESCE((SELECT COUNT(*) FROM turns WHERE turns.session_id = sessions.session_id), 0),
+            model = COALESCE((
+                SELECT model FROM turns
+                WHERE turns.session_id = sessions.session_id AND model IS NOT NULL AND model != ''
+                ORDER BY timestamp DESC, id DESC
+                LIMIT 1
+            ), model);
+         DELETE FROM sessions
+         WHERE NOT EXISTS (SELECT 1 FROM turns WHERE turns.session_id = sessions.session_id);",
     )?;
     Ok(())
 }
@@ -400,6 +489,61 @@ pub fn get_dashboard_data(conn: &Connection) -> Result<DashboardData> {
         })
         .collect();
 
+    // Tool usage summary
+    let tool_summary: Vec<ToolSummary> = {
+        let mut stmt = conn.prepare(
+            "SELECT tool_name, tool_category, mcp_server,
+                    COUNT(*) as invocations,
+                    COUNT(DISTINCT message_id) as turns_used,
+                    COUNT(DISTINCT session_id) as sessions_used
+             FROM tool_invocations
+             GROUP BY tool_name
+             ORDER BY invocations DESC",
+        )?;
+        stmt.query_map([], |row| {
+            Ok(ToolSummary {
+                tool_name: row.get(0)?,
+                category: row.get(1)?,
+                mcp_server: row.get(2)?,
+                invocations: row.get(3)?,
+                turns_used: row.get(4)?,
+                sessions_used: row.get(5)?,
+            })
+        })?
+        .filter_map(|r| match r {
+            Ok(val) => Some(val),
+            Err(e) => { warn!("Failed to read tool summary row: {}", e); None }
+        })
+        .collect()
+    };
+
+    // MCP server summary
+    let mcp_summary: Vec<McpServerSummary> = {
+        let mut stmt = conn.prepare(
+            "SELECT mcp_server,
+                    COUNT(DISTINCT tool_name) as tools_used,
+                    COUNT(*) as invocations,
+                    COUNT(DISTINCT session_id) as sessions_used
+             FROM tool_invocations
+             WHERE mcp_server IS NOT NULL
+             GROUP BY mcp_server
+             ORDER BY invocations DESC",
+        )?;
+        stmt.query_map([], |row| {
+            Ok(McpServerSummary {
+                server: row.get(0)?,
+                tools_used: row.get(1)?,
+                invocations: row.get(2)?,
+                sessions_used: row.get(3)?,
+            })
+        })?
+        .filter_map(|r| match r {
+            Ok(val) => Some(val),
+            Err(e) => { warn!("Failed to read MCP summary row: {}", e); None }
+        })
+        .collect()
+    };
+
     let generated_at = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
 
     Ok(DashboardData {
@@ -409,6 +553,8 @@ pub fn get_dashboard_data(conn: &Connection) -> Result<DashboardData> {
         subagent_summary,
         entrypoint_breakdown,
         service_tiers,
+        tool_summary,
+        mcp_summary,
         generated_at,
     })
 }
@@ -785,5 +931,122 @@ mod tests {
 
         let data = get_dashboard_data(&conn).unwrap();
         assert!(data.service_tiers.len() >= 2);
+    }
+
+    #[test]
+    fn test_tool_invocations_table_created() {
+        let conn = test_conn();
+        let tables: Vec<String> = conn
+            .prepare("SELECT name FROM sqlite_master WHERE type='table'")
+            .unwrap()
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .filter_map(|r| r.ok())
+            .collect();
+        assert!(tables.contains(&"tool_invocations".into()));
+    }
+
+    #[test]
+    fn test_insert_and_query_tool_invocations() {
+        let conn = test_conn();
+        let turns = vec![Turn {
+            session_id: "s1".into(),
+            message_id: "msg-1".into(),
+            all_tools: vec!["Read".into(), "mcp__codex__codex".into(), "Bash".into()],
+            ..Default::default()
+        }];
+        insert_tool_invocations(&conn, &turns).unwrap();
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM tool_invocations", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 3);
+
+        // Verify MCP classification
+        let (server, tool, cat): (Option<String>, Option<String>, String) = conn
+            .query_row(
+                "SELECT mcp_server, mcp_tool, tool_category FROM tool_invocations WHERE tool_name = 'mcp__codex__codex'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(server.as_deref(), Some("codex"));
+        assert_eq!(tool.as_deref(), Some("codex"));
+        assert_eq!(cat, "mcp");
+
+        // Verify builtin classification
+        let cat: String = conn
+            .query_row(
+                "SELECT tool_category FROM tool_invocations WHERE tool_name = 'Read'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(cat, "builtin");
+    }
+
+    #[test]
+    fn test_tool_invocation_dedup() {
+        let conn = test_conn();
+        let turns = vec![Turn {
+            session_id: "s1".into(),
+            message_id: "msg-1".into(),
+            all_tools: vec!["Read".into()],
+            ..Default::default()
+        }];
+        insert_tool_invocations(&conn, &turns).unwrap();
+        insert_tool_invocations(&conn, &turns).unwrap();
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM tool_invocations", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn test_tool_summary_in_dashboard_data() {
+        let conn = test_conn();
+        let sessions = vec![crate::models::Session {
+            session_id: "s1".into(),
+            project_name: "test".into(),
+            first_timestamp: "2026-04-08T09:00:00Z".into(),
+            last_timestamp: "2026-04-08T10:00:00Z".into(),
+            model: Some("claude-sonnet-4-6".into()),
+            ..Default::default()
+        }];
+        upsert_sessions(&conn, &sessions).unwrap();
+        let turns = vec![
+            Turn {
+                session_id: "s1".into(),
+                input_tokens: 100,
+                output_tokens: 50,
+                model: "claude-sonnet-4-6".into(),
+                message_id: "m1".into(),
+                all_tools: vec!["Read".into(), "mcp__codex__codex".into()],
+                ..Default::default()
+            },
+            Turn {
+                session_id: "s1".into(),
+                input_tokens: 200,
+                output_tokens: 100,
+                model: "claude-sonnet-4-6".into(),
+                message_id: "m2".into(),
+                all_tools: vec!["Read".into(), "Bash".into()],
+                ..Default::default()
+            },
+        ];
+        insert_turns(&conn, &turns).unwrap();
+        insert_tool_invocations(&conn, &turns).unwrap();
+
+        let data = get_dashboard_data(&conn).unwrap();
+
+        // Read should be most frequent (2 invocations)
+        assert!(!data.tool_summary.is_empty());
+        assert_eq!(data.tool_summary[0].tool_name, "Read");
+        assert_eq!(data.tool_summary[0].invocations, 2);
+        assert_eq!(data.tool_summary[0].category, "builtin");
+
+        // MCP summary should have codex server
+        assert_eq!(data.mcp_summary.len(), 1);
+        assert_eq!(data.mcp_summary[0].server, "codex");
+        assert_eq!(data.mcp_summary[0].invocations, 1);
     }
 }

@@ -5,6 +5,8 @@ import { showError, showSuccess, ToastContainer } from './components/Toast';
 import { SubagentSummary as SubagentSummaryComponent } from './components/SubagentSummary';
 import { EntrypointTable } from './components/EntrypointTable';
 import { ServiceTiersTable } from './components/ServiceTiers';
+import { ToolUsageTable } from './components/ToolUsageTable';
+import { McpSummaryTable } from './components/McpSummaryTable';
 import { SessionsTable } from './components/SessionsTable';
 import { ModelCostTable } from './components/ModelCostTable';
 import { ProjectCostTable } from './components/ProjectCostTable';
@@ -19,6 +21,8 @@ import type {
   SubagentSummary,
   EntrypointSummary,
   ServiceTierSummary,
+  ToolSummary,
+  McpServerSummary,
   DashboardData,
   DailyAgg,
   ModelAgg,
@@ -65,6 +69,8 @@ applyTheme(getTheme());
 
 // ── Local-only state (not reactive) ───────────────────────────────────
 let previousSessionPercent: number | null = null;
+let loadDataInFlight = false;
+let loadUsageWindowsInFlight = false;
 
 // ── Model classification (for filter defaults only, costs come from server) ──
 function isAnthropicModel(model: string): boolean {
@@ -329,8 +335,19 @@ function renderUsageWindows(data: UsageWindowsResponse): void {
   if (!container) return;
 
   if (!data.available) {
-    container.innerHTML = '';
-    container.style.display = 'none';
+    const badge = $('plan-badge');
+    if (badge) badge.style.display = 'none';
+    if (data.error) {
+      container.style.display = '';
+      container.innerHTML = `<div class="stat-card">
+        <div class="label">Rate Windows</div>
+        <div class="value" style="font-size:16px">Unavailable</div>
+        <div class="sub">${esc(data.error)}</div>
+      </div>`;
+    } else {
+      container.innerHTML = '';
+      container.style.display = 'none';
+    }
     return;
   }
 
@@ -418,6 +435,30 @@ function renderServiceTiers(data: ServiceTierSummary[]): void {
   render(<ServiceTiersTable data={data} />, container);
 }
 
+function renderToolSummary(data: ToolSummary[]): void {
+  const container = $('tool-summary');
+  if (!container) return;
+  if (!data.length) {
+    container.style.display = 'none';
+    render(null, container);
+    return;
+  }
+  container.style.display = '';
+  render(<ToolUsageTable data={data} />, container);
+}
+
+function renderMcpSummary(data: McpServerSummary[]): void {
+  const container = $('mcp-summary');
+  if (!container) return;
+  if (!data.length) {
+    container.style.display = 'none';
+    render(null, container);
+    return;
+  }
+  container.style.display = '';
+  render(<McpSummaryTable data={data} />, container);
+}
+
 function renderCostSparkline(daily: DailyAgg[]): void {
   const container = $('cost-sparkline');
   if (!container) return;
@@ -432,12 +473,17 @@ function renderCostSparkline(daily: DailyAgg[]): void {
 }
 
 async function loadUsageWindows(): Promise<void> {
+  if (loadUsageWindowsInFlight) return;
+  loadUsageWindowsInFlight = true;
   try {
     const resp = await fetch('/api/usage-windows');
     if (!resp.ok) return;
     const data: UsageWindowsResponse = await resp.json();
     renderUsageWindows(data);
   } catch { /* silent */ }
+  finally {
+    loadUsageWindowsInFlight = false;
+  }
 }
 
 // ── Rescan ──────────────────────────────────────────────────────────────
@@ -454,14 +500,16 @@ async function triggerRescan(): Promise<void> {
     }
     const d = await resp.json();
     btn.textContent = '\u21bb Rescan (' + d.new + ' new, ' + d.updated + ' updated)';
-    await loadData();
+    await loadData(true);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     showError('Rescan failed: ' + msg);
     btn.textContent = '\u21bb Rescan (error)';
     console.error(e);
   }
-  setTimeout(() => { btn.textContent = '\u21bb Rescan'; btn.disabled = false; }, 3000);
+  finally {
+    setTimeout(() => { btn.textContent = '\u21bb Rescan'; btn.disabled = false; }, 3000);
+  }
 }
 
 // ── Loading skeleton ──────────────────────────────────────────────────
@@ -476,7 +524,9 @@ function renderLoadingSkeleton(): void {
 renderLoadingSkeleton();
 
 // ── Data loading ───────────────────────────────────────────────────────
-async function loadData(): Promise<void> {
+async function loadData(force = false): Promise<void> {
+  if (loadDataInFlight && !force) return;
+  loadDataInFlight = true;
   try {
     const resp = await fetch('/api/data');
     if (!resp.ok) {
@@ -515,8 +565,13 @@ async function loadData(): Promise<void> {
     if (rawData.value.subagent_summary) renderSubagentSummary(rawData.value.subagent_summary);
     if (rawData.value.entrypoint_breakdown) renderEntrypointBreakdown(rawData.value.entrypoint_breakdown);
     if (rawData.value.service_tiers) renderServiceTiers(rawData.value.service_tiers);
+    if (rawData.value.tool_summary) renderToolSummary(rawData.value.tool_summary);
+    if (rawData.value.mcp_summary) renderMcpSummary(rawData.value.mcp_summary);
   } catch (e) {
     console.error(e);
+  }
+  finally {
+    loadDataInFlight = false;
   }
 }
 

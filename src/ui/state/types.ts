@@ -81,6 +81,22 @@ export interface SessionRow {
   subagent_turns: number;
 }
 
+export interface ToolSummary {
+  tool_name: string;
+  category: string;
+  mcp_server: string | null;
+  invocations: number;
+  turns_used: number;
+  sessions_used: number;
+}
+
+export interface McpServerSummary {
+  server: string;
+  tools_used: number;
+  invocations: number;
+  sessions_used: number;
+}
+
 export interface DashboardData {
   all_models: string[];
   daily_by_model: DailyModelRow[];
@@ -88,6 +104,8 @@ export interface DashboardData {
   subagent_summary: SubagentSummary;
   entrypoint_breakdown: EntrypointSummary[];
   service_tiers: ServiceTierSummary[];
+  tool_summary: ToolSummary[];
+  mcp_summary: McpServerSummary[];
   generated_at: string;
   error?: string;
 }
