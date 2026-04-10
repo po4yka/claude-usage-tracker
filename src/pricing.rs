@@ -1,6 +1,13 @@
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
+pub const PRICING_VERSION: &str = "2026-04-10";
+pub const PRICING_VALID_FROM: &str = "2026-04-10T00:00:00Z";
+pub const COST_CONFIDENCE_HIGH: &str = "high";
+pub const COST_CONFIDENCE_MEDIUM: &str = "medium";
+pub const COST_CONFIDENCE_LOW: &str = "low";
+
+#[derive(Debug, Clone, Copy)]
 pub struct ModelPricing {
     pub input: f64,
     pub output: f64,
@@ -11,6 +18,14 @@ pub struct ModelPricing {
     pub threshold_tokens: Option<i64>,
     pub input_above_threshold: Option<f64>,
     pub output_above_threshold: Option<f64>,
+}
+
+#[derive(Debug, Clone)]
+pub struct CostEstimate {
+    pub estimated_cost_nanos: i64,
+    pub pricing_version: String,
+    pub pricing_model: String,
+    pub cost_confidence: String,
 }
 
 static PRICING_OVERRIDES: OnceLock<HashMap<String, ModelPricing>> = OnceLock::new();
@@ -149,27 +164,24 @@ const PRICING_TABLE: &[(&str, ModelPricing)] = &[
 
 /// Look up pricing for a model.
 /// Checks config overrides first, then built-in table (exact, prefix, substring fallback).
+#[allow(dead_code)]
 pub fn get_pricing(model: &str) -> Option<&ModelPricing> {
     if model.is_empty() {
         return None;
     }
-    // Config overrides take priority
     if let Some(p) = get_override(model) {
         return Some(p);
     }
-    // Exact match in built-in table
     for (name, pricing) in PRICING_TABLE {
         if *name == model {
             return Some(pricing);
         }
     }
-    // Prefix match
     for (name, pricing) in PRICING_TABLE {
         if model.starts_with(name) {
             return Some(pricing);
         }
     }
-    // Substring fallback (case-insensitive)
     let lower = model.to_lowercase();
     if lower.contains("opus") {
         return get_builtin("claude-opus-4-6");
@@ -195,6 +207,100 @@ pub fn get_pricing(model: &str) -> Option<&ModelPricing> {
     None
 }
 
+enum PricingLookup<'a> {
+    Borrowed {
+        pricing: &'a ModelPricing,
+        pricing_model: String,
+        cost_confidence: &'static str,
+    },
+}
+
+fn lookup_pricing(model: &str) -> Option<PricingLookup<'_>> {
+    if model.is_empty() {
+        return None;
+    }
+
+    if let Some(p) = get_override(model) {
+        return Some(PricingLookup::Borrowed {
+            pricing: p,
+            pricing_model: model.to_string(),
+            cost_confidence: COST_CONFIDENCE_HIGH,
+        });
+    }
+
+    for (name, pricing) in PRICING_TABLE {
+        if *name == model {
+            return Some(PricingLookup::Borrowed {
+                pricing,
+                pricing_model: (*name).to_string(),
+                cost_confidence: COST_CONFIDENCE_HIGH,
+            });
+        }
+    }
+
+    for (name, pricing) in PRICING_TABLE {
+        if model.starts_with(name) {
+            return Some(PricingLookup::Borrowed {
+                pricing,
+                pricing_model: (*name).to_string(),
+                cost_confidence: COST_CONFIDENCE_HIGH,
+            });
+        }
+    }
+
+    let lower = model.to_lowercase();
+    if lower.contains("opus") {
+        return get_builtin("claude-opus-4-6").map(|pricing| PricingLookup::Borrowed {
+            pricing,
+            pricing_model: "claude-opus-4-6".to_string(),
+            cost_confidence: COST_CONFIDENCE_MEDIUM,
+        });
+    }
+    if lower.contains("sonnet") {
+        return get_builtin("claude-sonnet-4-6").map(|pricing| PricingLookup::Borrowed {
+            pricing,
+            pricing_model: "claude-sonnet-4-6".to_string(),
+            cost_confidence: COST_CONFIDENCE_MEDIUM,
+        });
+    }
+    if lower.contains("haiku") {
+        return get_builtin("claude-haiku-4-5").map(|pricing| PricingLookup::Borrowed {
+            pricing,
+            pricing_model: "claude-haiku-4-5".to_string(),
+            cost_confidence: COST_CONFIDENCE_MEDIUM,
+        });
+    }
+    if lower.contains("gpt-5.4-mini") {
+        return get_builtin("gpt-5.4-mini").map(|pricing| PricingLookup::Borrowed {
+            pricing,
+            pricing_model: "gpt-5.4-mini".to_string(),
+            cost_confidence: COST_CONFIDENCE_MEDIUM,
+        });
+    }
+    if lower.contains("gpt-5.4-nano") {
+        return get_builtin("gpt-5.4-nano").map(|pricing| PricingLookup::Borrowed {
+            pricing,
+            pricing_model: "gpt-5.4-nano".to_string(),
+            cost_confidence: COST_CONFIDENCE_MEDIUM,
+        });
+    }
+    if lower.contains("gpt-5.4") {
+        return get_builtin("gpt-5.4").map(|pricing| PricingLookup::Borrowed {
+            pricing,
+            pricing_model: "gpt-5.4".to_string(),
+            cost_confidence: COST_CONFIDENCE_MEDIUM,
+        });
+    }
+    if lower.contains("codex") {
+        return get_builtin("gpt-5.3-codex").map(|pricing| PricingLookup::Borrowed {
+            pricing,
+            pricing_model: "gpt-5.3-codex".to_string(),
+            cost_confidence: COST_CONFIDENCE_MEDIUM,
+        });
+    }
+    None
+}
+
 /// Look up only from built-in table (avoids infinite recursion in substring fallback).
 fn get_builtin(model: &str) -> Option<&'static ModelPricing> {
     PRICING_TABLE
@@ -204,6 +310,7 @@ fn get_builtin(model: &str) -> Option<&'static ModelPricing> {
 }
 
 /// Returns true if this model has pricing (built-in or override).
+#[allow(dead_code)]
 pub fn is_billable(model: &str) -> bool {
     get_pricing(model).is_some()
 }
@@ -219,10 +326,23 @@ pub fn calc_cost_nanos(
     cache_read: i64,
     cache_creation: i64,
 ) -> i64 {
-    let Some(p) = get_pricing(model) else {
+    let Some(lookup) = lookup_pricing(model) else {
         return 0;
     };
+    let p = match lookup {
+        PricingLookup::Borrowed { pricing, .. } => pricing,
+    };
 
+    calc_cost_nanos_with_pricing(p, input, output, cache_read, cache_creation)
+}
+
+fn calc_cost_nanos_with_pricing(
+    p: &ModelPricing,
+    input: i64,
+    output: i64,
+    cache_read: i64,
+    cache_creation: i64,
+) -> i64 {
     let total_tokens = input + output;
 
     let (input_cost, output_cost) =
@@ -264,6 +384,44 @@ pub fn calc_cost_nanos(
     let cache_write_cost = (cache_creation as f64 * p.cache_write * 1000.0) as i64;
 
     input_cost + output_cost + cache_read_cost + cache_write_cost
+}
+
+pub fn estimate_cost(
+    model: &str,
+    input: i64,
+    output: i64,
+    cache_read: i64,
+    cache_creation: i64,
+) -> CostEstimate {
+    let Some(lookup) = lookup_pricing(model) else {
+        return CostEstimate {
+            estimated_cost_nanos: 0,
+            pricing_version: PRICING_VERSION.to_string(),
+            pricing_model: String::new(),
+            cost_confidence: COST_CONFIDENCE_LOW.to_string(),
+        };
+    };
+
+    let (pricing, pricing_model, cost_confidence) = match lookup {
+        PricingLookup::Borrowed {
+            pricing,
+            pricing_model,
+            cost_confidence,
+        } => (*pricing, pricing_model, cost_confidence),
+    };
+
+    CostEstimate {
+        estimated_cost_nanos: calc_cost_nanos_with_pricing(
+            &pricing,
+            input,
+            output,
+            cache_read,
+            cache_creation,
+        ),
+        pricing_version: format!("{PRICING_VERSION}@{PRICING_VALID_FROM}"),
+        pricing_model,
+        cost_confidence: cost_confidence.to_string(),
+    }
 }
 
 /// Calculate cost in dollars for the given token counts.

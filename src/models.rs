@@ -16,7 +16,11 @@ pub struct Session {
     pub total_cache_read: i64,
     pub total_cache_creation: i64,
     pub total_reasoning_output: i64,
+    pub total_estimated_cost_nanos: i64,
     pub turn_count: i64,
+    pub pricing_version: String,
+    pub billing_mode: String,
+    pub cost_confidence: String,
     pub title: Option<String>,
 }
 
@@ -31,6 +35,7 @@ pub struct Turn {
     pub cache_read_tokens: i64,
     pub cache_creation_tokens: i64,
     pub reasoning_output_tokens: i64,
+    pub estimated_cost_nanos: i64,
     pub tool_name: Option<String>,
     pub cwd: String,
     pub message_id: String,
@@ -40,6 +45,10 @@ pub struct Turn {
     pub agent_id: Option<String>,
     pub source_path: String,
     pub version: Option<String>,
+    pub pricing_version: String,
+    pub pricing_model: String,
+    pub billing_mode: String,
+    pub cost_confidence: String,
     /// All tool names from content blocks (transient, not persisted to turns table).
     #[allow(dead_code)]
     pub all_tools: Vec<String>,
@@ -73,6 +82,8 @@ pub struct ScanResult {
 pub struct DashboardData {
     pub all_models: Vec<String>,
     pub provider_breakdown: Vec<ProviderSummary>,
+    pub confidence_breakdown: Vec<ConfidenceSummary>,
+    pub billing_mode_breakdown: Vec<BillingModeSummary>,
     pub daily_by_model: Vec<DailyModelRow>,
     pub sessions_all: Vec<SessionRow>,
     pub subagent_summary: SubagentSummary,
@@ -84,6 +95,7 @@ pub struct DashboardData {
     pub git_branch_summary: Vec<BranchSummary>,
     pub version_summary: Vec<VersionSummary>,
     pub daily_by_project: Vec<DailyProjectRow>,
+    pub openai_reconciliation: Option<OpenAiReconciliation>,
     pub generated_at: String,
 }
 
@@ -109,6 +121,36 @@ pub struct ProviderSummary {
     pub cache_creation: i64,
     pub reasoning_output: i64,
     pub cost: f64,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct ConfidenceSummary {
+    pub confidence: String,
+    pub turns: i64,
+    pub cost: f64,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct BillingModeSummary {
+    pub billing_mode: String,
+    pub turns: i64,
+    pub cost: f64,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct OpenAiReconciliation {
+    pub available: bool,
+    pub lookback_days: i64,
+    pub start_date: String,
+    pub end_date: String,
+    pub estimated_local_cost: f64,
+    pub api_usage_cost: f64,
+    pub api_input_tokens: i64,
+    pub api_output_tokens: i64,
+    pub api_cached_input_tokens: i64,
+    pub api_requests: i64,
+    pub delta_cost: f64,
+    pub error: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -222,6 +264,9 @@ pub struct SessionRow {
     pub reasoning_output: i64,
     pub cost: f64,
     pub is_billable: bool,
+    pub pricing_version: String,
+    pub billing_mode: String,
+    pub cost_confidence: String,
     pub subagent_count: i64,
     pub subagent_turns: i64,
     pub title: Option<String>,

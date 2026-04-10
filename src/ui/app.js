@@ -4574,6 +4574,23 @@
           }
         },
         {
+          id: "cost_meta",
+          accessorKey: "cost_confidence",
+          header: "Cost Meta",
+          enableSorting: false,
+          cell: (info) => {
+            const row = info.row.original;
+            return /* @__PURE__ */ u2("div", { class: "muted", style: { fontSize: "10px", lineHeight: "1.35" }, children: [
+              /* @__PURE__ */ u2("div", { children: [
+                row.cost_confidence || "low",
+                " / ",
+                row.billing_mode || "estimated_local"
+              ] }),
+              /* @__PURE__ */ u2("div", { children: row.pricing_version || "n/a" })
+            ] });
+          }
+        },
+        {
           id: "cache_hit_ratio",
           accessorKey: "cache_hit_ratio",
           header: "Cache %",
@@ -5121,7 +5138,145 @@
       reasoning_output: byModel.reduce((s4, m4) => s4 + m4.reasoning_output, 0),
       cost: filteredSessions.reduce((s4, sess) => s4 + sess.cost, 0)
     };
-    return { daily, byModel, byProject, totals };
+    const confidenceBreakdown = Object.entries(
+      filteredSessions.reduce((acc, session) => {
+        const key = session.cost_confidence || "low";
+        if (!acc[key]) acc[key] = { sessions: 0, cost: 0 };
+        acc[key].sessions += 1;
+        acc[key].cost += session.cost;
+        return acc;
+      }, {})
+    ).sort(([a4], [b4]) => confidenceRank(a4) - confidenceRank(b4));
+    const billingModeBreakdown = Object.entries(
+      filteredSessions.reduce((acc, session) => {
+        const key = session.billing_mode || "estimated_local";
+        if (!acc[key]) acc[key] = { sessions: 0, cost: 0 };
+        acc[key].sessions += 1;
+        acc[key].cost += session.cost;
+        return acc;
+      }, {})
+    ).sort((a4, b4) => b4[1].sessions - a4[1].sessions);
+    const pricingVersions = Array.from(
+      new Set(filteredSessions.map((session) => session.pricing_version).filter(Boolean))
+    );
+    return { daily, byModel, byProject, totals, confidenceBreakdown, billingModeBreakdown, pricingVersions };
+  }
+  function confidenceRank(confidence) {
+    switch (confidence) {
+      case "low":
+        return 0;
+      case "medium":
+        return 1;
+      case "high":
+        return 2;
+      default:
+        return 3;
+    }
+  }
+  function renderEstimationMeta(confidenceBreakdown, billingModeBreakdown, pricingVersions) {
+    const container = $2("estimation-meta");
+    if (!container) return;
+    if (!confidenceBreakdown.length && !billingModeBreakdown.length && !pricingVersions.length) {
+      container.style.display = "none";
+      container.innerHTML = "";
+      return;
+    }
+    container.style.display = "grid";
+    R(
+      /* @__PURE__ */ u2(S, { children: [
+        /* @__PURE__ */ u2("div", { class: "card stat-card", children: [
+          /* @__PURE__ */ u2("div", { class: "stat-label", children: "Cost Confidence" }),
+          /* @__PURE__ */ u2("div", { class: "stat-value", style: { fontSize: "18px" }, children: confidenceBreakdown.length ? confidenceBreakdown.map(([key, value]) => `${key} ${value.sessions}`).join(" / ") : "n/a" }),
+          /* @__PURE__ */ u2("div", { class: "stat-sub", children: "Session mix in current filter" })
+        ] }),
+        /* @__PURE__ */ u2("div", { class: "card stat-card", children: [
+          /* @__PURE__ */ u2("div", { class: "stat-label", children: "Billing Mode" }),
+          /* @__PURE__ */ u2("div", { class: "stat-value", style: { fontSize: "18px" }, children: billingModeBreakdown.length ? billingModeBreakdown.map(([key, value]) => `${key} ${value.sessions}`).join(" / ") : "n/a" }),
+          /* @__PURE__ */ u2("div", { class: "stat-sub", children: "Local estimate vs subscriber-included sessions" })
+        ] }),
+        /* @__PURE__ */ u2("div", { class: "card stat-card", children: [
+          /* @__PURE__ */ u2("div", { class: "stat-label", children: "Pricing Snapshot" }),
+          /* @__PURE__ */ u2("div", { class: "stat-value", style: { fontSize: "18px" }, children: pricingVersions.length === 0 ? "n/a" : pricingVersions.length === 1 ? pricingVersions[0] : `mixed (${pricingVersions.length})` }),
+          /* @__PURE__ */ u2("div", { class: "stat-sub", children: "Stored per-session pricing metadata" })
+        ] })
+      ] }),
+      container
+    );
+  }
+  function renderOpenAiReconciliation(reconciliation) {
+    const container = $2("openai-reconciliation");
+    if (!container) return;
+    if (!reconciliation) {
+      container.style.display = "none";
+      R(null, container);
+      return;
+    }
+    container.style.display = "";
+    R(
+      /* @__PURE__ */ u2("div", { class: "card card-flat bento-full", children: [
+        /* @__PURE__ */ u2("h2", { children: "OpenAI Org Usage Reconciliation" }),
+        /* @__PURE__ */ u2("div", { class: "muted", style: { marginBottom: "10px" }, children: [
+          "Official OpenAI organization usage buckets for Codex-compatible models over the last ",
+          reconciliation.lookback_days,
+          " days."
+        ] }),
+        reconciliation.available ? /* @__PURE__ */ u2("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: "12px" }, children: [
+          /* @__PURE__ */ u2("div", { class: "stat-card", children: [
+            /* @__PURE__ */ u2("div", { class: "stat-label", children: "Period" }),
+            /* @__PURE__ */ u2("div", { class: "stat-value", style: { fontSize: "18px" }, children: [
+              reconciliation.start_date,
+              " - ",
+              reconciliation.end_date
+            ] }),
+            /* @__PURE__ */ u2("div", { class: "stat-sub", children: "Rolling comparison window" })
+          ] }),
+          /* @__PURE__ */ u2("div", { class: "stat-card", children: [
+            /* @__PURE__ */ u2("div", { class: "stat-label", children: "Local Estimated Cost" }),
+            /* @__PURE__ */ u2("div", { class: "stat-value cost-value", style: { fontSize: "18px" }, children: [
+              "$",
+              reconciliation.estimated_local_cost.toFixed(4)
+            ] }),
+            /* @__PURE__ */ u2("div", { class: "stat-sub", children: "Codex local logs" })
+          ] }),
+          /* @__PURE__ */ u2("div", { class: "stat-card", children: [
+            /* @__PURE__ */ u2("div", { class: "stat-label", children: "Org Usage Cost" }),
+            /* @__PURE__ */ u2("div", { class: "stat-value cost-value", style: { fontSize: "18px" }, children: [
+              "$",
+              reconciliation.api_usage_cost.toFixed(4)
+            ] }),
+            /* @__PURE__ */ u2("div", { class: "stat-sub", children: "OpenAI organization usage API" })
+          ] }),
+          /* @__PURE__ */ u2("div", { class: "stat-card", children: [
+            /* @__PURE__ */ u2("div", { class: "stat-label", children: "Delta" }),
+            /* @__PURE__ */ u2("div", { class: "stat-value", style: { fontSize: "18px", color: Math.abs(reconciliation.delta_cost) < 0.01 ? "var(--text)" : "var(--accent)" }, children: [
+              reconciliation.delta_cost >= 0 ? "+" : "",
+              "$",
+              reconciliation.delta_cost.toFixed(4)
+            ] }),
+            /* @__PURE__ */ u2("div", { class: "stat-sub", children: "Org usage cost minus local estimate" })
+          ] }),
+          /* @__PURE__ */ u2("div", { class: "stat-card", children: [
+            /* @__PURE__ */ u2("div", { class: "stat-label", children: "API Tokens" }),
+            /* @__PURE__ */ u2("div", { class: "stat-value", style: { fontSize: "18px" }, children: [
+              reconciliation.api_input_tokens.toLocaleString(),
+              " / ",
+              reconciliation.api_output_tokens.toLocaleString()
+            ] }),
+            /* @__PURE__ */ u2("div", { class: "stat-sub", children: "Input / output tokens" })
+          ] }),
+          /* @__PURE__ */ u2("div", { class: "stat-card", children: [
+            /* @__PURE__ */ u2("div", { class: "stat-label", children: "Cached Input + Requests" }),
+            /* @__PURE__ */ u2("div", { class: "stat-value", style: { fontSize: "18px" }, children: [
+              reconciliation.api_cached_input_tokens.toLocaleString(),
+              " / ",
+              reconciliation.api_requests.toLocaleString()
+            ] }),
+            /* @__PURE__ */ u2("div", { class: "stat-sub", children: "Cached input tokens / requests" })
+          ] })
+        ] }) : /* @__PURE__ */ u2("div", { class: "muted", children: reconciliation.error ?? "Unavailable" })
+      ] }),
+      container
+    );
   }
   function renderPlaceholder(containerId, title, message) {
     const container = $2(containerId);
@@ -5184,9 +5339,11 @@
     const filteredSessions = rawData.value.sessions_all.filter(
       (s4) => selectedModels.value.has(s4.model) && (!cutoff || s4.last_date >= cutoff) && matchesProjectSearch(s4.project)
     );
-    const { daily, byModel, byProject, totals } = buildAggregations(filteredDaily, filteredSessions);
+    const { daily, byModel, byProject, totals, confidenceBreakdown, billingModeBreakdown, pricingVersions } = buildAggregations(filteredDaily, filteredSessions);
     $2("daily-chart-title").textContent = "Daily Token Usage - " + RANGE_LABELS[selectedRange.value];
     renderStats(totals, daily);
+    renderEstimationMeta(confidenceBreakdown, billingModeBreakdown, pricingVersions);
+    renderOpenAiReconciliation(rawData.value.openai_reconciliation);
     renderDailyChart(daily);
     renderModelChart(byModel);
     renderProjectChart(byProject);

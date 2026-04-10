@@ -11,6 +11,7 @@ use tokio::sync::{Mutex, RwLock};
 use crate::config::WebhookConfig;
 use crate::oauth;
 use crate::oauth::models::UsageWindowsResponse;
+use crate::openai;
 use crate::scanner;
 use crate::scanner::db;
 use crate::webhooks::{self, WebhookState};
@@ -21,6 +22,11 @@ pub struct AppState {
     pub oauth_enabled: bool,
     pub oauth_refresh_interval: u64,
     pub oauth_cache: RwLock<Option<(Instant, UsageWindowsResponse)>>,
+    pub openai_enabled: bool,
+    pub openai_admin_key_env: String,
+    pub openai_refresh_interval: u64,
+    pub openai_lookback_days: i64,
+    pub openai_cache: RwLock<Option<(Instant, crate::models::OpenAiReconciliation)>>,
     pub db_lock: Mutex<()>,
     pub webhook_state: Mutex<WebhookState>,
     pub webhook_config: WebhookConfig,
@@ -29,19 +35,84 @@ pub struct AppState {
 pub async fn api_data(State(state): State<Arc<AppState>>) -> Result<Json<Value>, StatusCode> {
     let _db_guard = state.db_lock.lock().await;
     let db_path = state.db_path.clone();
-    let result = tokio::task::spawn_blocking(move || -> anyhow::Result<_> {
-        let conn = db::open_db(&db_path)?;
-        db::init_db(&conn)?;
-        db::get_dashboard_data(&conn)
-    })
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let openai_lookback_days = state.openai_lookback_days;
+    let openai_start_date = (chrono::Utc::now().date_naive()
+        - chrono::Duration::days(openai_lookback_days.saturating_sub(1)))
+    .to_string();
+    let (mut result, openai_local_cost_nanos) =
+        tokio::task::spawn_blocking(move || -> anyhow::Result<_> {
+            let conn = db::open_db(&db_path)?;
+            db::init_db(&conn)?;
+            let data = db::get_dashboard_data(&conn)?;
+            let local_cost_nanos =
+                db::get_provider_estimated_cost_nanos_since(&conn, "codex", &openai_start_date)?;
+            Ok((data, local_cost_nanos))
+        })
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    if state.openai_enabled {
+        result.openai_reconciliation =
+            Some(fetch_openai_reconciliation(&state, openai_local_cost_nanos).await);
+    }
 
     maybe_send_cost_threshold_webhook(&state, &result).await;
 
     let value = serde_json::to_value(result).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(value))
+}
+
+async fn fetch_openai_reconciliation(
+    state: &Arc<AppState>,
+    local_cost_nanos: i64,
+) -> crate::models::OpenAiReconciliation {
+    {
+        let cache = state.openai_cache.read().await;
+        if let Some((fetched_at, ref data)) = *cache
+            && fetched_at.elapsed().as_secs() < state.openai_refresh_interval
+        {
+            return data.clone();
+        }
+    }
+
+    let estimated_local_cost = local_cost_nanos as f64 / 1_000_000_000.0;
+    let reconciliation = match std::env::var(&state.openai_admin_key_env) {
+        Ok(admin_key) if !admin_key.trim().is_empty() => {
+            openai::fetch_org_usage_reconciliation(
+                admin_key.trim(),
+                state.openai_lookback_days,
+                estimated_local_cost,
+            )
+            .await
+        }
+        _ => crate::models::OpenAiReconciliation {
+            available: false,
+            lookback_days: state.openai_lookback_days,
+            start_date: (chrono::Utc::now().date_naive()
+                - chrono::Duration::days(state.openai_lookback_days.saturating_sub(1)))
+            .to_string(),
+            end_date: chrono::Utc::now().date_naive().to_string(),
+            estimated_local_cost,
+            api_usage_cost: 0.0,
+            api_input_tokens: 0,
+            api_output_tokens: 0,
+            api_cached_input_tokens: 0,
+            api_requests: 0,
+            delta_cost: 0.0,
+            error: Some(format!(
+                "Set {} to enable OpenAI organization usage reconciliation.",
+                state.openai_admin_key_env
+            )),
+        },
+    };
+
+    {
+        let mut cache = state.openai_cache.write().await;
+        *cache = Some((Instant::now(), reconciliation.clone()));
+    }
+
+    reconciliation
 }
 
 pub async fn api_rescan(State(state): State<Arc<AppState>>) -> Result<Json<Value>, StatusCode> {

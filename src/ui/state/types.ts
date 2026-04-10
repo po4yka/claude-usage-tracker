@@ -83,6 +83,9 @@ export interface SessionRow {
   reasoning_output: number;
   cost: number;
   is_billable: boolean;
+  pricing_version: string;
+  billing_mode: string;
+  cost_confidence: string;
   subagent_count: number;
   subagent_turns: number;
   title: string | null;
@@ -158,9 +161,38 @@ export interface ProviderSummary {
   cost: number;
 }
 
+export interface ConfidenceSummary {
+  confidence: string;
+  turns: number;
+  cost: number;
+}
+
+export interface BillingModeSummary {
+  billing_mode: string;
+  turns: number;
+  cost: number;
+}
+
+export interface OpenAiReconciliation {
+  available: boolean;
+  lookback_days: number;
+  start_date: string;
+  end_date: string;
+  estimated_local_cost: number;
+  api_usage_cost: number;
+  api_input_tokens: number;
+  api_output_tokens: number;
+  api_cached_input_tokens: number;
+  api_requests: number;
+  delta_cost: number;
+  error: string | null;
+}
+
 export interface DashboardData {
   all_models: string[];
   provider_breakdown: ProviderSummary[];
+  confidence_breakdown: ConfidenceSummary[];
+  billing_mode_breakdown: BillingModeSummary[];
   daily_by_model: DailyModelRow[];
   sessions_all: SessionRow[];
   subagent_summary: SubagentSummary;
@@ -172,6 +204,7 @@ export interface DashboardData {
   git_branch_summary: BranchSummary[];
   version_summary: VersionSummary[];
   daily_by_project: DailyProjectRow[];
+  openai_reconciliation: OpenAiReconciliation | null;
   generated_at: string;
   error?: string;
 }

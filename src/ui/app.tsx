@@ -35,6 +35,7 @@ import type {
   ProjectAgg,
   Totals,
   RangeKey,
+  OpenAiReconciliation,
 } from './state/types';
 import {
   rawData,
@@ -295,7 +296,146 @@ function buildAggregations(filteredDaily: DailyModelRow[], filteredSessions: typ
     cost: filteredSessions.reduce((s, sess) => s + sess.cost, 0),
   };
 
-  return { daily, byModel, byProject, totals };
+  const confidenceBreakdown = Object.entries(
+    filteredSessions.reduce<Record<string, { sessions: number; cost: number }>>((acc, session) => {
+      const key = session.cost_confidence || 'low';
+      if (!acc[key]) acc[key] = { sessions: 0, cost: 0 };
+      acc[key].sessions += 1;
+      acc[key].cost += session.cost;
+      return acc;
+    }, {})
+  ).sort(([a], [b]) => confidenceRank(a) - confidenceRank(b));
+
+  const billingModeBreakdown = Object.entries(
+    filteredSessions.reduce<Record<string, { sessions: number; cost: number }>>((acc, session) => {
+      const key = session.billing_mode || 'estimated_local';
+      if (!acc[key]) acc[key] = { sessions: 0, cost: 0 };
+      acc[key].sessions += 1;
+      acc[key].cost += session.cost;
+      return acc;
+    }, {})
+  ).sort((a, b) => b[1].sessions - a[1].sessions);
+
+  const pricingVersions = Array.from(
+    new Set(filteredSessions.map(session => session.pricing_version).filter(Boolean))
+  );
+
+  return { daily, byModel, byProject, totals, confidenceBreakdown, billingModeBreakdown, pricingVersions };
+}
+
+function confidenceRank(confidence: string): number {
+  switch (confidence) {
+    case 'low': return 0;
+    case 'medium': return 1;
+    case 'high': return 2;
+    default: return 3;
+  }
+}
+
+function renderEstimationMeta(
+  confidenceBreakdown: Array<[string, { sessions: number; cost: number }]>,
+  billingModeBreakdown: Array<[string, { sessions: number; cost: number }]>,
+  pricingVersions: string[]
+): void {
+  const container = $('estimation-meta');
+  if (!container) return;
+
+  if (!confidenceBreakdown.length && !billingModeBreakdown.length && !pricingVersions.length) {
+    container.style.display = 'none';
+    container.innerHTML = '';
+    return;
+  }
+
+  container.style.display = 'grid';
+  render(
+    <>
+      <div class="card stat-card">
+        <div class="stat-label">Cost Confidence</div>
+        <div class="stat-value" style={{ fontSize: '18px' }}>
+          {confidenceBreakdown.length ? confidenceBreakdown.map(([key, value]) => `${key} ${value.sessions}`).join(' / ') : 'n/a'}
+        </div>
+        <div class="stat-sub">Session mix in current filter</div>
+      </div>
+      <div class="card stat-card">
+        <div class="stat-label">Billing Mode</div>
+        <div class="stat-value" style={{ fontSize: '18px' }}>
+          {billingModeBreakdown.length ? billingModeBreakdown.map(([key, value]) => `${key} ${value.sessions}`).join(' / ') : 'n/a'}
+        </div>
+        <div class="stat-sub">Local estimate vs subscriber-included sessions</div>
+      </div>
+      <div class="card stat-card">
+        <div class="stat-label">Pricing Snapshot</div>
+        <div class="stat-value" style={{ fontSize: '18px' }}>
+          {pricingVersions.length === 0 ? 'n/a' : pricingVersions.length === 1 ? pricingVersions[0] : `mixed (${pricingVersions.length})`}
+        </div>
+        <div class="stat-sub">Stored per-session pricing metadata</div>
+      </div>
+    </>,
+    container
+  );
+}
+
+function renderOpenAiReconciliation(reconciliation: OpenAiReconciliation | null): void {
+  const container = $('openai-reconciliation');
+  if (!container) return;
+  if (!reconciliation) {
+    container.style.display = 'none';
+    render(null, container);
+    return;
+  }
+
+  container.style.display = '';
+  render(
+    <div class="card card-flat bento-full">
+      <h2>OpenAI Org Usage Reconciliation</h2>
+      <div class="muted" style={{ marginBottom: '10px' }}>
+        Official OpenAI organization usage buckets for Codex-compatible models over the last {reconciliation.lookback_days} days.
+      </div>
+      {reconciliation.available ? (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: '12px' }}>
+          <div class="stat-card">
+            <div class="stat-label">Period</div>
+            <div class="stat-value" style={{ fontSize: '18px' }}>{reconciliation.start_date} - {reconciliation.end_date}</div>
+            <div class="stat-sub">Rolling comparison window</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Local Estimated Cost</div>
+            <div class="stat-value cost-value" style={{ fontSize: '18px' }}>${reconciliation.estimated_local_cost.toFixed(4)}</div>
+            <div class="stat-sub">Codex local logs</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Org Usage Cost</div>
+            <div class="stat-value cost-value" style={{ fontSize: '18px' }}>${reconciliation.api_usage_cost.toFixed(4)}</div>
+            <div class="stat-sub">OpenAI organization usage API</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Delta</div>
+            <div class="stat-value" style={{ fontSize: '18px', color: Math.abs(reconciliation.delta_cost) < 0.01 ? 'var(--text)' : 'var(--accent)' }}>
+              {reconciliation.delta_cost >= 0 ? '+' : ''}${reconciliation.delta_cost.toFixed(4)}
+            </div>
+            <div class="stat-sub">Org usage cost minus local estimate</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">API Tokens</div>
+            <div class="stat-value" style={{ fontSize: '18px' }}>
+              {reconciliation.api_input_tokens.toLocaleString()} / {reconciliation.api_output_tokens.toLocaleString()}
+            </div>
+            <div class="stat-sub">Input / output tokens</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Cached Input + Requests</div>
+            <div class="stat-value" style={{ fontSize: '18px' }}>
+              {reconciliation.api_cached_input_tokens.toLocaleString()} / {reconciliation.api_requests.toLocaleString()}
+            </div>
+            <div class="stat-sub">Cached input tokens / requests</div>
+          </div>
+        </div>
+      ) : (
+        <div class="muted">{reconciliation.error ?? 'Unavailable'}</div>
+      )}
+    </div>,
+    container
+  );
 }
 
 function renderPlaceholder(containerId: string, title: string, message: string): void {
@@ -372,11 +512,14 @@ function applyFilter(): void {
   const filteredSessions = rawData.value.sessions_all.filter(s =>
     selectedModels.value.has(s.model) && (!cutoff || s.last_date >= cutoff) && matchesProjectSearch(s.project)
   );
-  const { daily, byModel, byProject, totals } = buildAggregations(filteredDaily, filteredSessions);
+  const { daily, byModel, byProject, totals, confidenceBreakdown, billingModeBreakdown, pricingVersions } =
+    buildAggregations(filteredDaily, filteredSessions);
 
   $('daily-chart-title').textContent = 'Daily Token Usage - ' + RANGE_LABELS[selectedRange.value];
 
   renderStats(totals, daily);
+  renderEstimationMeta(confidenceBreakdown, billingModeBreakdown, pricingVersions);
+  renderOpenAiReconciliation(rawData.value.openai_reconciliation);
   renderDailyChart(daily);
   renderModelChart(byModel);
   renderProjectChart(byProject);

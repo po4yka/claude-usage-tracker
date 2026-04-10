@@ -5,6 +5,7 @@ use std::path::Path;
 use tracing::warn;
 
 use crate::models::{Session, SessionMeta, Turn};
+use crate::pricing;
 
 pub const PROVIDER_CLAUDE: &str = "claude";
 pub const PROVIDER_CODEX: &str = "codex";
@@ -72,6 +73,7 @@ struct TokenUsage {
     output: i64,
     cache_read: i64,
     reasoning_output: i64,
+    plan_type: Option<String>,
 }
 
 /// Parse a provider-specific log file.
@@ -303,6 +305,7 @@ fn parse_claude_jsonl_file(filepath: &Path, skip_lines: i64) -> ParseResult {
             }
 
             let turn = Turn {
+                estimated_cost_nanos: 0,
                 session_id: session_id.clone(),
                 provider: PROVIDER_CLAUDE.into(),
                 timestamp: timestamp.clone(),
@@ -321,9 +324,25 @@ fn parse_claude_jsonl_file(filepath: &Path, skip_lines: i64) -> ParseResult {
                 agent_id: agent_id.clone(),
                 source_path: source_path.clone(),
                 version: version.clone(),
+                pricing_version: String::new(),
+                pricing_model: String::new(),
+                billing_mode: "estimated_local".into(),
+                cost_confidence: String::new(),
                 all_tools,
                 tool_use_ids,
             };
+            let estimate = pricing::estimate_cost(
+                &turn.model,
+                turn.input_tokens,
+                turn.output_tokens,
+                turn.cache_read_tokens,
+                turn.cache_creation_tokens,
+            );
+            let mut turn = turn;
+            turn.estimated_cost_nanos = estimate.estimated_cost_nanos;
+            turn.pricing_version = estimate.pricing_version;
+            turn.pricing_model = estimate.pricing_model;
+            turn.cost_confidence = estimate.cost_confidence;
 
             if !message_id.is_empty() {
                 seen_messages.insert(message_id, turn);
@@ -597,8 +616,10 @@ fn parse_codex_jsonl_file(filepath: &Path, skip_lines: i64) -> ParseResult {
 
                         let tool_use_ids = turn_tools.get(&turn_id).cloned().unwrap_or_default();
                         let tool_name = tool_use_ids.first().map(|(_, name)| name.clone());
+                        let billing_mode = codex_billing_mode(usage.plan_type.as_deref());
 
                         let turn = Turn {
+                            estimated_cost_nanos: 0,
                             session_id: session_id.clone(),
                             provider: PROVIDER_CODEX.into(),
                             timestamp: turn_timestamp.clone(),
@@ -617,9 +638,25 @@ fn parse_codex_jsonl_file(filepath: &Path, skip_lines: i64) -> ParseResult {
                             agent_id: None,
                             source_path: source_path.clone(),
                             version: session_version.clone(),
+                            pricing_version: String::new(),
+                            pricing_model: String::new(),
+                            billing_mode,
+                            cost_confidence: String::new(),
                             all_tools: tool_use_ids.iter().map(|(_, name)| name.clone()).collect(),
                             tool_use_ids,
                         };
+                        let estimate = pricing::estimate_cost(
+                            &turn.model,
+                            turn.input_tokens,
+                            turn.output_tokens,
+                            turn.cache_read_tokens,
+                            turn.cache_creation_tokens,
+                        );
+                        let mut turn = turn;
+                        turn.estimated_cost_nanos = estimate.estimated_cost_nanos;
+                        turn.pricing_version = estimate.pricing_version;
+                        turn.pricing_model = estimate.pricing_model;
+                        turn.cost_confidence = estimate.cost_confidence;
 
                         seen_turns.insert(turn_id, turn);
                         touch_session_meta(
@@ -851,6 +888,21 @@ fn parse_codex_token_usage(payload: &serde_json::Map<String, serde_json::Value>)
             .get("reasoning_output_tokens")
             .and_then(|v| v.as_i64())
             .unwrap_or(0),
+        plan_type: info
+            .and_then(|info| info.get("plan_type"))
+            .and_then(|v| v.as_str())
+            .map(String::from),
+    }
+}
+
+fn codex_billing_mode(plan_type: Option<&str>) -> String {
+    let Some(plan_type) = plan_type.map(str::trim).filter(|value| !value.is_empty()) else {
+        return "estimated_local".into();
+    };
+
+    match plan_type.to_ascii_lowercase().as_str() {
+        "api" | "byok" | "payg" | "paygo" => "estimated_local".into(),
+        _ => "subscriber_included".into(),
     }
 }
 
@@ -862,8 +914,12 @@ pub fn aggregate_sessions(metas: &[SessionMeta], turns: &[Turn]) -> Vec<Session>
         total_cache_read: i64,
         total_cache_creation: i64,
         total_reasoning_output: i64,
+        total_estimated_cost_nanos: i64,
         turn_count: i64,
         model: Option<String>,
+        pricing_version: String,
+        billing_mode: String,
+        cost_confidence: String,
     }
 
     let mut stats_map: HashMap<&str, Stats> = HashMap::new();
@@ -874,18 +930,27 @@ pub fn aggregate_sessions(metas: &[SessionMeta], turns: &[Turn]) -> Vec<Session>
             total_cache_read: 0,
             total_cache_creation: 0,
             total_reasoning_output: 0,
+            total_estimated_cost_nanos: 0,
             turn_count: 0,
             model: None,
+            pricing_version: String::new(),
+            billing_mode: String::new(),
+            cost_confidence: String::new(),
         });
         entry.total_input += t.input_tokens;
         entry.total_output += t.output_tokens;
         entry.total_cache_read += t.cache_read_tokens;
         entry.total_cache_creation += t.cache_creation_tokens;
         entry.total_reasoning_output += t.reasoning_output_tokens;
+        entry.total_estimated_cost_nanos += t.estimated_cost_nanos;
         entry.turn_count += 1;
         if !t.model.is_empty() {
             entry.model = Some(t.model.clone());
         }
+        entry.pricing_version = merge_pricing_version(&entry.pricing_version, &t.pricing_version);
+        entry.billing_mode = merge_billing_mode(&entry.billing_mode, &t.billing_mode);
+        entry.cost_confidence =
+            merge_cost_confidence(&entry.cost_confidence, &t.cost_confidence).to_string();
     }
 
     metas
@@ -897,8 +962,12 @@ pub fn aggregate_sessions(metas: &[SessionMeta], turns: &[Turn]) -> Vec<Session>
                 total_cache_read: 0,
                 total_cache_creation: 0,
                 total_reasoning_output: 0,
+                total_estimated_cost_nanos: 0,
                 turn_count: 0,
                 model: None,
+                pricing_version: String::new(),
+                billing_mode: "estimated_local".into(),
+                cost_confidence: pricing::COST_CONFIDENCE_LOW.into(),
             };
             let s = stats_map.get(meta.session_id.as_str()).unwrap_or(&empty);
             Session {
@@ -916,11 +985,56 @@ pub fn aggregate_sessions(metas: &[SessionMeta], turns: &[Turn]) -> Vec<Session>
                 total_cache_read: s.total_cache_read,
                 total_cache_creation: s.total_cache_creation,
                 total_reasoning_output: s.total_reasoning_output,
+                total_estimated_cost_nanos: s.total_estimated_cost_nanos,
                 turn_count: s.turn_count,
+                pricing_version: s.pricing_version.clone(),
+                billing_mode: s.billing_mode.clone(),
+                cost_confidence: s.cost_confidence.clone(),
                 title: None,
             }
         })
         .collect()
+}
+
+fn merge_pricing_version(current: &str, next: &str) -> String {
+    if current.is_empty() {
+        return next.to_string();
+    }
+    if next.is_empty() || current == next {
+        return current.to_string();
+    }
+    "mixed".into()
+}
+
+fn merge_billing_mode(current: &str, next: &str) -> String {
+    if current.is_empty() {
+        return next.to_string();
+    }
+    if next.is_empty() || current == next {
+        return current.to_string();
+    }
+    "mixed".into()
+}
+
+fn merge_cost_confidence<'a>(current: &'a str, next: &'a str) -> &'a str {
+    if current.is_empty() {
+        return next;
+    }
+    if next.is_empty() {
+        return current;
+    }
+    let rank = |value: &str| match value {
+        pricing::COST_CONFIDENCE_LOW => 0,
+        pricing::COST_CONFIDENCE_MEDIUM => 1,
+        pricing::COST_CONFIDENCE_HIGH => 2,
+        _ => 0,
+    };
+
+    if rank(next) < rank(current) {
+        next
+    } else {
+        current
+    }
 }
 
 #[cfg(test)]

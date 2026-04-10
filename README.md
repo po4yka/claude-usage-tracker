@@ -12,6 +12,7 @@ Reads local transcripts written by Claude Code and Codex, then presents an inter
 - **Streaming deduplication** -- handles Claude Code and Codex incremental session records
 - **Interactive dashboard** -- dark-themed UI with Chart.js charts, sortable tables, CSV export
 - **Cost estimation** -- single source of truth in Rust, with volume discount support and integer-nanos precision
+- **Turn-level cost snapshots** -- each turn stores estimated cost, pricing snapshot, billing mode, and confidence tier
 - **CLI reporting** -- quick terminal summaries with `--json` flag for scripting
 - **Cross-platform** -- macOS, Linux, Windows
 - **Zero runtime dependencies** -- single binary, no Python/Node/npm required
@@ -25,6 +26,8 @@ Reads local transcripts written by Claude Code and Codex, then presents an inter
 
 ### Analytics
 - **Codex local log support** -- scans archived Codex session JSONL and estimates cost from OpenAI API pricing
+- **Estimation confidence tiers** -- distinguishes exact pricing matches from fallback/unknown model estimates
+- **OpenAI org reconciliation** -- optional Codex comparison against official OpenAI organization usage buckets
 - **Subagent session linking** -- tracks parent vs subagent token usage with breakdown panel
 - **Entrypoint breakdown** -- usage split by CLI, VS Code, JetBrains
 - **Service tier tracking** -- inference region and service tier visibility
@@ -94,6 +97,13 @@ port = 9090
 enabled = true           # default: true (auto-detects credentials)
 refresh_interval = 60    # seconds between API polls
 
+# Optional OpenAI organization usage reconciliation for Codex API-backed usage
+[openai]
+enabled = true                    # default: true if OPENAI_ADMIN_KEY is set
+admin_key_env = "OPENAI_ADMIN_KEY"
+refresh_interval = 300            # seconds between API polls
+lookback_days = 30                # compare local Codex estimates vs org usage over this window
+
 # Custom pricing overrides ($/MTok)
 [pricing.my-custom-model]
 input = 2.0
@@ -124,10 +134,12 @@ Automatically discovers JSONL transcripts from:
 
 1. **Scan** -- walks project directories for `*.jsonl` files (including `subagents/` subdirectories)
 2. **Parse** -- extracts provider-aware session metadata, per-turn token usage, subagent flags, service tier, and Codex tool activity
-3. **Deduplicate** -- streaming events sharing the same `message.id` are collapsed (last record wins)
-4. **Store** -- upserts into a local SQLite database at `~/.claude/usage.db`
-5. **Serve** -- axum HTTP server delivers the dashboard UI and JSON API
-6. **Monitor** -- polls Claude OAuth API for real-time rate windows (optional)
+3. **Estimate** -- computes turn-level API-equivalent cost snapshots with pricing version + confidence metadata
+4. **Deduplicate** -- streaming events sharing the same `message.id` are collapsed (last record wins)
+5. **Store** -- upserts into a local SQLite database at `~/.claude/usage.db`
+6. **Serve** -- axum HTTP server delivers the dashboard UI and JSON API
+7. **Reconcile** -- optionally compares Codex local estimates to OpenAI organization usage buckets
+8. **Monitor** -- polls Claude OAuth API for real-time rate windows (optional)
 
 ## API Endpoints
 
@@ -146,6 +158,7 @@ src/
   main.rs              -- CLI entry point (clap)
   config.rs            -- TOML config file loading
   models.rs            -- shared data types
+  openai.rs            -- OpenAI organization usage reconciliation client
   pricing.rs           -- model pricing (single source of truth, volume discounts, nanos precision)
   webhooks.rs          -- webhook notification system
   oauth/

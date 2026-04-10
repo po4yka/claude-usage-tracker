@@ -5,11 +5,10 @@ use tracing::warn;
 use std::collections::HashMap;
 
 use crate::models::{
-    BranchSummary, DailyModelRow, DailyProjectRow, DashboardData, EntrypointSummary, HourlyRow,
-    McpServerSummary, ProviderSummary, ServiceTierSummary, SessionRow, ToolSummary, Turn,
-    VersionSummary,
+    BillingModeSummary, BranchSummary, ConfidenceSummary, DailyModelRow, DailyProjectRow,
+    DashboardData, EntrypointSummary, HourlyRow, McpServerSummary, ProviderSummary,
+    ServiceTierSummary, SessionRow, ToolSummary, Turn, VersionSummary,
 };
-use crate::pricing;
 use crate::scanner::parser::{classify_tool, raw_session_id};
 
 pub fn open_db(path: &std::path::Path) -> Result<Connection> {
@@ -35,7 +34,11 @@ pub fn init_db(conn: &Connection) -> Result<()> {
             total_cache_read    INTEGER DEFAULT 0,
             total_cache_creation INTEGER DEFAULT 0,
             total_reasoning_output INTEGER DEFAULT 0,
-            turn_count          INTEGER DEFAULT 0
+            total_estimated_cost_nanos INTEGER DEFAULT 0,
+            turn_count          INTEGER DEFAULT 0,
+            pricing_version     TEXT NOT NULL DEFAULT '',
+            billing_mode        TEXT NOT NULL DEFAULT 'estimated_local',
+            cost_confidence     TEXT NOT NULL DEFAULT 'low'
         );
 
         CREATE TABLE IF NOT EXISTS turns (
@@ -49,6 +52,7 @@ pub fn init_db(conn: &Connection) -> Result<()> {
             cache_read_tokens       INTEGER DEFAULT 0,
             cache_creation_tokens   INTEGER DEFAULT 0,
             reasoning_output_tokens INTEGER DEFAULT 0,
+            estimated_cost_nanos    INTEGER DEFAULT 0,
             tool_name               TEXT,
             cwd                     TEXT,
             message_id              TEXT,
@@ -56,7 +60,11 @@ pub fn init_db(conn: &Connection) -> Result<()> {
             inference_geo           TEXT,
             is_subagent             INTEGER DEFAULT 0,
             agent_id                TEXT,
-            source_path             TEXT NOT NULL DEFAULT ''
+            source_path             TEXT NOT NULL DEFAULT '',
+            pricing_version         TEXT NOT NULL DEFAULT '',
+            pricing_model           TEXT NOT NULL DEFAULT '',
+            billing_mode            TEXT NOT NULL DEFAULT 'estimated_local',
+            cost_confidence         TEXT NOT NULL DEFAULT 'low'
         );
 
         CREATE TABLE IF NOT EXISTS processed_files (
@@ -92,6 +100,26 @@ pub fn init_db(conn: &Connection) -> Result<()> {
             "ALTER TABLE sessions ADD COLUMN total_reasoning_output INTEGER DEFAULT 0;",
         )?;
     }
+    if !has_column(conn, "sessions", "total_estimated_cost_nanos") {
+        conn.execute_batch(
+            "ALTER TABLE sessions ADD COLUMN total_estimated_cost_nanos INTEGER DEFAULT 0;",
+        )?;
+    }
+    if !has_column(conn, "sessions", "pricing_version") {
+        conn.execute_batch(
+            "ALTER TABLE sessions ADD COLUMN pricing_version TEXT NOT NULL DEFAULT '';",
+        )?;
+    }
+    if !has_column(conn, "sessions", "billing_mode") {
+        conn.execute_batch(
+            "ALTER TABLE sessions ADD COLUMN billing_mode TEXT NOT NULL DEFAULT 'estimated_local';",
+        )?;
+    }
+    if !has_column(conn, "sessions", "cost_confidence") {
+        conn.execute_batch(
+            "ALTER TABLE sessions ADD COLUMN cost_confidence TEXT NOT NULL DEFAULT 'low';",
+        )?;
+    }
     if !has_column(conn, "turns", "provider") {
         conn.execute_batch(
             "ALTER TABLE turns ADD COLUMN provider TEXT NOT NULL DEFAULT 'claude';",
@@ -102,6 +130,9 @@ pub fn init_db(conn: &Connection) -> Result<()> {
             "ALTER TABLE turns ADD COLUMN reasoning_output_tokens INTEGER DEFAULT 0;",
         )?;
     }
+    if !has_column(conn, "turns", "estimated_cost_nanos") {
+        conn.execute_batch("ALTER TABLE turns ADD COLUMN estimated_cost_nanos INTEGER DEFAULT 0;")?;
+    }
     if !has_column(conn, "turns", "agent_id") {
         conn.execute_batch(
             "ALTER TABLE turns ADD COLUMN is_subagent INTEGER DEFAULT 0;
@@ -110,6 +141,14 @@ pub fn init_db(conn: &Connection) -> Result<()> {
     }
     if !has_column(conn, "turns", "source_path") {
         conn.execute_batch("ALTER TABLE turns ADD COLUMN source_path TEXT NOT NULL DEFAULT '';")?;
+    }
+    if !has_column(conn, "turns", "pricing_version") {
+        conn.execute_batch(
+            "ALTER TABLE turns ADD COLUMN pricing_version TEXT NOT NULL DEFAULT '';
+             ALTER TABLE turns ADD COLUMN pricing_model TEXT NOT NULL DEFAULT '';
+             ALTER TABLE turns ADD COLUMN billing_mode TEXT NOT NULL DEFAULT 'estimated_local';
+             ALTER TABLE turns ADD COLUMN cost_confidence TEXT NOT NULL DEFAULT 'low';",
+        )?;
     }
 
     // Tool invocations table for multi-tool and MCP tracking
@@ -169,6 +208,8 @@ pub fn init_db(conn: &Connection) -> Result<()> {
     )?;
 
     prefix_existing_session_ids(conn)?;
+    backfill_turn_pricing(conn)?;
+    recompute_session_totals(conn)?;
 
     Ok(())
 }
@@ -191,19 +232,6 @@ fn prefix_existing_session_ids(conn: &Connection) -> Result<()> {
          WHERE instr(session_id, ':') = 0;",
     )?;
     Ok(())
-}
-
-fn add_cost_by_model<K: std::cmp::Eq + std::hash::Hash>(
-    map: &mut HashMap<K, f64>,
-    key: K,
-    model: &str,
-    input: i64,
-    output: i64,
-    cache_read: i64,
-    cache_creation: i64,
-) {
-    let cost = pricing::calc_cost(model, input, output, cache_read, cache_creation);
-    *map.entry(key).or_default() += cost;
 }
 
 pub fn get_processed_file(conn: &Connection, path: &str) -> Result<Option<(f64, i64)>> {
@@ -259,19 +287,131 @@ pub fn delete_tool_invocations_by_source_path(conn: &Connection, path: &str) -> 
     Ok(())
 }
 
+fn backfill_turn_pricing(conn: &Connection) -> Result<()> {
+    type PricingBackfillRow = (i64, String, i64, i64, i64, i64, String, String);
+
+    let mut select = conn.prepare(
+        "SELECT id, model, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens,
+                provider, billing_mode
+         FROM turns
+         WHERE pricing_version = '' OR pricing_model = '' OR cost_confidence = ''",
+    )?;
+    let rows: Vec<PricingBackfillRow> = select
+        .query_map([], |row| {
+            Ok((
+                row.get(0)?,
+                row.get(1)?,
+                row.get(2)?,
+                row.get(3)?,
+                row.get(4)?,
+                row.get(5)?,
+                row.get(6)?,
+                row.get(7)?,
+            ))
+        })?
+        .filter_map(|row| row.ok())
+        .collect();
+
+    let mut update = conn.prepare(
+        "UPDATE turns
+         SET estimated_cost_nanos = ?1,
+             pricing_version = ?2,
+             pricing_model = ?3,
+             billing_mode = ?4,
+             cost_confidence = ?5
+         WHERE id = ?6",
+    )?;
+
+    for (
+        id,
+        model,
+        input_tokens,
+        output_tokens,
+        cache_read_tokens,
+        cache_creation_tokens,
+        provider,
+        billing_mode,
+    ) in rows
+    {
+        let estimate = crate::pricing::estimate_cost(
+            &model,
+            input_tokens,
+            output_tokens,
+            cache_read_tokens,
+            cache_creation_tokens,
+        );
+        let billing_mode = if billing_mode.is_empty() {
+            default_billing_mode(&provider)
+        } else {
+            billing_mode
+        };
+        update.execute(rusqlite::params![
+            estimate.estimated_cost_nanos,
+            estimate.pricing_version,
+            estimate.pricing_model,
+            billing_mode,
+            estimate.cost_confidence,
+            id,
+        ])?;
+    }
+
+    Ok(())
+}
+
+fn default_billing_mode(provider: &str) -> String {
+    match provider {
+        "codex" => "estimated_local".into(),
+        _ => "estimated_local".into(),
+    }
+}
+
 pub fn insert_turns(conn: &Connection, turns: &[Turn]) -> Result<()> {
     let mut stmt = conn.prepare(
         "INSERT OR IGNORE INTO turns
             (session_id, provider, timestamp, model, input_tokens, output_tokens,
-             cache_read_tokens, cache_creation_tokens, reasoning_output_tokens, tool_name, cwd,
-             message_id, service_tier, inference_geo, is_subagent, agent_id, source_path, version)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)",
+             cache_read_tokens, cache_creation_tokens, reasoning_output_tokens,
+             estimated_cost_nanos, tool_name, cwd, message_id, service_tier, inference_geo,
+             is_subagent, agent_id, source_path, version, pricing_version, pricing_model,
+             billing_mode, cost_confidence)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23)",
     )?;
     for t in turns {
         let msg_id: Option<&str> = if t.message_id.is_empty() {
             None
         } else {
             Some(&t.message_id)
+        };
+        let estimate = if t.pricing_version.is_empty() || t.cost_confidence.is_empty() {
+            Some(crate::pricing::estimate_cost(
+                &t.model,
+                t.input_tokens,
+                t.output_tokens,
+                t.cache_read_tokens,
+                t.cache_creation_tokens,
+            ))
+        } else {
+            None
+        };
+        let estimated_cost_nanos = estimate
+            .as_ref()
+            .map(|value| value.estimated_cost_nanos)
+            .unwrap_or(t.estimated_cost_nanos);
+        let pricing_version = estimate
+            .as_ref()
+            .map(|value| value.pricing_version.as_str())
+            .unwrap_or(t.pricing_version.as_str());
+        let pricing_model = estimate
+            .as_ref()
+            .map(|value| value.pricing_model.as_str())
+            .unwrap_or(t.pricing_model.as_str());
+        let cost_confidence = estimate
+            .as_ref()
+            .map(|value| value.cost_confidence.as_str())
+            .unwrap_or(t.cost_confidence.as_str());
+        let billing_mode = if t.billing_mode.is_empty() {
+            default_billing_mode(&t.provider)
+        } else {
+            t.billing_mode.clone()
         };
         stmt.execute(rusqlite::params![
             t.session_id,
@@ -283,6 +423,7 @@ pub fn insert_turns(conn: &Connection, turns: &[Turn]) -> Result<()> {
             t.cache_read_tokens,
             t.cache_creation_tokens,
             t.reasoning_output_tokens,
+            estimated_cost_nanos,
             t.tool_name,
             t.cwd,
             msg_id,
@@ -292,6 +433,10 @@ pub fn insert_turns(conn: &Connection, turns: &[Turn]) -> Result<()> {
             t.agent_id,
             t.source_path,
             t.version,
+            pricing_version,
+            pricing_model,
+            billing_mode,
+            cost_confidence,
         ])?;
     }
     Ok(())
@@ -351,8 +496,8 @@ pub fn sync_session_titles(
     for session_id in session_ids {
         let title = session_titles
             .get(session_id)
-            .map(|title| title.trim())
-            .filter(|title| !title.is_empty());
+            .map(|title: &String| title.trim())
+            .filter(|title: &&str| !title.is_empty());
         stmt.execute(rusqlite::params![title, session_id])?;
     }
     Ok(())
@@ -364,8 +509,10 @@ pub fn upsert_sessions(conn: &Connection, sessions: &[crate::models::Session]) -
             "INSERT INTO sessions
                 (session_id, provider, project_name, project_slug, first_timestamp, last_timestamp,
                  git_branch, total_input_tokens, total_output_tokens,
-                 total_cache_read, total_cache_creation, total_reasoning_output, model, entrypoint, turn_count, title)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)
+                 total_cache_read, total_cache_creation, total_reasoning_output,
+                 total_estimated_cost_nanos, model, entrypoint, turn_count, pricing_version,
+                 billing_mode, cost_confidence, title)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20)
              ON CONFLICT(session_id) DO UPDATE SET
                 provider = excluded.provider,
                 project_name = excluded.project_name,
@@ -378,9 +525,13 @@ pub fn upsert_sessions(conn: &Connection, sessions: &[crate::models::Session]) -
                 total_cache_read = excluded.total_cache_read,
                 total_cache_creation = excluded.total_cache_creation,
                 total_reasoning_output = excluded.total_reasoning_output,
+                total_estimated_cost_nanos = excluded.total_estimated_cost_nanos,
                 model = excluded.model,
                 entrypoint = excluded.entrypoint,
                 turn_count = excluded.turn_count,
+                pricing_version = excluded.pricing_version,
+                billing_mode = excluded.billing_mode,
+                cost_confidence = excluded.cost_confidence,
                 title = COALESCE(excluded.title, sessions.title)",
             rusqlite::params![
                 s.session_id,
@@ -395,9 +546,13 @@ pub fn upsert_sessions(conn: &Connection, sessions: &[crate::models::Session]) -
                 s.total_cache_read,
                 s.total_cache_creation,
                 s.total_reasoning_output,
+                s.total_estimated_cost_nanos,
                 s.model,
                 s.entrypoint,
                 s.turn_count,
+                s.pricing_version,
+                s.billing_mode,
+                s.cost_confidence,
                 s.title,
             ],
         )?;
@@ -414,6 +569,7 @@ pub fn recompute_session_totals(conn: &Connection) -> Result<()> {
             total_cache_read = COALESCE((SELECT SUM(cache_read_tokens) FROM turns WHERE turns.session_id = sessions.session_id), 0),
             total_cache_creation = COALESCE((SELECT SUM(cache_creation_tokens) FROM turns WHERE turns.session_id = sessions.session_id), 0),
             total_reasoning_output = COALESCE((SELECT SUM(reasoning_output_tokens) FROM turns WHERE turns.session_id = sessions.session_id), 0),
+            total_estimated_cost_nanos = COALESCE((SELECT SUM(estimated_cost_nanos) FROM turns WHERE turns.session_id = sessions.session_id), 0),
             turn_count = COALESCE((SELECT COUNT(*) FROM turns WHERE turns.session_id = sessions.session_id), 0),
             provider = COALESCE((
                 SELECT provider FROM turns
@@ -426,7 +582,35 @@ pub fn recompute_session_totals(conn: &Connection) -> Result<()> {
                 WHERE turns.session_id = sessions.session_id AND model IS NOT NULL AND model != ''
                 ORDER BY timestamp DESC, id DESC
                 LIMIT 1
-            ), model);
+            ), model),
+            pricing_version = COALESCE((
+                SELECT CASE
+                    WHEN COUNT(DISTINCT pricing_version) = 0 THEN ''
+                    WHEN COUNT(DISTINCT pricing_version) = 1 THEN MAX(pricing_version)
+                    ELSE 'mixed'
+                END
+                FROM turns
+                WHERE turns.session_id = sessions.session_id AND pricing_version IS NOT NULL
+            ), pricing_version),
+            billing_mode = COALESCE((
+                SELECT CASE
+                    WHEN COUNT(DISTINCT billing_mode) = 0 THEN 'estimated_local'
+                    WHEN COUNT(DISTINCT billing_mode) = 1 THEN MAX(billing_mode)
+                    ELSE 'mixed'
+                END
+                FROM turns
+                WHERE turns.session_id = sessions.session_id AND billing_mode IS NOT NULL AND billing_mode != ''
+            ), billing_mode),
+            cost_confidence = COALESCE((
+                SELECT CASE
+                    WHEN SUM(CASE WHEN cost_confidence = 'low' THEN 1 ELSE 0 END) > 0 THEN 'low'
+                    WHEN SUM(CASE WHEN cost_confidence = 'medium' THEN 1 ELSE 0 END) > 0 THEN 'medium'
+                    WHEN COUNT(*) > 0 THEN 'high'
+                    ELSE 'low'
+                END
+                FROM turns
+                WHERE turns.session_id = sessions.session_id
+            ), cost_confidence);
          DELETE FROM sessions
          WHERE NOT EXISTS (SELECT 1 FROM turns WHERE turns.session_id = sessions.session_id);",
     )?;
@@ -434,79 +618,6 @@ pub fn recompute_session_totals(conn: &Connection) -> Result<()> {
 }
 
 pub fn get_dashboard_data(conn: &Connection) -> Result<DashboardData> {
-    let mut branch_costs: HashMap<(String, String), f64> = HashMap::new();
-    {
-        let mut stmt = conn.prepare(
-            "SELECT s.provider, s.git_branch, COALESCE(t.model, '') as model,
-                    SUM(t.input_tokens) as input, SUM(t.output_tokens) as output,
-                    SUM(t.cache_read_tokens) as cache_read, SUM(t.cache_creation_tokens) as cache_creation
-             FROM sessions s
-             JOIN turns t ON s.session_id = t.session_id
-             WHERE s.git_branch IS NOT NULL AND s.git_branch != ''
-             GROUP BY s.provider, s.git_branch, COALESCE(t.model, '')",
-        )?;
-        let rows = stmt.query_map([], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, String>(2)?,
-                row.get::<_, i64>(3)?,
-                row.get::<_, i64>(4)?,
-                row.get::<_, i64>(5)?,
-                row.get::<_, i64>(6)?,
-            ))
-        })?;
-        for row in rows {
-            let (provider, branch, model, input, output, cache_read, cache_creation) = row?;
-            add_cost_by_model(
-                &mut branch_costs,
-                (provider, branch),
-                &model,
-                input,
-                output,
-                cache_read,
-                cache_creation,
-            );
-        }
-    }
-
-    let mut daily_project_costs: HashMap<(String, String, String), f64> = HashMap::new();
-    {
-        let mut stmt = conn.prepare(
-            "SELECT substr(t.timestamp, 1, 10) as day, s.provider, s.project_name,
-                    COALESCE(t.model, '') as model,
-                    SUM(t.input_tokens) as input, SUM(t.output_tokens) as output,
-                    SUM(t.cache_read_tokens) as cache_read, SUM(t.cache_creation_tokens) as cache_creation
-             FROM turns t
-             JOIN sessions s ON t.session_id = s.session_id
-             GROUP BY substr(t.timestamp, 1, 10), s.provider, s.project_name, COALESCE(t.model, '')",
-        )?;
-        let rows = stmt.query_map([], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, String>(2)?,
-                row.get::<_, String>(3)?,
-                row.get::<_, i64>(4)?,
-                row.get::<_, i64>(5)?,
-                row.get::<_, i64>(6)?,
-                row.get::<_, i64>(7)?,
-            ))
-        })?;
-        for row in rows {
-            let (day, provider, project, model, input, output, cache_read, cache_creation) = row?;
-            add_cost_by_model(
-                &mut daily_project_costs,
-                (day, provider, project),
-                &model,
-                input,
-                output,
-                cache_read,
-                cache_creation,
-            );
-        }
-    }
-
     let mut stmt = conn.prepare(
         "SELECT COALESCE(model, 'unknown') as model
          FROM turns GROUP BY model
@@ -524,36 +635,6 @@ pub fn get_dashboard_data(conn: &Connection) -> Result<DashboardData> {
         .collect();
 
     let provider_breakdown: Vec<ProviderSummary> = {
-        let mut cost_by_provider: HashMap<String, f64> = HashMap::new();
-        let mut cost_stmt = conn.prepare(
-            "SELECT provider, COALESCE(model, 'unknown') as model,
-                    SUM(input_tokens), SUM(output_tokens), SUM(cache_read_tokens), SUM(cache_creation_tokens)
-             FROM turns
-             GROUP BY provider, COALESCE(model, 'unknown')",
-        )?;
-        let cost_rows = cost_stmt.query_map([], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, i64>(2)?,
-                row.get::<_, i64>(3)?,
-                row.get::<_, i64>(4)?,
-                row.get::<_, i64>(5)?,
-            ))
-        })?;
-        for row in cost_rows {
-            let (provider, model, input, output, cache_read, cache_creation) = row?;
-            add_cost_by_model(
-                &mut cost_by_provider,
-                provider,
-                &model,
-                input,
-                output,
-                cache_read,
-                cache_creation,
-            );
-        }
-
         let mut stmt = conn.prepare(
             "SELECT provider,
                     COUNT(DISTINCT session_id) as sessions,
@@ -562,7 +643,8 @@ pub fn get_dashboard_data(conn: &Connection) -> Result<DashboardData> {
                     COALESCE(SUM(output_tokens), 0) as output,
                     COALESCE(SUM(cache_read_tokens), 0) as cache_read,
                     COALESCE(SUM(cache_creation_tokens), 0) as cache_creation,
-                    COALESCE(SUM(reasoning_output_tokens), 0) as reasoning_output
+                    COALESCE(SUM(reasoning_output_tokens), 0) as reasoning_output,
+                    COALESCE(SUM(estimated_cost_nanos), 0) as cost_nanos
              FROM turns
              GROUP BY provider
              ORDER BY turns DESC",
@@ -578,7 +660,7 @@ pub fn get_dashboard_data(conn: &Connection) -> Result<DashboardData> {
                 cache_read: row.get(5)?,
                 cache_creation: row.get(6)?,
                 reasoning_output: row.get(7)?,
-                cost: *cost_by_provider.get(&provider).unwrap_or(&0.0),
+                cost: row.get::<_, i64>(8)? as f64 / 1_000_000_000.0,
             })
         })?
         .filter_map(|r| match r {
@@ -591,13 +673,54 @@ pub fn get_dashboard_data(conn: &Connection) -> Result<DashboardData> {
         .collect()
     };
 
+    let confidence_breakdown: Vec<ConfidenceSummary> = {
+        let mut stmt = conn.prepare(
+            "SELECT COALESCE(cost_confidence, 'low') as cost_confidence,
+                    COUNT(*) as turns,
+                    COALESCE(SUM(estimated_cost_nanos), 0) as cost_nanos
+             FROM turns
+             GROUP BY cost_confidence
+             ORDER BY turns DESC",
+        )?;
+        stmt.query_map([], |row| {
+            Ok(ConfidenceSummary {
+                confidence: row.get(0)?,
+                turns: row.get(1)?,
+                cost: row.get::<_, i64>(2)? as f64 / 1_000_000_000.0,
+            })
+        })?
+        .filter_map(|r| r.ok())
+        .collect()
+    };
+
+    let billing_mode_breakdown: Vec<BillingModeSummary> = {
+        let mut stmt = conn.prepare(
+            "SELECT COALESCE(billing_mode, 'estimated_local') as billing_mode,
+                    COUNT(*) as turns,
+                    COALESCE(SUM(estimated_cost_nanos), 0) as cost_nanos
+             FROM turns
+             GROUP BY billing_mode
+             ORDER BY turns DESC",
+        )?;
+        stmt.query_map([], |row| {
+            Ok(BillingModeSummary {
+                billing_mode: row.get(0)?,
+                turns: row.get(1)?,
+                cost: row.get::<_, i64>(2)? as f64 / 1_000_000_000.0,
+            })
+        })?
+        .filter_map(|r| r.ok())
+        .collect()
+    };
+
     let daily_by_model: Vec<DailyModelRow> = {
         let mut stmt = conn.prepare(
             "SELECT substr(timestamp, 1, 10) as day, provider, COALESCE(model, 'unknown') as model,
                     SUM(input_tokens) as input, SUM(output_tokens) as output,
                     SUM(cache_read_tokens) as cache_read, SUM(cache_creation_tokens) as cache_creation,
                     SUM(reasoning_output_tokens) as reasoning_output,
-                    COUNT(*) as turns
+                    COUNT(*) as turns,
+                    COALESCE(SUM(estimated_cost_nanos), 0) as cost_nanos
              FROM turns
              GROUP BY day, provider, model
              ORDER BY day, provider, model",
@@ -609,7 +732,6 @@ pub fn get_dashboard_data(conn: &Connection) -> Result<DashboardData> {
             let output: i64 = row.get(4)?;
             let cache_read: i64 = row.get(5)?;
             let cache_creation: i64 = row.get(6)?;
-            let cost = pricing::calc_cost(&model, input, output, cache_read, cache_creation);
             Ok(DailyModelRow {
                 day: row.get(0)?,
                 provider,
@@ -620,7 +742,7 @@ pub fn get_dashboard_data(conn: &Connection) -> Result<DashboardData> {
                 cache_creation,
                 reasoning_output: row.get(7)?,
                 turns: row.get(8)?,
-                cost,
+                cost: row.get::<_, i64>(9)? as f64 / 1_000_000_000.0,
             })
         })?
         .filter_map(|r| match r {
@@ -638,7 +760,8 @@ pub fn get_dashboard_data(conn: &Connection) -> Result<DashboardData> {
             "SELECT s.session_id, s.provider, s.project_name, s.first_timestamp, s.last_timestamp,
                     s.total_input_tokens, s.total_output_tokens,
                     s.total_cache_read, s.total_cache_creation, s.total_reasoning_output,
-                    s.model, s.turn_count,
+                    s.total_estimated_cost_nanos, s.model, s.turn_count,
+                    s.pricing_version, s.billing_mode, s.cost_confidence,
                     COALESCE((SELECT COUNT(DISTINCT t.agent_id) FROM turns t WHERE t.session_id = s.session_id AND t.is_subagent = 1), 0) as subagent_count,
                     COALESCE((SELECT COUNT(*) FROM turns t WHERE t.session_id = s.session_id AND t.is_subagent = 1), 0) as subagent_turns,
                     s.title
@@ -651,15 +774,15 @@ pub fn get_dashboard_data(conn: &Connection) -> Result<DashboardData> {
             let session_id: String = row.get(0)?;
             let provider: String = row.get(1)?;
             let model: String = row
-                .get::<_, Option<String>>(10)?
+                .get::<_, Option<String>>(11)?
                 .unwrap_or_else(|| "unknown".into());
             let input: i64 = row.get(5)?;
             let output: i64 = row.get(6)?;
             let cache_read: i64 = row.get(7)?;
             let cache_creation: i64 = row.get(8)?;
             let reasoning_output: i64 = row.get(9)?;
-            let cost = pricing::calc_cost(&model, input, output, cache_read, cache_creation);
-            let is_billable = pricing::is_billable(&model);
+            let cost = row.get::<_, i64>(10)? as f64 / 1_000_000_000.0;
+            let is_billable = cost > 0.0;
             let cache_hit_ratio = if input + cache_read + cache_creation > 0 {
                 cache_read as f64 / (input + cache_read + cache_creation) as f64
             } else {
@@ -685,7 +808,7 @@ pub fn get_dashboard_data(conn: &Connection) -> Result<DashboardData> {
                 last_date: last_ts.chars().take(10).collect(),
                 duration_min,
                 model,
-                turns: row.get(11)?,
+                turns: row.get(12)?,
                 input,
                 output,
                 cache_read,
@@ -693,9 +816,16 @@ pub fn get_dashboard_data(conn: &Connection) -> Result<DashboardData> {
                 reasoning_output,
                 cost,
                 is_billable,
-                subagent_count: row.get(12)?,
-                subagent_turns: row.get(13)?,
-                title: row.get(14)?,
+                pricing_version: row.get::<_, Option<String>>(13)?.unwrap_or_default(),
+                billing_mode: row
+                    .get::<_, Option<String>>(14)?
+                    .unwrap_or_else(|| "estimated_local".into()),
+                cost_confidence: row
+                    .get::<_, Option<String>>(15)?
+                    .unwrap_or_else(|| "low".into()),
+                subagent_count: row.get(16)?,
+                subagent_turns: row.get(17)?,
+                title: row.get(18)?,
                 cache_hit_ratio,
                 tokens_per_min,
             })
@@ -898,7 +1028,8 @@ pub fn get_dashboard_data(conn: &Connection) -> Result<DashboardData> {
                     COUNT(DISTINCT s.session_id) as sessions,
                     COUNT(t.id) as turns,
                     SUM(t.input_tokens) as input, SUM(t.output_tokens) as output,
-                    SUM(t.reasoning_output_tokens) as reasoning_output
+                    SUM(t.reasoning_output_tokens) as reasoning_output,
+                    COALESCE(SUM(t.estimated_cost_nanos), 0) as cost_nanos
              FROM sessions s JOIN turns t ON s.session_id = t.session_id
              WHERE s.git_branch IS NOT NULL AND s.git_branch != ''
              GROUP BY s.provider, s.git_branch
@@ -916,7 +1047,7 @@ pub fn get_dashboard_data(conn: &Connection) -> Result<DashboardData> {
                 input: row.get(4)?,
                 output: row.get(5)?,
                 reasoning_output: row.get(6)?,
-                cost: *branch_costs.get(&(provider, branch)).unwrap_or(&0.0),
+                cost: row.get::<_, i64>(7)? as f64 / 1_000_000_000.0,
             })
         })?
         .filter_map(|r| match r {
@@ -961,7 +1092,8 @@ pub fn get_dashboard_data(conn: &Connection) -> Result<DashboardData> {
         let mut stmt = conn.prepare(
             "SELECT substr(t.timestamp, 1, 10) as day, s.provider, s.project_name,
                     SUM(t.input_tokens) as input, SUM(t.output_tokens) as output,
-                    SUM(t.reasoning_output_tokens) as reasoning_output
+                    SUM(t.reasoning_output_tokens) as reasoning_output,
+                    COALESCE(SUM(t.estimated_cost_nanos), 0) as cost_nanos
              FROM turns t JOIN sessions s ON t.session_id = s.session_id
              GROUP BY day, s.provider, s.project_name
              ORDER BY day, s.provider, s.project_name",
@@ -977,9 +1109,7 @@ pub fn get_dashboard_data(conn: &Connection) -> Result<DashboardData> {
                 input: row.get(3)?,
                 output: row.get(4)?,
                 reasoning_output: row.get(5)?,
-                cost: *daily_project_costs
-                    .get(&(day, provider, project))
-                    .unwrap_or(&0.0),
+                cost: row.get::<_, i64>(6)? as f64 / 1_000_000_000.0,
             })
         })?
         .filter_map(|r| match r {
@@ -997,6 +1127,8 @@ pub fn get_dashboard_data(conn: &Connection) -> Result<DashboardData> {
     Ok(DashboardData {
         all_models,
         provider_breakdown,
+        confidence_breakdown,
+        billing_mode_breakdown,
         daily_by_model,
         sessions_all,
         subagent_summary,
@@ -1008,6 +1140,7 @@ pub fn get_dashboard_data(conn: &Connection) -> Result<DashboardData> {
         git_branch_summary,
         version_summary,
         daily_by_project,
+        openai_reconciliation: None,
         generated_at,
     })
 }
@@ -1055,6 +1188,21 @@ pub fn get_rate_window_history(
     Ok(rows)
 }
 
+pub fn get_provider_estimated_cost_nanos_since(
+    conn: &Connection,
+    provider: &str,
+    start_date: &str,
+) -> Result<i64> {
+    let cost_nanos = conn.query_row(
+        "SELECT COALESCE(SUM(estimated_cost_nanos), 0)
+         FROM turns
+         WHERE provider = ?1 AND substr(timestamp, 1, 10) >= ?2",
+        rusqlite::params![provider, start_date],
+        |row| row.get(0),
+    )?;
+    Ok(cost_nanos)
+}
+
 fn compute_duration_min(first: &str, last: &str) -> f64 {
     let parse = |s: &str| -> Option<chrono::DateTime<chrono::FixedOffset>> {
         chrono::DateTime::parse_from_rfc3339(s).ok().or_else(|| {
@@ -1071,6 +1219,7 @@ fn compute_duration_min(first: &str, last: &str) -> f64 {
 mod tests {
     use super::*;
     use crate::models::Turn;
+    use crate::pricing;
     use std::collections::HashMap;
 
     fn test_conn() -> Connection {

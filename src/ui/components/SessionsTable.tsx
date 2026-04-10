@@ -104,6 +104,21 @@ function useSessionColumns(): ColumnDef<SessionRow, any>[] {
         },
       },
       {
+        id: 'cost_meta',
+        accessorKey: 'cost_confidence',
+        header: 'Cost Meta',
+        enableSorting: false,
+        cell: (info: any) => {
+          const row = info.row.original as SessionRow;
+          return (
+            <div class="muted" style={{ fontSize: '10px', lineHeight: '1.35' }}>
+              <div>{row.cost_confidence || 'low'} / {row.billing_mode || 'estimated_local'}</div>
+              <div>{row.pricing_version || 'n/a'}</div>
+            </div>
+          );
+        },
+      },
+      {
         id: 'cache_hit_ratio',
         accessorKey: 'cache_hit_ratio',
         header: 'Cache %',

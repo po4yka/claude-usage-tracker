@@ -1,6 +1,7 @@
 mod config;
 mod models;
 mod oauth;
+mod openai;
 mod pricing;
 mod scanner;
 mod server;
@@ -79,6 +80,10 @@ fn main() -> Result<()> {
     let cfg_oauth_enabled = cfg.oauth.enabled;
     let cfg_oauth_refresh = cfg.oauth.refresh_interval;
     let cfg_webhooks = cfg.webhooks;
+    let cfg_openai_enabled = cfg.openai.enabled;
+    let cfg_openai_admin_key_env = cfg.openai.admin_key_env;
+    let cfg_openai_refresh_interval = cfg.openai.refresh_interval;
+    let cfg_openai_lookback_days = cfg.openai.lookback_days;
 
     let default_db = |cli_db: Option<PathBuf>| -> PathBuf {
         cli_db
@@ -140,15 +145,19 @@ fn main() -> Result<()> {
             let _ = open::that(&url);
 
             let rt = tokio::runtime::Runtime::new()?;
-            rt.block_on(server::serve(
-                host_env,
-                port_env,
-                db,
-                dirs,
-                cfg_oauth_enabled,
-                cfg_oauth_refresh,
-                cfg_webhooks,
-            ))?;
+            rt.block_on(server::serve(server::ServeOptions {
+                host: host_env,
+                port: port_env,
+                db_path: db,
+                projects_dirs: dirs,
+                oauth_enabled: cfg_oauth_enabled,
+                oauth_refresh_interval: cfg_oauth_refresh,
+                openai_enabled: cfg_openai_enabled,
+                openai_admin_key_env: cfg_openai_admin_key_env,
+                openai_refresh_interval: cfg_openai_refresh_interval,
+                openai_lookback_days: cfg_openai_lookback_days,
+                webhook_config: cfg_webhooks,
+            }))?;
         }
     }
     Ok(())
@@ -187,9 +196,34 @@ fn apply_pricing_overrides(cfg: &config::Config) {
 #[cfg(test)]
 mod cli_tests;
 
-type TodayModelRow = (String, String, i64, i64, i64, i64, i64, i64);
-type StatsModelRow = (String, String, i64, i64, i64, i64, i64, i64, i64);
-type ProviderRollup = (i64, i64, i64, i64, i64, i64, f64);
+type TodayModelRow = (
+    String,
+    String,
+    i64,
+    i64,
+    i64,
+    i64,
+    i64,
+    i64,
+    i64,
+    String,
+    String,
+);
+type StatsModelRow = (
+    String,
+    String,
+    i64,
+    i64,
+    i64,
+    i64,
+    i64,
+    i64,
+    i64,
+    i64,
+    String,
+    String,
+);
+type ProviderRollup = (i64, i64, i64, i64, i64, i64, i64);
 
 fn cmd_today(db_path: &std::path::Path, json_output: bool) -> Result<()> {
     if !db_path.exists() {
@@ -203,7 +237,17 @@ fn cmd_today(db_path: &std::path::Path, json_output: bool) -> Result<()> {
                 SUM(input_tokens) as inp, SUM(output_tokens) as out,
                 SUM(cache_read_tokens) as cr, SUM(cache_creation_tokens) as cc,
                 SUM(reasoning_output_tokens) as ro,
-                COUNT(*) as turns
+                COUNT(*) as turns,
+                COALESCE(SUM(estimated_cost_nanos), 0) as cost_nanos,
+                CASE
+                    WHEN SUM(CASE WHEN cost_confidence = 'low' THEN 1 ELSE 0 END) > 0 THEN 'low'
+                    WHEN SUM(CASE WHEN cost_confidence = 'medium' THEN 1 ELSE 0 END) > 0 THEN 'medium'
+                    ELSE 'high'
+                END as cost_confidence,
+                CASE
+                    WHEN COUNT(DISTINCT billing_mode) = 1 THEN MAX(billing_mode)
+                    ELSE 'mixed'
+                END as billing_mode
          FROM turns WHERE substr(timestamp, 1, 10) = ?1
          GROUP BY provider, model ORDER BY inp + out DESC",
     )?;
@@ -219,6 +263,9 @@ fn cmd_today(db_path: &std::path::Path, json_output: bool) -> Result<()> {
                 row.get(5)?,
                 row.get(6)?,
                 row.get(7)?,
+                row.get(8)?,
+                row.get(9)?,
+                row.get(10)?,
             ))
         })?
         .filter_map(|r| match r {
@@ -236,7 +283,8 @@ fn cmd_today(db_path: &std::path::Path, json_output: bool) -> Result<()> {
                 "SELECT provider, COUNT(*) as turns,
                         COALESCE(SUM(input_tokens), 0), COALESCE(SUM(output_tokens), 0),
                         COALESCE(SUM(cache_read_tokens), 0), COALESCE(SUM(cache_creation_tokens), 0),
-                        COALESCE(SUM(reasoning_output_tokens), 0)
+                        COALESCE(SUM(reasoning_output_tokens), 0),
+                        COALESCE(SUM(estimated_cost_nanos), 0)
                  FROM turns
                  WHERE substr(timestamp, 1, 10) = ?1
                  GROUP BY provider
@@ -244,24 +292,55 @@ fn cmd_today(db_path: &std::path::Path, json_output: bool) -> Result<()> {
             )?;
             stmt.query_map([&today], |row| {
                 let provider: String = row.get(0)?;
-                let input: i64 = row.get(2)?;
-                let output: i64 = row.get(3)?;
-                let cache_read: i64 = row.get(4)?;
-                let cache_creation: i64 = row.get(5)?;
-                let cost = rows
-                    .iter()
-                    .filter(|(p, _, _, _, _, _, _, _)| p == &provider)
-                    .map(|(_, m, i, o, cr, cc, _, _)| pricing::calc_cost(m, *i, *o, *cr, *cc))
-                    .sum::<f64>();
                 Ok(serde_json::json!({
                     "provider": provider,
                     "turns": row.get::<_, i64>(1)?,
-                    "input_tokens": input,
-                    "output_tokens": output,
-                    "cache_read_tokens": cache_read,
-                    "cache_creation_tokens": cache_creation,
+                    "input_tokens": row.get::<_, i64>(2)?,
+                    "output_tokens": row.get::<_, i64>(3)?,
+                    "cache_read_tokens": row.get::<_, i64>(4)?,
+                    "cache_creation_tokens": row.get::<_, i64>(5)?,
                     "reasoning_output_tokens": row.get::<_, i64>(6)?,
-                    "estimated_cost": (cost * 10000.0).round() / 10000.0,
+                    "estimated_cost": row.get::<_, i64>(7)? as f64 / 1_000_000_000.0,
+                }))
+            })?
+            .filter_map(|r| r.ok())
+            .collect()
+        };
+        let confidence_breakdown: Vec<serde_json::Value> = {
+            let mut stmt = conn.prepare(
+                "SELECT COALESCE(cost_confidence, 'low') as cost_confidence,
+                        COUNT(*) as turns,
+                        COALESCE(SUM(estimated_cost_nanos), 0) as cost_nanos
+                 FROM turns
+                 WHERE substr(timestamp, 1, 10) = ?1
+                 GROUP BY cost_confidence
+                 ORDER BY turns DESC",
+            )?;
+            stmt.query_map([&today], |row| {
+                Ok(serde_json::json!({
+                    "cost_confidence": row.get::<_, String>(0)?,
+                    "turns": row.get::<_, i64>(1)?,
+                    "estimated_cost": row.get::<_, i64>(2)? as f64 / 1_000_000_000.0,
+                }))
+            })?
+            .filter_map(|r| r.ok())
+            .collect()
+        };
+        let billing_mode_breakdown: Vec<serde_json::Value> = {
+            let mut stmt = conn.prepare(
+                "SELECT COALESCE(billing_mode, 'estimated_local') as billing_mode,
+                        COUNT(*) as turns,
+                        COALESCE(SUM(estimated_cost_nanos), 0) as cost_nanos
+                 FROM turns
+                 WHERE substr(timestamp, 1, 10) = ?1
+                 GROUP BY billing_mode
+                 ORDER BY turns DESC",
+            )?;
+            stmt.query_map([&today], |row| {
+                Ok(serde_json::json!({
+                    "billing_mode": row.get::<_, String>(0)?,
+                    "turns": row.get::<_, i64>(1)?,
+                    "estimated_cost": row.get::<_, i64>(2)? as f64 / 1_000_000_000.0,
                 }))
             })?
             .filter_map(|r| r.ok())
@@ -269,25 +348,42 @@ fn cmd_today(db_path: &std::path::Path, json_output: bool) -> Result<()> {
         };
         let models: Vec<serde_json::Value> = rows
             .iter()
-            .map(|(provider, model, inp, out, cr, cc, ro, turns)| {
-                let cost = pricing::calc_cost(model, *inp, *out, *cr, *cc);
-                serde_json::json!({
-                    "provider": provider, "model": model, "turns": turns,
-                    "input_tokens": inp, "output_tokens": out,
-                    "cache_read_tokens": cr, "cache_creation_tokens": cc,
-                    "reasoning_output_tokens": ro,
-                    "estimated_cost": (cost * 10000.0).round() / 10000.0,
-                })
-            })
+            .map(
+                |(
+                    provider,
+                    model,
+                    inp,
+                    out,
+                    cr,
+                    cc,
+                    ro,
+                    turns,
+                    cost_nanos,
+                    cost_confidence,
+                    billing_mode,
+                )| {
+                    serde_json::json!({
+                        "provider": provider, "model": model, "turns": turns,
+                        "input_tokens": inp, "output_tokens": out,
+                        "cache_read_tokens": cr, "cache_creation_tokens": cc,
+                        "reasoning_output_tokens": ro,
+                        "estimated_cost": *cost_nanos as f64 / 1_000_000_000.0,
+                        "cost_confidence": cost_confidence,
+                        "billing_mode": billing_mode,
+                    })
+                },
+            )
             .collect();
         let total_cost: f64 = rows
             .iter()
-            .map(|(_, m, i, o, cr, cc, _, _)| pricing::calc_cost(m, *i, *o, *cr, *cc))
+            .map(|(_, _, _, _, _, _, _, _, cost_nanos, _, _)| *cost_nanos as f64 / 1_000_000_000.0)
             .sum();
         let output = serde_json::json!({
             "date": today,
             "models": models,
             "by_provider": by_provider,
+            "confidence_breakdown": confidence_breakdown,
+            "billing_mode_breakdown": billing_mode_breakdown,
             "total_estimated_cost": (total_cost * 10000.0).round() / 10000.0,
         });
         println!("{}", serde_json::to_string_pretty(&output)?);
@@ -308,8 +404,25 @@ fn cmd_today(db_path: &std::path::Path, json_output: bool) -> Result<()> {
     let mut total_cost = 0.0;
     let mut provider_totals: std::collections::BTreeMap<String, (i64, i64, i64, i64, i64, f64)> =
         std::collections::BTreeMap::new();
-    for (provider, model, inp, out, cr, cc, _ro, turns) in &rows {
-        let cost = pricing::calc_cost(model, *inp, *out, *cr, *cc);
+    let mut confidence_totals: std::collections::BTreeMap<String, (i64, f64)> =
+        std::collections::BTreeMap::new();
+    let mut billing_mode_totals: std::collections::BTreeMap<String, (i64, f64)> =
+        std::collections::BTreeMap::new();
+    for (
+        provider,
+        model,
+        inp,
+        out,
+        cr,
+        cc,
+        _ro,
+        turns,
+        cost_nanos,
+        cost_confidence,
+        billing_mode,
+    ) in &rows
+    {
+        let cost = *cost_nanos as f64 / 1_000_000_000.0;
         total_cost += cost;
         let entry = provider_totals
             .entry(provider.clone())
@@ -320,14 +433,26 @@ fn cmd_today(db_path: &std::path::Path, json_output: bool) -> Result<()> {
         entry.3 += *cr;
         entry.4 += *cc;
         entry.5 += cost;
+        let confidence_entry = confidence_totals
+            .entry(cost_confidence.clone())
+            .or_insert((0, 0.0));
+        confidence_entry.0 += *turns;
+        confidence_entry.1 += cost;
+        let billing_entry = billing_mode_totals
+            .entry(billing_mode.clone())
+            .or_insert((0, 0.0));
+        billing_entry.0 += *turns;
+        billing_entry.1 += cost;
         println!(
-            "  {:<8}  {:<30}  turns={:<4}  in={:<8}  out={:<8}  cost={}",
+            "  {:<8}  {:<30}  turns={:<4}  in={:<8}  out={:<8}  cost={}  conf={}  mode={}",
             provider,
             model,
             turns,
             pricing::fmt_tokens(*inp),
             pricing::fmt_tokens(*out),
-            pricing::fmt_cost(cost)
+            pricing::fmt_cost(cost),
+            cost_confidence,
+            billing_mode,
         );
     }
 
@@ -343,6 +468,24 @@ fn cmd_today(db_path: &std::path::Path, json_output: bool) -> Result<()> {
             pricing::fmt_tokens(output),
             pricing::fmt_tokens(cache_read),
             pricing::fmt_tokens(cache_creation),
+            pricing::fmt_cost(cost)
+        );
+    }
+    println!("  By Confidence:");
+    for (confidence, (turns, cost)) in confidence_totals {
+        println!(
+            "    {:<8}  turns={:<6}  cost={}",
+            confidence,
+            pricing::fmt_tokens(turns),
+            pricing::fmt_cost(cost)
+        );
+    }
+    println!("  By Billing Mode:");
+    for (billing_mode, (turns, cost)) in billing_mode_totals {
+        println!(
+            "    {:<18}  turns={:<6}  cost={}",
+            billing_mode,
+            pricing::fmt_tokens(turns),
             pricing::fmt_cost(cost)
         );
     }
@@ -382,7 +525,16 @@ fn cmd_stats(db_path: &std::path::Path, json_output: bool) -> Result<()> {
     let mut stmt = conn.prepare(
         "SELECT provider, COALESCE(model,'unknown'), SUM(input_tokens), SUM(output_tokens),
                 SUM(cache_read_tokens), SUM(cache_creation_tokens), SUM(reasoning_output_tokens), COUNT(*),
-                COUNT(DISTINCT session_id)
+                COUNT(DISTINCT session_id), COALESCE(SUM(estimated_cost_nanos), 0),
+                CASE
+                    WHEN SUM(CASE WHEN cost_confidence = 'low' THEN 1 ELSE 0 END) > 0 THEN 'low'
+                    WHEN SUM(CASE WHEN cost_confidence = 'medium' THEN 1 ELSE 0 END) > 0 THEN 'medium'
+                    ELSE 'high'
+                END as cost_confidence,
+                CASE
+                    WHEN COUNT(DISTINCT billing_mode) = 1 THEN MAX(billing_mode)
+                    ELSE 'mixed'
+                END as billing_mode
          FROM turns GROUP BY provider, model ORDER BY SUM(input_tokens+output_tokens) DESC",
     )?;
     let by_model: Vec<StatsModelRow> = stmt
@@ -397,6 +549,9 @@ fn cmd_stats(db_path: &std::path::Path, json_output: bool) -> Result<()> {
                 row.get(6)?,
                 row.get(7)?,
                 row.get(8)?,
+                row.get(9)?,
+                row.get(10)?,
+                row.get(11)?,
             ))
         })?
         .filter_map(|r| match r {
@@ -410,7 +565,7 @@ fn cmd_stats(db_path: &std::path::Path, json_output: bool) -> Result<()> {
 
     let total_cost: f64 = by_model
         .iter()
-        .map(|(_, m, i, o, cr, cc, _, _, _)| pricing::calc_cost(m, *i, *o, *cr, *cc))
+        .map(|(_, _, _, _, _, _, _, _, _, cost_nanos, _, _)| *cost_nanos as f64 / 1_000_000_000.0)
         .sum();
 
     if json_output {
@@ -420,22 +575,14 @@ fn cmd_stats(db_path: &std::path::Path, json_output: bool) -> Result<()> {
                         COUNT(DISTINCT session_id), COUNT(*),
                         COALESCE(SUM(input_tokens),0), COALESCE(SUM(output_tokens),0),
                         COALESCE(SUM(cache_read_tokens),0), COALESCE(SUM(cache_creation_tokens),0),
-                        COALESCE(SUM(reasoning_output_tokens),0)
+                        COALESCE(SUM(reasoning_output_tokens),0), COALESCE(SUM(estimated_cost_nanos),0)
                  FROM turns
                  GROUP BY provider
                  ORDER BY COUNT(*) DESC",
             )?;
             stmt.query_map([], |row| {
-                let provider: String = row.get(0)?;
-                let cost = by_model
-                    .iter()
-                    .filter(|(p, _, _, _, _, _, _, _, _)| p == &provider)
-                    .map(|(_, model, i, o, cr, cc, _, _, _)| {
-                        pricing::calc_cost(model, *i, *o, *cr, *cc)
-                    })
-                    .sum::<f64>();
                 Ok(serde_json::json!({
-                    "provider": provider,
+                    "provider": row.get::<_, String>(0)?,
                     "sessions": row.get::<_, i64>(1)?,
                     "turns": row.get::<_, i64>(2)?,
                     "input_tokens": row.get::<_, i64>(3)?,
@@ -443,7 +590,45 @@ fn cmd_stats(db_path: &std::path::Path, json_output: bool) -> Result<()> {
                     "cache_read_tokens": row.get::<_, i64>(5)?,
                     "cache_creation_tokens": row.get::<_, i64>(6)?,
                     "reasoning_output_tokens": row.get::<_, i64>(7)?,
-                    "estimated_cost": (cost * 10000.0).round() / 10000.0,
+                    "estimated_cost": row.get::<_, i64>(8)? as f64 / 1_000_000_000.0,
+                }))
+            })?
+            .filter_map(|r| r.ok())
+            .collect()
+        };
+        let confidence_breakdown: Vec<serde_json::Value> = {
+            let mut stmt = conn.prepare(
+                "SELECT COALESCE(cost_confidence, 'low') as cost_confidence,
+                        COUNT(*) as turns,
+                        COALESCE(SUM(estimated_cost_nanos), 0) as cost_nanos
+                 FROM turns
+                 GROUP BY cost_confidence
+                 ORDER BY turns DESC",
+            )?;
+            stmt.query_map([], |row| {
+                Ok(serde_json::json!({
+                    "cost_confidence": row.get::<_, String>(0)?,
+                    "turns": row.get::<_, i64>(1)?,
+                    "estimated_cost": row.get::<_, i64>(2)? as f64 / 1_000_000_000.0,
+                }))
+            })?
+            .filter_map(|r| r.ok())
+            .collect()
+        };
+        let billing_mode_breakdown: Vec<serde_json::Value> = {
+            let mut stmt = conn.prepare(
+                "SELECT COALESCE(billing_mode, 'estimated_local') as billing_mode,
+                        COUNT(*) as turns,
+                        COALESCE(SUM(estimated_cost_nanos), 0) as cost_nanos
+                 FROM turns
+                 GROUP BY billing_mode
+                 ORDER BY turns DESC",
+            )?;
+            stmt.query_map([], |row| {
+                Ok(serde_json::json!({
+                    "billing_mode": row.get::<_, String>(0)?,
+                    "turns": row.get::<_, i64>(1)?,
+                    "estimated_cost": row.get::<_, i64>(2)? as f64 / 1_000_000_000.0,
                 }))
             })?
             .filter_map(|r| r.ok())
@@ -451,16 +636,32 @@ fn cmd_stats(db_path: &std::path::Path, json_output: bool) -> Result<()> {
         };
         let models: Vec<serde_json::Value> = by_model
             .iter()
-            .map(|(provider, model, mi, mo, mcr, mcc, mro, mt, ms)| {
-                let cost = pricing::calc_cost(model, *mi, *mo, *mcr, *mcc);
-                serde_json::json!({
-                    "provider": provider, "model": model, "sessions": ms, "turns": mt,
-                    "input_tokens": mi, "output_tokens": mo,
-                    "cache_read_tokens": mcr, "cache_creation_tokens": mcc,
-                    "reasoning_output_tokens": mro,
-                    "estimated_cost": (cost * 10000.0).round() / 10000.0,
-                })
-            })
+            .map(
+                |(
+                    provider,
+                    model,
+                    mi,
+                    mo,
+                    mcr,
+                    mcc,
+                    mro,
+                    mt,
+                    ms,
+                    cost_nanos,
+                    cost_confidence,
+                    billing_mode,
+                )| {
+                    serde_json::json!({
+                        "provider": provider, "model": model, "sessions": ms, "turns": mt,
+                        "input_tokens": mi, "output_tokens": mo,
+                        "cache_read_tokens": mcr, "cache_creation_tokens": mcc,
+                        "reasoning_output_tokens": mro,
+                        "estimated_cost": *cost_nanos as f64 / 1_000_000_000.0,
+                        "cost_confidence": cost_confidence,
+                        "billing_mode": billing_mode,
+                    })
+                },
+            )
             .collect();
         let f = |s: &Option<String>| {
             s.as_deref()
@@ -480,6 +681,8 @@ fn cmd_stats(db_path: &std::path::Path, json_output: bool) -> Result<()> {
             "total_reasoning_output_tokens": ro,
             "total_estimated_cost": (total_cost * 10000.0).round() / 10000.0,
             "by_provider": by_provider,
+            "confidence_breakdown": confidence_breakdown,
+            "billing_mode_breakdown": billing_mode_breakdown,
             "by_model": models,
         });
         println!("{}", serde_json::to_string_pretty(&output)?);
@@ -528,21 +731,51 @@ fn cmd_stats(db_path: &std::path::Path, json_output: bool) -> Result<()> {
     println!("  By Provider:");
     let mut by_provider: std::collections::BTreeMap<String, ProviderRollup> =
         std::collections::BTreeMap::new();
-    for (provider, model, mi, mo, mcr, mcc, mro, mt, _ms) in &by_model {
-        let cost = pricing::calc_cost(model, *mi, *mo, *mcr, *mcc);
+    let mut by_confidence: std::collections::BTreeMap<String, (i64, f64)> =
+        std::collections::BTreeMap::new();
+    let mut by_billing_mode: std::collections::BTreeMap<String, (i64, f64)> =
+        std::collections::BTreeMap::new();
+    for (
+        provider,
+        _model,
+        mi,
+        mo,
+        mcr,
+        mcc,
+        mro,
+        mt,
+        _ms,
+        cost_nanos,
+        cost_confidence,
+        billing_mode,
+    ) in &by_model
+    {
+        let cost = *cost_nanos as f64 / 1_000_000_000.0;
         let entry = by_provider
             .entry(provider.clone())
-            .or_insert((0, 0, 0, 0, 0, 0, 0.0));
+            .or_insert((0, 0, 0, 0, 0, 0, 0));
         entry.0 += *mt;
         entry.1 += *mi;
         entry.2 += *mo;
         entry.3 += *mcr;
         entry.4 += *mcc;
         entry.5 += *mro;
-        entry.6 += cost;
+        entry.6 += *cost_nanos;
+        let confidence_entry = by_confidence
+            .entry(cost_confidence.clone())
+            .or_insert((0, 0.0));
+        confidence_entry.0 += *mt;
+        confidence_entry.1 += cost;
+        let billing_entry = by_billing_mode
+            .entry(billing_mode.clone())
+            .or_insert((0, 0.0));
+        billing_entry.0 += *mt;
+        billing_entry.1 += cost;
     }
-    for (provider, (turns, input, output, cache_read, cache_creation, reasoning_output, cost)) in
-        by_provider
+    for (
+        provider,
+        (turns, input, output, cache_read, cache_creation, reasoning_output, cost_nanos),
+    ) in by_provider
     {
         println!(
             "    {:<8}  turns={:<6}  in={:<8}  out={:<8}  cached={:<8}  reasoning={:<8}  cost={}",
@@ -552,7 +785,7 @@ fn cmd_stats(db_path: &std::path::Path, json_output: bool) -> Result<()> {
             pricing::fmt_tokens(output),
             pricing::fmt_tokens(cache_read),
             pricing::fmt_tokens(reasoning_output),
-            pricing::fmt_cost(cost)
+            pricing::fmt_cost(cost_nanos as f64 / 1_000_000_000.0)
         );
         if cache_creation > 0 {
             println!(
@@ -562,18 +795,52 @@ fn cmd_stats(db_path: &std::path::Path, json_output: bool) -> Result<()> {
         }
     }
     println!("{}", "-".repeat(70));
-    println!("  By Model:");
-    for (provider, model, mi, mo, mcr, mcc, _mro, mt, ms) in &by_model {
-        let cost = pricing::calc_cost(model, *mi, *mo, *mcr, *mcc);
+    println!("  By Confidence:");
+    for (confidence, (turns, cost)) in by_confidence {
         println!(
-            "    {:<8}  {:<30}  sessions={:<4}  turns={:<6}  in={:<8}  out={:<8}  cost={}",
+            "    {:<8}  turns={:<6}  cost={}",
+            confidence,
+            pricing::fmt_tokens(turns),
+            pricing::fmt_cost(cost)
+        );
+    }
+    println!("  By Billing Mode:");
+    for (billing_mode, (turns, cost)) in by_billing_mode {
+        println!(
+            "    {:<18}  turns={:<6}  cost={}",
+            billing_mode,
+            pricing::fmt_tokens(turns),
+            pricing::fmt_cost(cost)
+        );
+    }
+    println!("{}", "-".repeat(70));
+    println!("  By Model:");
+    for (
+        provider,
+        model,
+        mi,
+        mo,
+        _mcr,
+        _mcc,
+        _mro,
+        mt,
+        ms,
+        cost_nanos,
+        cost_confidence,
+        billing_mode,
+    ) in &by_model
+    {
+        println!(
+            "    {:<8}  {:<30}  sessions={:<4}  turns={:<6}  in={:<8}  out={:<8}  cost={}  conf={}  mode={}",
             provider,
             model,
             ms,
             pricing::fmt_tokens(*mt),
             pricing::fmt_tokens(*mi),
             pricing::fmt_tokens(*mo),
-            pricing::fmt_cost(cost)
+            pricing::fmt_cost(*cost_nanos as f64 / 1_000_000_000.0),
+            cost_confidence,
+            billing_mode
         );
     }
     println!("{}", "=".repeat(70));

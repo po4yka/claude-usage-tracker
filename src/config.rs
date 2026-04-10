@@ -25,6 +25,10 @@ pub struct Config {
     /// Webhook notification settings.
     #[serde(default)]
     pub webhooks: WebhookConfig,
+
+    /// Optional OpenAI organization usage reconciliation for Codex API-backed usage.
+    #[serde(default)]
+    pub openai: OpenAiConfig,
 }
 
 #[derive(Debug, Deserialize)]
@@ -41,6 +45,30 @@ impl Default for OAuthConfig {
         Self {
             enabled: true,
             refresh_interval: 60,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(default)]
+pub struct OpenAiConfig {
+    /// Enable OpenAI organization usage reconciliation (default: true if OPENAI_ADMIN_KEY exists).
+    pub enabled: bool,
+    /// Environment variable name that stores the OpenAI admin key.
+    pub admin_key_env: String,
+    /// Seconds between API refreshes.
+    pub refresh_interval: u64,
+    /// Number of trailing days to compare against local Codex estimates.
+    pub lookback_days: i64,
+}
+
+impl Default for OpenAiConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            admin_key_env: "OPENAI_ADMIN_KEY".into(),
+            refresh_interval: 300,
+            lookback_days: 30,
         }
     }
 }
@@ -261,6 +289,35 @@ output = 8.0
         assert!(config.webhooks.url.is_none());
         assert!(config.webhooks.cost_threshold.is_none());
         assert!(!config.webhooks.session_depleted);
+    }
+
+    #[test]
+    fn test_openai_config_defaults() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("config.toml");
+        std::fs::File::create(&path).unwrap();
+        let config = load_config_from(&path);
+        assert!(config.openai.enabled);
+        assert_eq!(config.openai.admin_key_env, "OPENAI_ADMIN_KEY");
+        assert_eq!(config.openai.refresh_interval, 300);
+        assert_eq!(config.openai.lookback_days, 30);
+    }
+
+    #[test]
+    fn test_openai_config_custom() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("config.toml");
+        let mut f = std::fs::File::create(&path).unwrap();
+        write!(
+            f,
+            "[openai]\nenabled = false\nadmin_key_env = \"CUSTOM_OPENAI_KEY\"\nrefresh_interval = 600\nlookback_days = 14\n"
+        )
+        .unwrap();
+        let config = load_config_from(&path);
+        assert!(!config.openai.enabled);
+        assert_eq!(config.openai.admin_key_env, "CUSTOM_OPENAI_KEY");
+        assert_eq!(config.openai.refresh_interval, 600);
+        assert_eq!(config.openai.lookback_days, 14);
     }
 
     #[test]
