@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Claude Code Usage</title>
+<title>Usage</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -14,7 +14,7 @@
 </head>
 <body>
 <header>
-  <h1><span class="accent">Claude</span> Usage <span id="plan-badge" aria-live="polite" style="display:none;font-size:10px;padding:1px 6px;border-radius:3px;background:var(--accent-muted);color:var(--accent);vertical-align:middle;margin-left:6px;font-weight:500"></span></h1>
+  <h1><span class="accent">Code</span> Usage <span id="plan-badge" aria-live="polite" style="display:none;font-size:10px;padding:1px 6px;border-radius:3px;background:var(--accent-muted);color:var(--accent);vertical-align:middle;margin-left:6px;font-weight:500"></span></h1>
   <div class="meta" id="meta"></div>
   <div class="header-actions">
     <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme">
@@ -78,11 +78,38 @@
   <div class="bento-full" id="model-cost-mount"></div>
   <div class="bento-full" id="sessions-mount"></div>
   <div class="bento-full" id="project-cost-mount"></div>
+
+  <section id="codex-section" class="bento-full" style="display:none">
+    <div class="card card-flat" style="margin-bottom:12px">
+      <h2>Codex Analytics</h2>
+      <div class="muted">Provider-specific local usage from Codex archived session logs.</div>
+    </div>
+    <div id="codex-stats-row" class="bento-full" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:12px"></div>
+    <div class="card bento-2 chart-card">
+      <h2 id="codex-daily-chart-title">Codex Daily Usage</h2>
+      <div class="chart-wrap tall"><div id="codex-chart-daily"></div></div>
+    </div>
+    <div class="card chart-card">
+      <h2>Codex by Model</h2>
+      <div class="chart-wrap"><div id="codex-chart-model"></div></div>
+    </div>
+    <div class="card chart-card">
+      <h2>Codex Top Projects</h2>
+      <div class="chart-wrap"><div id="codex-chart-project"></div></div>
+    </div>
+    <div class="bento-full" id="codex-model-cost-mount"></div>
+    <div class="card card-flat bento-full table-card" id="codex-tool-summary"></div>
+    <div class="card card-flat bento-full table-card" id="codex-mcp-summary"></div>
+    <div class="card card-flat bento-full table-card" id="codex-branch-summary"></div>
+    <div class="card card-flat bento-2 table-card" id="codex-version-summary"></div>
+    <div class="card card-flat bento-2 table-card" id="codex-hourly-chart"></div>
+    <div class="bento-full" id="codex-project-cost-mount"></div>
+  </section>
 </div>
 
 <footer role="contentinfo">
   <div class="footer-content">
-    <p>Cost estimates based on <a href="https://docs.anthropic.com/en/docs/about-claude/pricing" target="_blank">Anthropic API pricing</a>. Actual costs for Max/Pro subscribers differ.</p>
+    <p>Cost estimates are based on <a href="https://docs.anthropic.com/en/docs/about-claude/pricing" target="_blank">Anthropic pricing</a> and <a href="https://developers.openai.com/api/docs/pricing" target="_blank">OpenAI pricing</a>. Local dashboard totals are estimates, not subscriber billing statements.</p>
     <p><a href="https://github.com/po4yka/claude-usage-tracker" target="_blank">GitHub</a> &middot; MIT License</p>
   </div>
 </footer>

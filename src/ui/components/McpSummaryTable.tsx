@@ -4,6 +4,8 @@ import type { McpServerSummary } from '../state/types';
 import { DataTable } from './DataTable';
 
 const columns: ColumnDef<McpServerSummary, any>[] = [
+  { accessorKey: 'provider', header: 'Provider',
+    cell: ({ getValue }) => <span class="model-tag">{String(getValue()).toUpperCase()}</span> },
   { accessorKey: 'server', header: 'MCP Server',
     cell: ({ getValue }) => <span class="model-tag mcp">{String(getValue())}</span> },
   { accessorKey: 'tools_used', header: 'Tools',

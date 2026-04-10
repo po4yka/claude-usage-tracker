@@ -4,15 +4,23 @@ export function Footer() {
     <footer>
       <div class="footer-content">
         <p>
-          Cost estimates based on Anthropic API pricing (
+          Cost estimates based on Anthropic and OpenAI API pricing (
           <a
             href="https://docs.anthropic.com/en/docs/about-claude/pricing"
             target="_blank"
             rel="noopener noreferrer"
           >
-            docs.anthropic.com/pricing
+            Anthropic
           </a>
-          ). Actual costs for Max/Pro subscribers differ.
+          {' '}+{' '}
+          <a
+            href="https://developers.openai.com/api/docs/pricing"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            OpenAI
+          </a>
+          ). Local dashboard totals are estimates, not subscriber billing statements.
         </p>
         <p>
           GitHub:{' '}

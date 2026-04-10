@@ -29,6 +29,7 @@ import type {
   BranchSummary,
   VersionSummary,
   DashboardData,
+  DailyModelRow,
   DailyAgg,
   ModelAgg,
   ProjectAgg,
@@ -78,13 +79,6 @@ let previousSessionPercent: number | null = null;
 let loadDataInFlight = false;
 let loadUsageWindowsInFlight = false;
 
-// ── Model classification (for filter defaults only, costs come from server) ──
-function isAnthropicModel(model: string): boolean {
-  if (!model) return false;
-  const m = model.toLowerCase();
-  return m.includes('opus') || m.includes('sonnet') || m.includes('haiku');
-}
-
 function getRangeCutoff(range: RangeKey): string | null {
   if (range === 'all') return null;
   const days = range === '7d' ? 7 : range === '30d' ? 30 : 90;
@@ -118,15 +112,14 @@ function modelPriority(m: string): number {
 
 function readURLModels(allModels: string[]): Set<string> {
   const param = new URLSearchParams(window.location.search).get('models');
-  if (!param) return new Set(allModels.filter(m => isAnthropicModel(m)));
+  if (!param) return new Set(allModels);
   const fromURL = new Set(param.split(',').map(s => s.trim()).filter(Boolean));
   return new Set(allModels.filter(m => fromURL.has(m)));
 }
 
 function isDefaultModelSelection(allModels: string[]): boolean {
-  const billable = allModels.filter(m => isAnthropicModel(m));
-  if (selectedModels.value.size !== billable.length) return false;
-  return billable.every(m => selectedModels.value.has(m));
+  if (selectedModels.value.size !== allModels.length) return false;
+  return allModels.every(m => selectedModels.value.has(m));
 }
 
 function buildFilterUI(allModels: string[]): void {
@@ -210,50 +203,83 @@ function updateURL(): void {
 
 // ── Sort helpers (moved to Preact table components) ───────────────────
 
-// ── Aggregation & filtering ────────────────────────────────────────────
-function applyFilter(): void {
-  if (!rawData.value) return;
-  const cutoff = getRangeCutoff(selectedRange.value);
-
-  const filteredDaily = rawData.value.daily_by_model.filter(r =>
-    selectedModels.value.has(r.model) && (!cutoff || r.day >= cutoff)
-  );
-
+function buildAggregations(filteredDaily: DailyModelRow[], filteredSessions: typeof lastFilteredSessions.value) {
   const dailyMap: Record<string, DailyAgg> = {};
   for (const r of filteredDaily) {
-    if (!dailyMap[r.day]) dailyMap[r.day] = { day: r.day, input: 0, output: 0, cache_read: 0, cache_creation: 0 };
+    if (!dailyMap[r.day]) {
+      dailyMap[r.day] = {
+        day: r.day,
+        input: 0,
+        output: 0,
+        cache_read: 0,
+        cache_creation: 0,
+        reasoning_output: 0,
+      };
+    }
     const d = dailyMap[r.day];
-    d.input += r.input; d.output += r.output;
-    d.cache_read += r.cache_read; d.cache_creation += r.cache_creation;
+    d.input += r.input;
+    d.output += r.output;
+    d.cache_read += r.cache_read;
+    d.cache_creation += r.cache_creation;
+    d.reasoning_output += r.reasoning_output;
   }
   const daily = Object.values(dailyMap).sort((a, b) => a.day.localeCompare(b.day));
 
   const modelMap: Record<string, ModelAgg> = {};
   for (const r of filteredDaily) {
-    if (!modelMap[r.model]) modelMap[r.model] = { model: r.model, input: 0, output: 0, cache_read: 0, cache_creation: 0, turns: 0, sessions: 0, cost: 0, is_billable: r.cost > 0 || isAnthropicModel(r.model) };
+    if (!modelMap[r.model]) {
+      modelMap[r.model] = {
+        model: r.model,
+        input: 0,
+        output: 0,
+        cache_read: 0,
+        cache_creation: 0,
+        reasoning_output: 0,
+        turns: 0,
+        sessions: 0,
+        cost: 0,
+        is_billable: r.cost > 0,
+      };
+    }
     const m = modelMap[r.model];
-    m.input += r.input; m.output += r.output;
-    m.cache_read += r.cache_read; m.cache_creation += r.cache_creation;
-    m.turns += r.turns; m.cost += r.cost;
+    m.input += r.input;
+    m.output += r.output;
+    m.cache_read += r.cache_read;
+    m.cache_creation += r.cache_creation;
+    m.reasoning_output += r.reasoning_output;
+    m.turns += r.turns;
+    m.cost += r.cost;
+    if (r.cost > 0) m.is_billable = true;
   }
-
-  const filteredSessions = rawData.value.sessions_all.filter(s =>
-    selectedModels.value.has(s.model) && (!cutoff || s.last_date >= cutoff) && matchesProjectSearch(s.project)
-  );
 
   for (const s of filteredSessions) {
     if (modelMap[s.model]) modelMap[s.model].sessions++;
   }
-
   const byModel = Object.values(modelMap).sort((a, b) => (b.input + b.output) - (a.input + a.output));
 
   const projMap: Record<string, ProjectAgg> = {};
   for (const s of filteredSessions) {
-    if (!projMap[s.project]) projMap[s.project] = { project: s.project, input: 0, output: 0, cache_read: 0, cache_creation: 0, turns: 0, sessions: 0, cost: 0 };
+    if (!projMap[s.project]) {
+      projMap[s.project] = {
+        project: s.project,
+        input: 0,
+        output: 0,
+        cache_read: 0,
+        cache_creation: 0,
+        reasoning_output: 0,
+        turns: 0,
+        sessions: 0,
+        cost: 0,
+      };
+    }
     const p = projMap[s.project];
-    p.input += s.input; p.output += s.output;
-    p.cache_read += s.cache_read; p.cache_creation += s.cache_creation;
-    p.turns += s.turns; p.sessions++;
+    p.input += s.input;
+    p.output += s.output;
+    p.cache_read += s.cache_read;
+    p.cache_creation += s.cache_creation;
+    p.reasoning_output += s.reasoning_output;
+    p.turns += s.turns;
+    p.sessions++;
     p.cost += s.cost;
   }
   const byProject = Object.values(projMap).sort((a, b) => (b.input + b.output) - (a.input + a.output));
@@ -265,10 +291,90 @@ function applyFilter(): void {
     output: byModel.reduce((s, m) => s + m.output, 0),
     cache_read: byModel.reduce((s, m) => s + m.cache_read, 0),
     cache_creation: byModel.reduce((s, m) => s + m.cache_creation, 0),
+    reasoning_output: byModel.reduce((s, m) => s + m.reasoning_output, 0),
     cost: filteredSessions.reduce((s, sess) => s + sess.cost, 0),
   };
 
-  $('daily-chart-title').textContent = 'Daily Token Usage \u2014 ' + RANGE_LABELS[selectedRange.value];
+  return { daily, byModel, byProject, totals };
+}
+
+function renderPlaceholder(containerId: string, title: string, message: string): void {
+  const container = $(containerId);
+  if (!container) return;
+  render(
+    <div class="card">
+      <h2>{title}</h2>
+      <div class="muted">{message}</div>
+    </div>,
+    container
+  );
+}
+
+function renderCodexSection(filteredDaily: DailyModelRow[], filteredSessions: typeof lastFilteredSessions.value): void {
+  const section = $('codex-section');
+  if (!section || !rawData.value) return;
+
+  const codexDailyRows = filteredDaily.filter(r => r.provider === 'codex');
+  const codexSessions = filteredSessions.filter(s => s.provider === 'codex');
+  const hasCodex =
+    codexDailyRows.length > 0 ||
+    codexSessions.length > 0 ||
+    rawData.value.provider_breakdown.some(row => row.provider === 'codex');
+  section.style.display = hasCodex ? '' : 'none';
+  if (!hasCodex) return;
+
+  const { daily, byModel, byProject, totals } = buildAggregations(codexDailyRows, codexSessions);
+  $('codex-daily-chart-title').textContent = 'Codex Daily Usage - ' + RANGE_LABELS[selectedRange.value];
+
+  render(<StatsCards totals={totals} daily={daily} />, $('codex-stats-row'));
+  render(<DailyChart daily={daily} />, $('codex-chart-daily'));
+  render(<ModelChart byModel={byModel} />, $('codex-chart-model'));
+  render(<ProjectChart byProject={byProject} />, $('codex-chart-project'));
+  render(<ModelCostTable byModel={byModel} />, $('codex-model-cost-mount'));
+  render(
+    <ProjectCostTable
+      byProject={byProject.slice(0, 30)}
+      onExportCSV={() => exportProjectRowsCSV('codex-projects', byProject)}
+    />,
+    $('codex-project-cost-mount')
+  );
+
+  const codexTools = rawData.value.tool_summary.filter(row => row.provider === 'codex');
+  if (codexTools.length) render(<ToolUsageTable data={codexTools} />, $('codex-tool-summary'));
+  else renderPlaceholder('codex-tool-summary', 'Codex Tool Usage', 'No Codex tool calls were recorded.');
+
+  const codexMcp = rawData.value.mcp_summary.filter(row => row.provider === 'codex');
+  if (codexMcp.length) render(<McpSummaryTable data={codexMcp} />, $('codex-mcp-summary'));
+  else renderPlaceholder('codex-mcp-summary', 'Codex MCP Servers', 'No MCP usage was recorded for Codex sessions.');
+
+  const codexBranches = rawData.value.git_branch_summary.filter(row => row.provider === 'codex');
+  if (codexBranches.length) render(<BranchTable data={codexBranches} />, $('codex-branch-summary'));
+  else renderPlaceholder('codex-branch-summary', 'Codex Branches', 'Git branch metadata was not present in the recorded Codex logs.');
+
+  const codexVersions = rawData.value.version_summary.filter(row => row.provider === 'codex');
+  if (codexVersions.length) render(<VersionTable data={codexVersions} />, $('codex-version-summary'));
+  else renderPlaceholder('codex-version-summary', 'Codex Versions', 'CLI version metadata was not available for the current Codex sessions.');
+
+  const codexHourly = rawData.value.hourly_distribution.filter(row => row.provider === 'codex');
+  if (codexHourly.length) render(<HourlyChart data={codexHourly} />, $('codex-hourly-chart'));
+  else renderPlaceholder('codex-hourly-chart', 'Codex Hourly Distribution', 'No hourly token distribution is available for Codex in the current selection.');
+}
+
+// ── Aggregation & filtering ────────────────────────────────────────────
+function applyFilter(): void {
+  if (!rawData.value) return;
+  const cutoff = getRangeCutoff(selectedRange.value);
+
+  const filteredDaily = rawData.value.daily_by_model.filter(r =>
+    selectedModels.value.has(r.model) && (!cutoff || r.day >= cutoff)
+  );
+
+  const filteredSessions = rawData.value.sessions_all.filter(s =>
+    selectedModels.value.has(s.model) && (!cutoff || s.last_date >= cutoff) && matchesProjectSearch(s.project)
+  );
+  const { daily, byModel, byProject, totals } = buildAggregations(filteredDaily, filteredSessions);
+
+  $('daily-chart-title').textContent = 'Daily Token Usage - ' + RANGE_LABELS[selectedRange.value];
 
   renderStats(totals, daily);
   renderDailyChart(daily);
@@ -279,6 +385,7 @@ function applyFilter(): void {
   render(<ModelCostTable byModel={byModel} />, $('model-cost-mount'));
   render(<SessionsTable onExportCSV={exportSessionsCSV} />, $('sessions-mount'));
   render(<ProjectCostTable byProject={lastByProject.value.slice(0, 30)} onExportCSV={exportProjectsCSV} />, $('project-cost-mount'));
+  renderCodexSection(filteredDaily, filteredSessions);
 }
 
 // ── Renderers ──────────────────────────────────────────────────────────
@@ -304,20 +411,24 @@ function renderProjectChart(byProject: ProjectAgg[]): void {
 
 // ── CSV Export ──────────────────────────────────────────────────────────
 function exportSessionsCSV(): void {
-  const header = ['Session', 'Project', 'Last Active', 'Duration (min)', 'Model', 'Turns', 'Input', 'Output', 'Cache Read', 'Cache Creation', 'Est. Cost'];
+  const header = ['Session', 'Provider', 'Project', 'Last Active', 'Duration (min)', 'Model', 'Turns', 'Input', 'Output', 'Cached Input', 'Cache Creation', 'Reasoning Output', 'Est. Cost'];
   const rows = lastFilteredSessions.value.map(s => {
     const cost = s.cost;
-    return [s.session_id, s.project, s.last, s.duration_min, s.model, s.turns, s.input, s.output, s.cache_read, s.cache_creation, cost.toFixed(4)];
+    return [s.session_id, s.provider, s.project, s.last, s.duration_min, s.model, s.turns, s.input, s.output, s.cache_read, s.cache_creation, s.reasoning_output, cost.toFixed(4)];
   });
   downloadCSV('sessions', header, rows);
 }
 
-function exportProjectsCSV(): void {
-  const header = ['Project', 'Sessions', 'Turns', 'Input', 'Output', 'Cache Read', 'Cache Creation', 'Est. Cost'];
-  const rows = lastByProject.value.map(p =>
-    [p.project, p.sessions, p.turns, p.input, p.output, p.cache_read, p.cache_creation, p.cost.toFixed(4)]
+function exportProjectRowsCSV(filename: string, rowsData: ProjectAgg[]): void {
+  const header = ['Project', 'Sessions', 'Turns', 'Input', 'Output', 'Cached Input', 'Cache Creation', 'Reasoning Output', 'Est. Cost'];
+  const rows = rowsData.map(p =>
+    [p.project, p.sessions, p.turns, p.input, p.output, p.cache_read, p.cache_creation, p.reasoning_output, p.cost.toFixed(4)]
   );
-  downloadCSV('projects', header, rows);
+  downloadCSV(filename, header, rows);
+}
+
+function exportProjectsCSV(): void {
+  exportProjectRowsCSV('projects', lastByProject.value);
 }
 
 // ── Usage Windows & Budget ──────────────────────────────────────────────

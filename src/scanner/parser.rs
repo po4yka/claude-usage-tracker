@@ -1,9 +1,13 @@
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
+
 use tracing::warn;
 
 use crate::models::{Session, SessionMeta, Turn};
+
+pub const PROVIDER_CLAUDE: &str = "claude";
+pub const PROVIDER_CODEX: &str = "codex";
 
 /// Classify a tool name into (category, mcp_server, mcp_tool).
 /// MCP tools follow the pattern: `mcp__<server>__<tool>`.
@@ -35,6 +39,17 @@ pub fn project_name_from_cwd(cwd: &str) -> String {
     }
 }
 
+pub fn session_key(provider: &str, session_id: &str) -> String {
+    format!("{provider}:{session_id}")
+}
+
+pub fn raw_session_id(session_key: &str) -> &str {
+    session_key
+        .split_once(':')
+        .map(|(_, raw)| raw)
+        .unwrap_or(session_key)
+}
+
 pub struct ParseResult {
     pub session_metas: Vec<SessionMeta>,
     pub turns: Vec<Turn>,
@@ -44,9 +59,30 @@ pub struct ParseResult {
     pub tool_results: HashMap<String, bool>,
 }
 
-/// Parse a JSONL file, deduplicating streaming events by message.id.
-/// If `skip_lines > 0`, skips that many lines from the start (for incremental updates).
-pub fn parse_jsonl_file(filepath: &Path, skip_lines: i64) -> ParseResult {
+#[derive(Debug, Clone, Default)]
+struct CodexTurnContext {
+    timestamp: String,
+    cwd: String,
+    model: String,
+}
+
+#[derive(Debug, Clone, Default)]
+struct TokenUsage {
+    input: i64,
+    output: i64,
+    cache_read: i64,
+    reasoning_output: i64,
+}
+
+/// Parse a provider-specific log file.
+pub fn parse_jsonl_file(provider: &str, filepath: &Path, skip_lines: i64) -> ParseResult {
+    match provider {
+        PROVIDER_CODEX => parse_codex_jsonl_file(filepath, skip_lines),
+        _ => parse_claude_jsonl_file(filepath, skip_lines),
+    }
+}
+
+fn parse_claude_jsonl_file(filepath: &Path, skip_lines: i64) -> ParseResult {
     let mut seen_messages: HashMap<String, Turn> = HashMap::new();
     let mut turns_no_id: Vec<Turn> = Vec::new();
     let mut session_meta: HashMap<String, SessionMeta> = HashMap::new();
@@ -59,13 +95,7 @@ pub fn parse_jsonl_file(filepath: &Path, skip_lines: i64) -> ParseResult {
         Ok(f) => f,
         Err(e) => {
             warn!("Error opening {}: {}", filepath.display(), e);
-            return ParseResult {
-                session_metas: vec![],
-                turns: vec![],
-                line_count: 0,
-                session_titles: HashMap::new(),
-                tool_results: HashMap::new(),
-            };
+            return empty_parse_result();
         }
     };
 
@@ -93,11 +123,11 @@ pub fn parse_jsonl_file(filepath: &Path, skip_lines: i64) -> ParseResult {
         let rtype = record.get("type").and_then(|v| v.as_str()).unwrap_or("");
 
         if rtype == "custom-title" {
-            if let (Some(sid), Some(title)) = (
+            if let (Some(raw_sid), Some(title)) = (
                 record.get("sessionId").and_then(|v| v.as_str()),
                 record.get("customTitle").and_then(|v| v.as_str()),
             ) {
-                session_titles.insert(sid.to_string(), title.to_string());
+                session_titles.insert(session_key(PROVIDER_CLAUDE, raw_sid), title.to_string());
             }
             continue;
         }
@@ -106,10 +136,11 @@ pub fn parse_jsonl_file(filepath: &Path, skip_lines: i64) -> ParseResult {
             continue;
         }
 
-        let session_id = match record.get("sessionId").and_then(|v| v.as_str()) {
+        let raw_session_id = match record.get("sessionId").and_then(|v| v.as_str()) {
             Some(s) if !s.is_empty() => s.to_string(),
             _ => continue,
         };
+        let session_id = session_key(PROVIDER_CLAUDE, &raw_session_id);
 
         let version = record
             .get("version")
@@ -150,7 +181,6 @@ pub fn parse_jsonl_file(filepath: &Path, skip_lines: i64) -> ParseResult {
             .and_then(|v| v.as_str())
             .map(String::from);
 
-        // Update session metadata
         session_meta
             .entry(session_id.clone())
             .and_modify(|meta| {
@@ -168,6 +198,7 @@ pub fn parse_jsonl_file(filepath: &Path, skip_lines: i64) -> ParseResult {
             })
             .or_insert_with(|| SessionMeta {
                 session_id: session_id.clone(),
+                provider: PROVIDER_CLAUDE.into(),
                 project_name: project_name_from_cwd(&cwd),
                 project_slug: slug.clone(),
                 first_timestamp: timestamp.clone(),
@@ -214,12 +245,10 @@ pub fn parse_jsonl_file(filepath: &Path, skip_lines: i64) -> ParseResult {
                 .and_then(|v| v.as_i64())
                 .unwrap_or(0);
 
-            // Skip zero-token records
             if input_tokens + output_tokens + cache_read + cache_creation == 0 {
                 continue;
             }
 
-            // Extract tool names
             let content_arr = msg.get("content").and_then(|c| c.as_array());
 
             let tool_name = content_arr
@@ -251,8 +280,7 @@ pub fn parse_jsonl_file(filepath: &Path, skip_lines: i64) -> ParseResult {
                         })
                         .filter_map(|item| {
                             let id = item.get("id").and_then(|v| v.as_str())?.to_string();
-                            let name =
-                                item.get("name").and_then(|v| v.as_str())?.to_string();
+                            let name = item.get("name").and_then(|v| v.as_str())?.to_string();
                             Some((id, name))
                         })
                         .collect()
@@ -276,12 +304,14 @@ pub fn parse_jsonl_file(filepath: &Path, skip_lines: i64) -> ParseResult {
 
             let turn = Turn {
                 session_id: session_id.clone(),
+                provider: PROVIDER_CLAUDE.into(),
                 timestamp: timestamp.clone(),
                 model,
                 input_tokens,
                 output_tokens,
                 cache_read_tokens: cache_read,
                 cache_creation_tokens: cache_creation,
+                reasoning_output_tokens: 0,
                 tool_name,
                 cwd,
                 message_id: message_id.clone(),
@@ -310,8 +340,7 @@ pub fn parse_jsonl_file(filepath: &Path, skip_lines: i64) -> ParseResult {
         {
             for block in content {
                 if block.get("type").and_then(|t| t.as_str()) == Some("tool_result")
-                    && let Some(tool_use_id) =
-                        block.get("tool_use_id").and_then(|v| v.as_str())
+                    && let Some(tool_use_id) = block.get("tool_use_id").and_then(|v| v.as_str())
                 {
                     let is_error = block
                         .get("is_error")
@@ -342,6 +371,489 @@ pub fn parse_jsonl_file(filepath: &Path, skip_lines: i64) -> ParseResult {
     }
 }
 
+fn parse_codex_jsonl_file(filepath: &Path, skip_lines: i64) -> ParseResult {
+    let mut seen_turns: HashMap<String, Turn> = HashMap::new();
+    let turns_no_id: Vec<Turn> = Vec::new();
+    let mut session_metas: HashMap<String, SessionMeta> = HashMap::new();
+    let mut tool_results: HashMap<String, bool> = HashMap::new();
+    let mut turn_contexts: HashMap<String, CodexTurnContext> = HashMap::new();
+    let mut turn_tools: HashMap<String, Vec<(String, String)>> = HashMap::new();
+    let mut line_count: i64 = 0;
+    let source_path = filepath.to_string_lossy().to_string();
+    let fallback_timestamp = file_timestamp_rfc3339(filepath);
+    let fallback_session_id = filepath
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .unwrap_or("unknown")
+        .to_string();
+    let mut raw_session_id = fallback_session_id.clone();
+    let mut session_id = session_key(PROVIDER_CODEX, &raw_session_id);
+    let mut current_turn_id: Option<String> = None;
+    let mut session_cwd = String::new();
+    let mut session_entrypoint = String::new();
+    let mut session_version: Option<String> = None;
+    let mut session_model: Option<String> = None;
+    let session_git_branch = String::new();
+
+    let file = match std::fs::File::open(filepath) {
+        Ok(f) => f,
+        Err(e) => {
+            warn!("Error opening {}: {}", filepath.display(), e);
+            return empty_parse_result();
+        }
+    };
+
+    let reader = BufReader::new(file);
+    for line_result in reader.lines() {
+        line_count += 1;
+        if line_count <= skip_lines {
+            continue;
+        }
+
+        let line = match line_result {
+            Ok(l) => l,
+            Err(_) => continue,
+        };
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        let record: serde_json::Value = match serde_json::from_str(trimmed) {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+
+        let timestamp = record
+            .get("timestamp")
+            .and_then(|v| v.as_str())
+            .unwrap_or(&fallback_timestamp)
+            .to_string();
+        let record_type = record.get("type").and_then(|v| v.as_str()).unwrap_or("");
+        let payload = record
+            .get("payload")
+            .and_then(|value| value.as_object())
+            .cloned()
+            .unwrap_or_default();
+
+        match record_type {
+            "session_meta" => {
+                raw_session_id = payload
+                    .get("id")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or(&fallback_session_id)
+                    .to_string();
+                session_id = session_key(PROVIDER_CODEX, &raw_session_id);
+                session_cwd = payload
+                    .get("cwd")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                session_entrypoint = payload
+                    .get("source")
+                    .or_else(|| payload.get("originator"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                session_version = payload
+                    .get("cli_version")
+                    .and_then(|v| v.as_str())
+                    .map(String::from);
+                let meta_ts = payload
+                    .get("timestamp")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or(&timestamp)
+                    .to_string();
+                upsert_session_meta(
+                    &mut session_metas,
+                    &session_id,
+                    SessionMeta {
+                        session_id: session_id.clone(),
+                        provider: PROVIDER_CODEX.into(),
+                        project_name: project_name_from_cwd(&session_cwd),
+                        project_slug: String::new(),
+                        first_timestamp: meta_ts.clone(),
+                        last_timestamp: meta_ts,
+                        git_branch: session_git_branch.clone(),
+                        model: session_model.clone(),
+                        entrypoint: session_entrypoint.clone(),
+                    },
+                );
+            }
+            "turn_context" => {
+                let turn_id = payload
+                    .get("turn_id")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                if turn_id.is_empty() {
+                    continue;
+                }
+                current_turn_id = Some(turn_id.clone());
+                let cwd = payload
+                    .get("cwd")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or(&session_cwd)
+                    .to_string();
+                let model = payload
+                    .get("model")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                if !cwd.is_empty() {
+                    session_cwd = cwd.clone();
+                }
+                if !model.is_empty() {
+                    session_model = Some(model.clone());
+                }
+                turn_contexts.insert(
+                    turn_id,
+                    CodexTurnContext {
+                        timestamp: timestamp.clone(),
+                        cwd,
+                        model,
+                    },
+                );
+                touch_session_meta(
+                    &mut session_metas,
+                    &session_id,
+                    &timestamp,
+                    &session_cwd,
+                    &session_git_branch,
+                    session_model.as_deref(),
+                    &session_entrypoint,
+                );
+            }
+            "event_msg" => {
+                let payload_type = payload.get("type").and_then(|v| v.as_str()).unwrap_or("");
+                match payload_type {
+                    "task_started" => {
+                        current_turn_id = payload
+                            .get("turn_id")
+                            .and_then(|v| v.as_str())
+                            .map(String::from);
+                        if let Some(turn_id) = current_turn_id.clone() {
+                            turn_contexts
+                                .entry(turn_id)
+                                .or_insert_with(|| CodexTurnContext {
+                                    timestamp: timestamp.clone(),
+                                    cwd: session_cwd.clone(),
+                                    model: session_model.clone().unwrap_or_default(),
+                                });
+                        }
+                        touch_session_meta(
+                            &mut session_metas,
+                            &session_id,
+                            &timestamp,
+                            &session_cwd,
+                            &session_git_branch,
+                            session_model.as_deref(),
+                            &session_entrypoint,
+                        );
+                    }
+                    "task_complete" => {
+                        touch_session_meta(
+                            &mut session_metas,
+                            &session_id,
+                            &timestamp,
+                            &session_cwd,
+                            &session_git_branch,
+                            session_model.as_deref(),
+                            &session_entrypoint,
+                        );
+                    }
+                    "token_count" => {
+                        let usage = parse_codex_token_usage(&payload);
+                        if usage.input + usage.output + usage.cache_read + usage.reasoning_output
+                            == 0
+                        {
+                            continue;
+                        }
+
+                        let turn_id = current_turn_id
+                            .clone()
+                            .unwrap_or_else(|| format!("line-{line_count}"));
+                        let context = turn_contexts.get(&turn_id).cloned().unwrap_or_default();
+                        let turn_timestamp = if !timestamp.is_empty() {
+                            timestamp.clone()
+                        } else if !context.timestamp.is_empty() {
+                            context.timestamp
+                        } else {
+                            fallback_timestamp.clone()
+                        };
+                        let cwd = if !context.cwd.is_empty() {
+                            context.cwd
+                        } else {
+                            session_cwd.clone()
+                        };
+                        let model = if !context.model.is_empty() {
+                            context.model
+                        } else {
+                            session_model.clone().unwrap_or_else(|| "unknown".into())
+                        };
+                        if !model.is_empty() && model != "unknown" {
+                            session_model = Some(model.clone());
+                        }
+
+                        let tool_use_ids = turn_tools.get(&turn_id).cloned().unwrap_or_default();
+                        let tool_name = tool_use_ids.first().map(|(_, name)| name.clone());
+
+                        let turn = Turn {
+                            session_id: session_id.clone(),
+                            provider: PROVIDER_CODEX.into(),
+                            timestamp: turn_timestamp.clone(),
+                            model,
+                            input_tokens: usage.input,
+                            output_tokens: usage.output,
+                            cache_read_tokens: usage.cache_read,
+                            cache_creation_tokens: 0,
+                            reasoning_output_tokens: usage.reasoning_output,
+                            tool_name,
+                            cwd: cwd.clone(),
+                            message_id: turn_id.clone(),
+                            service_tier: None,
+                            inference_geo: None,
+                            is_subagent: false,
+                            agent_id: None,
+                            source_path: source_path.clone(),
+                            version: session_version.clone(),
+                            all_tools: tool_use_ids.iter().map(|(_, name)| name.clone()).collect(),
+                            tool_use_ids,
+                        };
+
+                        seen_turns.insert(turn_id, turn);
+                        touch_session_meta(
+                            &mut session_metas,
+                            &session_id,
+                            &turn_timestamp,
+                            &cwd,
+                            &session_git_branch,
+                            session_model.as_deref(),
+                            &session_entrypoint,
+                        );
+                    }
+                    _ if payload_type.ends_with("_end") => {
+                        if let Some(call_id) = payload.get("call_id").and_then(|v| v.as_str()) {
+                            let status = payload
+                                .get("status")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("completed");
+                            let exit_code = payload
+                                .get("exit_code")
+                                .and_then(|v| v.as_i64())
+                                .unwrap_or(0);
+                            tool_results.insert(
+                                call_id.to_string(),
+                                status != "completed" || exit_code != 0,
+                            );
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            "response_item" => {
+                let payload_type = payload.get("type").and_then(|v| v.as_str()).unwrap_or("");
+                match payload_type {
+                    "function_call" | "custom_tool_call" => {
+                        let turn_id = current_turn_id
+                            .clone()
+                            .unwrap_or_else(|| format!("line-{line_count}"));
+                        let call_id = payload
+                            .get("call_id")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string();
+                        let tool_name = payload
+                            .get("name")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string();
+                        if !tool_name.is_empty() {
+                            let key = if call_id.is_empty() {
+                                format!("{turn_id}:{tool_name}:{}", turn_tools.len())
+                            } else {
+                                call_id.clone()
+                            };
+                            turn_tools
+                                .entry(turn_id)
+                                .or_default()
+                                .push((key, tool_name));
+                        }
+                        if let Some(status) = payload.get("status").and_then(|v| v.as_str())
+                            && let Some(call_id) = payload.get("call_id").and_then(|v| v.as_str())
+                        {
+                            tool_results.insert(call_id.to_string(), status != "completed");
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let mut turns = turns_no_id;
+    turns.extend(seen_turns.into_values());
+    turns.sort_by(|a, b| {
+        a.session_id
+            .cmp(&b.session_id)
+            .then_with(|| a.timestamp.cmp(&b.timestamp))
+            .then_with(|| a.message_id.cmp(&b.message_id))
+            .then_with(|| a.model.cmp(&b.model))
+    });
+
+    ParseResult {
+        session_metas: session_metas.into_values().collect(),
+        turns,
+        line_count,
+        session_titles: HashMap::new(),
+        tool_results,
+    }
+}
+
+fn empty_parse_result() -> ParseResult {
+    ParseResult {
+        session_metas: vec![],
+        turns: vec![],
+        line_count: 0,
+        session_titles: HashMap::new(),
+        tool_results: HashMap::new(),
+    }
+}
+
+fn file_timestamp_rfc3339(filepath: &Path) -> String {
+    std::fs::metadata(filepath)
+        .ok()
+        .and_then(|meta| meta.modified().ok())
+        .map(chrono::DateTime::<chrono::Utc>::from)
+        .map(|ts| ts.to_rfc3339())
+        .unwrap_or_default()
+}
+
+fn upsert_session_meta(
+    metas: &mut HashMap<String, SessionMeta>,
+    session_id: &str,
+    meta: SessionMeta,
+) {
+    metas
+        .entry(session_id.to_string())
+        .and_modify(|existing| {
+            merge_session_meta(
+                existing,
+                &meta.first_timestamp,
+                &meta.project_name,
+                &meta.git_branch,
+                meta.model.as_deref(),
+                &meta.entrypoint,
+            );
+            if existing.project_slug.is_empty() {
+                existing.project_slug = meta.project_slug.clone();
+            }
+        })
+        .or_insert(meta);
+}
+
+fn touch_session_meta(
+    metas: &mut HashMap<String, SessionMeta>,
+    session_id: &str,
+    timestamp: &str,
+    cwd: &str,
+    git_branch: &str,
+    model: Option<&str>,
+    entrypoint: &str,
+) {
+    let project_name = project_name_from_cwd(cwd);
+    metas
+        .entry(session_id.to_string())
+        .and_modify(|meta| {
+            merge_session_meta(
+                meta,
+                timestamp,
+                &project_name,
+                git_branch,
+                model,
+                entrypoint,
+            )
+        })
+        .or_insert_with(|| SessionMeta {
+            session_id: session_id.to_string(),
+            provider: PROVIDER_CODEX.into(),
+            project_name,
+            project_slug: String::new(),
+            first_timestamp: timestamp.to_string(),
+            last_timestamp: timestamp.to_string(),
+            git_branch: git_branch.to_string(),
+            model: model.map(String::from),
+            entrypoint: entrypoint.to_string(),
+        });
+}
+
+fn merge_session_meta(
+    meta: &mut SessionMeta,
+    timestamp: &str,
+    project_name: &str,
+    git_branch: &str,
+    model: Option<&str>,
+    entrypoint: &str,
+) {
+    if !timestamp.is_empty() {
+        if meta.first_timestamp.is_empty() || timestamp < meta.first_timestamp.as_str() {
+            meta.first_timestamp = timestamp.to_string();
+        }
+        if meta.last_timestamp.is_empty() || timestamp > meta.last_timestamp.as_str() {
+            meta.last_timestamp = timestamp.to_string();
+        }
+    }
+    if meta.project_name == "unknown" && project_name != "unknown" {
+        meta.project_name = project_name.to_string();
+    }
+    if meta.git_branch.is_empty() && !git_branch.is_empty() {
+        meta.git_branch = git_branch.to_string();
+    }
+    if meta.entrypoint.is_empty() && !entrypoint.is_empty() {
+        meta.entrypoint = entrypoint.to_string();
+    }
+    if let Some(model) = model
+        && !model.is_empty()
+    {
+        meta.model = Some(model.to_string());
+    }
+}
+
+fn parse_codex_token_usage(payload: &serde_json::Map<String, serde_json::Value>) -> TokenUsage {
+    let info = payload.get("info").and_then(|v| v.as_object());
+    let usage = info
+        .and_then(|info| info.get("last_token_usage"))
+        .and_then(|v| v.as_object())
+        .or_else(|| {
+            info.and_then(|info| info.get("total_token_usage"))
+                .and_then(|v| v.as_object())
+        });
+
+    let Some(usage) = usage else {
+        return TokenUsage::default();
+    };
+
+    TokenUsage {
+        input: usage
+            .get("input_tokens")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0),
+        output: usage
+            .get("output_tokens")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0),
+        cache_read: usage
+            .get("cached_input_tokens")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0),
+        reasoning_output: usage
+            .get("reasoning_output_tokens")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0),
+    }
+}
+
 /// Aggregate turn data into session-level stats.
 pub fn aggregate_sessions(metas: &[SessionMeta], turns: &[Turn]) -> Vec<Session> {
     struct Stats {
@@ -349,6 +861,7 @@ pub fn aggregate_sessions(metas: &[SessionMeta], turns: &[Turn]) -> Vec<Session>
         total_output: i64,
         total_cache_read: i64,
         total_cache_creation: i64,
+        total_reasoning_output: i64,
         turn_count: i64,
         model: Option<String>,
     }
@@ -360,6 +873,7 @@ pub fn aggregate_sessions(metas: &[SessionMeta], turns: &[Turn]) -> Vec<Session>
             total_output: 0,
             total_cache_read: 0,
             total_cache_creation: 0,
+            total_reasoning_output: 0,
             turn_count: 0,
             model: None,
         });
@@ -367,6 +881,7 @@ pub fn aggregate_sessions(metas: &[SessionMeta], turns: &[Turn]) -> Vec<Session>
         entry.total_output += t.output_tokens;
         entry.total_cache_read += t.cache_read_tokens;
         entry.total_cache_creation += t.cache_creation_tokens;
+        entry.total_reasoning_output += t.reasoning_output_tokens;
         entry.turn_count += 1;
         if !t.model.is_empty() {
             entry.model = Some(t.model.clone());
@@ -381,12 +896,14 @@ pub fn aggregate_sessions(metas: &[SessionMeta], turns: &[Turn]) -> Vec<Session>
                 total_output: 0,
                 total_cache_read: 0,
                 total_cache_creation: 0,
+                total_reasoning_output: 0,
                 turn_count: 0,
                 model: None,
             };
             let s = stats_map.get(meta.session_id.as_str()).unwrap_or(&empty);
             Session {
                 session_id: meta.session_id.clone(),
+                provider: meta.provider.clone(),
                 project_name: meta.project_name.clone(),
                 project_slug: meta.project_slug.clone(),
                 first_timestamp: meta.first_timestamp.clone(),
@@ -398,6 +915,7 @@ pub fn aggregate_sessions(metas: &[SessionMeta], turns: &[Turn]) -> Vec<Session>
                 total_output_tokens: s.total_output,
                 total_cache_read: s.total_cache_read,
                 total_cache_creation: s.total_cache_creation,
+                total_reasoning_output: s.total_reasoning_output,
                 turn_count: s.turn_count,
                 title: None,
             }
@@ -470,7 +988,7 @@ mod tests {
     }
 
     #[test]
-    fn test_basic_parsing() {
+    fn test_basic_claude_parsing() {
         let dir = TempDir::new().unwrap();
         let path = write_jsonl(
             &dir,
@@ -480,10 +998,12 @@ mod tests {
                 make_assistant_record("s1", "claude-sonnet-4-6", 100, 50, ""),
             ],
         );
-        let result = parse_jsonl_file(&path, 0);
+        let result = parse_jsonl_file(PROVIDER_CLAUDE, &path, 0);
         assert_eq!(result.session_metas.len(), 1);
         assert_eq!(result.turns.len(), 1);
         assert_eq!(result.turns[0].input_tokens, 100);
+        assert_eq!(result.turns[0].provider, PROVIDER_CLAUDE);
+        assert_eq!(result.turns[0].session_id, "claude:s1");
         assert_eq!(result.line_count, 2);
     }
 
@@ -495,7 +1015,7 @@ mod tests {
             "test.jsonl",
             &[make_assistant_record("s1", "claude-sonnet-4-6", 0, 0, "")],
         );
-        let result = parse_jsonl_file(&path, 0);
+        let result = parse_jsonl_file(PROVIDER_CLAUDE, &path, 0);
         assert_eq!(result.turns.len(), 0);
     }
 
@@ -511,248 +1031,102 @@ mod tests {
                 make_assistant_record("s1", "claude-sonnet-4-6", 150, 80, "msg-1"),
             ],
         );
-        let result = parse_jsonl_file(&path, 0);
+        let result = parse_jsonl_file(PROVIDER_CLAUDE, &path, 0);
         assert_eq!(result.turns.len(), 1);
         assert_eq!(result.turns[0].input_tokens, 150);
     }
 
     #[test]
-    fn test_different_message_ids_kept() {
+    fn test_parse_codex_turn_uses_last_token_usage() {
         let dir = TempDir::new().unwrap();
         let path = write_jsonl(
             &dir,
-            "test.jsonl",
+            "rollout-test.jsonl",
             &[
-                make_assistant_record("s1", "claude-sonnet-4-6", 100, 50, "msg-1"),
-                make_assistant_record("s1", "claude-sonnet-4-6", 200, 100, "msg-2"),
+                serde_json::json!({
+                    "timestamp": "2026-04-09T10:00:00Z",
+                    "type": "session_meta",
+                    "payload": {
+                        "id": "sess-1",
+                        "timestamp": "2026-04-09T10:00:00Z",
+                        "cwd": "/Users/test/work/proj",
+                        "cli_version": "0.119.0",
+                        "source": "desktop"
+                    }
+                })
+                .to_string(),
+                serde_json::json!({
+                    "timestamp": "2026-04-09T10:00:01Z",
+                    "type": "turn_context",
+                    "payload": {
+                        "turn_id": "turn-1",
+                        "cwd": "/Users/test/work/proj",
+                        "model": "gpt-5.4"
+                    }
+                })
+                .to_string(),
+                serde_json::json!({
+                    "timestamp": "2026-04-09T10:00:02Z",
+                    "type": "response_item",
+                    "payload": {
+                        "type": "function_call",
+                        "name": "exec_command",
+                        "call_id": "call-1"
+                    }
+                })
+                .to_string(),
+                serde_json::json!({
+                    "timestamp": "2026-04-09T10:00:03Z",
+                    "type": "event_msg",
+                    "payload": {
+                        "type": "exec_command_end",
+                        "call_id": "call-1",
+                        "status": "failed",
+                        "exit_code": 1
+                    }
+                })
+                .to_string(),
+                serde_json::json!({
+                    "timestamp": "2026-04-09T10:00:04Z",
+                    "type": "event_msg",
+                    "payload": {
+                        "type": "token_count",
+                        "info": {
+                            "total_token_usage": {
+                                "input_tokens": 999,
+                                "cached_input_tokens": 999,
+                                "output_tokens": 999,
+                                "reasoning_output_tokens": 999
+                            },
+                            "last_token_usage": {
+                                "input_tokens": 120,
+                                "cached_input_tokens": 30,
+                                "output_tokens": 40,
+                                "reasoning_output_tokens": 12
+                            }
+                        }
+                    }
+                })
+                .to_string(),
             ],
         );
-        let result = parse_jsonl_file(&path, 0);
-        assert_eq!(result.turns.len(), 2);
-    }
 
-    #[test]
-    fn test_skip_lines() {
-        let dir = TempDir::new().unwrap();
-        let path = write_jsonl(
-            &dir,
-            "test.jsonl",
-            &[
-                make_assistant_record("s1", "claude-sonnet-4-6", 100, 50, "msg-1"),
-                make_assistant_record("s1", "claude-sonnet-4-6", 200, 100, "msg-2"),
-            ],
-        );
-        let result = parse_jsonl_file(&path, 1);
+        let result = parse_jsonl_file(PROVIDER_CODEX, &path, 0);
         assert_eq!(result.turns.len(), 1);
-        assert_eq!(result.turns[0].input_tokens, 200);
-        assert_eq!(result.line_count, 2);
-    }
-
-    #[test]
-    fn test_malformed_json_skipped() {
-        let dir = TempDir::new().unwrap();
-        let path = write_jsonl(
-            &dir,
-            "test.jsonl",
-            &[
-                "not valid json".into(),
-                make_assistant_record("s1", "claude-sonnet-4-6", 100, 50, ""),
-            ],
-        );
-        let result = parse_jsonl_file(&path, 0);
-        assert_eq!(result.turns.len(), 1);
-    }
-
-    #[test]
-    fn test_aggregate_sessions() {
-        let metas = vec![SessionMeta {
-            session_id: "s1".into(),
-            project_name: "test".into(),
-            ..Default::default()
-        }];
-        let turns = vec![
-            Turn {
-                session_id: "s1".into(),
-                input_tokens: 100,
-                output_tokens: 50,
-                model: "claude-sonnet-4-6".into(),
-                ..Default::default()
-            },
-            Turn {
-                session_id: "s1".into(),
-                input_tokens: 200,
-                output_tokens: 100,
-                model: "claude-sonnet-4-6".into(),
-                ..Default::default()
-            },
-        ];
-        let sessions = aggregate_sessions(&metas, &turns);
-        assert_eq!(sessions.len(), 1);
-        assert_eq!(sessions[0].total_input_tokens, 300);
-        assert_eq!(sessions[0].total_output_tokens, 150);
-        assert_eq!(sessions[0].turn_count, 2);
-    }
-
-    #[test]
-    fn test_aggregate_sessions_uses_latest_model() {
-        let metas = vec![SessionMeta {
-            session_id: "s1".into(),
-            project_name: "test".into(),
-            ..Default::default()
-        }];
-        let turns = vec![
-            Turn {
-                session_id: "s1".into(),
-                timestamp: "2026-04-08T09:01:00Z".into(),
-                model: "claude-sonnet-4-6".into(),
-                ..Default::default()
-            },
-            Turn {
-                session_id: "s1".into(),
-                timestamp: "2026-04-08T09:05:00Z".into(),
-                model: "claude-opus-4-6".into(),
-                ..Default::default()
-            },
-        ];
-        let sessions = aggregate_sessions(&metas, &turns);
-        assert_eq!(sessions[0].model.as_deref(), Some("claude-opus-4-6"));
-    }
-
-    #[test]
-    fn test_subagent_record_parsed() {
-        let dir = TempDir::new().unwrap();
-        let record = serde_json::json!({
-            "type": "assistant", "sessionId": "s1",
-            "timestamp": "2026-04-08T10:00:00Z", "cwd": "/home/user/project",
-            "isSidechain": true, "agentId": "agent-xyz",
-            "message": {
-                "model": "claude-sonnet-4-6", "id": "msg-sub1",
-                "usage": { "input_tokens": 100, "output_tokens": 50, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0 },
-                "content": [],
-            },
-        })
-        .to_string();
-        let path = write_jsonl(&dir, "test.jsonl", &[record]);
-        let result = parse_jsonl_file(&path, 0);
-        assert_eq!(result.turns.len(), 1);
-        assert!(result.turns[0].is_subagent);
-        assert_eq!(result.turns[0].agent_id.as_deref(), Some("agent-xyz"));
-    }
-
-    #[test]
-    fn test_non_subagent_default() {
-        let dir = TempDir::new().unwrap();
-        let path = write_jsonl(
-            &dir,
-            "test.jsonl",
-            &[make_assistant_record(
-                "s1",
-                "claude-sonnet-4-6",
-                100,
-                50,
-                "msg-1",
-            )],
-        );
-        let result = parse_jsonl_file(&path, 0);
-        assert!(!result.turns[0].is_subagent);
-        assert!(result.turns[0].agent_id.is_none());
-    }
-
-    #[test]
-    fn test_service_tier_extracted() {
-        let dir = TempDir::new().unwrap();
-        let record = serde_json::json!({
-            "type": "assistant", "sessionId": "s1",
-            "timestamp": "2026-04-08T10:00:00Z", "cwd": "/tmp",
-            "message": {
-                "model": "claude-sonnet-4-6", "id": "msg-1",
-                "usage": {
-                    "input_tokens": 100, "output_tokens": 50,
-                    "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0,
-                    "service_tier": "standard", "inference_geo": "us"
-                },
-                "content": [],
-            },
-        })
-        .to_string();
-        let path = write_jsonl(&dir, "test.jsonl", &[record]);
-        let result = parse_jsonl_file(&path, 0);
-        assert_eq!(result.turns[0].service_tier.as_deref(), Some("standard"));
-        assert_eq!(result.turns[0].inference_geo.as_deref(), Some("us"));
-    }
-
-    #[test]
-    fn test_tool_name_first_of_multiple() {
-        let dir = TempDir::new().unwrap();
-        let record = serde_json::json!({
-            "type": "assistant", "sessionId": "s1",
-            "timestamp": "2026-04-08T10:00:00Z", "cwd": "/tmp",
-            "message": {
-                "model": "claude-sonnet-4-6",
-                "usage": { "input_tokens": 100, "output_tokens": 50, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0 },
-                "content": [
-                    { "type": "text", "text": "hello" },
-                    { "type": "tool_use", "name": "Read" },
-                    { "type": "tool_use", "name": "Write" }
-                ],
-            },
-        })
-        .to_string();
-        let path = write_jsonl(&dir, "test.jsonl", &[record]);
-        let result = parse_jsonl_file(&path, 0);
-        assert_eq!(result.turns[0].tool_name.as_deref(), Some("Read"));
-        assert_eq!(result.turns[0].all_tools, vec!["Read", "Write"]);
-    }
-
-    #[test]
-    fn test_all_tools_with_mcp() {
-        let dir = TempDir::new().unwrap();
-        let record = serde_json::json!({
-            "type": "assistant", "sessionId": "s1",
-            "timestamp": "2026-04-08T10:00:00Z", "cwd": "/tmp",
-            "message": {
-                "model": "claude-sonnet-4-6",
-                "usage": { "input_tokens": 100, "output_tokens": 50, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0 },
-                "content": [
-                    { "type": "tool_use", "name": "Read" },
-                    { "type": "tool_use", "name": "mcp__codex__codex" },
-                    { "type": "tool_use", "name": "Bash" }
-                ],
-            },
-        })
-        .to_string();
-        let path = write_jsonl(&dir, "test.jsonl", &[record]);
-        let result = parse_jsonl_file(&path, 0);
+        let turn = &result.turns[0];
+        assert_eq!(turn.provider, PROVIDER_CODEX);
+        assert_eq!(turn.session_id, "codex:sess-1");
+        assert_eq!(turn.input_tokens, 120);
+        assert_eq!(turn.cache_read_tokens, 30);
+        assert_eq!(turn.output_tokens, 40);
+        assert_eq!(turn.reasoning_output_tokens, 12);
+        assert_eq!(turn.model, "gpt-5.4");
+        assert_eq!(turn.version.as_deref(), Some("0.119.0"));
         assert_eq!(
-            result.turns[0].all_tools,
-            vec!["Read", "mcp__codex__codex", "Bash"]
+            turn.tool_use_ids,
+            vec![("call-1".into(), "exec_command".into())]
         );
-    }
-
-    #[test]
-    fn test_classify_tool_builtin() {
-        assert_eq!(classify_tool("Read"), ("builtin", None, None));
-        assert_eq!(classify_tool("Write"), ("builtin", None, None));
-        assert_eq!(classify_tool("Bash"), ("builtin", None, None));
-    }
-
-    #[test]
-    fn test_classify_tool_mcp() {
-        assert_eq!(
-            classify_tool("mcp__codex__codex"),
-            ("mcp", Some("codex"), Some("codex"))
-        );
-        assert_eq!(
-            classify_tool("mcp__chrome-devtools__click"),
-            ("mcp", Some("chrome-devtools"), Some("click"))
-        );
-    }
-
-    #[test]
-    fn test_classify_tool_mcp_server_only() {
-        assert_eq!(
-            classify_tool("mcp__someserver"),
-            ("mcp", Some("someserver"), None)
-        );
+        assert_eq!(result.tool_results.get("call-1"), Some(&true));
+        assert_eq!(result.session_metas[0].project_name, "work/proj");
     }
 }

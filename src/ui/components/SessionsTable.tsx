@@ -32,6 +32,15 @@ function useSessionColumns(): ColumnDef<SessionRow, any>[] {
         enableSorting: false,
       },
       {
+        id: 'provider',
+        accessorKey: 'provider',
+        header: 'Provider',
+        enableSorting: false,
+        cell: (info: any) => (
+          <span class="model-tag">{String(info.getValue()).toUpperCase()}</span>
+        ),
+      },
+      {
         id: 'last',
         accessorKey: 'last',
         header: 'Last Active',

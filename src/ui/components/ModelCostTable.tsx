@@ -37,7 +37,7 @@ function useModelColumns(): ColumnDef<ModelAgg, any>[] {
       {
         id: 'cache_read',
         accessorKey: 'cache_read',
-        header: 'Cache Read',
+        header: 'Cached Input',
         cell: (info: any) => <span class="num">{fmt(info.getValue())}</span>,
       },
       {

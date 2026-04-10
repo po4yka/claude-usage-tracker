@@ -6,10 +6,11 @@ use std::collections::HashMap;
 
 use crate::models::{
     BranchSummary, DailyModelRow, DailyProjectRow, DashboardData, EntrypointSummary, HourlyRow,
-    McpServerSummary, ServiceTierSummary, SessionRow, ToolSummary, Turn, VersionSummary,
+    McpServerSummary, ProviderSummary, ServiceTierSummary, SessionRow, ToolSummary, Turn,
+    VersionSummary,
 };
 use crate::pricing;
-use crate::scanner::parser::classify_tool;
+use crate::scanner::parser::{classify_tool, raw_session_id};
 
 pub fn open_db(path: &std::path::Path) -> Result<Connection> {
     let conn = Connection::open(path)?;
@@ -21,6 +22,7 @@ pub fn init_db(conn: &Connection) -> Result<()> {
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS sessions (
             session_id          TEXT PRIMARY KEY,
+            provider            TEXT NOT NULL DEFAULT 'claude',
             project_name        TEXT,
             project_slug        TEXT,
             first_timestamp     TEXT,
@@ -32,18 +34,21 @@ pub fn init_db(conn: &Connection) -> Result<()> {
             total_output_tokens INTEGER DEFAULT 0,
             total_cache_read    INTEGER DEFAULT 0,
             total_cache_creation INTEGER DEFAULT 0,
+            total_reasoning_output INTEGER DEFAULT 0,
             turn_count          INTEGER DEFAULT 0
         );
 
         CREATE TABLE IF NOT EXISTS turns (
             id                      INTEGER PRIMARY KEY AUTOINCREMENT,
             session_id              TEXT NOT NULL,
+            provider                TEXT NOT NULL DEFAULT 'claude',
             timestamp               TEXT,
             model                   TEXT,
             input_tokens            INTEGER DEFAULT 0,
             output_tokens           INTEGER DEFAULT 0,
             cache_read_tokens       INTEGER DEFAULT 0,
             cache_creation_tokens   INTEGER DEFAULT 0,
+            reasoning_output_tokens INTEGER DEFAULT 0,
             tool_name               TEXT,
             cwd                     TEXT,
             message_id              TEXT,
@@ -76,13 +81,27 @@ pub fn init_db(conn: &Connection) -> Result<()> {
         CREATE INDEX IF NOT EXISTS idx_rwh_timestamp ON rate_window_history(timestamp);",
     )?;
 
-    // Conditional unique index for message_id dedup
-    conn.execute_batch(
-        "CREATE UNIQUE INDEX IF NOT EXISTS idx_turns_message_id
-         ON turns(message_id) WHERE message_id IS NOT NULL AND message_id != '';",
-    )?;
-
     // Migration: add subagent columns if upgrading from older schema
+    if !has_column(conn, "sessions", "provider") {
+        conn.execute_batch(
+            "ALTER TABLE sessions ADD COLUMN provider TEXT NOT NULL DEFAULT 'claude';",
+        )?;
+    }
+    if !has_column(conn, "sessions", "total_reasoning_output") {
+        conn.execute_batch(
+            "ALTER TABLE sessions ADD COLUMN total_reasoning_output INTEGER DEFAULT 0;",
+        )?;
+    }
+    if !has_column(conn, "turns", "provider") {
+        conn.execute_batch(
+            "ALTER TABLE turns ADD COLUMN provider TEXT NOT NULL DEFAULT 'claude';",
+        )?;
+    }
+    if !has_column(conn, "turns", "reasoning_output_tokens") {
+        conn.execute_batch(
+            "ALTER TABLE turns ADD COLUMN reasoning_output_tokens INTEGER DEFAULT 0;",
+        )?;
+    }
     if !has_column(conn, "turns", "agent_id") {
         conn.execute_batch(
             "ALTER TABLE turns ADD COLUMN is_subagent INTEGER DEFAULT 0;
@@ -98,6 +117,7 @@ pub fn init_db(conn: &Connection) -> Result<()> {
         "CREATE TABLE IF NOT EXISTS tool_invocations (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             session_id TEXT NOT NULL,
+            provider TEXT NOT NULL DEFAULT 'claude',
             message_id TEXT,
             tool_name TEXT NOT NULL,
             mcp_server TEXT,
@@ -109,6 +129,11 @@ pub fn init_db(conn: &Connection) -> Result<()> {
         CREATE INDEX IF NOT EXISTS idx_ti_tool ON tool_invocations(tool_name);
         CREATE INDEX IF NOT EXISTS idx_ti_mcp ON tool_invocations(mcp_server);",
     )?;
+    if !has_column(conn, "tool_invocations", "provider") {
+        conn.execute_batch(
+            "ALTER TABLE tool_invocations ADD COLUMN provider TEXT NOT NULL DEFAULT 'claude';",
+        )?;
+    }
 
     // Feature 1: Session titles
     if !has_column(conn, "sessions", "title") {
@@ -133,11 +158,17 @@ pub fn init_db(conn: &Connection) -> Result<()> {
 
     // Dedup by tool_use_id so repeated use of the same tool in a single turn is preserved.
     conn.execute_batch(
-        "DROP INDEX IF EXISTS idx_ti_dedup;
+        "DROP INDEX IF EXISTS idx_turns_message_id;
+         CREATE UNIQUE INDEX IF NOT EXISTS idx_turns_message_id
+         ON turns(provider, message_id) WHERE message_id IS NOT NULL AND message_id != '';
+         DROP INDEX IF EXISTS idx_ti_dedup;
+         DROP INDEX IF EXISTS idx_ti_tool_use_id;
          CREATE UNIQUE INDEX IF NOT EXISTS idx_ti_tool_use_id
-         ON tool_invocations(tool_use_id)
+         ON tool_invocations(provider, tool_use_id)
          WHERE tool_use_id IS NOT NULL AND tool_use_id != '';",
     )?;
+
+    prefix_existing_session_ids(conn)?;
 
     Ok(())
 }
@@ -145,6 +176,21 @@ pub fn init_db(conn: &Connection) -> Result<()> {
 fn has_column(conn: &Connection, table: &str, column: &str) -> bool {
     conn.prepare(&format!("SELECT {column} FROM {table} LIMIT 1"))
         .is_ok()
+}
+
+fn prefix_existing_session_ids(conn: &Connection) -> Result<()> {
+    conn.execute_batch(
+        "UPDATE sessions
+         SET session_id = provider || ':' || session_id
+         WHERE instr(session_id, ':') = 0;
+         UPDATE turns
+         SET session_id = provider || ':' || session_id
+         WHERE instr(session_id, ':') = 0;
+         UPDATE tool_invocations
+         SET session_id = provider || ':' || session_id
+         WHERE instr(session_id, ':') = 0;",
+    )?;
+    Ok(())
 }
 
 fn add_cost_by_model<K: std::cmp::Eq + std::hash::Hash>(
@@ -216,10 +262,10 @@ pub fn delete_tool_invocations_by_source_path(conn: &Connection, path: &str) -> 
 pub fn insert_turns(conn: &Connection, turns: &[Turn]) -> Result<()> {
     let mut stmt = conn.prepare(
         "INSERT OR IGNORE INTO turns
-            (session_id, timestamp, model, input_tokens, output_tokens,
-             cache_read_tokens, cache_creation_tokens, tool_name, cwd,
+            (session_id, provider, timestamp, model, input_tokens, output_tokens,
+             cache_read_tokens, cache_creation_tokens, reasoning_output_tokens, tool_name, cwd,
              message_id, service_tier, inference_geo, is_subagent, agent_id, source_path, version)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)",
     )?;
     for t in turns {
         let msg_id: Option<&str> = if t.message_id.is_empty() {
@@ -229,12 +275,14 @@ pub fn insert_turns(conn: &Connection, turns: &[Turn]) -> Result<()> {
         };
         stmt.execute(rusqlite::params![
             t.session_id,
+            t.provider,
             t.timestamp,
             t.model,
             t.input_tokens,
             t.output_tokens,
             t.cache_read_tokens,
             t.cache_creation_tokens,
+            t.reasoning_output_tokens,
             t.tool_name,
             t.cwd,
             msg_id,
@@ -257,8 +305,8 @@ pub fn insert_tool_invocations(
 ) -> Result<()> {
     let mut stmt = conn.prepare(
         "INSERT OR IGNORE INTO tool_invocations
-            (session_id, message_id, tool_name, mcp_server, mcp_tool, tool_category, tool_use_id, is_error, source_path)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            (session_id, provider, message_id, tool_name, mcp_server, mcp_tool, tool_category, tool_use_id, is_error, source_path)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
     )?;
     for t in turns {
         let msg_id: Option<&str> = if t.message_id.is_empty() {
@@ -271,6 +319,7 @@ pub fn insert_tool_invocations(
             let is_error = tool_results.get(tool_use_id).copied().unwrap_or(false);
             stmt.execute(rusqlite::params![
                 t.session_id,
+                t.provider,
                 msg_id,
                 tool_name,
                 server,
@@ -313,11 +362,12 @@ pub fn upsert_sessions(conn: &Connection, sessions: &[crate::models::Session]) -
     for s in sessions {
         conn.execute(
             "INSERT INTO sessions
-                (session_id, project_name, project_slug, first_timestamp, last_timestamp,
+                (session_id, provider, project_name, project_slug, first_timestamp, last_timestamp,
                  git_branch, total_input_tokens, total_output_tokens,
-                 total_cache_read, total_cache_creation, model, entrypoint, turn_count, title)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
+                 total_cache_read, total_cache_creation, total_reasoning_output, model, entrypoint, turn_count, title)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)
              ON CONFLICT(session_id) DO UPDATE SET
+                provider = excluded.provider,
                 project_name = excluded.project_name,
                 project_slug = excluded.project_slug,
                 first_timestamp = excluded.first_timestamp,
@@ -327,12 +377,14 @@ pub fn upsert_sessions(conn: &Connection, sessions: &[crate::models::Session]) -
                 total_output_tokens = excluded.total_output_tokens,
                 total_cache_read = excluded.total_cache_read,
                 total_cache_creation = excluded.total_cache_creation,
+                total_reasoning_output = excluded.total_reasoning_output,
                 model = excluded.model,
                 entrypoint = excluded.entrypoint,
                 turn_count = excluded.turn_count,
                 title = COALESCE(excluded.title, sessions.title)",
             rusqlite::params![
                 s.session_id,
+                s.provider,
                 s.project_name,
                 s.project_slug,
                 s.first_timestamp,
@@ -342,6 +394,7 @@ pub fn upsert_sessions(conn: &Connection, sessions: &[crate::models::Session]) -
                 s.total_output_tokens,
                 s.total_cache_read,
                 s.total_cache_creation,
+                s.total_reasoning_output,
                 s.model,
                 s.entrypoint,
                 s.turn_count,
@@ -360,7 +413,14 @@ pub fn recompute_session_totals(conn: &Connection) -> Result<()> {
             total_output_tokens = COALESCE((SELECT SUM(output_tokens) FROM turns WHERE turns.session_id = sessions.session_id), 0),
             total_cache_read = COALESCE((SELECT SUM(cache_read_tokens) FROM turns WHERE turns.session_id = sessions.session_id), 0),
             total_cache_creation = COALESCE((SELECT SUM(cache_creation_tokens) FROM turns WHERE turns.session_id = sessions.session_id), 0),
+            total_reasoning_output = COALESCE((SELECT SUM(reasoning_output_tokens) FROM turns WHERE turns.session_id = sessions.session_id), 0),
             turn_count = COALESCE((SELECT COUNT(*) FROM turns WHERE turns.session_id = sessions.session_id), 0),
+            provider = COALESCE((
+                SELECT provider FROM turns
+                WHERE turns.session_id = sessions.session_id
+                ORDER BY timestamp DESC, id DESC
+                LIMIT 1
+            ), provider),
             model = COALESCE((
                 SELECT model FROM turns
                 WHERE turns.session_id = sessions.session_id AND model IS NOT NULL AND model != ''
@@ -374,51 +434,16 @@ pub fn recompute_session_totals(conn: &Connection) -> Result<()> {
 }
 
 pub fn get_dashboard_data(conn: &Connection) -> Result<DashboardData> {
-    let mut branch_costs: HashMap<String, f64> = HashMap::new();
+    let mut branch_costs: HashMap<(String, String), f64> = HashMap::new();
     {
         let mut stmt = conn.prepare(
-            "SELECT s.git_branch, COALESCE(t.model, '') as model,
+            "SELECT s.provider, s.git_branch, COALESCE(t.model, '') as model,
                     SUM(t.input_tokens) as input, SUM(t.output_tokens) as output,
                     SUM(t.cache_read_tokens) as cache_read, SUM(t.cache_creation_tokens) as cache_creation
              FROM sessions s
              JOIN turns t ON s.session_id = t.session_id
              WHERE s.git_branch IS NOT NULL AND s.git_branch != ''
-             GROUP BY s.git_branch, COALESCE(t.model, '')",
-        )?;
-        let rows = stmt.query_map([], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, i64>(2)?,
-                row.get::<_, i64>(3)?,
-                row.get::<_, i64>(4)?,
-                row.get::<_, i64>(5)?,
-            ))
-        })?;
-        for row in rows {
-            let (branch, model, input, output, cache_read, cache_creation) = row?;
-            add_cost_by_model(
-                &mut branch_costs,
-                branch,
-                &model,
-                input,
-                output,
-                cache_read,
-                cache_creation,
-            );
-        }
-    }
-
-    let mut daily_project_costs: HashMap<(String, String), f64> = HashMap::new();
-    {
-        let mut stmt = conn.prepare(
-            "SELECT substr(t.timestamp, 1, 10) as day, s.project_name,
-                    COALESCE(t.model, '') as model,
-                    SUM(t.input_tokens) as input, SUM(t.output_tokens) as output,
-                    SUM(t.cache_read_tokens) as cache_read, SUM(t.cache_creation_tokens) as cache_creation
-             FROM turns t
-             JOIN sessions s ON t.session_id = s.session_id
-             GROUP BY substr(t.timestamp, 1, 10), s.project_name, COALESCE(t.model, '')",
+             GROUP BY s.provider, s.git_branch, COALESCE(t.model, '')",
         )?;
         let rows = stmt.query_map([], |row| {
             Ok((
@@ -432,10 +457,10 @@ pub fn get_dashboard_data(conn: &Connection) -> Result<DashboardData> {
             ))
         })?;
         for row in rows {
-            let (day, project, model, input, output, cache_read, cache_creation) = row?;
+            let (provider, branch, model, input, output, cache_read, cache_creation) = row?;
             add_cost_by_model(
-                &mut daily_project_costs,
-                (day, project),
+                &mut branch_costs,
+                (provider, branch),
                 &model,
                 input,
                 output,
@@ -445,7 +470,43 @@ pub fn get_dashboard_data(conn: &Connection) -> Result<DashboardData> {
         }
     }
 
-    // All models
+    let mut daily_project_costs: HashMap<(String, String, String), f64> = HashMap::new();
+    {
+        let mut stmt = conn.prepare(
+            "SELECT substr(t.timestamp, 1, 10) as day, s.provider, s.project_name,
+                    COALESCE(t.model, '') as model,
+                    SUM(t.input_tokens) as input, SUM(t.output_tokens) as output,
+                    SUM(t.cache_read_tokens) as cache_read, SUM(t.cache_creation_tokens) as cache_creation
+             FROM turns t
+             JOIN sessions s ON t.session_id = s.session_id
+             GROUP BY substr(t.timestamp, 1, 10), s.provider, s.project_name, COALESCE(t.model, '')",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+                row.get::<_, i64>(4)?,
+                row.get::<_, i64>(5)?,
+                row.get::<_, i64>(6)?,
+                row.get::<_, i64>(7)?,
+            ))
+        })?;
+        for row in rows {
+            let (day, provider, project, model, input, output, cache_read, cache_creation) = row?;
+            add_cost_by_model(
+                &mut daily_project_costs,
+                (day, provider, project),
+                &model,
+                input,
+                output,
+                cache_read,
+                cache_creation,
+            );
+        }
+    }
+
     let mut stmt = conn.prepare(
         "SELECT COALESCE(model, 'unknown') as model
          FROM turns GROUP BY model
@@ -462,30 +523,103 @@ pub fn get_dashboard_data(conn: &Connection) -> Result<DashboardData> {
         })
         .collect();
 
-    // Daily by model
-    let mut stmt = conn.prepare(
-        "SELECT substr(timestamp, 1, 10) as day, COALESCE(model, 'unknown') as model,
-                SUM(input_tokens) as input, SUM(output_tokens) as output,
-                SUM(cache_read_tokens) as cache_read, SUM(cache_creation_tokens) as cache_creation,
-                COUNT(*) as turns
-         FROM turns GROUP BY day, model ORDER BY day, model",
-    )?;
-    let daily_by_model: Vec<DailyModelRow> = stmt
-        .query_map([], |row| {
-            let model: String = row.get(1)?;
-            let input: i64 = row.get(2)?;
-            let output: i64 = row.get(3)?;
-            let cache_read: i64 = row.get(4)?;
-            let cache_creation: i64 = row.get(5)?;
+    let provider_breakdown: Vec<ProviderSummary> = {
+        let mut cost_by_provider: HashMap<String, f64> = HashMap::new();
+        let mut cost_stmt = conn.prepare(
+            "SELECT provider, COALESCE(model, 'unknown') as model,
+                    SUM(input_tokens), SUM(output_tokens), SUM(cache_read_tokens), SUM(cache_creation_tokens)
+             FROM turns
+             GROUP BY provider, COALESCE(model, 'unknown')",
+        )?;
+        let cost_rows = cost_stmt.query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, i64>(2)?,
+                row.get::<_, i64>(3)?,
+                row.get::<_, i64>(4)?,
+                row.get::<_, i64>(5)?,
+            ))
+        })?;
+        for row in cost_rows {
+            let (provider, model, input, output, cache_read, cache_creation) = row?;
+            add_cost_by_model(
+                &mut cost_by_provider,
+                provider,
+                &model,
+                input,
+                output,
+                cache_read,
+                cache_creation,
+            );
+        }
+
+        let mut stmt = conn.prepare(
+            "SELECT provider,
+                    COUNT(DISTINCT session_id) as sessions,
+                    COUNT(*) as turns,
+                    COALESCE(SUM(input_tokens), 0) as input,
+                    COALESCE(SUM(output_tokens), 0) as output,
+                    COALESCE(SUM(cache_read_tokens), 0) as cache_read,
+                    COALESCE(SUM(cache_creation_tokens), 0) as cache_creation,
+                    COALESCE(SUM(reasoning_output_tokens), 0) as reasoning_output
+             FROM turns
+             GROUP BY provider
+             ORDER BY turns DESC",
+        )?;
+        stmt.query_map([], |row| {
+            let provider: String = row.get(0)?;
+            Ok(ProviderSummary {
+                provider: provider.clone(),
+                sessions: row.get(1)?,
+                turns: row.get(2)?,
+                input: row.get(3)?,
+                output: row.get(4)?,
+                cache_read: row.get(5)?,
+                cache_creation: row.get(6)?,
+                reasoning_output: row.get(7)?,
+                cost: *cost_by_provider.get(&provider).unwrap_or(&0.0),
+            })
+        })?
+        .filter_map(|r| match r {
+            Ok(val) => Some(val),
+            Err(e) => {
+                warn!("Failed to read provider summary row: {}", e);
+                None
+            }
+        })
+        .collect()
+    };
+
+    let daily_by_model: Vec<DailyModelRow> = {
+        let mut stmt = conn.prepare(
+            "SELECT substr(timestamp, 1, 10) as day, provider, COALESCE(model, 'unknown') as model,
+                    SUM(input_tokens) as input, SUM(output_tokens) as output,
+                    SUM(cache_read_tokens) as cache_read, SUM(cache_creation_tokens) as cache_creation,
+                    SUM(reasoning_output_tokens) as reasoning_output,
+                    COUNT(*) as turns
+             FROM turns
+             GROUP BY day, provider, model
+             ORDER BY day, provider, model",
+        )?;
+        stmt.query_map([], |row| {
+            let provider: String = row.get(1)?;
+            let model: String = row.get(2)?;
+            let input: i64 = row.get(3)?;
+            let output: i64 = row.get(4)?;
+            let cache_read: i64 = row.get(5)?;
+            let cache_creation: i64 = row.get(6)?;
             let cost = pricing::calc_cost(&model, input, output, cache_read, cache_creation);
             Ok(DailyModelRow {
                 day: row.get(0)?,
+                provider,
                 model,
                 input,
                 output,
                 cache_read,
                 cache_creation,
-                turns: row.get(6)?,
+                reasoning_output: row.get(7)?,
+                turns: row.get(8)?,
                 cost,
             })
         })?
@@ -496,32 +630,34 @@ pub fn get_dashboard_data(conn: &Connection) -> Result<DashboardData> {
                 None
             }
         })
-        .collect();
+        .collect()
+    };
 
-    // Sessions with subagent counts
-    let mut stmt = conn.prepare(
-        "SELECT s.session_id, s.project_name, s.first_timestamp, s.last_timestamp,
-                s.total_input_tokens, s.total_output_tokens,
-                s.total_cache_read, s.total_cache_creation, s.model, s.turn_count,
-                COALESCE((SELECT COUNT(DISTINCT t.agent_id) FROM turns t WHERE t.session_id = s.session_id AND t.is_subagent = 1), 0) as subagent_count,
-                COALESCE((SELECT COUNT(*) FROM turns t WHERE t.session_id = s.session_id AND t.is_subagent = 1), 0) as subagent_turns,
-                s.title
-         FROM sessions s ORDER BY s.last_timestamp DESC",
-    )?;
-    let sessions_all: Vec<SessionRow> = stmt
-        .query_map([], |row| {
-            let first_ts: String = row.get::<_, Option<String>>(2)?.unwrap_or_default();
-            let last_ts: String = row.get::<_, Option<String>>(3)?.unwrap_or_default();
+    let sessions_all: Vec<SessionRow> = {
+        let mut stmt = conn.prepare(
+            "SELECT s.session_id, s.provider, s.project_name, s.first_timestamp, s.last_timestamp,
+                    s.total_input_tokens, s.total_output_tokens,
+                    s.total_cache_read, s.total_cache_creation, s.total_reasoning_output,
+                    s.model, s.turn_count,
+                    COALESCE((SELECT COUNT(DISTINCT t.agent_id) FROM turns t WHERE t.session_id = s.session_id AND t.is_subagent = 1), 0) as subagent_count,
+                    COALESCE((SELECT COUNT(*) FROM turns t WHERE t.session_id = s.session_id AND t.is_subagent = 1), 0) as subagent_turns,
+                    s.title
+             FROM sessions s ORDER BY s.last_timestamp DESC",
+        )?;
+        stmt.query_map([], |row| {
+            let first_ts: String = row.get::<_, Option<String>>(3)?.unwrap_or_default();
+            let last_ts: String = row.get::<_, Option<String>>(4)?.unwrap_or_default();
             let duration_min = compute_duration_min(&first_ts, &last_ts);
             let session_id: String = row.get(0)?;
-
+            let provider: String = row.get(1)?;
             let model: String = row
-                .get::<_, Option<String>>(8)?
+                .get::<_, Option<String>>(10)?
                 .unwrap_or_else(|| "unknown".into());
-            let input: i64 = row.get(4)?;
-            let output: i64 = row.get(5)?;
-            let cache_read: i64 = row.get(6)?;
-            let cache_creation: i64 = row.get(7)?;
+            let input: i64 = row.get(5)?;
+            let output: i64 = row.get(6)?;
+            let cache_read: i64 = row.get(7)?;
+            let cache_creation: i64 = row.get(8)?;
+            let reasoning_output: i64 = row.get(9)?;
             let cost = pricing::calc_cost(&model, input, output, cache_read, cache_creation);
             let is_billable = pricing::is_billable(&model);
             let cache_hit_ratio = if input + cache_read + cache_creation > 0 {
@@ -536,9 +672,10 @@ pub fn get_dashboard_data(conn: &Connection) -> Result<DashboardData> {
             };
 
             Ok(SessionRow {
-                session_id: session_id.chars().take(8).collect(),
+                session_id: raw_session_id(&session_id).chars().take(8).collect(),
+                provider,
                 project: row
-                    .get::<_, Option<String>>(1)?
+                    .get::<_, Option<String>>(2)?
                     .unwrap_or_else(|| "unknown".into()),
                 last: last_ts
                     .chars()
@@ -548,16 +685,17 @@ pub fn get_dashboard_data(conn: &Connection) -> Result<DashboardData> {
                 last_date: last_ts.chars().take(10).collect(),
                 duration_min,
                 model,
-                turns: row.get(9)?,
+                turns: row.get(11)?,
                 input,
                 output,
                 cache_read,
                 cache_creation,
+                reasoning_output,
                 cost,
                 is_billable,
-                subagent_count: row.get(10)?,
-                subagent_turns: row.get(11)?,
-                title: row.get(12)?,
+                subagent_count: row.get(12)?,
+                subagent_turns: row.get(13)?,
+                title: row.get(14)?,
                 cache_hit_ratio,
                 tokens_per_min,
             })
@@ -569,9 +707,9 @@ pub fn get_dashboard_data(conn: &Connection) -> Result<DashboardData> {
                 None
             }
         })
-        .collect();
+        .collect()
+    };
 
-    // Subagent summary
     let subagent_summary: crate::models::SubagentSummary = conn
         .query_row(
             "SELECT
@@ -601,26 +739,26 @@ pub fn get_dashboard_data(conn: &Connection) -> Result<DashboardData> {
             Default::default()
         });
 
-    // Entrypoint breakdown
-    let mut stmt = conn.prepare(
-        "SELECT COALESCE(s.entrypoint, 'unknown') as ep,
-                COUNT(DISTINCT s.session_id) as sessions,
-                COUNT(t.id) as turns,
-                COALESCE(SUM(t.input_tokens), 0) as input,
-                COALESCE(SUM(t.output_tokens), 0) as output
-         FROM sessions s
-         LEFT JOIN turns t ON s.session_id = t.session_id
-         GROUP BY ep
-         ORDER BY COALESCE(SUM(t.input_tokens + t.output_tokens), 0) DESC",
-    )?;
-    let entrypoint_breakdown: Vec<EntrypointSummary> = stmt
-        .query_map([], |row| {
+    let entrypoint_breakdown: Vec<EntrypointSummary> = {
+        let mut stmt = conn.prepare(
+            "SELECT s.provider, COALESCE(s.entrypoint, 'unknown') as ep,
+                    COUNT(DISTINCT s.session_id) as sessions,
+                    COUNT(t.id) as turns,
+                    COALESCE(SUM(t.input_tokens), 0) as input,
+                    COALESCE(SUM(t.output_tokens), 0) as output
+             FROM sessions s
+             LEFT JOIN turns t ON s.session_id = t.session_id
+             GROUP BY s.provider, ep
+             ORDER BY COALESCE(SUM(t.input_tokens + t.output_tokens), 0) DESC",
+        )?;
+        stmt.query_map([], |row| {
             Ok(EntrypointSummary {
-                entrypoint: row.get(0)?,
-                sessions: row.get(1)?,
-                turns: row.get(2)?,
-                input: row.get(3)?,
-                output: row.get(4)?,
+                provider: row.get(0)?,
+                entrypoint: row.get(1)?,
+                sessions: row.get(2)?,
+                turns: row.get(3)?,
+                input: row.get(4)?,
+                output: row.get(5)?,
             })
         })?
         .filter_map(|r| match r {
@@ -630,24 +768,25 @@ pub fn get_dashboard_data(conn: &Connection) -> Result<DashboardData> {
                 None
             }
         })
-        .collect();
+        .collect()
+    };
 
-    // Service tier summary
-    let mut stmt = conn.prepare(
-        "SELECT COALESCE(service_tier, 'unknown') as tier,
-                COALESCE(inference_geo, 'unknown') as geo,
-                COUNT(*) as cnt
-         FROM turns
-         WHERE service_tier IS NOT NULL AND service_tier != ''
-         GROUP BY tier, geo
-         ORDER BY cnt DESC",
-    )?;
-    let service_tiers: Vec<ServiceTierSummary> = stmt
-        .query_map([], |row| {
+    let service_tiers: Vec<ServiceTierSummary> = {
+        let mut stmt = conn.prepare(
+            "SELECT provider, COALESCE(service_tier, 'unknown') as tier,
+                    COALESCE(inference_geo, 'unknown') as geo,
+                    COUNT(*) as cnt
+             FROM turns
+             WHERE service_tier IS NOT NULL AND service_tier != ''
+             GROUP BY provider, tier, geo
+             ORDER BY cnt DESC",
+        )?;
+        stmt.query_map([], |row| {
             Ok(ServiceTierSummary {
-                service_tier: row.get(0)?,
-                inference_geo: row.get(1)?,
-                turns: row.get(2)?,
+                provider: row.get(0)?,
+                service_tier: row.get(1)?,
+                inference_geo: row.get(2)?,
+                turns: row.get(3)?,
             })
         })?
         .filter_map(|r| match r {
@@ -657,29 +796,30 @@ pub fn get_dashboard_data(conn: &Connection) -> Result<DashboardData> {
                 None
             }
         })
-        .collect();
+        .collect()
+    };
 
-    // Tool usage summary
     let tool_summary: Vec<ToolSummary> = {
         let mut stmt = conn.prepare(
-            "SELECT tool_name, tool_category, mcp_server,
+            "SELECT provider, tool_name, tool_category, mcp_server,
                     COUNT(*) as invocations,
                     COUNT(DISTINCT message_id) as turns_used,
                     COUNT(DISTINCT session_id) as sessions_used,
                     COALESCE(SUM(is_error), 0) as errors
              FROM tool_invocations
-             GROUP BY tool_name
+             GROUP BY provider, tool_name
              ORDER BY invocations DESC",
         )?;
         stmt.query_map([], |row| {
             Ok(ToolSummary {
-                tool_name: row.get(0)?,
-                category: row.get(1)?,
-                mcp_server: row.get(2)?,
-                invocations: row.get(3)?,
-                turns_used: row.get(4)?,
-                sessions_used: row.get(5)?,
-                errors: row.get(6)?,
+                provider: row.get(0)?,
+                tool_name: row.get(1)?,
+                category: row.get(2)?,
+                mcp_server: row.get(3)?,
+                invocations: row.get(4)?,
+                turns_used: row.get(5)?,
+                sessions_used: row.get(6)?,
+                errors: row.get(7)?,
             })
         })?
         .filter_map(|r| match r {
@@ -692,24 +832,24 @@ pub fn get_dashboard_data(conn: &Connection) -> Result<DashboardData> {
         .collect()
     };
 
-    // MCP server summary
     let mcp_summary: Vec<McpServerSummary> = {
         let mut stmt = conn.prepare(
-            "SELECT mcp_server,
+            "SELECT provider, mcp_server,
                     COUNT(DISTINCT tool_name) as tools_used,
                     COUNT(*) as invocations,
                     COUNT(DISTINCT session_id) as sessions_used
              FROM tool_invocations
              WHERE mcp_server IS NOT NULL
-             GROUP BY mcp_server
+             GROUP BY provider, mcp_server
              ORDER BY invocations DESC",
         )?;
         stmt.query_map([], |row| {
             Ok(McpServerSummary {
-                server: row.get(0)?,
-                tools_used: row.get(1)?,
-                invocations: row.get(2)?,
-                sessions_used: row.get(3)?,
+                provider: row.get(0)?,
+                server: row.get(1)?,
+                tools_used: row.get(2)?,
+                invocations: row.get(3)?,
+                sessions_used: row.get(4)?,
             })
         })?
         .filter_map(|r| match r {
@@ -722,20 +862,24 @@ pub fn get_dashboard_data(conn: &Connection) -> Result<DashboardData> {
         .collect()
     };
 
-    // Hourly distribution
     let hourly_distribution: Vec<HourlyRow> = {
         let mut stmt = conn.prepare(
-            "SELECT CAST(substr(timestamp, 12, 2) AS INTEGER) as hour,
-                    COUNT(*) as turns, SUM(input_tokens) as input, SUM(output_tokens) as output
-             FROM turns WHERE timestamp IS NOT NULL AND length(timestamp) >= 13
-             GROUP BY hour ORDER BY hour",
+            "SELECT provider, CAST(substr(timestamp, 12, 2) AS INTEGER) as hour,
+                    COUNT(*) as turns, SUM(input_tokens) as input, SUM(output_tokens) as output,
+                    SUM(reasoning_output_tokens) as reasoning_output
+             FROM turns
+             WHERE timestamp IS NOT NULL AND length(timestamp) >= 13
+             GROUP BY provider, hour
+             ORDER BY provider, hour",
         )?;
         stmt.query_map([], |row| {
             Ok(HourlyRow {
-                hour: row.get(0)?,
-                turns: row.get(1)?,
-                input: row.get(2)?,
-                output: row.get(3)?,
+                provider: row.get(0)?,
+                hour: row.get(1)?,
+                turns: row.get(2)?,
+                input: row.get(3)?,
+                output: row.get(4)?,
+                reasoning_output: row.get(5)?,
             })
         })?
         .filter_map(|r| match r {
@@ -748,34 +892,31 @@ pub fn get_dashboard_data(conn: &Connection) -> Result<DashboardData> {
         .collect()
     };
 
-    // Git branch summary
     let git_branch_summary: Vec<BranchSummary> = {
         let mut stmt = conn.prepare(
-            "SELECT s.git_branch,
+            "SELECT s.provider, s.git_branch,
                     COUNT(DISTINCT s.session_id) as sessions,
                     COUNT(t.id) as turns,
                     SUM(t.input_tokens) as input, SUM(t.output_tokens) as output,
-                    SUM(t.cache_read_tokens) as cache_read, SUM(t.cache_creation_tokens) as cache_creation
+                    SUM(t.reasoning_output_tokens) as reasoning_output
              FROM sessions s JOIN turns t ON s.session_id = t.session_id
              WHERE s.git_branch IS NOT NULL AND s.git_branch != ''
-             GROUP BY s.git_branch
+             GROUP BY s.provider, s.git_branch
              ORDER BY SUM(t.input_tokens + t.output_tokens) DESC
              LIMIT 50",
         )?;
         stmt.query_map([], |row| {
-            let branch: String = row.get(0)?;
-            let sessions: i64 = row.get(1)?;
-            let turns: i64 = row.get(2)?;
-            let input: i64 = row.get(3)?;
-            let output: i64 = row.get(4)?;
-            let cost = *branch_costs.get(&branch).unwrap_or(&0.0);
+            let provider: String = row.get(0)?;
+            let branch: String = row.get(1)?;
             Ok(BranchSummary {
-                branch,
-                sessions,
-                turns,
-                input,
-                output,
-                cost,
+                provider: provider.clone(),
+                branch: branch.clone(),
+                sessions: row.get(2)?,
+                turns: row.get(3)?,
+                input: row.get(4)?,
+                output: row.get(5)?,
+                reasoning_output: row.get(6)?,
+                cost: *branch_costs.get(&(provider, branch)).unwrap_or(&0.0),
             })
         })?
         .filter_map(|r| match r {
@@ -788,20 +929,22 @@ pub fn get_dashboard_data(conn: &Connection) -> Result<DashboardData> {
         .collect()
     };
 
-    // Version summary
     let version_summary: Vec<VersionSummary> = {
         let mut stmt = conn.prepare(
-            "SELECT COALESCE(version, 'unknown') as ver,
+            "SELECT provider, COALESCE(version, 'unknown') as ver,
                     COUNT(*) as turns,
                     COUNT(DISTINCT session_id) as sessions
-             FROM turns WHERE version IS NOT NULL AND version != ''
-             GROUP BY ver ORDER BY turns DESC",
+             FROM turns
+             WHERE version IS NOT NULL AND version != ''
+             GROUP BY provider, ver
+             ORDER BY turns DESC",
         )?;
         stmt.query_map([], |row| {
             Ok(VersionSummary {
-                version: row.get(0)?,
-                turns: row.get(1)?,
-                sessions: row.get(2)?,
+                provider: row.get(0)?,
+                version: row.get(1)?,
+                turns: row.get(2)?,
+                sessions: row.get(3)?,
             })
         })?
         .filter_map(|r| match r {
@@ -814,29 +957,29 @@ pub fn get_dashboard_data(conn: &Connection) -> Result<DashboardData> {
         .collect()
     };
 
-    // Daily by project
     let daily_by_project: Vec<DailyProjectRow> = {
         let mut stmt = conn.prepare(
-            "SELECT substr(t.timestamp, 1, 10) as day, s.project_name,
+            "SELECT substr(t.timestamp, 1, 10) as day, s.provider, s.project_name,
                     SUM(t.input_tokens) as input, SUM(t.output_tokens) as output,
-                    SUM(t.cache_read_tokens) as cache_read, SUM(t.cache_creation_tokens) as cache_creation
+                    SUM(t.reasoning_output_tokens) as reasoning_output
              FROM turns t JOIN sessions s ON t.session_id = s.session_id
-             GROUP BY day, s.project_name ORDER BY day",
+             GROUP BY day, s.provider, s.project_name
+             ORDER BY day, s.provider, s.project_name",
         )?;
         stmt.query_map([], |row| {
             let day: String = row.get(0)?;
-            let project: String = row.get(1)?;
-            let input: i64 = row.get(2)?;
-            let output: i64 = row.get(3)?;
-            let cost = *daily_project_costs
-                .get(&(day.clone(), project.clone()))
-                .unwrap_or(&0.0);
+            let provider: String = row.get(1)?;
+            let project: String = row.get(2)?;
             Ok(DailyProjectRow {
-                day,
-                project,
-                input,
-                output,
-                cost,
+                day: day.clone(),
+                provider: provider.clone(),
+                project: project.clone(),
+                input: row.get(3)?,
+                output: row.get(4)?,
+                reasoning_output: row.get(5)?,
+                cost: *daily_project_costs
+                    .get(&(day, provider, project))
+                    .unwrap_or(&0.0),
             })
         })?
         .filter_map(|r| match r {
@@ -853,6 +996,7 @@ pub fn get_dashboard_data(conn: &Connection) -> Result<DashboardData> {
 
     Ok(DashboardData {
         all_models,
+        provider_breakdown,
         daily_by_model,
         sessions_all,
         subagent_summary,

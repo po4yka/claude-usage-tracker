@@ -272,17 +272,29 @@
   function Footer() {
     return /* @__PURE__ */ u2("footer", { children: /* @__PURE__ */ u2("div", { class: "footer-content", children: [
       /* @__PURE__ */ u2("p", { children: [
-        "Cost estimates based on Anthropic API pricing (",
+        "Cost estimates based on Anthropic and OpenAI API pricing (",
         /* @__PURE__ */ u2(
           "a",
           {
             href: "https://docs.anthropic.com/en/docs/about-claude/pricing",
             target: "_blank",
             rel: "noopener noreferrer",
-            children: "docs.anthropic.com/pricing"
+            children: "Anthropic"
           }
         ),
-        "). Actual costs for Max/Pro subscribers differ."
+        " ",
+        "+",
+        " ",
+        /* @__PURE__ */ u2(
+          "a",
+          {
+            href: "https://developers.openai.com/api/docs/pricing",
+            target: "_blank",
+            rel: "noopener noreferrer",
+            children: "OpenAI"
+          }
+        ),
+        "). Local dashboard totals are estimates, not subscriber billing statements."
       ] }),
       /* @__PURE__ */ u2("p", { children: [
         "GitHub:",
@@ -1198,8 +1210,9 @@
       { label: "Turns", value: fmt(totals.turns), sub: rangeLabel },
       { label: "Input Tokens", value: fmt(totals.input), sub: rangeLabel },
       { label: "Output Tokens", value: fmt(totals.output), sub: rangeLabel },
-      { label: "Cache Read", value: fmt(totals.cache_read), sub: "prompt cache" },
+      { label: "Cached Input", value: fmt(totals.cache_read), sub: "prompt cache" },
       { label: "Cache Creation", value: fmt(totals.cache_creation), sub: "cache writes" },
+      { label: "Reasoning", value: fmt(totals.reasoning_output), sub: "subset of output" },
       { label: "Est. Cost", value: fmtCostBig(totals.cost), sub: "API pricing", isCost: true }
     ];
     return /* @__PURE__ */ u2(S, { children: stats.map((s4) => /* @__PURE__ */ u2("div", { class: "card stat-card", children: [
@@ -4213,6 +4226,11 @@
   // src/ui/components/EntrypointTable.tsx
   var columns = [
     {
+      accessorKey: "provider",
+      header: "Provider",
+      cell: ({ getValue }) => /* @__PURE__ */ u2("span", { class: "model-tag", children: String(getValue()).toUpperCase() })
+    },
+    {
       accessorKey: "entrypoint",
       header: "Entrypoint",
       cell: ({ getValue }) => /* @__PURE__ */ u2("span", { class: "model-tag", children: String(getValue()) })
@@ -4245,6 +4263,11 @@
 
   // src/ui/components/ServiceTiers.tsx
   var columns2 = [
+    {
+      accessorKey: "provider",
+      header: "Provider",
+      cell: ({ getValue }) => /* @__PURE__ */ u2("span", { class: "model-tag", children: String(getValue()).toUpperCase() })
+    },
     { accessorKey: "service_tier", header: "Tier" },
     { accessorKey: "inference_geo", header: "Region" },
     {
@@ -4260,6 +4283,11 @@
 
   // src/ui/components/ToolUsageTable.tsx
   var columns3 = [
+    {
+      accessorKey: "provider",
+      header: "Provider",
+      cell: ({ getValue }) => /* @__PURE__ */ u2("span", { class: "model-tag", children: String(getValue()).toUpperCase() })
+    },
     {
       accessorKey: "tool_name",
       header: "Tool",
@@ -4320,6 +4348,11 @@
   // src/ui/components/McpSummaryTable.tsx
   var columns4 = [
     {
+      accessorKey: "provider",
+      header: "Provider",
+      cell: ({ getValue }) => /* @__PURE__ */ u2("span", { class: "model-tag", children: String(getValue()).toUpperCase() })
+    },
+    {
       accessorKey: "server",
       header: "MCP Server",
       cell: ({ getValue }) => /* @__PURE__ */ u2("span", { class: "model-tag mcp", children: String(getValue()) })
@@ -4347,6 +4380,11 @@
 
   // src/ui/components/BranchTable.tsx
   var columns5 = [
+    {
+      accessorKey: "provider",
+      header: "Provider",
+      cell: ({ getValue }) => /* @__PURE__ */ u2("span", { class: "model-tag", children: String(getValue()).toUpperCase() })
+    },
     {
       accessorKey: "branch",
       header: "Branch",
@@ -4386,6 +4424,11 @@
   // src/ui/components/VersionTable.tsx
   var columns6 = [
     {
+      accessorKey: "provider",
+      header: "Provider",
+      cell: ({ getValue }) => /* @__PURE__ */ u2("span", { class: "model-tag", children: String(getValue()).toUpperCase() })
+    },
+    {
       accessorKey: "version",
       header: "Version",
       cell: ({ getValue }) => /* @__PURE__ */ u2("span", { class: "model-tag", children: String(getValue()) })
@@ -4403,7 +4446,7 @@
   ];
   function VersionTable({ data }) {
     if (!data.length) return null;
-    return /* @__PURE__ */ u2(DataTable, { columns: columns6, data, title: "Claude Code Versions" });
+    return /* @__PURE__ */ u2(DataTable, { columns: columns6, data, title: "CLI Versions" });
   }
 
   // src/ui/components/HourlyChart.tsx
@@ -4462,6 +4505,13 @@
           accessorKey: "project",
           header: "Project",
           enableSorting: false
+        },
+        {
+          id: "provider",
+          accessorKey: "provider",
+          header: "Provider",
+          enableSorting: false,
+          cell: (info) => /* @__PURE__ */ u2("span", { class: "model-tag", children: String(info.getValue()).toUpperCase() })
         },
         {
           id: "last",
@@ -4598,7 +4648,7 @@
         {
           id: "cache_read",
           accessorKey: "cache_read",
-          header: "Cache Read",
+          header: "Cached Input",
           cell: (info) => /* @__PURE__ */ u2("span", { class: "num", children: fmt(info.getValue()) })
         },
         {
@@ -4712,7 +4762,7 @@
       series: [
         { name: "Input", data: daily.map((d5) => d5.input) },
         { name: "Output", data: daily.map((d5) => d5.output) },
-        { name: "Cache Read", data: daily.map((d5) => d5.cache_read) },
+        { name: "Cached Input", data: daily.map((d5) => d5.cache_read) },
         { name: "Cache Creation", data: daily.map((d5) => d5.cache_creation) }
       ],
       colors: [TOKEN_COLORS.input, TOKEN_COLORS.output, TOKEN_COLORS.cache_read, TOKEN_COLORS.cache_creation],
@@ -4870,11 +4920,6 @@
   var previousSessionPercent = null;
   var loadDataInFlight = false;
   var loadUsageWindowsInFlight = false;
-  function isAnthropicModel(model) {
-    if (!model) return false;
-    const m4 = model.toLowerCase();
-    return m4.includes("opus") || m4.includes("sonnet") || m4.includes("haiku");
-  }
   function getRangeCutoff(range) {
     if (range === "all") return null;
     const days = range === "7d" ? 7 : range === "30d" ? 30 : 90;
@@ -4903,14 +4948,13 @@
   }
   function readURLModels(allModels) {
     const param = new URLSearchParams(window.location.search).get("models");
-    if (!param) return new Set(allModels.filter((m4) => isAnthropicModel(m4)));
+    if (!param) return new Set(allModels);
     const fromURL = new Set(param.split(",").map((s4) => s4.trim()).filter(Boolean));
     return new Set(allModels.filter((m4) => fromURL.has(m4)));
   }
   function isDefaultModelSelection(allModels) {
-    const billable = allModels.filter((m4) => isAnthropicModel(m4));
-    if (selectedModels.value.size !== billable.length) return false;
-    return billable.every((m4) => selectedModels.value.has(m4));
+    if (selectedModels.value.size !== allModels.length) return false;
+    return allModels.every((m4) => selectedModels.value.has(m4));
   }
   function buildFilterUI(allModels) {
     const sorted = [...allModels].sort((a4, b4) => {
@@ -4990,48 +5034,78 @@
     const search = params.toString() ? "?" + params.toString() : "";
     history.replaceState(null, "", window.location.pathname + search);
   }
-  function applyFilter() {
-    if (!rawData.value) return;
-    const cutoff = getRangeCutoff(selectedRange.value);
-    const filteredDaily = rawData.value.daily_by_model.filter(
-      (r4) => selectedModels.value.has(r4.model) && (!cutoff || r4.day >= cutoff)
-    );
+  function buildAggregations(filteredDaily, filteredSessions) {
     const dailyMap = {};
     for (const r4 of filteredDaily) {
-      if (!dailyMap[r4.day]) dailyMap[r4.day] = { day: r4.day, input: 0, output: 0, cache_read: 0, cache_creation: 0 };
+      if (!dailyMap[r4.day]) {
+        dailyMap[r4.day] = {
+          day: r4.day,
+          input: 0,
+          output: 0,
+          cache_read: 0,
+          cache_creation: 0,
+          reasoning_output: 0
+        };
+      }
       const d5 = dailyMap[r4.day];
       d5.input += r4.input;
       d5.output += r4.output;
       d5.cache_read += r4.cache_read;
       d5.cache_creation += r4.cache_creation;
+      d5.reasoning_output += r4.reasoning_output;
     }
     const daily = Object.values(dailyMap).sort((a4, b4) => a4.day.localeCompare(b4.day));
     const modelMap = {};
     for (const r4 of filteredDaily) {
-      if (!modelMap[r4.model]) modelMap[r4.model] = { model: r4.model, input: 0, output: 0, cache_read: 0, cache_creation: 0, turns: 0, sessions: 0, cost: 0, is_billable: r4.cost > 0 || isAnthropicModel(r4.model) };
+      if (!modelMap[r4.model]) {
+        modelMap[r4.model] = {
+          model: r4.model,
+          input: 0,
+          output: 0,
+          cache_read: 0,
+          cache_creation: 0,
+          reasoning_output: 0,
+          turns: 0,
+          sessions: 0,
+          cost: 0,
+          is_billable: r4.cost > 0
+        };
+      }
       const m4 = modelMap[r4.model];
       m4.input += r4.input;
       m4.output += r4.output;
       m4.cache_read += r4.cache_read;
       m4.cache_creation += r4.cache_creation;
+      m4.reasoning_output += r4.reasoning_output;
       m4.turns += r4.turns;
       m4.cost += r4.cost;
+      if (r4.cost > 0) m4.is_billable = true;
     }
-    const filteredSessions = rawData.value.sessions_all.filter(
-      (s4) => selectedModels.value.has(s4.model) && (!cutoff || s4.last_date >= cutoff) && matchesProjectSearch(s4.project)
-    );
     for (const s4 of filteredSessions) {
       if (modelMap[s4.model]) modelMap[s4.model].sessions++;
     }
     const byModel = Object.values(modelMap).sort((a4, b4) => b4.input + b4.output - (a4.input + a4.output));
     const projMap = {};
     for (const s4 of filteredSessions) {
-      if (!projMap[s4.project]) projMap[s4.project] = { project: s4.project, input: 0, output: 0, cache_read: 0, cache_creation: 0, turns: 0, sessions: 0, cost: 0 };
+      if (!projMap[s4.project]) {
+        projMap[s4.project] = {
+          project: s4.project,
+          input: 0,
+          output: 0,
+          cache_read: 0,
+          cache_creation: 0,
+          reasoning_output: 0,
+          turns: 0,
+          sessions: 0,
+          cost: 0
+        };
+      }
       const p5 = projMap[s4.project];
       p5.input += s4.input;
       p5.output += s4.output;
       p5.cache_read += s4.cache_read;
       p5.cache_creation += s4.cache_creation;
+      p5.reasoning_output += s4.reasoning_output;
       p5.turns += s4.turns;
       p5.sessions++;
       p5.cost += s4.cost;
@@ -5044,9 +5118,74 @@
       output: byModel.reduce((s4, m4) => s4 + m4.output, 0),
       cache_read: byModel.reduce((s4, m4) => s4 + m4.cache_read, 0),
       cache_creation: byModel.reduce((s4, m4) => s4 + m4.cache_creation, 0),
+      reasoning_output: byModel.reduce((s4, m4) => s4 + m4.reasoning_output, 0),
       cost: filteredSessions.reduce((s4, sess) => s4 + sess.cost, 0)
     };
-    $2("daily-chart-title").textContent = "Daily Token Usage \u2014 " + RANGE_LABELS[selectedRange.value];
+    return { daily, byModel, byProject, totals };
+  }
+  function renderPlaceholder(containerId, title, message) {
+    const container = $2(containerId);
+    if (!container) return;
+    R(
+      /* @__PURE__ */ u2("div", { class: "card", children: [
+        /* @__PURE__ */ u2("h2", { children: title }),
+        /* @__PURE__ */ u2("div", { class: "muted", children: message })
+      ] }),
+      container
+    );
+  }
+  function renderCodexSection(filteredDaily, filteredSessions) {
+    const section = $2("codex-section");
+    if (!section || !rawData.value) return;
+    const codexDailyRows = filteredDaily.filter((r4) => r4.provider === "codex");
+    const codexSessions = filteredSessions.filter((s4) => s4.provider === "codex");
+    const hasCodex = codexDailyRows.length > 0 || codexSessions.length > 0 || rawData.value.provider_breakdown.some((row) => row.provider === "codex");
+    section.style.display = hasCodex ? "" : "none";
+    if (!hasCodex) return;
+    const { daily, byModel, byProject, totals } = buildAggregations(codexDailyRows, codexSessions);
+    $2("codex-daily-chart-title").textContent = "Codex Daily Usage - " + RANGE_LABELS[selectedRange.value];
+    R(/* @__PURE__ */ u2(StatsCards, { totals, daily }), $2("codex-stats-row"));
+    R(/* @__PURE__ */ u2(DailyChart, { daily }), $2("codex-chart-daily"));
+    R(/* @__PURE__ */ u2(ModelChart, { byModel }), $2("codex-chart-model"));
+    R(/* @__PURE__ */ u2(ProjectChart, { byProject }), $2("codex-chart-project"));
+    R(/* @__PURE__ */ u2(ModelCostTable, { byModel }), $2("codex-model-cost-mount"));
+    R(
+      /* @__PURE__ */ u2(
+        ProjectCostTable,
+        {
+          byProject: byProject.slice(0, 30),
+          onExportCSV: () => exportProjectRowsCSV("codex-projects", byProject)
+        }
+      ),
+      $2("codex-project-cost-mount")
+    );
+    const codexTools = rawData.value.tool_summary.filter((row) => row.provider === "codex");
+    if (codexTools.length) R(/* @__PURE__ */ u2(ToolUsageTable, { data: codexTools }), $2("codex-tool-summary"));
+    else renderPlaceholder("codex-tool-summary", "Codex Tool Usage", "No Codex tool calls were recorded.");
+    const codexMcp = rawData.value.mcp_summary.filter((row) => row.provider === "codex");
+    if (codexMcp.length) R(/* @__PURE__ */ u2(McpSummaryTable, { data: codexMcp }), $2("codex-mcp-summary"));
+    else renderPlaceholder("codex-mcp-summary", "Codex MCP Servers", "No MCP usage was recorded for Codex sessions.");
+    const codexBranches = rawData.value.git_branch_summary.filter((row) => row.provider === "codex");
+    if (codexBranches.length) R(/* @__PURE__ */ u2(BranchTable, { data: codexBranches }), $2("codex-branch-summary"));
+    else renderPlaceholder("codex-branch-summary", "Codex Branches", "Git branch metadata was not present in the recorded Codex logs.");
+    const codexVersions = rawData.value.version_summary.filter((row) => row.provider === "codex");
+    if (codexVersions.length) R(/* @__PURE__ */ u2(VersionTable, { data: codexVersions }), $2("codex-version-summary"));
+    else renderPlaceholder("codex-version-summary", "Codex Versions", "CLI version metadata was not available for the current Codex sessions.");
+    const codexHourly = rawData.value.hourly_distribution.filter((row) => row.provider === "codex");
+    if (codexHourly.length) R(/* @__PURE__ */ u2(HourlyChart, { data: codexHourly }), $2("codex-hourly-chart"));
+    else renderPlaceholder("codex-hourly-chart", "Codex Hourly Distribution", "No hourly token distribution is available for Codex in the current selection.");
+  }
+  function applyFilter() {
+    if (!rawData.value) return;
+    const cutoff = getRangeCutoff(selectedRange.value);
+    const filteredDaily = rawData.value.daily_by_model.filter(
+      (r4) => selectedModels.value.has(r4.model) && (!cutoff || r4.day >= cutoff)
+    );
+    const filteredSessions = rawData.value.sessions_all.filter(
+      (s4) => selectedModels.value.has(s4.model) && (!cutoff || s4.last_date >= cutoff) && matchesProjectSearch(s4.project)
+    );
+    const { daily, byModel, byProject, totals } = buildAggregations(filteredDaily, filteredSessions);
+    $2("daily-chart-title").textContent = "Daily Token Usage - " + RANGE_LABELS[selectedRange.value];
     renderStats(totals, daily);
     renderDailyChart(daily);
     renderModelChart(byModel);
@@ -5056,6 +5195,7 @@
     R(/* @__PURE__ */ u2(ModelCostTable, { byModel }), $2("model-cost-mount"));
     R(/* @__PURE__ */ u2(SessionsTable, { onExportCSV: exportSessionsCSV }), $2("sessions-mount"));
     R(/* @__PURE__ */ u2(ProjectCostTable, { byProject: lastByProject.value.slice(0, 30), onExportCSV: exportProjectsCSV }), $2("project-cost-mount"));
+    renderCodexSection(filteredDaily, filteredSessions);
   }
   function renderStats(t4, daily) {
     R(/* @__PURE__ */ u2(StatsCards, { totals: t4, daily }), $2("stats-row"));
@@ -5073,19 +5213,22 @@
     R(/* @__PURE__ */ u2(ProjectChart, { byProject }), container);
   }
   function exportSessionsCSV() {
-    const header = ["Session", "Project", "Last Active", "Duration (min)", "Model", "Turns", "Input", "Output", "Cache Read", "Cache Creation", "Est. Cost"];
+    const header = ["Session", "Provider", "Project", "Last Active", "Duration (min)", "Model", "Turns", "Input", "Output", "Cached Input", "Cache Creation", "Reasoning Output", "Est. Cost"];
     const rows = lastFilteredSessions.value.map((s4) => {
       const cost = s4.cost;
-      return [s4.session_id, s4.project, s4.last, s4.duration_min, s4.model, s4.turns, s4.input, s4.output, s4.cache_read, s4.cache_creation, cost.toFixed(4)];
+      return [s4.session_id, s4.provider, s4.project, s4.last, s4.duration_min, s4.model, s4.turns, s4.input, s4.output, s4.cache_read, s4.cache_creation, s4.reasoning_output, cost.toFixed(4)];
     });
     downloadCSV("sessions", header, rows);
   }
-  function exportProjectsCSV() {
-    const header = ["Project", "Sessions", "Turns", "Input", "Output", "Cache Read", "Cache Creation", "Est. Cost"];
-    const rows = lastByProject.value.map(
-      (p5) => [p5.project, p5.sessions, p5.turns, p5.input, p5.output, p5.cache_read, p5.cache_creation, p5.cost.toFixed(4)]
+  function exportProjectRowsCSV(filename, rowsData) {
+    const header = ["Project", "Sessions", "Turns", "Input", "Output", "Cached Input", "Cache Creation", "Reasoning Output", "Est. Cost"];
+    const rows = rowsData.map(
+      (p5) => [p5.project, p5.sessions, p5.turns, p5.input, p5.output, p5.cache_read, p5.cache_creation, p5.reasoning_output, p5.cost.toFixed(4)]
     );
-    downloadCSV("projects", header, rows);
+    downloadCSV(filename, header, rows);
+  }
+  function exportProjectsCSV() {
+    exportProjectRowsCSV("projects", lastByProject.value);
   }
   function renderWindowCard(label, w5) {
     const pct = Math.min(100, w5.used_percent);

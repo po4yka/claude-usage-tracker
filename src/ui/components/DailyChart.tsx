@@ -12,7 +12,7 @@ export function DailyChart({ daily }: { daily: DailyAgg[] }) {
     series: [
       { name: 'Input',          data: daily.map(d => d.input) },
       { name: 'Output',         data: daily.map(d => d.output) },
-      { name: 'Cache Read',     data: daily.map(d => d.cache_read) },
+      { name: 'Cached Input',   data: daily.map(d => d.cache_read) },
       { name: 'Cache Creation', data: daily.map(d => d.cache_creation) },
     ],
     colors: [TOKEN_COLORS.input, TOKEN_COLORS.output, TOKEN_COLORS.cache_read, TOKEN_COLORS.cache_creation],

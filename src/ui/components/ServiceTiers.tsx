@@ -4,6 +4,8 @@ import type { ServiceTierSummary } from '../state/types';
 import { DataTable } from './DataTable';
 
 const columns: ColumnDef<ServiceTierSummary, any>[] = [
+  { accessorKey: 'provider', header: 'Provider',
+    cell: ({ getValue }) => <span class="model-tag">{String(getValue()).toUpperCase()}</span> },
   { accessorKey: 'service_tier', header: 'Tier' },
   { accessorKey: 'inference_geo', header: 'Region' },
   { accessorKey: 'turns', header: 'Turns',

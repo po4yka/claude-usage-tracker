@@ -26,6 +26,54 @@ fn get_override(model: &str) -> Option<&ModelPricing> {
 
 const PRICING_TABLE: &[(&str, ModelPricing)] = &[
     (
+        "gpt-5.4",
+        ModelPricing {
+            input: 2.50,
+            output: 15.0,
+            cache_write: 2.50,
+            cache_read: 0.25,
+            threshold_tokens: None,
+            input_above_threshold: None,
+            output_above_threshold: None,
+        },
+    ),
+    (
+        "gpt-5.4-mini",
+        ModelPricing {
+            input: 0.75,
+            output: 4.50,
+            cache_write: 0.75,
+            cache_read: 0.075,
+            threshold_tokens: None,
+            input_above_threshold: None,
+            output_above_threshold: None,
+        },
+    ),
+    (
+        "gpt-5.4-nano",
+        ModelPricing {
+            input: 0.20,
+            output: 1.25,
+            cache_write: 0.20,
+            cache_read: 0.02,
+            threshold_tokens: None,
+            input_above_threshold: None,
+            output_above_threshold: None,
+        },
+    ),
+    (
+        "gpt-5.3-codex",
+        ModelPricing {
+            input: 1.75,
+            output: 14.0,
+            cache_write: 1.75,
+            cache_read: 0.175,
+            threshold_tokens: None,
+            input_above_threshold: None,
+            output_above_threshold: None,
+        },
+    ),
+    (
         "claude-opus-4-6",
         ModelPricing {
             input: 15.0,
@@ -131,6 +179,18 @@ pub fn get_pricing(model: &str) -> Option<&ModelPricing> {
     }
     if lower.contains("haiku") {
         return get_builtin("claude-haiku-4-5");
+    }
+    if lower.contains("gpt-5.4-mini") {
+        return get_builtin("gpt-5.4-mini");
+    }
+    if lower.contains("gpt-5.4-nano") {
+        return get_builtin("gpt-5.4-nano");
+    }
+    if lower.contains("gpt-5.4") {
+        return get_builtin("gpt-5.4");
+    }
+    if lower.contains("codex") {
+        return get_builtin("gpt-5.3-codex");
     }
     None
 }

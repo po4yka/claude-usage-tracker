@@ -1,14 +1,15 @@
 # Claude Usage Tracker
 
-A fast, local analytics dashboard for Claude Code usage and token consumption. Built in Rust.
+A fast, local analytics dashboard for Claude Code and Codex usage. Built in Rust.
 
-Reads JSONL transcripts written by Claude Code (CLI, VS Code, JetBrains, Dispatched sessions) and presents an interactive dashboard with cost estimates, charts, rate limit tracking, and filtering.
+Reads local transcripts written by Claude Code and Codex, then presents an interactive dashboard with cost estimates, charts, provider-aware filtering, and rate limit tracking.
 
 ## Features
 
 ### Core
 - **Incremental scanning** -- only processes new/changed JSONL files
-- **Streaming deduplication** -- handles Claude Code's multiple JSONL records per API response
+- **Multi-provider analytics** -- Claude and Codex share one SQLite database and dashboard
+- **Streaming deduplication** -- handles Claude Code and Codex incremental session records
 - **Interactive dashboard** -- dark-themed UI with Chart.js charts, sortable tables, CSV export
 - **Cost estimation** -- single source of truth in Rust, with volume discount support and integer-nanos precision
 - **CLI reporting** -- quick terminal summaries with `--json` flag for scripting
@@ -23,6 +24,7 @@ Reads JSONL transcripts written by Claude Code (CLI, VS Code, JetBrains, Dispatc
 - **Auto token refresh** -- refreshes expired OAuth tokens automatically
 
 ### Analytics
+- **Codex local log support** -- scans archived Codex session JSONL and estimates cost from OpenAI API pricing
 - **Subagent session linking** -- tracks parent vs subagent token usage with breakdown panel
 - **Entrypoint breakdown** -- usage split by CLI, VS Code, JetBrains
 - **Service tier tracking** -- inference region and service tier visibility
@@ -114,12 +116,14 @@ Automatically discovers JSONL transcripts from:
 |----------|------|
 | Claude Code CLI | `~/.claude/projects/` |
 | Xcode integration | `~/Library/Developer/Xcode/CodingAssistant/ClaudeAgentConfig/projects/` |
+| Codex archived sessions | `~/.codex/archived_sessions/` |
+| Codex live sessions (JSONL if present) | `~/.codex/sessions/` |
 | Custom | `--projects-dir <PATH>` or config file |
 
 ## How It Works
 
 1. **Scan** -- walks project directories for `*.jsonl` files (including `subagents/` subdirectories)
-2. **Parse** -- extracts session metadata, per-turn token usage, subagent flags, service tier
+2. **Parse** -- extracts provider-aware session metadata, per-turn token usage, subagent flags, service tier, and Codex tool activity
 3. **Deduplicate** -- streaming events sharing the same `message.id` are collapsed (last record wins)
 4. **Store** -- upserts into a local SQLite database at `~/.claude/usage.db`
 5. **Serve** -- axum HTTP server delivers the dashboard UI and JSON API

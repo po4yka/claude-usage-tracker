@@ -283,7 +283,8 @@ mod tests {
         let html = assets::render_dashboard();
         assert!(html.contains("<!DOCTYPE html>"));
         assert!(html.contains("apexcharts"));
-        assert!(html.contains("Claude"));
+        assert!(html.contains("Usage"));
+        assert!(html.contains("Codex Analytics"));
     }
 
     #[test]

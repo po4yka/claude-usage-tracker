@@ -4,6 +4,8 @@ import type { VersionSummary } from '../state/types';
 import { DataTable } from './DataTable';
 
 const columns: ColumnDef<VersionSummary, any>[] = [
+  { accessorKey: 'provider', header: 'Provider',
+    cell: ({ getValue }) => <span class="model-tag">{String(getValue()).toUpperCase()}</span> },
   { accessorKey: 'version', header: 'Version',
     cell: ({ getValue }) => <span class="model-tag">{String(getValue())}</span> },
   { accessorKey: 'turns', header: 'Turns',
@@ -14,5 +16,5 @@ const columns: ColumnDef<VersionSummary, any>[] = [
 
 export function VersionTable({ data }: { data: VersionSummary[] }) {
   if (!data.length) return null;
-  return <DataTable columns={columns} data={data} title="Claude Code Versions" />;
+  return <DataTable columns={columns} data={data} title="CLI Versions" />;
 }

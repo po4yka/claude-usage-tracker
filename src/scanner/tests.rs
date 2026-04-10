@@ -136,7 +136,7 @@ mod tests {
 
         let session: (i64, i64, i64) = conn
             .query_row(
-                "SELECT total_input_tokens, total_output_tokens, turn_count FROM sessions WHERE session_id = 's1'",
+                "SELECT total_input_tokens, total_output_tokens, turn_count FROM sessions WHERE session_id = 'claude:s1'",
                 [],
                 |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
             )
@@ -214,7 +214,7 @@ mod tests {
 
         let (total_in, total_out): (i64, i64) = conn
             .query_row(
-                "SELECT total_input_tokens, total_output_tokens FROM sessions WHERE session_id = 's1'",
+                "SELECT total_input_tokens, total_output_tokens FROM sessions WHERE session_id = 'claude:s1'",
                 [],
                 |r| Ok((r.get(0)?, r.get(1)?)),
             )
@@ -301,7 +301,7 @@ mod tests {
             .query_row(
                 "SELECT
                     (SELECT COUNT(*) FROM turns),
-                    COALESCE((SELECT turn_count FROM sessions WHERE session_id = 's1'), 0)",
+                    COALESCE((SELECT turn_count FROM sessions WHERE session_id = 'claude:s1'), 0)",
                 [],
                 |r| Ok((r.get(0)?, r.get(1)?)),
             )
@@ -349,7 +349,7 @@ mod tests {
         let conn = db::open_db(&db_path).unwrap();
         let session_model: Option<String> = conn
             .query_row(
-                "SELECT model FROM sessions WHERE session_id = 's1'",
+                "SELECT model FROM sessions WHERE session_id = 'claude:s1'",
                 [],
                 |r| r.get(0),
             )
@@ -379,7 +379,7 @@ mod tests {
         let conn = db::open_db(&db_path).unwrap();
         let title: Option<String> = conn
             .query_row(
-                "SELECT title FROM sessions WHERE session_id = 's1'",
+                "SELECT title FROM sessions WHERE session_id = 'claude:s1'",
                 [],
                 |r| r.get(0),
             )
@@ -403,7 +403,7 @@ mod tests {
         let conn = db::open_db(&db_path).unwrap();
         let title: Option<String> = conn
             .query_row(
-                "SELECT title FROM sessions WHERE session_id = 's1'",
+                "SELECT title FROM sessions WHERE session_id = 'claude:s1'",
                 [],
                 |r| r.get(0),
             )
@@ -426,7 +426,7 @@ mod tests {
         let conn = db::open_db(&db_path).unwrap();
         let title: Option<String> = conn
             .query_row(
-                "SELECT title FROM sessions WHERE session_id = 's1'",
+                "SELECT title FROM sessions WHERE session_id = 'claude:s1'",
                 [],
                 |r| r.get(0),
             )
@@ -551,7 +551,7 @@ mod tests {
 
         let (total_in, turn_count_session): (i64, i64) = conn
             .query_row(
-                "SELECT total_input_tokens, turn_count FROM sessions WHERE session_id = 's1'",
+                "SELECT total_input_tokens, turn_count FROM sessions WHERE session_id = 'claude:s1'",
                 [],
                 |r| Ok((r.get(0)?, r.get(1)?)),
             )

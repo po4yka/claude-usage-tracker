@@ -39,6 +39,7 @@ export interface SubagentSummary {
 }
 
 export interface EntrypointSummary {
+  provider: string;
   entrypoint: string;
   sessions: number;
   turns: number;
@@ -47,6 +48,7 @@ export interface EntrypointSummary {
 }
 
 export interface ServiceTierSummary {
+  provider: string;
   service_tier: string;
   inference_geo: string;
   turns: number;
@@ -54,17 +56,20 @@ export interface ServiceTierSummary {
 
 export interface DailyModelRow {
   day: string;
+  provider: string;
   model: string;
   input: number;
   output: number;
   cache_read: number;
   cache_creation: number;
+  reasoning_output: number;
   turns: number;
   cost: number;
 }
 
 export interface SessionRow {
   session_id: string;
+  provider: string;
   project: string;
   last: string;
   last_date: string;
@@ -75,6 +80,7 @@ export interface SessionRow {
   output: number;
   cache_read: number;
   cache_creation: number;
+  reasoning_output: number;
   cost: number;
   is_billable: boolean;
   subagent_count: number;
@@ -85,6 +91,7 @@ export interface SessionRow {
 }
 
 export interface ToolSummary {
+  provider: string;
   tool_name: string;
   category: string;
   mcp_server: string | null;
@@ -95,6 +102,7 @@ export interface ToolSummary {
 }
 
 export interface McpServerSummary {
+  provider: string;
   server: string;
   tools_used: number;
   invocations: number;
@@ -102,22 +110,27 @@ export interface McpServerSummary {
 }
 
 export interface HourlyRow {
+  provider: string;
   hour: number;
   turns: number;
   input: number;
   output: number;
+  reasoning_output: number;
 }
 
 export interface BranchSummary {
+  provider: string;
   branch: string;
   sessions: number;
   turns: number;
   input: number;
   output: number;
+  reasoning_output: number;
   cost: number;
 }
 
 export interface VersionSummary {
+  provider: string;
   version: string;
   turns: number;
   sessions: number;
@@ -125,14 +138,29 @@ export interface VersionSummary {
 
 export interface DailyProjectRow {
   day: string;
+  provider: string;
   project: string;
   input: number;
   output: number;
+  reasoning_output: number;
+  cost: number;
+}
+
+export interface ProviderSummary {
+  provider: string;
+  sessions: number;
+  turns: number;
+  input: number;
+  output: number;
+  cache_read: number;
+  cache_creation: number;
+  reasoning_output: number;
   cost: number;
 }
 
 export interface DashboardData {
   all_models: string[];
+  provider_breakdown: ProviderSummary[];
   daily_by_model: DailyModelRow[];
   sessions_all: SessionRow[];
   subagent_summary: SubagentSummary;
@@ -154,14 +182,17 @@ export interface DailyAgg {
   output: number;
   cache_read: number;
   cache_creation: number;
+  reasoning_output: number;
 }
 
 export interface ModelAgg {
+  provider?: string;
   model: string;
   input: number;
   output: number;
   cache_read: number;
   cache_creation: number;
+  reasoning_output: number;
   turns: number;
   sessions: number;
   cost: number;
@@ -169,23 +200,27 @@ export interface ModelAgg {
 }
 
 export interface ProjectAgg {
+  provider?: string;
   project: string;
   input: number;
   output: number;
   cache_read: number;
   cache_creation: number;
+  reasoning_output: number;
   turns: number;
   sessions: number;
   cost: number;
 }
 
 export interface Totals {
+  provider?: string;
   sessions: number;
   turns: number;
   input: number;
   output: number;
   cache_read: number;
   cache_creation: number;
+  reasoning_output: number;
   cost: number;
 }
 

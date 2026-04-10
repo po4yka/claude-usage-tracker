@@ -127,7 +127,10 @@ fn cleanup_sqlite_files(path: &std::path::Path) -> std::io::Result<()> {
     Ok(())
 }
 
-fn replace_sqlite_files(temp_path: &std::path::Path, db_path: &std::path::Path) -> std::io::Result<()> {
+fn replace_sqlite_files(
+    temp_path: &std::path::Path,
+    db_path: &std::path::Path,
+) -> std::io::Result<()> {
     cleanup_sqlite_files(db_path)?;
     std::fs::rename(temp_path, db_path)?;
 

@@ -16,7 +16,7 @@ use db::{
     get_processed_file, init_db, insert_tool_invocations, insert_turns, list_processed_files,
     open_db, recompute_session_totals, sync_session_titles, upsert_processed_file, upsert_sessions,
 };
-use parser::{aggregate_sessions, parse_jsonl_file};
+use parser::{PROVIDER_CLAUDE, PROVIDER_CODEX, aggregate_sessions, parse_jsonl_file};
 
 fn home_dir() -> PathBuf {
     dirs::home_dir().unwrap_or_else(|| PathBuf::from("."))
@@ -28,6 +28,23 @@ fn default_projects_dirs() -> Vec<PathBuf> {
     #[cfg(target_os = "macos")]
     dirs.push(home.join("Library/Developer/Xcode/CodingAssistant/ClaudeAgentConfig/projects"));
     dirs
+}
+
+fn default_codex_dirs() -> Vec<PathBuf> {
+    let home = home_dir();
+    vec![
+        home.join(".codex").join("sessions"),
+        home.join(".codex").join("archived_sessions"),
+    ]
+}
+
+fn provider_for_dir(path: &Path) -> &'static str {
+    let normalized = path.to_string_lossy().replace('\\', "/");
+    if normalized.contains("/.codex/") {
+        PROVIDER_CODEX
+    } else {
+        PROVIDER_CLAUDE
+    }
 }
 
 pub fn default_db_path() -> PathBuf {
@@ -42,26 +59,43 @@ pub fn scan(
     let conn = open_db(db_path)?;
     init_db(&conn)?;
 
-    let dirs = projects_dirs.unwrap_or_else(default_projects_dirs);
+    let sources: Vec<(String, Vec<PathBuf>)> = if let Some(dirs) = projects_dirs {
+        let mut grouped: std::collections::BTreeMap<String, Vec<PathBuf>> =
+            std::collections::BTreeMap::new();
+        for dir in dirs {
+            grouped
+                .entry(provider_for_dir(&dir).to_string())
+                .or_default()
+                .push(dir);
+        }
+        grouped.into_iter().collect()
+    } else {
+        vec![
+            (PROVIDER_CLAUDE.to_string(), default_projects_dirs()),
+            (PROVIDER_CODEX.to_string(), default_codex_dirs()),
+        ]
+    };
 
-    let mut jsonl_files: Vec<PathBuf> = Vec::new();
-    for d in &dirs {
-        if !d.exists() {
-            continue;
-        }
-        if verbose {
-            info!("Scanning {} ...", d.display());
-        }
-        for entry in WalkDir::new(d).into_iter().filter_map(|e| e.ok()) {
-            if entry.path().extension().is_some_and(|ext| ext == "jsonl") {
-                jsonl_files.push(entry.path().to_path_buf());
+    let mut jsonl_files: Vec<(String, PathBuf)> = Vec::new();
+    for (provider, dirs) in &sources {
+        for d in dirs {
+            if !d.exists() {
+                continue;
+            }
+            if verbose {
+                info!("Scanning {} {} ...", provider, d.display());
+            }
+            for entry in WalkDir::new(d).into_iter().filter_map(|e| e.ok()) {
+                if entry.path().extension().is_some_and(|ext| ext == "jsonl") {
+                    jsonl_files.push(((*provider).to_string(), entry.path().to_path_buf()));
+                }
             }
         }
     }
-    jsonl_files.sort();
+    jsonl_files.sort_by(|a, b| a.1.cmp(&b.1).then_with(|| a.0.cmp(&b.0)));
     let current_files: HashSet<String> = jsonl_files
         .iter()
-        .map(|path| path.to_string_lossy().to_string())
+        .map(|(_, path)| path.to_string_lossy().to_string())
         .collect();
 
     let mut result = ScanResult::default();
@@ -78,7 +112,7 @@ pub fn scan(
         any_changes = true;
     }
 
-    for filepath in &jsonl_files {
+    for (provider, filepath) in &jsonl_files {
         let filepath_str = filepath.to_string_lossy().to_string();
         let mtime = match std::fs::metadata(filepath) {
             Ok(m) => m
@@ -109,7 +143,7 @@ pub fn scan(
             any_changes = true;
         }
 
-        let parsed = parse_jsonl_file(filepath, 0);
+        let parsed = parse_jsonl_file(provider, filepath, 0);
 
         if !parsed.turns.is_empty() || !parsed.session_metas.is_empty() {
             let sessions = aggregate_sessions(&parsed.session_metas, &parsed.turns);

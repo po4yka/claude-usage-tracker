@@ -4,6 +4,8 @@ import type { EntrypointSummary } from '../state/types';
 import { DataTable } from './DataTable';
 
 const columns: ColumnDef<EntrypointSummary, any>[] = [
+  { accessorKey: 'provider', header: 'Provider',
+    cell: ({ getValue }) => <span class="model-tag">{String(getValue()).toUpperCase()}</span> },
   { accessorKey: 'entrypoint', header: 'Entrypoint',
     cell: ({ getValue }) => <span class="model-tag">{String(getValue())}</span> },
   { accessorKey: 'sessions', header: 'Sessions',

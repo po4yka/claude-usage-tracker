@@ -285,8 +285,8 @@ mod tests {
             .expect("depletion event");
         assert_eq!(depleted.event_type, "session_depleted");
 
-        let restored = session_transition_event(&config, &mut state, 25.0, Some(120))
-            .expect("restored event");
+        let restored =
+            session_transition_event(&config, &mut state, 25.0, Some(120)).expect("restored event");
         assert_eq!(restored.event_type, "session_restored");
     }
 
@@ -299,8 +299,8 @@ mod tests {
         };
         let mut state = WebhookState::default();
 
-        let first = cost_threshold_event(&config, &mut state, "2026-04-10", 60.0)
-            .expect("threshold event");
+        let first =
+            cost_threshold_event(&config, &mut state, "2026-04-10", 60.0).expect("threshold event");
         assert_eq!(first.event_type, "cost_threshold");
         assert!(cost_threshold_event(&config, &mut state, "2026-04-10", 70.0).is_none());
         assert!(cost_threshold_event(&config, &mut state, "2026-04-11", 70.0).is_some());

@@ -4,6 +4,8 @@ import type { ToolSummary } from '../state/types';
 import { DataTable } from './DataTable';
 
 const columns: ColumnDef<ToolSummary, any>[] = [
+  { accessorKey: 'provider', header: 'Provider',
+    cell: ({ getValue }) => <span class="model-tag">{String(getValue()).toUpperCase()}</span> },
   { accessorKey: 'tool_name', header: 'Tool',
     cell: ({ row }) => {
       const cat = row.original.category;

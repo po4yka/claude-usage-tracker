@@ -11,8 +11,9 @@ export function StatsCards({ totals, daily }: { totals: Totals; daily?: DailyAgg
     { label: 'Turns',          value: fmt(totals.turns),                sub: rangeLabel },
     { label: 'Input Tokens',   value: fmt(totals.input),                sub: rangeLabel },
     { label: 'Output Tokens',  value: fmt(totals.output),               sub: rangeLabel },
-    { label: 'Cache Read',     value: fmt(totals.cache_read),           sub: 'prompt cache' },
+    { label: 'Cached Input',   value: fmt(totals.cache_read),           sub: 'prompt cache' },
     { label: 'Cache Creation', value: fmt(totals.cache_creation),       sub: 'cache writes' },
+    { label: 'Reasoning',      value: fmt(totals.reasoning_output),     sub: 'subset of output' },
     { label: 'Est. Cost',      value: fmtCostBig(totals.cost),          sub: 'API pricing', isCost: true },
   ];
 
