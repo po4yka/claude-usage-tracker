@@ -44,30 +44,6 @@
     --font-mono: "Space Mono", "JetBrains Mono", "SF Mono", monospace;
     --font-display: "Doto", "Space Mono", monospace;
 
-    /* Legacy aliases — removed in later commits as components migrate */
-    --bg: var(--black);
-    --bg-secondary: var(--surface);
-    --card: var(--surface);
-    --card-hover: var(--surface-raised);
-    --border-hover: var(--border-visible);
-    --border-subtle: var(--border);
-    --border-strong: var(--border-visible);
-    --border-accent: color-mix(in srgb, var(--accent) 30%, transparent);
-    --text: var(--text-primary);
-    --muted: var(--text-secondary);
-    --accent-muted: var(--accent-subtle);
-    --blue: var(--interactive);
-    --purple: color-mix(in srgb, var(--text-display) 60%, transparent);
-    --green: var(--success);
-    --green-muted: color-mix(in srgb, var(--success) 15%, transparent);
-    --red: var(--accent);
-    --red-muted: var(--accent-subtle);
-    --yellow: var(--warning);
-    --hover-bg: color-mix(in srgb, var(--text-display) 3%, transparent);
-    --chart-grid: var(--border);
-    --chart-text: var(--text-secondary);
-    --chart-border: var(--surface);
-
     color-scheme: dark;
   }
 
@@ -309,6 +285,15 @@
     animation: fadeUp 0.4s ease-out;
   }
   .stat-value.cost-value { color: var(--success); }
+  .stat-value.doto-hero {
+    font-family: var(--font-display);
+    font-size: 48px;
+    letter-spacing: -0.02em;
+    line-height: 1;
+  }
+  @media (max-width: 480px) {
+    .stat-value.doto-hero { font-size: 32px; }
+  }
   .stat-trend {
     display: inline-flex;
     align-items: center;

@@ -23,7 +23,7 @@ export function StatsCards({ totals, daily }: { totals: Totals; daily?: DailyAgg
         <div class="card stat-card" key={s.label}>
           <div class="stat-content">
             <div class="stat-label">{s.label}</div>
-            <div class={`stat-value ${s.isCost ? 'cost-value' : ''}`}>{s.value}</div>
+            <div class={`stat-value${s.isCost ? ' cost-value doto-hero' : ''}`}>{s.value}</div>
             {s.sub ? <div class="stat-sub">{s.sub}</div> : null}
           </div>
           {s.isCost && daily && daily.length >= 2 ? (

@@ -31,7 +31,7 @@ export function fmtResetTime(minutes: number | null | undefined): string {
 }
 
 export function progressColor(percent: number): string {
-  if (percent >= 90) return 'var(--red)';
-  if (percent >= 70) return 'var(--yellow)';
-  return 'var(--green)';
+  if (percent >= 90) return 'var(--accent)';
+  if (percent >= 70) return 'var(--warning)';
+  return 'var(--success)';
 }

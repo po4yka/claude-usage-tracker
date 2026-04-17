@@ -152,7 +152,7 @@ export function DataTable<T>({
                     scope="col"
                     class={canSort ? 'sortable' : undefined}
                     aria-sort={sorted === 'asc' ? 'ascending' : sorted === 'desc' ? 'descending' : undefined}
-                    style={sorted ? { borderBottom: '2px solid var(--border-accent)' } : undefined}
+                    style={sorted ? { borderBottom: '2px solid var(--text-display)' } : undefined}
                     tabIndex={canSort ? 0 : undefined}
                     onClick={canSort ? header.column.getToggleSortingHandler() : undefined}
                     onKeyDown={canSort ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); header.column.getToggleSortingHandler()?.(e); } } : undefined}

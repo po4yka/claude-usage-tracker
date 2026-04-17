@@ -1804,7 +1804,7 @@
     return /* @__PURE__ */ u2(S, { children: stats.map((s4) => /* @__PURE__ */ u2("div", { class: "card stat-card", children: [
       /* @__PURE__ */ u2("div", { class: "stat-content", children: [
         /* @__PURE__ */ u2("div", { class: "stat-label", children: s4.label }),
-        /* @__PURE__ */ u2("div", { class: `stat-value ${s4.isCost ? "cost-value" : ""}`, children: s4.value }),
+        /* @__PURE__ */ u2("div", { class: `stat-value${s4.isCost ? " cost-value doto-hero" : ""}`, children: s4.value }),
         s4.sub ? /* @__PURE__ */ u2("div", { class: "stat-sub", children: s4.sub }) : null
       ] }),
       s4.isCost && daily && daily.length >= 2 ? /* @__PURE__ */ u2("div", { class: "stat-sparkline", children: /* @__PURE__ */ u2(Sparkline, { daily }) }) : null
@@ -4719,7 +4719,7 @@
               scope: "col",
               class: canSort ? "sortable" : void 0,
               "aria-sort": sorted === "asc" ? "ascending" : sorted === "desc" ? "descending" : void 0,
-              style: sorted ? { borderBottom: "2px solid var(--border-accent)" } : void 0,
+              style: sorted ? { borderBottom: "2px solid var(--text-display)" } : void 0,
               tabIndex: canSort ? 0 : void 0,
               onClick: canSort ? header.column.getToggleSortingHandler() : void 0,
               onKeyDown: canSort ? (e4) => {
@@ -4875,7 +4875,7 @@
         const e4 = row.original.errors;
         if (!e4) return /* @__PURE__ */ u2("span", { class: "dim", children: "0" });
         const pct = row.original.invocations > 0 ? (e4 / row.original.invocations * 100).toFixed(1) : "0";
-        return /* @__PURE__ */ u2("span", { class: "num", style: { color: "var(--red)" }, children: [
+        return /* @__PURE__ */ u2("span", { class: "num", style: { color: "var(--accent)" }, children: [
           e4,
           " (",
           pct,

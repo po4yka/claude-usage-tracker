@@ -35,7 +35,7 @@ const columns: ColumnDef<ToolSummary, any>[] = [
       const pct = row.original.invocations > 0
         ? ((e / row.original.invocations) * 100).toFixed(1)
         : '0';
-      return <span class="num" style={{ color: 'var(--red)' }}>{e} ({pct}%)</span>;
+      return <span class="num" style={{ color: 'var(--accent)' }}>{e} ({pct}%)</span>;
     } },
 ];
 
