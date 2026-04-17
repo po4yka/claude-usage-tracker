@@ -198,6 +198,11 @@ pub fn init_db(conn: &Connection) -> Result<()> {
             "ALTER TABLE tool_invocations ADD COLUMN source_path TEXT NOT NULL DEFAULT '';",
         )?;
     }
+    // Phase 3: One-shot rate tracking (nullable; 0=not-oneshot, 1=oneshot,
+    // NULL=session has no edit activity and is unclassifiable)
+    if !has_column(conn, "sessions", "one_shot") {
+        conn.execute_batch("ALTER TABLE sessions ADD COLUMN one_shot INTEGER;")?;
+    }
 
     // Dedup by tool_use_id so repeated use of the same tool in a single turn is preserved.
     conn.execute_batch(
@@ -523,14 +528,15 @@ pub fn sync_session_titles(
 
 pub fn upsert_sessions(conn: &Connection, sessions: &[crate::models::Session]) -> Result<()> {
     for s in sessions {
+        let one_shot_i: Option<i32> = s.one_shot.map(|v| v as i32);
         conn.execute(
             "INSERT INTO sessions
                 (session_id, provider, project_name, project_slug, first_timestamp, last_timestamp,
                  git_branch, total_input_tokens, total_output_tokens,
                  total_cache_read, total_cache_creation, total_reasoning_output,
                  total_estimated_cost_nanos, model, entrypoint, turn_count, pricing_version,
-                 billing_mode, cost_confidence, title)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20)
+                 billing_mode, cost_confidence, title, one_shot)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21)
              ON CONFLICT(session_id) DO UPDATE SET
                 provider = excluded.provider,
                 project_name = excluded.project_name,
@@ -550,7 +556,8 @@ pub fn upsert_sessions(conn: &Connection, sessions: &[crate::models::Session]) -
                 pricing_version = excluded.pricing_version,
                 billing_mode = excluded.billing_mode,
                 cost_confidence = excluded.cost_confidence,
-                title = COALESCE(excluded.title, sessions.title)",
+                title = COALESCE(excluded.title, sessions.title),
+                one_shot = excluded.one_shot",
             rusqlite::params![
                 s.session_id,
                 s.provider,
@@ -572,6 +579,7 @@ pub fn upsert_sessions(conn: &Connection, sessions: &[crate::models::Session]) -
                 s.billing_mode,
                 s.cost_confidence,
                 s.title,
+                one_shot_i,
             ],
         )?;
     }

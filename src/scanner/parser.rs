@@ -529,6 +529,9 @@ pub fn aggregate_sessions(metas: &[SessionMeta], turns: &[Turn]) -> Vec<Session>
         pricing_version: String,
         billing_mode: String,
         cost_confidence: String,
+        /// Turns belonging to this session in chronological order,
+        /// used for one-shot classification after all turns are collected.
+        session_turns: Vec<Turn>,
     }
 
     let mut stats_map: HashMap<&str, Stats> = HashMap::new();
@@ -545,6 +548,7 @@ pub fn aggregate_sessions(metas: &[SessionMeta], turns: &[Turn]) -> Vec<Session>
             pricing_version: String::new(),
             billing_mode: String::new(),
             cost_confidence: String::new(),
+            session_turns: Vec::new(),
         });
         entry.total_input += t.input_tokens;
         entry.total_output += t.output_tokens;
@@ -560,11 +564,13 @@ pub fn aggregate_sessions(metas: &[SessionMeta], turns: &[Turn]) -> Vec<Session>
         entry.billing_mode = merge_billing_mode(&entry.billing_mode, &t.billing_mode);
         entry.cost_confidence =
             merge_cost_confidence(&entry.cost_confidence, &t.cost_confidence).to_string();
+        entry.session_turns.push(t.clone());
     }
 
     metas
         .iter()
         .map(|meta| {
+            let empty_turns: Vec<Turn> = Vec::new();
             let empty = Stats {
                 total_input: 0,
                 total_output: 0,
@@ -577,8 +583,15 @@ pub fn aggregate_sessions(metas: &[SessionMeta], turns: &[Turn]) -> Vec<Session>
                 pricing_version: String::new(),
                 billing_mode: "estimated_local".into(),
                 cost_confidence: pricing::COST_CONFIDENCE_LOW.into(),
+                session_turns: Vec::new(),
             };
             let s = stats_map.get(meta.session_id.as_str()).unwrap_or(&empty);
+            let session_turns_ref = if s.session_turns.is_empty() {
+                empty_turns.as_slice()
+            } else {
+                s.session_turns.as_slice()
+            };
+            let one_shot = crate::scanner::oneshot::classify_one_shot(session_turns_ref);
             Session {
                 session_id: meta.session_id.clone(),
                 provider: meta.provider.clone(),
@@ -600,6 +613,7 @@ pub fn aggregate_sessions(metas: &[SessionMeta], turns: &[Turn]) -> Vec<Session>
                 billing_mode: s.billing_mode.clone(),
                 cost_confidence: s.cost_confidence.clone(),
                 title: None,
+                one_shot,
             }
         })
         .collect()

@@ -703,6 +703,16 @@ fn cmd_stats(db_path: &std::path::Path, json_output: bool) -> Result<()> {
                 },
             )
             .collect();
+        // one_shot_rate: AVG(one_shot) across sessions where one_shot IS NOT NULL.
+        // Returns None when no classifiable sessions exist (all NULL).
+        let one_shot_rate: Option<f64> = conn
+            .query_row(
+                "SELECT AVG(CAST(one_shot AS REAL)) FROM sessions WHERE one_shot IS NOT NULL",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap_or(None);
+
         let f = |s: &Option<String>| {
             s.as_deref()
                 .unwrap_or("")
@@ -720,6 +730,7 @@ fn cmd_stats(db_path: &std::path::Path, json_output: bool) -> Result<()> {
             "total_cache_creation_tokens": cc,
             "total_reasoning_output_tokens": ro,
             "total_estimated_cost": (total_cost * 10000.0).round() / 10000.0,
+            "one_shot_rate": one_shot_rate,
             "by_provider": by_provider,
             "confidence_breakdown": confidence_breakdown,
             "billing_mode_breakdown": billing_mode_breakdown,

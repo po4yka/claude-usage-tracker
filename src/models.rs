@@ -22,6 +22,10 @@ pub struct Session {
     pub billing_mode: String,
     pub cost_confidence: String,
     pub title: Option<String>,
+    /// One-shot classification: `None` if session has no edit activity
+    /// (unclassifiable), `Some(true)` if no rework cycle detected,
+    /// `Some(false)` if an Edit→Bash→Edit pattern was found.
+    pub one_shot: Option<bool>,
 }
 
 #[derive(Debug, Clone, Default)]

@@ -752,4 +752,157 @@ mod tests {
             .unwrap();
         assert_eq!(turn_provider, "codex");
     }
+
+    // ── One-shot DB migration idempotency ──────────────────────────────────
+
+    #[test]
+    fn test_one_shot_column_migration_idempotent() {
+        // Running init_db twice must not error; the one_shot column must exist.
+        let tmp = TempDir::new().unwrap();
+        let db_path = tmp.path().join("usage.db");
+        let conn = db::open_db(&db_path).unwrap();
+        db::init_db(&conn).unwrap();
+        // Second call: migration guard must prevent duplicate-column error.
+        db::init_db(&conn).unwrap();
+
+        // Column must be readable (NULL default).
+        let ok: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sessions WHERE one_shot IS NOT NULL",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(ok, 0);
+    }
+
+    // ── One-shot integration test ──────────────────────────────────────────
+    // Helper to build an assistant turn with a given tool name.
+    fn make_assistant_with_tool(
+        session_id: &str,
+        ts: &str,
+        msg_id: &str,
+        tool_name: &str,
+    ) -> String {
+        serde_json::json!({
+            "type": "assistant",
+            "sessionId": session_id,
+            "timestamp": ts,
+            "cwd": "/home/user/project",
+            "message": {
+                "id": msg_id,
+                "model": "claude-sonnet-4-6",
+                "usage": {
+                    "input_tokens": 100,
+                    "output_tokens": 50,
+                    "cache_read_input_tokens": 0,
+                    "cache_creation_input_tokens": 0,
+                },
+                "content": [{
+                    "type": "tool_use",
+                    "id": format!("tu-{msg_id}"),
+                    "name": tool_name,
+                    "input": {},
+                }],
+            }
+        })
+        .to_string()
+    }
+
+    #[test]
+    fn test_one_shot_integration_rate() {
+        // Seed two sessions:
+        //   s-oneshot: Edit only → one_shot = 1
+        //   s-notoneshot: Edit → Bash → Edit → one_shot = 0
+        // Expected one_shot_rate = 0.5
+        let tmp = TempDir::new().unwrap();
+        let projects = tmp.path().join("projects");
+        let db_path = tmp.path().join("usage.db");
+
+        // Session 1: one-shot (single Edit, no rework)
+        write_project_jsonl(
+            &projects,
+            "user/proj",
+            "sess-oneshot.jsonl",
+            &[
+                make_user("s-oneshot", "2026-04-17T10:00:00Z"),
+                make_assistant_with_tool("s-oneshot", "2026-04-17T10:01:00Z", "msg-os-1", "Edit"),
+            ],
+        );
+
+        // Session 2: not one-shot (Edit → Bash → Edit rework cycle)
+        write_project_jsonl(
+            &projects,
+            "user/proj",
+            "sess-notoneshot.jsonl",
+            &[
+                make_user("s-notoneshot", "2026-04-17T11:00:00Z"),
+                make_assistant_with_tool(
+                    "s-notoneshot",
+                    "2026-04-17T11:01:00Z",
+                    "msg-nos-1",
+                    "Edit",
+                ),
+                make_assistant_with_tool(
+                    "s-notoneshot",
+                    "2026-04-17T11:02:00Z",
+                    "msg-nos-2",
+                    "Bash",
+                ),
+                make_assistant_with_tool(
+                    "s-notoneshot",
+                    "2026-04-17T11:03:00Z",
+                    "msg-nos-3",
+                    "Edit",
+                ),
+            ],
+        );
+
+        scanner::scan(Some(vec![projects]), &db_path, false).unwrap();
+
+        let conn = db::open_db(&db_path).unwrap();
+
+        // Both sessions must have one_shot set (not NULL).
+        let classified: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sessions WHERE one_shot IS NOT NULL",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(classified, 2, "both sessions should be classified");
+
+        // one-shot session must have one_shot = 1.
+        let os_val: i64 = conn
+            .query_row(
+                "SELECT one_shot FROM sessions WHERE session_id = 'claude:s-oneshot'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(os_val, 1);
+
+        // not-one-shot session must have one_shot = 0.
+        let nos_val: i64 = conn
+            .query_row(
+                "SELECT one_shot FROM sessions WHERE session_id = 'claude:s-notoneshot'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(nos_val, 0);
+
+        // one_shot_rate from the DB AVG query must equal 0.5.
+        let rate: f64 = conn
+            .query_row(
+                "SELECT AVG(CAST(one_shot AS REAL)) FROM sessions WHERE one_shot IS NOT NULL",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert!(
+            (rate - 0.5).abs() < 1e-9,
+            "expected one_shot_rate=0.5, got {rate}"
+        );
+    }
 }

@@ -1,5 +1,6 @@
 pub mod classifier;
 pub mod db;
+pub mod oneshot;
 pub mod parser;
 pub mod provider;
 pub mod providers;
