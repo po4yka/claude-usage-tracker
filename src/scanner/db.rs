@@ -10,6 +10,7 @@ use crate::models::{
     ServiceTierSummary, SessionRow, ToolSummary, Turn, VersionSummary,
 };
 use crate::scanner::parser::{classify_tool, raw_session_id};
+use crate::tz::TzParams;
 
 pub fn open_db(path: &std::path::Path) -> Result<Connection> {
     let conn = Connection::open(path)?;
@@ -643,7 +644,7 @@ pub fn recompute_session_totals(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
-pub fn get_dashboard_data(conn: &Connection) -> Result<DashboardData> {
+pub fn get_dashboard_data(conn: &Connection, tz: TzParams) -> Result<DashboardData> {
     let mut stmt = conn.prepare(
         "SELECT COALESCE(model, 'unknown') as model
          FROM turns GROUP BY model
@@ -740,8 +741,9 @@ pub fn get_dashboard_data(conn: &Connection) -> Result<DashboardData> {
     };
 
     let daily_by_model: Vec<DailyModelRow> = {
-        let mut stmt = conn.prepare(
-            "SELECT substr(timestamp, 1, 10) as day, provider, COALESCE(model, 'unknown') as model,
+        let day_expr = tz.sql_day_expr("timestamp");
+        let sql = format!(
+            "SELECT {day_expr} as day, provider, COALESCE(model, 'unknown') as model,
                     SUM(input_tokens) as input, SUM(output_tokens) as output,
                     SUM(cache_read_tokens) as cache_read, SUM(cache_creation_tokens) as cache_creation,
                     SUM(reasoning_output_tokens) as reasoning_output,
@@ -749,9 +751,10 @@ pub fn get_dashboard_data(conn: &Connection) -> Result<DashboardData> {
                     COALESCE(SUM(estimated_cost_nanos), 0) as cost_nanos
              FROM turns
              GROUP BY day, provider, model
-             ORDER BY day, provider, model",
-        )?;
-        stmt.query_map([], |row| {
+             ORDER BY day, provider, model"
+        );
+        let mut stmt = conn.prepare(&sql)?;
+        let map_row = |row: &rusqlite::Row<'_>| -> rusqlite::Result<DailyModelRow> {
             let provider: String = row.get(1)?;
             let model: String = row.get(2)?;
             let input: i64 = row.get(3)?;
@@ -770,15 +773,24 @@ pub fn get_dashboard_data(conn: &Connection) -> Result<DashboardData> {
                 turns: row.get(8)?,
                 cost: row.get::<_, i64>(9)? as f64 / 1_000_000_000.0,
             })
-        })?
-        .filter_map(|r| match r {
-            Ok(val) => Some(val),
-            Err(e) => {
-                warn!("Failed to read row: {}", e);
-                None
-            }
-        })
-        .collect()
+        };
+        let collect_rows = |mapped: rusqlite::MappedRows<'_, _>| -> Vec<DailyModelRow> {
+            mapped
+                .filter_map(|r| match r {
+                    Ok(val) => Some(val),
+                    Err(e) => {
+                        warn!("Failed to read row: {}", e);
+                        None
+                    }
+                })
+                .collect()
+        };
+        let rows: Vec<DailyModelRow> = if let Some(offset_param) = tz.offset_sql_param() {
+            collect_rows(stmt.query_map([offset_param], map_row)?)
+        } else {
+            collect_rows(stmt.query_map([], map_row)?)
+        };
+        rows
     };
 
     let sessions_all: Vec<SessionRow> = {
@@ -1465,7 +1477,7 @@ mod tests {
         ];
         insert_turns(&conn, &turns).unwrap();
 
-        let data = get_dashboard_data(&conn).unwrap();
+        let data = get_dashboard_data(&conn, TzParams::default()).unwrap();
         assert_eq!(data.subagent_summary.parent_turns, 1);
         assert_eq!(data.subagent_summary.parent_input, 200);
         assert_eq!(data.subagent_summary.subagent_turns, 2);
@@ -1517,7 +1529,7 @@ mod tests {
         ];
         insert_turns(&conn, &turns).unwrap();
 
-        let data = get_dashboard_data(&conn).unwrap();
+        let data = get_dashboard_data(&conn, TzParams::default()).unwrap();
         assert_eq!(data.entrypoint_breakdown.len(), 2);
         // Should be ordered by total tokens DESC
         assert_eq!(data.entrypoint_breakdown[0].entrypoint, "vscode");
@@ -1561,7 +1573,7 @@ mod tests {
         ];
         insert_turns(&conn, &turns).unwrap();
 
-        let data = get_dashboard_data(&conn).unwrap();
+        let data = get_dashboard_data(&conn, TzParams::default()).unwrap();
         assert!(data.service_tiers.len() >= 2);
     }
 
@@ -1782,7 +1794,7 @@ mod tests {
         insert_turns(&conn, &turns).unwrap();
         insert_tool_invocations(&conn, &turns, &HashMap::new()).unwrap();
 
-        let data = get_dashboard_data(&conn).unwrap();
+        let data = get_dashboard_data(&conn, TzParams::default()).unwrap();
 
         // Read should be most frequent (2 invocations)
         assert!(!data.tool_summary.is_empty());
@@ -1847,7 +1859,7 @@ mod tests {
         insert_turns(&conn, &turns).unwrap();
         recompute_session_totals(&conn).unwrap();
 
-        let data = get_dashboard_data(&conn).unwrap();
+        let data = get_dashboard_data(&conn, TzParams::default()).unwrap();
         let expected_cost = pricing::calc_cost("claude-sonnet-4-6", 100_000, 20_000, 0, 0)
             + pricing::calc_cost("claude-opus-4-6", 50_000, 10_000, 0, 0);
 

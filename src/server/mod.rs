@@ -2,6 +2,7 @@ pub mod api;
 pub mod assets;
 #[cfg(test)]
 mod tests;
+pub mod tz;
 
 use std::path::PathBuf;
 use std::sync::Arc;

@@ -8,6 +8,7 @@ mod openai;
 mod pricing;
 mod scanner;
 mod server;
+mod tz;
 mod webhooks;
 
 use std::collections::HashMap;

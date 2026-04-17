@@ -306,4 +306,196 @@ mod tests {
         assert!(!html.contains("__STYLE_CSS__"));
         assert!(!html.contains("__APP_JS__"));
     }
+
+    // -----------------------------------------------------------------------
+    // Phase 14 — Client-sent timezone: daily_by_model bucketing tests
+    // -----------------------------------------------------------------------
+
+    /// Seed a DB with two turns that straddle a UTC midnight and return the
+    /// app router so integration tests can call `/api/data?tz_offset_min=N`.
+    ///
+    /// Turn A: 2026-04-17T23:30:00Z  (Apr 17 UTC)
+    /// Turn B: 2026-04-18T00:30:00Z  (Apr 18 UTC)
+    fn setup_tz_test_db(tmp: &TempDir) -> (std::path::PathBuf, std::path::PathBuf) {
+        let projects = tmp.path().join("projects").join("user").join("tzproj");
+        std::fs::create_dir_all(&projects).unwrap();
+
+        let filepath = projects.join("tz_sess.jsonl");
+        let mut f = std::fs::File::create(&filepath).unwrap();
+
+        // User message (required to anchor the session)
+        writeln!(
+            f,
+            "{}",
+            serde_json::json!({
+                "type": "user",
+                "sessionId": "tz-session",
+                "timestamp": "2026-04-17T23:00:00Z",
+                "cwd": "/home/user/tzproj"
+            })
+        )
+        .unwrap();
+
+        // Turn A — 2026-04-17T23:30:00Z
+        writeln!(
+            f,
+            "{}",
+            serde_json::json!({
+                "type": "assistant",
+                "sessionId": "tz-session",
+                "timestamp": "2026-04-17T23:30:00Z",
+                "cwd": "/home/user/tzproj",
+                "message": {
+                    "id": "tz-msg-1",
+                    "model": "claude-sonnet-4-6",
+                    "usage": {
+                        "input_tokens": 100,
+                        "output_tokens": 50,
+                        "cache_read_input_tokens": 0,
+                        "cache_creation_input_tokens": 0
+                    },
+                    "content": []
+                }
+            })
+        )
+        .unwrap();
+
+        // Turn B — 2026-04-18T00:30:00Z
+        writeln!(
+            f,
+            "{}",
+            serde_json::json!({
+                "type": "assistant",
+                "sessionId": "tz-session",
+                "timestamp": "2026-04-18T00:30:00Z",
+                "cwd": "/home/user/tzproj",
+                "message": {
+                    "id": "tz-msg-2",
+                    "model": "claude-sonnet-4-6",
+                    "usage": {
+                        "input_tokens": 200,
+                        "output_tokens": 100,
+                        "cache_read_input_tokens": 0,
+                        "cache_creation_input_tokens": 0
+                    },
+                    "content": []
+                }
+            })
+        )
+        .unwrap();
+
+        let db_path = tmp.path().join("tz_usage.db");
+        let parent = tmp.path().join("projects");
+        scanner::scan(Some(vec![parent.clone()]), &db_path, false).unwrap();
+
+        (db_path, parent)
+    }
+
+    /// Fetch `/api/data` with an optional `tz_offset_min` query param and
+    /// return the `daily_by_model` array from the JSON response.
+    async fn fetch_daily_by_model(
+        app: Router,
+        tz_offset_min: Option<i32>,
+    ) -> Vec<serde_json::Value> {
+        let uri = match tz_offset_min {
+            Some(offset) => format!("/api/data?tz_offset_min={offset}"),
+            None => "/api/data".to_string(),
+        };
+        let resp = app
+            .oneshot(Request::builder().uri(&uri).body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = resp.into_body().collect().await.unwrap().to_bytes();
+        let data: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        data["daily_by_model"].as_array().unwrap().clone()
+    }
+
+    /// UTC (offset=0): two turns on different UTC days → two buckets.
+    #[tokio::test]
+    async fn test_tz_utc_produces_two_day_buckets() {
+        let tmp = TempDir::new().unwrap();
+        let (db_path, projects) = setup_tz_test_db(&tmp);
+        let app = test_app(db_path, projects);
+
+        let rows = fetch_daily_by_model(app, Some(0)).await;
+
+        let days: Vec<&str> = rows.iter().map(|r| r["day"].as_str().unwrap()).collect();
+        assert!(
+            days.contains(&"2026-04-17"),
+            "expected 2026-04-17 bucket, got: {days:?}"
+        );
+        assert!(
+            days.contains(&"2026-04-18"),
+            "expected 2026-04-18 bucket, got: {days:?}"
+        );
+        assert_eq!(days.len(), 2, "expected exactly 2 buckets, got: {days:?}");
+    }
+
+    /// UTC+2 (offset=+120): both turns shift to Apr 18 local → one bucket.
+    ///
+    /// Turn A: 2026-04-17T23:30Z + 120 min = 2026-04-18T01:30 local
+    /// Turn B: 2026-04-18T00:30Z + 120 min = 2026-04-18T02:30 local
+    #[tokio::test]
+    async fn test_tz_plus120_collapses_to_one_bucket() {
+        let tmp = TempDir::new().unwrap();
+        let (db_path, projects) = setup_tz_test_db(&tmp);
+        let app = test_app(db_path, projects);
+
+        let rows = fetch_daily_by_model(app, Some(120)).await;
+
+        let days: Vec<&str> = rows.iter().map(|r| r["day"].as_str().unwrap()).collect();
+        assert_eq!(
+            days.len(),
+            1,
+            "UTC+2: expected 1 bucket (both turns on Apr 18 local), got: {days:?}"
+        );
+        assert_eq!(
+            days[0], "2026-04-18",
+            "UTC+2: bucket should be Apr 18, got: {}",
+            days[0]
+        );
+    }
+
+    /// UTC-8 (offset=-480): both turns shift to Apr 17 local → one bucket.
+    ///
+    /// Turn A: 2026-04-17T23:30Z − 480 min = 2026-04-17T15:30 local
+    /// Turn B: 2026-04-18T00:30Z − 480 min = 2026-04-17T16:30 local
+    #[tokio::test]
+    async fn test_tz_minus480_collapses_to_one_bucket() {
+        let tmp = TempDir::new().unwrap();
+        let (db_path, projects) = setup_tz_test_db(&tmp);
+        let app = test_app(db_path, projects);
+
+        let rows = fetch_daily_by_model(app, Some(-480)).await;
+
+        let days: Vec<&str> = rows.iter().map(|r| r["day"].as_str().unwrap()).collect();
+        assert_eq!(
+            days.len(),
+            1,
+            "UTC-8: expected 1 bucket (both turns on Apr 17 local), got: {days:?}"
+        );
+        assert_eq!(
+            days[0], "2026-04-17",
+            "UTC-8: bucket should be Apr 17, got: {}",
+            days[0]
+        );
+    }
+
+    /// No tz param (omitted) behaves identically to UTC: two buckets.
+    #[tokio::test]
+    async fn test_tz_absent_defaults_to_utc() {
+        let tmp = TempDir::new().unwrap();
+        let (db_path, projects) = setup_tz_test_db(&tmp);
+        let app = test_app(db_path, projects);
+
+        let rows = fetch_daily_by_model(app, None).await;
+
+        let days: Vec<&str> = rows.iter().map(|r| r["day"].as_str().unwrap()).collect();
+        assert_eq!(
+            days.len(),
+            2,
+            "No offset: expected 2 UTC buckets, got: {days:?}"
+        );
+    }
 }

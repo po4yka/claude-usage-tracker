@@ -662,7 +662,7 @@ mod tests {
         scanner::scan(Some(vec![projects]), &db_path, false).unwrap();
 
         let conn = db::open_db(&db_path).unwrap();
-        let data = db::get_dashboard_data(&conn).unwrap();
+        let data = db::get_dashboard_data(&conn, crate::tz::TzParams::default()).unwrap();
 
         assert!(!data.all_models.is_empty());
         assert!(data.all_models.contains(&"claude-sonnet-4-6".to_string()));

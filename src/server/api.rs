@@ -2,11 +2,13 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 
-use axum::extract::State;
+use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use axum::response::Json;
 use serde_json::Value;
 use tokio::sync::{Mutex, RwLock};
+
+use crate::tz::TzParams;
 
 use crate::config::WebhookConfig;
 use crate::oauth;
@@ -32,7 +34,10 @@ pub struct AppState {
     pub webhook_config: WebhookConfig,
 }
 
-pub async fn api_data(State(state): State<Arc<AppState>>) -> Result<Json<Value>, StatusCode> {
+pub async fn api_data(
+    State(state): State<Arc<AppState>>,
+    Query(tz): Query<TzParams>,
+) -> Result<Json<Value>, StatusCode> {
     let _db_guard = state.db_lock.lock().await;
     let db_path = state.db_path.clone();
     let openai_lookback_days = state.openai_lookback_days;
@@ -43,7 +48,7 @@ pub async fn api_data(State(state): State<Arc<AppState>>) -> Result<Json<Value>,
         tokio::task::spawn_blocking(move || -> anyhow::Result<_> {
             let conn = db::open_db(&db_path)?;
             db::init_db(&conn)?;
-            let data = db::get_dashboard_data(&conn)?;
+            let data = db::get_dashboard_data(&conn, tz)?;
             let local_cost_nanos =
                 db::get_provider_estimated_cost_nanos_since(&conn, "codex", &openai_start_date)?;
             Ok((data, local_cost_nanos))
