@@ -461,7 +461,7 @@
     button,
     fetchImpl,
     loadData: loadData2,
-    showError: showError2,
+    showError,
     setTimer,
     logError = () => void 0
   }) {
@@ -471,7 +471,7 @@
       try {
         const resp = await fetchImpl("/api/rescan", { method: "POST" });
         if (!resp.ok) {
-          showError2(`Rescan failed: HTTP ${resp.status} ${resp.statusText}`);
+          showError(`Rescan failed: HTTP ${resp.status} ${resp.statusText}`);
           button.textContent = "\u21BB Rescan (failed)";
           return;
         }
@@ -480,7 +480,7 @@
         await loadData2(true);
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error);
-        showError2("Rescan failed: " + msg);
+        showError("Rescan failed: " + msg);
         button.textContent = "\u21BB Rescan (error)";
         logError(error);
       } finally {
@@ -1100,48 +1100,6 @@
     if (1 === _3.push(this)) (l.requestAnimationFrame || q2)(x3);
   }
 
-  // src/ui/components/Toast.tsx
-  var toasts = y3([]);
-  var toastId = 0;
-  function showError(msg) {
-    const id = ++toastId;
-    toasts.value = [...toasts.value, { text: msg, type: "error", id }];
-    setTimeout(() => {
-      toasts.value = toasts.value.filter((t4) => t4.id !== id);
-    }, 6e3);
-  }
-  function showSuccess(msg) {
-    const id = ++toastId;
-    toasts.value = [...toasts.value, { text: msg, type: "success", id }];
-    setTimeout(() => {
-      toasts.value = toasts.value.filter((t4) => t4.id !== id);
-    }, 6e3);
-  }
-  function ToastContainer() {
-    return /* @__PURE__ */ u2("div", { style: {
-      position: "fixed",
-      top: 56,
-      right: 16,
-      zIndex: 999,
-      display: "flex",
-      flexDirection: "column",
-      gap: "8px"
-    }, children: toasts.value.map((t4) => /* @__PURE__ */ u2("div", { role: t4.type === "error" ? "alert" : "status", style: {
-      background: `var(--toast-${t4.type === "error" ? "error" : "success"}-bg)`,
-      color: `var(--toast-${t4.type === "error" ? "error" : "success"}-text)`,
-      padding: "10px 16px",
-      borderRadius: "8px",
-      fontSize: "12px",
-      fontWeight: 500,
-      maxWidth: "360px",
-      border: "1px solid var(--border)",
-      animation: "slideIn 0.2s ease-out",
-      backdropFilter: "blur(12px) saturate(150%)",
-      WebkitBackdropFilter: "blur(12px) saturate(150%)",
-      boxShadow: "0 4px 16px rgba(99,102,241,0.08)"
-    }, children: t4.text }, t4.id)) });
-  }
-
   // src/ui/state/store.ts
   var rawData = y3(null);
   var selectedModels = y3(/* @__PURE__ */ new Set());
@@ -1154,7 +1112,92 @@
   var rescanLabel = y3("\u21BB Rescan");
   var rescanDisabled = y3(false);
   var themeMode = y3("dark");
+  var statusByPlacement = y3({
+    "global": null,
+    "rate-windows": null,
+    "rescan": null
+  });
   var SESSIONS_PAGE_SIZE = 25;
+
+  // src/ui/lib/status.ts
+  var timers = {};
+  function cancelTimer(placement) {
+    const t4 = timers[placement];
+    if (t4 != null) {
+      clearTimeout(t4);
+      delete timers[placement];
+    }
+  }
+  function setStatus(placement, kind, message, autoDismissMs) {
+    statusByPlacement.value = { ...statusByPlacement.value, [placement]: { kind, message } };
+    cancelTimer(placement);
+    if (autoDismissMs && autoDismissMs > 0) {
+      timers[placement] = window.setTimeout(() => clearStatus(placement), autoDismissMs);
+    }
+  }
+  function clearStatus(placement) {
+    statusByPlacement.value = { ...statusByPlacement.value, [placement]: null };
+    cancelTimer(placement);
+  }
+
+  // src/ui/components/InlineStatus.tsx
+  var LABEL_MAP = {
+    success: "OK",
+    error: "ERROR",
+    loading: "LOADING",
+    info: "INFO"
+  };
+  var COLOR_MAP = {
+    success: "var(--success)",
+    error: "var(--accent)",
+    loading: "var(--text-secondary)",
+    info: "var(--text-secondary)"
+  };
+  function InlineStatus({ placement, inline = false, dismissable = true }) {
+    const entry = statusByPlacement.value[placement];
+    if (!entry) return null;
+    const label = LABEL_MAP[entry.kind];
+    const color = COLOR_MAP[entry.kind];
+    const content = entry.message ? `[${label}: ${entry.message}]` : `[${label}]`;
+    const baseStyle = {
+      fontFamily: "var(--font-mono)",
+      fontSize: "11px",
+      letterSpacing: "0.08em",
+      textTransform: "uppercase",
+      color,
+      animation: "fadeUp 0.15s ease-out",
+      display: inline ? "inline-flex" : "flex",
+      alignItems: "center",
+      gap: "8px",
+      padding: inline ? "0" : "8px 16px",
+      border: inline ? "none" : `1px solid ${color}`,
+      borderRadius: inline ? "0" : "4px",
+      background: inline ? "transparent" : "var(--surface)"
+    };
+    return /* @__PURE__ */ u2("div", { role: entry.kind === "error" ? "alert" : "status", style: baseStyle, children: [
+      /* @__PURE__ */ u2("span", { children: content }),
+      dismissable && entry.kind !== "loading" && /* @__PURE__ */ u2(
+        "button",
+        {
+          type: "button",
+          onClick: () => clearStatus(placement),
+          "aria-label": "Dismiss",
+          style: {
+            background: "transparent",
+            border: "none",
+            color,
+            cursor: "pointer",
+            fontFamily: "inherit",
+            fontSize: "inherit",
+            letterSpacing: "inherit",
+            padding: "0 4px",
+            opacity: 0.7
+          },
+          children: "[X]"
+        }
+      )
+    ] });
+  }
 
   // src/ui/components/Header.tsx
   function Header({ onDataReload, onThemeToggle }) {
@@ -1180,7 +1223,7 @@
         button: proxy,
         fetchImpl: (input, init) => fetch(input, init),
         loadData: onDataReload,
-        showError,
+        showError: (msg) => setStatus("rescan", "error", msg, 6e3),
         setTimer: (cb, ms) => window.setTimeout(cb, ms),
         logError: (e4) => console.error(e4)
       });
@@ -1245,7 +1288,8 @@
             "aria-label": "Rescan database",
             children: rescanLabel.value
           }
-        )
+        ),
+        /* @__PURE__ */ u2(InlineStatus, { placement: "rescan", inline: true })
       ] })
     ] });
   }
@@ -5671,7 +5715,8 @@
             currency: data.budget.currency,
             utilization: data.budget.utilization
           }
-        )
+        ),
+        /* @__PURE__ */ u2("div", { style: { gridColumn: "1 / -1" }, children: /* @__PURE__ */ u2(InlineStatus, { placement: "rate-windows" }) })
       ] }),
       container
     );
@@ -5679,9 +5724,13 @@
       const currentPercent = 100 - data.session.used_percent;
       if (previousSessionPercent !== null) {
         if (previousSessionPercent > 0.01 && currentPercent <= 0.01) {
-          showError("Session depleted \u2014 resets in " + (data.session.resets_in_minutes ?? 0) + "m");
+          setStatus(
+            "rate-windows",
+            "error",
+            "Session depleted \u2014 resets in " + (data.session.resets_in_minutes ?? 0) + "m"
+          );
         } else if (previousSessionPercent <= 0.01 && currentPercent > 0.01) {
-          showSuccess("Session restored");
+          setStatus("rate-windows", "success", "Session restored", 4e3);
         }
       }
       previousSessionPercent = currentPercent;
@@ -5795,14 +5844,15 @@
     try {
       const resp = await fetch("/api/data");
       if (!resp.ok) {
-        showError(`Failed to load data: HTTP ${resp.status}`);
+        setStatus("global", "error", `Failed to load data: HTTP ${resp.status}`);
         return;
       }
       const d5 = await resp.json();
       if (d5.error) {
-        showError(d5.error);
+        setStatus("global", "error", d5.error);
         return;
       }
+      clearStatus("global");
       metaText.value = "Updated: " + d5.generated_at + " \xB7 Auto-refresh 30s";
       const isFirstLoad = rawData.value === null;
       rawData.value = d5;
@@ -5839,9 +5889,10 @@
   if (footerEl && footerEl.parentElement) {
     R(/* @__PURE__ */ u2(Footer, {}), footerEl.parentElement, footerEl);
   }
-  var toastRoot = document.createElement("div");
-  document.body.appendChild(toastRoot);
-  R(/* @__PURE__ */ u2(ToastContainer, {}), toastRoot);
+  var globalStatusMount = document.getElementById("inline-status-global");
+  if (globalStatusMount) {
+    R(/* @__PURE__ */ u2(InlineStatus, { placement: "global" }), globalStatusMount);
+  }
   loadData();
   setInterval(loadData, 3e4);
   loadUsageWindows();

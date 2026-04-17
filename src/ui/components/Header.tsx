@@ -1,6 +1,7 @@
 import { useRef, useEffect } from 'preact/hooks';
 import { createTriggerRescan } from '../lib/rescan';
-import { showError } from './Toast';
+import { setStatus } from '../lib/status';
+import { InlineStatus } from './InlineStatus';
 import { metaText, planBadge, rescanLabel, rescanDisabled, themeMode } from '../state/store';
 
 interface HeaderProps {
@@ -24,7 +25,7 @@ export function Header({ onDataReload, onThemeToggle }: HeaderProps) {
       button: proxy,
       fetchImpl: (input, init) => fetch(input, init),
       loadData: onDataReload,
-      showError,
+      showError: (msg) => setStatus('rescan', 'error', msg, 6000),
       setTimer: (cb, ms) => window.setTimeout(cb, ms),
       logError: (e) => console.error(e),
     });
@@ -91,6 +92,7 @@ export function Header({ onDataReload, onThemeToggle }: HeaderProps) {
         >
           {rescanLabel.value}
         </button>
+        <InlineStatus placement="rescan" inline />
       </div>
     </header>
   );

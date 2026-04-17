@@ -67,10 +67,6 @@
     --chart-grid: var(--border);
     --chart-text: var(--text-secondary);
     --chart-border: var(--surface);
-    --toast-error-bg: var(--accent-subtle);
-    --toast-error-text: var(--accent);
-    --toast-success-bg: color-mix(in srgb, var(--success) 15%, transparent);
-    --toast-success-text: var(--success);
 
     color-scheme: dark;
   }

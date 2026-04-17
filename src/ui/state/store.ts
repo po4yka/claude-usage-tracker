@@ -20,5 +20,20 @@ export const rescanLabel = signal<string>('\u21bb Rescan');
 export const rescanDisabled = signal<boolean>(false);
 export const themeMode = signal<'dark' | 'light'>('dark');
 
+// ── Inline status (replaces toasts) ──────────────────────────────────
+export type StatusPlacement = 'global' | 'rate-windows' | 'rescan';
+export type StatusKind = 'success' | 'error' | 'loading' | 'info';
+
+export interface StatusEntry {
+  kind: StatusKind;
+  message: string;
+}
+
+export const statusByPlacement = signal<Record<StatusPlacement, StatusEntry | null>>({
+  'global': null,
+  'rate-windows': null,
+  'rescan': null,
+});
+
 // ── Pagination page size (used by SessionsTable via DataTable) ───────
 export const SESSIONS_PAGE_SIZE = 25;

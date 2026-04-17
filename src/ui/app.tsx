@@ -6,7 +6,8 @@ import { RateWindowCard, BudgetCard, RateWindowUnavailable } from './components/
 import { EstimationMeta } from './components/EstimationMeta';
 import { ReconciliationBlock } from './components/ReconciliationBlock';
 import { StatsCards } from './components/StatsCards';
-import { showError, showSuccess, ToastContainer } from './components/Toast';
+import { InlineStatus } from './components/InlineStatus';
+import { setStatus, clearStatus } from './lib/status';
 import { SubagentSummary as SubagentSummaryComponent } from './components/SubagentSummary';
 import { EntrypointTable } from './components/EntrypointTable';
 import { ServiceTiersTable } from './components/ServiceTiers';
@@ -428,18 +429,25 @@ function renderUsageWindows(data: UsageWindowsResponse): void {
           utilization={data.budget.utilization}
         />
       )}
+      <div style={{ gridColumn: '1 / -1' }}>
+        <InlineStatus placement="rate-windows" />
+      </div>
     </>,
     container
   );
 
-  // Session depletion inline alert (still via Toast for now; replaced by inline status in C4)
+  // Session depletion inline alert
   if (data.session) {
     const currentPercent = 100 - data.session.used_percent;
     if (previousSessionPercent !== null) {
       if (previousSessionPercent > 0.01 && currentPercent <= 0.01) {
-        showError('Session depleted \u2014 resets in ' + (data.session.resets_in_minutes ?? 0) + 'm');
+        setStatus(
+          'rate-windows',
+          'error',
+          'Session depleted \u2014 resets in ' + (data.session.resets_in_minutes ?? 0) + 'm',
+        );
       } else if (previousSessionPercent <= 0.01 && currentPercent > 0.01) {
-        showSuccess('Session restored');
+        setStatus('rate-windows', 'success', 'Session restored', 4000);
       }
     }
     previousSessionPercent = currentPercent;
@@ -568,14 +576,15 @@ async function loadData(force = false): Promise<void> {
   try {
     const resp = await fetch('/api/data');
     if (!resp.ok) {
-      showError(`Failed to load data: HTTP ${resp.status}`);
+      setStatus('global', 'error', `Failed to load data: HTTP ${resp.status}`);
       return;
     }
     const d: DashboardData = await resp.json();
     if (d.error) {
-      showError(d.error);
+      setStatus('global', 'error', d.error);
       return;
     }
+    clearStatus('global');
     metaText.value = 'Updated: ' + d.generated_at + ' \u00b7 Auto-refresh 30s';
 
     const isFirstLoad = rawData.value === null;
@@ -621,9 +630,10 @@ if (footerEl && footerEl.parentElement) {
   render(<Footer />, footerEl.parentElement, footerEl);
 }
 
-const toastRoot = document.createElement('div');
-document.body.appendChild(toastRoot);
-render(<ToastContainer />, toastRoot);
+const globalStatusMount = document.getElementById('inline-status-global');
+if (globalStatusMount) {
+  render(<InlineStatus placement="global" />, globalStatusMount);
+}
 
 // ── Boot ─────────────────────────────────────────────────────────────
 loadData();
