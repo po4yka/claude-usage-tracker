@@ -1,4 +1,5 @@
 mod config;
+mod currency;
 mod export;
 mod models;
 mod oauth;
@@ -105,6 +106,7 @@ fn main() -> Result<()> {
     let cfg_openai_admin_key_env = cfg.openai.admin_key_env;
     let cfg_openai_refresh_interval = cfg.openai.refresh_interval;
     let cfg_openai_lookback_days = cfg.openai.lookback_days;
+    let cfg_display_currency = cfg.display.currency.unwrap_or_else(|| "USD".into());
 
     let default_db = |cli_db: Option<PathBuf>| -> PathBuf {
         cli_db
@@ -138,7 +140,7 @@ fn main() -> Result<()> {
         }
         Commands::Stats { db_path, json } => {
             let db = default_db(db_path);
-            cmd_stats(&db, json)?;
+            cmd_stats(&db, json, &cfg_display_currency)?;
         }
         Commands::Dashboard {
             projects_dir,
@@ -533,7 +535,7 @@ fn cmd_today(db_path: &std::path::Path, json_output: bool) -> Result<()> {
     Ok(())
 }
 
-fn cmd_stats(db_path: &std::path::Path, json_output: bool) -> Result<()> {
+fn cmd_stats(db_path: &std::path::Path, json_output: bool, display_currency: &str) -> Result<()> {
     if !db_path.exists() {
         anyhow::bail!("Database not found. Run: claude-usage-tracker scan");
     }
@@ -720,7 +722,23 @@ fn cmd_stats(db_path: &std::path::Path, json_output: bool) -> Result<()> {
                 .take(10)
                 .collect::<String>()
         };
-        let output = serde_json::json!({
+
+        // Build display_currency block — only present when currency != "USD".
+        // No network calls during tests; uses convert_with_snapshot internally.
+        let display_currency_value: Option<serde_json::Value> = if display_currency != "USD" {
+            let result = currency::convert_from_usd(total_cost, display_currency);
+            let age = result.source.age_hours();
+            Some(serde_json::json!({
+                "code": result.currency,
+                "total_cost_display": result.amount,
+                "rate_source": result.source.as_str(),
+                "rate_age_hours": age,
+            }))
+        } else {
+            None
+        };
+
+        let mut output = serde_json::json!({
             "period": { "from": f(&first), "to": f(&last) },
             "total_sessions": sessions,
             "total_turns": turns,
@@ -736,6 +754,9 @@ fn cmd_stats(db_path: &std::path::Path, json_output: bool) -> Result<()> {
             "billing_mode_breakdown": billing_mode_breakdown,
             "by_model": models,
         });
+        if let Some(dc) = display_currency_value {
+            output["display_currency"] = dc;
+        }
         println!("{}", serde_json::to_string_pretty(&output)?);
         return Ok(());
     }

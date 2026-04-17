@@ -70,13 +70,13 @@ mod tests {
         db::init_db(&conn).unwrap();
         drop(conn);
         // Should not panic on empty DB
-        crate::cmd_stats(&db_path, false).unwrap();
+        crate::cmd_stats(&db_path, false, "USD").unwrap();
     }
 
     #[test]
     fn test_cmd_stats_json() {
         let tmp = TempDir::new().unwrap();
         let (db_path, _) = setup_test_db(&tmp);
-        crate::cmd_stats(&db_path, true).unwrap();
+        crate::cmd_stats(&db_path, true, "USD").unwrap();
     }
 }

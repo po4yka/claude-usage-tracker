@@ -29,6 +29,10 @@ pub struct Config {
     /// Optional OpenAI organization usage reconciliation for Codex API-backed usage.
     #[serde(default)]
     pub openai: OpenAiConfig,
+
+    /// Display settings (currency, formatting).
+    #[serde(default)]
+    pub display: Display,
 }
 
 #[derive(Debug, Deserialize)]
@@ -92,6 +96,22 @@ pub struct PricingOverride {
     pub cache_write: Option<f64>,
     #[serde(default)]
     pub cache_read: Option<f64>,
+}
+
+/// Display settings — controls how costs are rendered to the user.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
+pub struct Display {
+    /// ISO 4217 currency code for cost display (default: USD, no conversion).
+    pub currency: Option<String>,
+}
+
+impl Default for Display {
+    fn default() -> Self {
+        Self {
+            currency: Some("USD".into()),
+        }
+    }
 }
 
 fn config_path() -> PathBuf {
@@ -330,5 +350,48 @@ output = 8.0
         let config = load_config_from(&path);
         // Should return defaults since the file fails to parse
         assert!(config.port.is_none());
+    }
+
+    #[test]
+    fn test_display_config_defaults() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("config.toml");
+        std::fs::File::create(&path).unwrap();
+        let config = load_config_from(&path);
+        // Default display currency should be USD
+        assert_eq!(config.display.currency.as_deref(), Some("USD"));
+    }
+
+    #[test]
+    fn test_display_config_currency_eur() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("config.toml");
+        let mut f = std::fs::File::create(&path).unwrap();
+        write!(f, "[display]\ncurrency = \"EUR\"\n").unwrap();
+        let config = load_config_from(&path);
+        assert_eq!(config.display.currency.as_deref(), Some("EUR"));
+    }
+
+    #[test]
+    fn test_display_config_currency_explicit_usd() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("config.toml");
+        let mut f = std::fs::File::create(&path).unwrap();
+        write!(f, "[display]\ncurrency = \"USD\"\n").unwrap();
+        let config = load_config_from(&path);
+        assert_eq!(config.display.currency.as_deref(), Some("USD"));
+    }
+
+    #[test]
+    fn test_display_config_none_currency() {
+        // Explicit null/empty is valid — callers treat None as "no preference"
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("config.toml");
+        // Omit the display section entirely
+        let mut f = std::fs::File::create(&path).unwrap();
+        write!(f, "port = 3000\n").unwrap();
+        let config = load_config_from(&path);
+        // Default kicks in; currency = Some("USD")
+        assert_eq!(config.display.currency.as_deref(), Some("USD"));
     }
 }
