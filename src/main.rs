@@ -1,6 +1,7 @@
 mod config;
 mod currency;
 mod export;
+mod litellm;
 mod models;
 mod oauth;
 mod openai;
@@ -82,6 +83,21 @@ enum Commands {
         #[arg(long)]
         project: Option<String>,
     },
+    /// Pricing data management
+    Pricing {
+        #[command(subcommand)]
+        action: PricingAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum PricingAction {
+    /// Fetch the LiteLLM model catalogue and cache it locally
+    Refresh {
+        /// Override the default cache path (~/.cache/heimdall/litellm_pricing.json)
+        #[arg(long)]
+        cache_path: Option<PathBuf>,
+    },
 }
 
 fn main() -> Result<()> {
@@ -93,6 +109,7 @@ fn main() -> Result<()> {
 
     let cfg = config::load_config();
     apply_pricing_overrides(&cfg);
+    maybe_load_litellm(&cfg);
 
     // Extract config values before match (avoids partial move issues)
     let cfg_db = cfg.db_path;
@@ -201,8 +218,80 @@ fn main() -> Result<()> {
             let n = export::run_export(&db, &opts)?;
             eprintln!("Exported {} rows to {}", n, opts.output.display());
         }
+        Commands::Pricing {
+            action: PricingAction::Refresh { cache_path },
+        } => {
+            let path = cache_path.unwrap_or_else(litellm::cache_path);
+            match litellm::run_refresh(&path) {
+                Ok((count, written)) => {
+                    println!("Fetched {} models, cached at {}", count, written.display());
+                }
+                Err(reason) => {
+                    eprintln!("Refresh failed: {}", reason);
+                    std::process::exit(1);
+                }
+            }
+        }
     }
     Ok(())
+}
+
+/// When config says `source = "litellm"`, load whatever is currently on disk
+/// into the pricing lookup map. If the cache is missing or stale, spawn a
+/// background thread that fetches and writes a fresh copy — startup is never
+/// blocked.
+fn maybe_load_litellm(cfg: &config::Config) {
+    if !cfg.pricing_source.is_litellm() {
+        return;
+    }
+    let cache = litellm::cache_path();
+    let refresh_hours = cfg.pricing_source.effective_refresh_hours();
+
+    // Load whatever is currently on disk (may be None if cache absent).
+    let maybe_snapshot = litellm::read_cache(&cache);
+    let needs_refresh = match &maybe_snapshot {
+        None => {
+            tracing::info!("litellm pricing: cache missing, refresh in background");
+            true
+        }
+        Some(snap) => {
+            let age_h = snap.age_hours();
+            let model_count = snap.entries.len();
+            tracing::info!(
+                "litellm pricing: {} models loaded from cache (age: {:.1}h)",
+                model_count,
+                age_h
+            );
+            age_h > refresh_hours as f64
+        }
+    };
+
+    // Install the current on-disk map synchronously.
+    if let Some(snap) = maybe_snapshot {
+        let map = pricing::load_litellm_cache_from_snapshot(snap);
+        if !map.is_empty() {
+            pricing::set_litellm_map(map);
+        }
+    }
+
+    // Kick off background refresh if needed (non-blocking).
+    if needs_refresh {
+        let cache_clone = cache.clone();
+        std::thread::spawn(move || {
+            if let Some(fresh) = litellm::fetch_live() {
+                let count = fresh.entries.len();
+                match litellm::write_cache(&cache_clone, &fresh) {
+                    Ok(()) => tracing::info!(
+                        "litellm pricing: background refresh complete ({} models)",
+                        count
+                    ),
+                    Err(e) => tracing::warn!("litellm pricing: background write failed: {}", e),
+                }
+            } else {
+                tracing::warn!("litellm pricing: background fetch failed");
+            }
+        });
+    }
 }
 
 /// Convert config pricing overrides into the pricing module's runtime overrides.

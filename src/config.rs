@@ -33,6 +33,11 @@ pub struct Config {
     /// Display settings (currency, formatting).
     #[serde(default)]
     pub display: Display,
+
+    /// Pricing source settings (static vs litellm refresh).
+    /// TOML section: [pricing_source]
+    #[serde(default)]
+    pub pricing_source: PricingConfig,
 }
 
 #[derive(Debug, Deserialize)]
@@ -111,6 +116,31 @@ impl Default for Display {
         Self {
             currency: Some("USD".into()),
         }
+    }
+}
+
+/// Pricing source settings — controls where model pricing data is loaded from.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default)]
+pub struct PricingConfig {
+    /// Pricing source: "static" (default) or "litellm".
+    pub source: Option<String>,
+    /// How many hours before re-fetching the LiteLLM cache (default: 24).
+    pub refresh_hours: Option<u32>,
+}
+
+impl PricingConfig {
+    /// Returns true when the source is explicitly set to "litellm".
+    pub fn is_litellm(&self) -> bool {
+        self.source
+            .as_deref()
+            .map(|s| s.eq_ignore_ascii_case("litellm"))
+            .unwrap_or(false)
+    }
+
+    /// Effective refresh interval in hours (default 24).
+    pub fn effective_refresh_hours(&self) -> u32 {
+        self.refresh_hours.unwrap_or(24)
     }
 }
 
@@ -393,5 +423,40 @@ output = 8.0
         let config = load_config_from(&path);
         // Default kicks in; currency = Some("USD")
         assert_eq!(config.display.currency.as_deref(), Some("USD"));
+    }
+
+    #[test]
+    fn test_pricing_source_defaults() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("config.toml");
+        std::fs::File::create(&path).unwrap();
+        let config = load_config_from(&path);
+        assert!(!config.pricing_source.is_litellm());
+        assert_eq!(config.pricing_source.effective_refresh_hours(), 24);
+    }
+
+    #[test]
+    fn test_pricing_source_litellm() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("config.toml");
+        let mut f = std::fs::File::create(&path).unwrap();
+        write!(
+            f,
+            "[pricing_source]\nsource = \"litellm\"\nrefresh_hours = 12\n"
+        )
+        .unwrap();
+        let config = load_config_from(&path);
+        assert!(config.pricing_source.is_litellm());
+        assert_eq!(config.pricing_source.effective_refresh_hours(), 12);
+    }
+
+    #[test]
+    fn test_pricing_source_static_explicit() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("config.toml");
+        let mut f = std::fs::File::create(&path).unwrap();
+        write!(f, "[pricing_source]\nsource = \"static\"\n").unwrap();
+        let config = load_config_from(&path);
+        assert!(!config.pricing_source.is_litellm());
     }
 }

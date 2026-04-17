@@ -127,7 +127,7 @@ When porting, prefer reading the source file directly over reimplementing from m
 
 ---
 
-## Phase 3 -- One-Shot Rate Tracking
+## Phase 3 -- One-Shot Rate Tracking **[x]**
 
 **Motivation:** A compact, viral metric for "how good is the model at this task." Detects Edit→Bash→Edit retry cycles as proxy for rework.
 
@@ -151,7 +151,7 @@ When porting, prefer reading the source file directly over reimplementing from m
 
 ---
 
-## Phase 4 -- Currency Conversion
+## Phase 4 -- Currency Conversion **[x]**
 
 **Motivation:** Non-USD users currently read dollar amounts mentally. Codeburn's 162-currency Frankfurter integration ships this cleanly.
 
@@ -282,7 +282,7 @@ When porting, prefer reading the source file directly over reimplementing from m
 
 ---
 
-## Phase 9 -- LiteLLM Pricing Refresh
+## Phase 9 -- LiteLLM Pricing Refresh **[x]**
 
 **Motivation:** Claude/GPT-5 already covered by Heimdall's hardcoded table; this handles long-tail providers (Gemini, Mistral, Groq) without release cuts.
 

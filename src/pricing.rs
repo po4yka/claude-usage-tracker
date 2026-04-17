@@ -1,5 +1,8 @@
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
+
+use crate::litellm::{LiteLlmSnapshot, read_cache as litellm_read_cache};
 
 pub const PRICING_VERSION: &str = "2026-04-10";
 pub const PRICING_VALID_FROM: &str = "2026-04-10T00:00:00Z";
@@ -37,6 +40,74 @@ pub fn set_overrides(overrides: HashMap<String, ModelPricing>) {
 
 fn get_override(model: &str) -> Option<&ModelPricing> {
     PRICING_OVERRIDES.get()?.get(model)
+}
+
+// ── LiteLLM pricing source ────────────────────────────────────────────────────
+
+/// Where model pricing data originates.
+#[allow(dead_code)]
+pub enum PricingSource {
+    /// Built-in hardcoded table only (current default).
+    Static,
+    /// Supplement the hardcoded table with a LiteLLM cache file.
+    LiteLlm { cache_path: PathBuf },
+}
+
+/// Runtime LiteLLM pricing map (populated once at startup when source = LiteLlm).
+/// Guarded by OnceLock so it is safe to set from main and read from all threads.
+static LITELLM_MAP: OnceLock<HashMap<String, ModelPricing>> = OnceLock::new();
+
+/// Install a LiteLLM-sourced pricing map. Called at startup when config says
+/// `source = "litellm"`. Safe to call multiple times — subsequent calls are
+/// no-ops (OnceLock semantics).
+pub fn set_litellm_map(map: HashMap<String, ModelPricing>) {
+    let _ = LITELLM_MAP.set(map);
+}
+
+/// Load the LiteLLM cache file at `path` and convert its per-MTok rates into
+/// `ModelPricing` values. Returns `None` if the file is absent or unparseable.
+///
+/// This is the test seam: pass any `Path` to avoid touching `~/.cache`.
+#[allow(dead_code)]
+pub fn load_litellm_cache(path: &Path) -> Option<HashMap<String, ModelPricing>> {
+    let snapshot: LiteLlmSnapshot = litellm_read_cache(path)?;
+    Some(load_litellm_cache_from_snapshot(snapshot))
+}
+
+/// Convert an already-loaded `LiteLlmSnapshot` into a `ModelPricing` map.
+/// Entries missing either rate are silently skipped.
+pub fn load_litellm_cache_from_snapshot(
+    snapshot: LiteLlmSnapshot,
+) -> HashMap<String, ModelPricing> {
+    snapshot
+        .entries
+        .into_iter()
+        .filter_map(|(key, entry)| {
+            // Both rates must be present to form a usable ModelPricing.
+            let input = entry.input_cost_per_token?;
+            let output = entry.output_cost_per_token?;
+            Some((
+                key,
+                ModelPricing {
+                    input,
+                    output,
+                    // LiteLLM doesn't always expose cache rates; use standard
+                    // multipliers as safe defaults (same as config override logic).
+                    cache_write: input * 1.25,
+                    cache_read: input * 0.1,
+                    threshold_tokens: None,
+                    input_above_threshold: None,
+                    output_above_threshold: None,
+                },
+            ))
+        })
+        .collect()
+}
+
+/// Look up a model in the LiteLLM map. Returns None if the map is unset or
+/// the model is absent.
+fn get_litellm(model: &str) -> Option<&'static ModelPricing> {
+    LITELLM_MAP.get()?.get(model)
 }
 
 const PRICING_TABLE: &[(&str, ModelPricing)] = &[
@@ -298,6 +369,17 @@ fn lookup_pricing(model: &str) -> Option<PricingLookup<'_>> {
             cost_confidence: COST_CONFIDENCE_MEDIUM,
         });
     }
+
+    // Tier 5: LiteLLM cache — only reached for models NOT matched by any hardcoded
+    // tier above.  This guarantees Claude/GPT-5 families always use hardcoded prices.
+    if let Some(pricing) = get_litellm(model) {
+        return Some(PricingLookup::Borrowed {
+            pricing,
+            pricing_model: model.to_string(),
+            cost_confidence: COST_CONFIDENCE_LOW,
+        });
+    }
+
     None
 }
 
@@ -687,5 +769,124 @@ mod tests {
         assert_eq!(p.input, 15.0);
         let p2 = get_pricing("claude-sonnet-4-5-20250929").unwrap();
         assert_eq!(p2.input, 3.0);
+    }
+
+    // ── LiteLLM cache loading ─────────────────────────────────────────────────
+
+    #[test]
+    fn test_load_litellm_cache_round_trip() {
+        use crate::litellm::{LiteLlmModelEntry, LiteLlmSnapshot, write_cache};
+        use std::collections::HashMap as HM;
+        use tempfile::TempDir;
+
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("litellm_pricing.json");
+
+        let mut entries = HM::new();
+        entries.insert(
+            "gemini-2.5-flash".to_string(),
+            LiteLlmModelEntry {
+                input_cost_per_token: Some(0.075),
+                output_cost_per_token: Some(0.30),
+            },
+        );
+        let snap = LiteLlmSnapshot {
+            fetched_at: chrono::Utc::now().to_rfc3339(),
+            entries,
+        };
+        write_cache(&path, &snap).unwrap();
+
+        let map = load_litellm_cache(&path).unwrap();
+        assert!(map.contains_key("gemini-2.5-flash"));
+        let p = &map["gemini-2.5-flash"];
+        assert!((p.input - 0.075).abs() < 1e-9);
+        assert!((p.output - 0.30).abs() < 1e-9);
+    }
+
+    #[test]
+    fn test_load_litellm_cache_missing_returns_none() {
+        use tempfile::TempDir;
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("missing.json");
+        assert!(load_litellm_cache(&path).is_none());
+    }
+
+    #[test]
+    fn test_load_litellm_cache_skips_entries_without_both_rates() {
+        use crate::litellm::{LiteLlmModelEntry, LiteLlmSnapshot, write_cache};
+        use std::collections::HashMap as HM;
+        use tempfile::TempDir;
+
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("litellm_pricing.json");
+
+        let mut entries = HM::new();
+        // Only has input rate — should be skipped
+        entries.insert(
+            "partial-model".to_string(),
+            LiteLlmModelEntry {
+                input_cost_per_token: Some(1.0),
+                output_cost_per_token: None,
+            },
+        );
+        // Both rates present — should be included
+        entries.insert(
+            "full-model".to_string(),
+            LiteLlmModelEntry {
+                input_cost_per_token: Some(1.0),
+                output_cost_per_token: Some(3.0),
+            },
+        );
+        let snap = LiteLlmSnapshot {
+            fetched_at: chrono::Utc::now().to_rfc3339(),
+            entries,
+        };
+        write_cache(&path, &snap).unwrap();
+
+        let map = load_litellm_cache(&path).unwrap();
+        assert!(!map.contains_key("partial-model"));
+        assert!(map.contains_key("full-model"));
+    }
+
+    // ── Hardcoded-wins invariant tests ────────────────────────────────────────
+    // These tests work with a fresh process (no litellm map installed), verifying
+    // that hardcoded tiers 1-4 return the right prices. The LiteLLM tier (5) is
+    // tested in integration via set_litellm_map in the litellm_priority tests.
+
+    #[test]
+    fn test_claude_sonnet_46_returns_hardcoded_input_price() {
+        // claude-sonnet-4-6 must return $3/MTok input — tier 1 exact match.
+        let est = estimate_cost("claude-sonnet-4-6", 1_000_000, 0, 0, 0);
+        // $3.0 = 3_000_000_000 nanos
+        assert_eq!(est.estimated_cost_nanos, 3_000_000_000);
+        assert_eq!(est.cost_confidence, COST_CONFIDENCE_HIGH);
+    }
+
+    #[test]
+    fn test_gpt5_4_returns_hardcoded_input_price() {
+        // gpt-5.4 must return $2.50/MTok input — tier 1 exact match.
+        let est = estimate_cost("gpt-5.4", 1_000_000, 0, 0, 0);
+        // $2.50 = 2_500_000_000 nanos
+        assert_eq!(est.estimated_cost_nanos, 2_500_000_000);
+        assert_eq!(est.cost_confidence, COST_CONFIDENCE_HIGH);
+    }
+
+    #[test]
+    fn test_gpt54_family_prefix_returns_hardcoded_not_litellm() {
+        // "gpt-5.4-something-new" starts_with "gpt-5.4" — hits tier 2 prefix match.
+        // Must return $2.50 input (hardcoded gpt-5.4 rate), NOT any LiteLLM entry.
+        let est = estimate_cost("gpt-5.4-something-new", 1_000_000, 0, 0, 0);
+        assert_eq!(est.estimated_cost_nanos, 2_500_000_000);
+        // Prefix match is tier 2 → HIGH confidence
+        assert_eq!(est.cost_confidence, COST_CONFIDENCE_HIGH);
+    }
+
+    #[test]
+    fn test_unknown_model_returns_zero_cost_without_litellm() {
+        // "gemini-2.5-flash" has no hardcoded entry; without LiteLLM map loaded,
+        // cost should be zero.
+        let est = estimate_cost("gemini-2.5-flash", 1_000_000, 0, 0, 0);
+        assert_eq!(est.estimated_cost_nanos, 0);
+        assert_eq!(est.cost_confidence, COST_CONFIDENCE_LOW);
     }
 }
