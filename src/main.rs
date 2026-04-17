@@ -2,6 +2,7 @@ mod config;
 mod currency;
 mod export;
 mod litellm;
+mod menubar;
 mod models;
 mod oauth;
 mod openai;
@@ -83,6 +84,11 @@ enum Commands {
         /// Restrict to a single project_name
         #[arg(long)]
         project: Option<String>,
+    },
+    /// Print SwiftBar-formatted menubar widget showing today's cost
+    Menubar {
+        #[arg(long)]
+        db_path: Option<PathBuf>,
     },
     /// Pricing data management
     Pricing {
@@ -218,6 +224,11 @@ fn main() -> Result<()> {
             };
             let n = export::run_export(&db, &opts)?;
             eprintln!("Exported {} rows to {}", n, opts.output.display());
+        }
+        Commands::Menubar { db_path } => {
+            let db = default_db(db_path);
+            let output = menubar::run_menubar(&db)?;
+            print!("{}", output);
         }
         Commands::Pricing {
             action: PricingAction::Refresh { cache_path },

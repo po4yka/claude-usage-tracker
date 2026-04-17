@@ -180,7 +180,7 @@ When porting, prefer reading the source file directly over reimplementing from m
 
 ---
 
-## Phase 5 -- Cursor Provider
+## Phase 5 -- Cursor Provider **[x]**
 
 **Motivation:** Cursor is the largest unpenetrated user base for Heimdall. Codeburn already proved the SQLite parsing pattern.
 
@@ -259,7 +259,7 @@ When porting, prefer reading the source file directly over reimplementing from m
 
 ---
 
-## Phase 8 -- SwiftBar Menubar Widget + Security
+## Phase 8 -- SwiftBar Menubar Widget + Security **[x]**
 
 **Motivation:** macOS users want at-a-glance today-cost in the menu bar. Codeburn has a working SwiftBar plugin generator.
 
@@ -282,7 +282,7 @@ When porting, prefer reading the source file directly over reimplementing from m
 
 ---
 
-## Phase 9 -- LiteLLM Pricing Refresh **[x]**
+## Phase 9 -- LiteLLM Pricing Refresh **[x]** **[x]**
 
 **Motivation:** Claude/GPT-5 already covered by Heimdall's hardcoded table; this handles long-tail providers (Gemini, Mistral, Groq) without release cuts.
 
@@ -420,7 +420,7 @@ When porting, prefer reading the source file directly over reimplementing from m
 
 ---
 
-## Phase 14 -- Client-Sent Timezone Handling
+## Phase 14 -- Client-Sent Timezone Handling **[x]**
 
 **Motivation:** Today's dashboard bucket boundaries use UTC (or server-local time depending on code path), causing confusing "today" views for non-UTC users. Third-Eye solved this cleanly: the client sends `tzOffsetMin` and `weekStartsOn` on every request; the server applies `datetime(ts, '+N minutes')` in SQL before bucketing. Eliminates server TZ config entirely.
 
@@ -495,7 +495,7 @@ When porting, prefer reading the source file directly over reimplementing from m
 
 ---
 
-## Phase 17 -- Cowork Ephemeral Label Resolution
+## Phase 17 -- Cowork Ephemeral Label Resolution **[x]**
 
 **Motivation:** Claude Desktop Cowork sessions live in paths like `wizardly-charming-thompson/` -- procedurally generated slugs that are meaningless to humans. Third-Eye resolves these by walking `local-agent-mode-sessions/audit.jsonl` and extracting the first user message as the display label. If Heimdall adds Cowork support (implied by the broader provider plan), this is the only path to readable project names.
 
