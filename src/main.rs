@@ -1,4 +1,5 @@
 mod config;
+mod export;
 mod models;
 mod oauth;
 mod openai;
@@ -59,6 +60,26 @@ enum Commands {
         host: String,
         #[arg(long, default_value = "8080")]
         port: u16,
+    },
+    /// Export aggregated usage to CSV / JSON / JSONL
+    Export {
+        #[arg(long)]
+        db_path: Option<PathBuf>,
+        /// Output format: csv | json | jsonl
+        #[arg(long, default_value = "csv")]
+        format: String,
+        /// Time window: today | week | month | year | all
+        #[arg(long, default_value = "all")]
+        period: String,
+        /// Output file path
+        #[arg(long)]
+        output: PathBuf,
+        /// Restrict to a single provider (claude | codex | xcode | ...)
+        #[arg(long)]
+        provider: Option<String>,
+        /// Restrict to a single project_name
+        #[arg(long)]
+        project: Option<String>,
     },
 }
 
@@ -158,6 +179,25 @@ fn main() -> Result<()> {
                 openai_lookback_days: cfg_openai_lookback_days,
                 webhook_config: cfg_webhooks,
             }))?;
+        }
+        Commands::Export {
+            db_path,
+            format,
+            period,
+            output,
+            provider,
+            project,
+        } => {
+            let db = default_db(db_path);
+            let opts = export::ExportOptions {
+                format: format.parse()?,
+                period: period.parse()?,
+                output,
+                provider,
+                project,
+            };
+            let n = export::run_export(&db, &opts)?;
+            eprintln!("Exported {} rows to {}", n, opts.output.display());
         }
     }
     Ok(())
