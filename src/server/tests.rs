@@ -289,12 +289,21 @@ mod tests {
         assert!(html.contains("<!DOCTYPE html>"));
         assert!(html.contains("apexcharts"));
         assert!(html.contains("Usage"));
-        assert!(html.contains("Codex Analytics"));
+        // Preact mount points wired in by app.tsx.
+        assert!(html.contains("header-mount"));
+        assert!(html.contains("filter-bar-mount"));
+        assert!(html.contains("inline-status-global"));
     }
 
     #[test]
     fn test_render_dashboard_has_xss_protection() {
         let html = assets::render_dashboard();
-        assert!(html.contains("function esc("));
+        // XSS safety is now provided by Preact's JSX rendering pipeline,
+        // which funnels all text children through document.createTextNode
+        // (never innerHTML). Verify the bundle retains that path and that
+        // the asset placeholders have actually been substituted.
+        assert!(html.contains("createTextNode"));
+        assert!(!html.contains("__STYLE_CSS__"));
+        assert!(!html.contains("__APP_JS__"));
     }
 }

@@ -1,8 +1,6 @@
 # DESIGN.md -- Claude Usage Tracker
 
-A data-dense analytics dashboard for Claude Code usage tracking. Monochromatic industrial design: OLED dark + warm-off-white light, type-driven hierarchy, one surgical red accent reserved for urgent/destructive states. Every pixel earns its place by showing data.
-
-> **Current state.** The target design documented below is the **industrial** system defined by `.claude/skills/industrial-design/SKILL.md`. The live `src/ui/` implementation still carries the previous indigo + Inter palette (`--accent: #6366f1`, Inter + JetBrains Mono, `--bg: #0c0c0c`). A migration pass is planned as a separate effort — this file is the target spec, not a snapshot of current code. The `industrial-design` skill is the canonical source of truth.
+A data-dense analytics dashboard for Claude Code usage tracking. Monochromatic industrial design: OLED dark + warm-off-white light, type-driven hierarchy, one surgical red accent reserved for urgent/destructive states. Every pixel earns its place by showing data. The canonical source of truth is `.claude/skills/industrial-design/SKILL.md`; this file mirrors the product-specific decisions that layer on top of the skill.
 
 ---
 

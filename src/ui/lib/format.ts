@@ -1,9 +1,3 @@
-export function esc(s: unknown): string {
-  const d = document.createElement('div');
-  d.textContent = String(s);
-  return d.innerHTML;
-}
-
 export function $(id: string): HTMLElement {
   return document.getElementById(id)!;
 }
