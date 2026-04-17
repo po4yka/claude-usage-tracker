@@ -9,6 +9,7 @@ use crate::pricing;
 
 pub const PROVIDER_CLAUDE: &str = "claude";
 pub const PROVIDER_CODEX: &str = "codex";
+pub const PROVIDER_XCODE: &str = "xcode";
 
 /// Classify a tool name into (category, mcp_server, mcp_tool).
 /// MCP tools follow the pattern: `mcp__<server>__<tool>`.
@@ -63,9 +64,33 @@ pub struct ParseResult {
 /// Parse a provider-specific log file.
 pub fn parse_jsonl_file(provider: &str, filepath: &Path, skip_lines: i64) -> ParseResult {
     match provider {
-        PROVIDER_CODEX => crate::scanner::providers::codex::parse_codex_jsonl_file(filepath, skip_lines),
+        PROVIDER_CODEX => {
+            crate::scanner::providers::codex::parse_codex_jsonl_file(filepath, skip_lines)
+        }
+        PROVIDER_XCODE => retag_claude_result(parse_claude_jsonl_file(filepath, skip_lines)),
         _ => parse_claude_jsonl_file(filepath, skip_lines),
     }
+}
+
+/// Rewrite a Claude-parsed result so it carries the Xcode provider tag on
+/// both turns and session metadata. Xcode's CodingAssistant writes the same
+/// JSONL format but must be attributed separately in the DB.
+fn retag_claude_result(mut result: ParseResult) -> ParseResult {
+    let claude_prefix = format!("{}:", PROVIDER_CLAUDE);
+    let xcode_prefix = format!("{}:", PROVIDER_XCODE);
+    for t in &mut result.turns {
+        if let Some(raw) = t.session_id.strip_prefix(&claude_prefix) {
+            t.session_id = format!("{}{}", xcode_prefix, raw);
+        }
+        t.provider = PROVIDER_XCODE.into();
+    }
+    for m in &mut result.session_metas {
+        if let Some(raw) = m.session_id.strip_prefix(&claude_prefix) {
+            m.session_id = format!("{}{}", xcode_prefix, raw);
+        }
+        m.provider = PROVIDER_XCODE.into();
+    }
+    result
 }
 
 pub(crate) fn parse_claude_jsonl_file(filepath: &Path, skip_lines: i64) -> ParseResult {
@@ -416,9 +441,11 @@ pub(crate) fn upsert_session_meta(
         .or_insert(meta);
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn touch_session_meta(
     metas: &mut HashMap<String, SessionMeta>,
     session_id: &str,
+    provider: &str,
     timestamp: &str,
     cwd: &str,
     git_branch: &str,
@@ -440,7 +467,7 @@ pub(crate) fn touch_session_meta(
         })
         .or_insert_with(|| SessionMeta {
             session_id: session_id.to_string(),
-            provider: PROVIDER_CODEX.into(),
+            provider: provider.into(),
             project_name,
             project_slug: String::new(),
             first_timestamp: timestamp.to_string(),
@@ -819,5 +846,29 @@ mod tests {
         );
         assert_eq!(result.tool_results.get("call-1"), Some(&true));
         assert_eq!(result.session_metas[0].project_name, "work/proj");
+    }
+
+    #[test]
+    fn test_xcode_dispatcher_tags_session_and_turns() {
+        // Xcode CodingAssistant writes the same JSONL format as Claude Code.
+        // The dispatcher must tag the output with provider="xcode" and rewrite
+        // session_ids so the dashboard provider filter is consistent at both
+        // the session and turn level.
+        let dir = TempDir::new().unwrap();
+        let path = write_jsonl(
+            &dir,
+            "test.jsonl",
+            &[
+                make_user_record("s1"),
+                make_assistant_record("s1", "claude-sonnet-4-6", 100, 50, ""),
+            ],
+        );
+        let result = parse_jsonl_file(PROVIDER_XCODE, &path, 0);
+        assert_eq!(result.turns.len(), 1);
+        assert_eq!(result.turns[0].provider, PROVIDER_XCODE);
+        assert_eq!(result.turns[0].session_id, "xcode:s1");
+        assert_eq!(result.session_metas.len(), 1);
+        assert_eq!(result.session_metas[0].provider, PROVIDER_XCODE);
+        assert_eq!(result.session_metas[0].session_id, "xcode:s1");
     }
 }

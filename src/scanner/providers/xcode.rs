@@ -4,7 +4,7 @@ use anyhow::Result;
 use walkdir::WalkDir;
 
 use crate::models::Turn;
-use crate::scanner::parser::parse_claude_jsonl_file;
+use crate::scanner::parser::{PROVIDER_XCODE, parse_jsonl_file};
 use crate::scanner::provider::{Provider, SessionSource};
 
 pub struct XcodeProvider {
@@ -41,13 +41,10 @@ impl Provider for XcodeProvider {
     }
 
     fn parse(&self, path: &Path) -> Result<Vec<Turn>> {
-        // Delegate to parse_claude_jsonl_file — same JSONL format.
-        // Override provider field on returned turns to "xcode".
-        let mut turns = parse_claude_jsonl_file(path, 0).turns;
-        for t in &mut turns {
-            t.provider = "xcode".into();
-        }
-        Ok(turns)
+        // Xcode's CodingAssistant emits the same JSONL format as Claude Code.
+        // Route through the dispatcher so turns and session_ids are tagged
+        // consistently with the live scan path (see parse_jsonl_file).
+        Ok(parse_jsonl_file(PROVIDER_XCODE, path, 0).turns)
     }
 }
 

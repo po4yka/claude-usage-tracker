@@ -70,7 +70,6 @@ impl Provider for CodexProvider {
 
 pub(crate) fn parse_codex_jsonl_file(filepath: &Path, skip_lines: i64) -> ParseResult {
     let mut seen_turns: HashMap<String, Turn> = HashMap::new();
-    let turns_no_id: Vec<Turn> = Vec::new();
     let mut session_metas: HashMap<String, SessionMeta> = HashMap::new();
     let mut tool_results: HashMap<String, bool> = HashMap::new();
     let mut turn_contexts: HashMap<String, CodexTurnContext> = HashMap::new();
@@ -214,6 +213,7 @@ pub(crate) fn parse_codex_jsonl_file(filepath: &Path, skip_lines: i64) -> ParseR
                 touch_session_meta(
                     &mut session_metas,
                     &session_id,
+                    PROVIDER_CODEX,
                     &timestamp,
                     &session_cwd,
                     &session_git_branch,
@@ -241,6 +241,7 @@ pub(crate) fn parse_codex_jsonl_file(filepath: &Path, skip_lines: i64) -> ParseR
                         touch_session_meta(
                             &mut session_metas,
                             &session_id,
+                            PROVIDER_CODEX,
                             &timestamp,
                             &session_cwd,
                             &session_git_branch,
@@ -252,6 +253,7 @@ pub(crate) fn parse_codex_jsonl_file(filepath: &Path, skip_lines: i64) -> ParseR
                         touch_session_meta(
                             &mut session_metas,
                             &session_id,
+                            PROVIDER_CODEX,
                             &timestamp,
                             &session_cwd,
                             &session_git_branch,
@@ -340,6 +342,7 @@ pub(crate) fn parse_codex_jsonl_file(filepath: &Path, skip_lines: i64) -> ParseR
                         touch_session_meta(
                             &mut session_metas,
                             &session_id,
+                            PROVIDER_CODEX,
                             &turn_timestamp,
                             &cwd,
                             &session_git_branch,
@@ -407,8 +410,7 @@ pub(crate) fn parse_codex_jsonl_file(filepath: &Path, skip_lines: i64) -> ParseR
         }
     }
 
-    let mut turns = turns_no_id;
-    turns.extend(seen_turns.into_values());
+    let mut turns: Vec<Turn> = seen_turns.into_values().collect();
     turns.sort_by(|a, b| {
         a.session_id
             .cmp(&b.session_id)

@@ -18,7 +18,9 @@ use db::{
     get_processed_file, init_db, insert_tool_invocations, insert_turns, list_processed_files,
     open_db, recompute_session_totals, sync_session_titles, upsert_processed_file, upsert_sessions,
 };
-use parser::{PROVIDER_CLAUDE, PROVIDER_CODEX, aggregate_sessions, parse_jsonl_file};
+use parser::{
+    PROVIDER_CLAUDE, PROVIDER_CODEX, PROVIDER_XCODE, aggregate_sessions, parse_jsonl_file,
+};
 
 fn home_dir() -> PathBuf {
     dirs::home_dir().unwrap_or_else(|| PathBuf::from("."))
@@ -28,6 +30,8 @@ fn provider_for_dir(path: &Path) -> &'static str {
     let normalized = path.to_string_lossy().replace('\\', "/");
     if normalized.contains("/.codex/") {
         PROVIDER_CODEX
+    } else if normalized.contains("/CodingAssistant/") {
+        PROVIDER_XCODE
     } else {
         PROVIDER_CLAUDE
     }
