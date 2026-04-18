@@ -38,6 +38,11 @@ pub struct Config {
     /// TOML section: [pricing_source]
     #[serde(default)]
     pub pricing_source: PricingConfig,
+
+    /// Upstream coding-agent status monitoring.
+    /// TOML section: [agent_status]
+    #[serde(default)]
+    pub agent_status: AgentStatusConfig,
 }
 
 #[derive(Debug, Deserialize)]
@@ -91,6 +96,51 @@ pub struct WebhookConfig {
     pub cost_threshold: Option<f64>,
     /// Notify on session depletion events.
     pub session_depleted: bool,
+    /// Notify on agent status transitions (default: true when URL is set).
+    #[serde(default = "default_true")]
+    pub agent_status: bool,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+/// Alert severity floor for agent-status webhooks.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum AlertSeverity {
+    Minor,
+    #[default]
+    Major,
+    Critical,
+}
+
+/// Configuration for upstream coding-agent status monitoring.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
+pub struct AgentStatusConfig {
+    /// Enable polling (default: true).
+    pub enabled: bool,
+    /// Seconds between polls (default: 60).
+    pub refresh_interval: u64,
+    /// Enable Claude status polling (default: true).
+    pub claude_enabled: bool,
+    /// Enable OpenAI status polling (default: true).
+    pub openai_enabled: bool,
+    /// Minimum severity for webhook alerts (default: Major).
+    pub alert_min_severity: AlertSeverity,
+}
+
+impl Default for AgentStatusConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            refresh_interval: 60,
+            claude_enabled: true,
+            openai_enabled: true,
+            alert_min_severity: AlertSeverity::Major,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]

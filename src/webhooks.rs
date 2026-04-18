@@ -17,6 +17,10 @@ pub struct WebhookEvent {
 pub struct WebhookState {
     pub session_depleted: Option<bool>,
     pub last_cost_threshold_day: Option<String>,
+    /// Track whether Claude was last seen degraded (Major/Critical).
+    pub claude_degraded: Option<bool>,
+    /// Track whether OpenAI was last seen degraded (Major/Critical).
+    pub openai_degraded: Option<bool>,
 }
 
 /// POST a webhook event to the given URL. Fire-and-forget via `tokio::spawn`.
@@ -85,6 +89,7 @@ pub fn notify_if_configured(config: &WebhookConfig, event: WebhookEvent) {
     let enabled = match event.event_type.as_str() {
         "session_depleted" | "session_restored" => config.session_depleted,
         "cost_threshold" => config.cost_threshold.is_some(),
+        "agent_status_degraded" | "agent_status_restored" => config.agent_status,
         _ => {
             debug!("Unknown webhook event type: {}", event.event_type);
             false
@@ -139,6 +144,62 @@ pub fn session_transition_event(
             }),
             timestamp: chrono::Utc::now().to_rfc3339(),
         }),
+        _ => None,
+    }
+}
+
+/// Produce an agent-status transition webhook event when the severity threshold
+/// is crossed, with deduplication so the same edge only fires once.
+///
+/// `provider` is a display name like `"Claude"` or `"OpenAI"`.
+/// `indicator` is the current `StatusIndicator`.
+/// `degraded_state` is the mutable per-provider dedup flag on `WebhookState`.
+pub fn agent_status_transition_event(
+    config: &WebhookConfig,
+    degraded_state: &mut Option<bool>,
+    provider: &str,
+    indicator: &crate::agent_status::models::StatusIndicator,
+    active_incident_count: usize,
+) -> Option<WebhookEvent> {
+    if !config.agent_status {
+        // Still update the state so the dedup is consistent.
+        *degraded_state = Some(indicator.is_alert_worthy());
+        return None;
+    }
+
+    let is_now_degraded = indicator.is_alert_worthy();
+    let previous = degraded_state.replace(is_now_degraded);
+
+    match previous {
+        // Same state — no transition.
+        Some(prev) if prev == is_now_degraded => None,
+        // Operational → degraded.
+        Some(false) if is_now_degraded => Some(WebhookEvent {
+            event_type: "agent_status_degraded".to_string(),
+            message: format!(
+                "{} is experiencing a major outage or service degradation.",
+                provider
+            ),
+            details: serde_json::json!({
+                "provider": provider,
+                "indicator": format!("{:?}", indicator).to_lowercase(),
+                "active_incidents": active_incident_count,
+            }),
+            timestamp: chrono::Utc::now().to_rfc3339(),
+        }),
+        // Degraded → operational/minor/maintenance.
+        Some(true) if !is_now_degraded => Some(WebhookEvent {
+            event_type: "agent_status_restored".to_string(),
+            message: format!("{} service has been restored.", provider),
+            details: serde_json::json!({
+                "provider": provider,
+                "indicator": format!("{:?}", indicator).to_lowercase(),
+                "active_incidents": active_incident_count,
+            }),
+            timestamp: chrono::Utc::now().to_rfc3339(),
+        }),
+        // First observation — set baseline, don't fire.
+        None => None,
         _ => None,
     }
 }
@@ -200,6 +261,7 @@ mod tests {
             url: None,
             cost_threshold: Some(50.0),
             session_depleted: true,
+            agent_status: true,
         };
 
         let event = WebhookEvent {
@@ -219,6 +281,7 @@ mod tests {
             url: Some("https://example.com/hook".to_string()),
             cost_threshold: Some(50.0),
             session_depleted: false, // session events disabled
+            agent_status: true,
         };
 
         let event = WebhookEvent {
@@ -238,6 +301,7 @@ mod tests {
             url: Some("https://example.com/hook".to_string()),
             cost_threshold: None, // cost threshold not set
             session_depleted: true,
+            agent_status: true,
         };
 
         let event = WebhookEvent {
@@ -257,6 +321,7 @@ mod tests {
             url: Some("https://example.com/hook".to_string()),
             cost_threshold: Some(50.0),
             session_depleted: true,
+            agent_status: true,
         };
 
         let event = WebhookEvent {
@@ -276,6 +341,7 @@ mod tests {
             url: Some("https://example.com/hook".to_string()),
             cost_threshold: None,
             session_depleted: true,
+            agent_status: true,
         };
         let mut state = WebhookState::default();
 
@@ -296,6 +362,7 @@ mod tests {
             url: Some("https://example.com/hook".to_string()),
             cost_threshold: Some(50.0),
             session_depleted: false,
+            agent_status: true,
         };
         let mut state = WebhookState::default();
 
@@ -304,5 +371,199 @@ mod tests {
         assert_eq!(first.event_type, "cost_threshold");
         assert!(cost_threshold_event(&config, &mut state, "2026-04-10", 70.0).is_none());
         assert!(cost_threshold_event(&config, &mut state, "2026-04-11", 70.0).is_some());
+    }
+
+    // ── Agent status webhook tests ───────────────────────────────────────────
+
+    fn agent_status_config_enabled() -> WebhookConfig {
+        WebhookConfig {
+            url: Some("https://example.com/hook".to_string()),
+            cost_threshold: None,
+            session_depleted: false,
+            agent_status: true,
+        }
+    }
+
+    fn agent_status_config_disabled() -> WebhookConfig {
+        WebhookConfig {
+            url: Some("https://example.com/hook".to_string()),
+            cost_threshold: None,
+            session_depleted: false,
+            agent_status: false,
+        }
+    }
+
+    #[test]
+    fn test_agent_status_op_to_major_fires_degraded() {
+        use crate::agent_status::models::StatusIndicator;
+
+        let config = agent_status_config_enabled();
+        let mut degraded: Option<bool> = Some(false);
+
+        let event = agent_status_transition_event(
+            &config,
+            &mut degraded,
+            "Claude",
+            &StatusIndicator::Major,
+            1,
+        )
+        .expect("should fire on op->major");
+
+        assert_eq!(event.event_type, "agent_status_degraded");
+        assert!(event.details["provider"] == "Claude");
+        assert_eq!(degraded, Some(true));
+    }
+
+    #[test]
+    fn test_agent_status_major_to_op_fires_restored() {
+        use crate::agent_status::models::StatusIndicator;
+
+        let config = agent_status_config_enabled();
+        let mut degraded: Option<bool> = Some(true);
+
+        let event = agent_status_transition_event(
+            &config,
+            &mut degraded,
+            "OpenAI",
+            &StatusIndicator::None,
+            0,
+        )
+        .expect("should fire on major->op");
+
+        assert_eq!(event.event_type, "agent_status_restored");
+        assert_eq!(degraded, Some(false));
+    }
+
+    #[test]
+    fn test_agent_status_no_change_no_fire() {
+        use crate::agent_status::models::StatusIndicator;
+
+        let config = agent_status_config_enabled();
+        let mut degraded: Option<bool> = Some(true);
+
+        // major->major: no transition
+        let event = agent_status_transition_event(
+            &config,
+            &mut degraded,
+            "Claude",
+            &StatusIndicator::Critical,
+            2,
+        );
+        assert!(event.is_none(), "major->critical should not fire");
+    }
+
+    #[test]
+    fn test_agent_status_first_observation_no_fire() {
+        use crate::agent_status::models::StatusIndicator;
+
+        let config = agent_status_config_enabled();
+        let mut degraded: Option<bool> = None;
+
+        let event = agent_status_transition_event(
+            &config,
+            &mut degraded,
+            "Claude",
+            &StatusIndicator::Major,
+            1,
+        );
+        assert!(event.is_none(), "first observation should not fire");
+        assert_eq!(degraded, Some(true));
+    }
+
+    #[test]
+    fn test_agent_status_op_to_minor_does_not_fire() {
+        // Minor is BELOW the Major threshold — no alert.
+        use crate::agent_status::models::StatusIndicator;
+
+        let config = agent_status_config_enabled();
+        let mut degraded: Option<bool> = Some(false);
+
+        let event = agent_status_transition_event(
+            &config,
+            &mut degraded,
+            "Claude",
+            &StatusIndicator::Minor,
+            0,
+        );
+        assert!(
+            event.is_none(),
+            "op->minor must not fire (below Major floor)"
+        );
+        // State should still update (minor is not alert-worthy).
+        assert_eq!(degraded, Some(false));
+    }
+
+    #[test]
+    fn test_agent_status_minor_to_major_fires_degraded() {
+        // minor->major crosses the threshold — fires degraded.
+        use crate::agent_status::models::StatusIndicator;
+
+        let config = agent_status_config_enabled();
+        let mut degraded: Option<bool> = Some(false); // minor was not alert-worthy
+
+        let event = agent_status_transition_event(
+            &config,
+            &mut degraded,
+            "Claude",
+            &StatusIndicator::Major,
+            1,
+        )
+        .expect("minor->major should fire degraded");
+
+        assert_eq!(event.event_type, "agent_status_degraded");
+    }
+
+    #[test]
+    fn test_agent_status_major_to_minor_fires_restored() {
+        // major->minor crosses back below the threshold — fires restored.
+        use crate::agent_status::models::StatusIndicator;
+
+        let config = agent_status_config_enabled();
+        let mut degraded: Option<bool> = Some(true);
+
+        let event = agent_status_transition_event(
+            &config,
+            &mut degraded,
+            "Claude",
+            &StatusIndicator::Minor,
+            0,
+        )
+        .expect("major->minor should fire restored");
+
+        assert_eq!(event.event_type, "agent_status_restored");
+        assert_eq!(degraded, Some(false));
+    }
+
+    #[test]
+    fn test_agent_status_disabled_config_no_fire() {
+        use crate::agent_status::models::StatusIndicator;
+
+        let config = agent_status_config_disabled();
+        let mut degraded: Option<bool> = Some(false);
+
+        let event = agent_status_transition_event(
+            &config,
+            &mut degraded,
+            "Claude",
+            &StatusIndicator::Major,
+            1,
+        );
+        // agent_status = false → no event regardless of transition.
+        assert!(event.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_notify_agent_status_event_type_routing() {
+        let config = agent_status_config_enabled();
+        let event = WebhookEvent {
+            event_type: "agent_status_degraded".to_string(),
+            message: "test".to_string(),
+            details: json!({}),
+            timestamp: "2026-04-17T10:00:00Z".to_string(),
+        };
+        // Should not panic (URL is https, event type is enabled).
+        // The actual HTTP call will fail (no server) — that's fine; we only
+        // test that the routing logic doesn't blow up.
+        notify_if_configured(&config, event);
     }
 }

@@ -3,6 +3,7 @@ import { Footer } from './components/Footer';
 import { Header } from './components/Header';
 import { FilterBar } from './components/FilterBar';
 import { RateWindowCard, BudgetCard, RateWindowUnavailable } from './components/RateWindowCard';
+import { AgentStatusCard } from './components/AgentStatusCard';
 import { EstimationMeta } from './components/EstimationMeta';
 import { ReconciliationBlock } from './components/ReconciliationBlock';
 import { StatsCards } from './components/StatsCards';
@@ -44,6 +45,7 @@ import type {
   RangeKey,
   HeatmapData,
   CacheEfficiency,
+  AgentStatusSnapshot,
 } from './state/types';
 import {
   rawData,
@@ -81,6 +83,7 @@ let loadDataInFlight = false;
 let loadUsageWindowsInFlight = false;
 let loadHeatmapInFlight = false;
 let lastHeatmapData: HeatmapData | null = null;
+let loadAgentStatusInFlight = false;
 
 // ── URL persistence ──────────────────────────────────────────────────
 function getRangeCutoff(range: RangeKey): string | null {
@@ -596,6 +599,28 @@ async function loadUsageWindows(): Promise<void> {
   }
 }
 
+// ── Agent status ─────────────────────────────────────────────────────
+function renderAgentStatus(snapshot: AgentStatusSnapshot): void {
+  const container = $('agent-status');
+  if (!container) return;
+  container.style.display = '';
+  render(<AgentStatusCard snapshot={snapshot} />, container);
+}
+
+async function loadAgentStatus(): Promise<void> {
+  if (loadAgentStatusInFlight) return;
+  loadAgentStatusInFlight = true;
+  try {
+    const resp = await fetch('/api/agent-status');
+    if (!resp.ok) return;
+    const data: AgentStatusSnapshot = await resp.json();
+    renderAgentStatus(data);
+  } catch { /* silent */ }
+  finally {
+    loadAgentStatusInFlight = false;
+  }
+}
+
 // ── Phase 13: Heatmap fetch ──────────────────────────────────────────
 // Fetches the 7x24 heatmap from /api/heatmap, threading the client
 // timezone offset so dow/hour bucketing respects local time.
@@ -700,6 +725,7 @@ if (globalStatusMount) {
 loadData();
 setInterval(loadData, 30000);
 loadUsageWindows();
-setInterval(loadUsageWindows, 60000);
+loadAgentStatus();
+setInterval(() => { loadUsageWindows(); loadAgentStatus(); }, 60000);
 loadHeatmap('all');
 setInterval(() => loadHeatmap('all'), 30000);

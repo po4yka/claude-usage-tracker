@@ -12,7 +12,7 @@ use axum::response::Html;
 use axum::routing::{get, post};
 use tokio::sync::{Mutex, RwLock};
 
-use crate::config::WebhookConfig;
+use crate::config::{AgentStatusConfig, WebhookConfig};
 use crate::webhooks::WebhookState;
 use api::AppState;
 
@@ -30,6 +30,8 @@ pub struct ServeOptions {
     pub webhook_config: WebhookConfig,
     /// Phase 20: enable file-watcher auto-refresh (started with `--watch`).
     pub watch: bool,
+    /// Agent status monitoring config.
+    pub agent_status_config: AgentStatusConfig,
 }
 
 pub async fn serve(options: ServeOptions) -> anyhow::Result<()> {
@@ -52,6 +54,8 @@ pub async fn serve(options: ServeOptions) -> anyhow::Result<()> {
         webhook_state: Mutex::new(WebhookState::default()),
         webhook_config: options.webhook_config,
         scan_event_tx: scan_event_tx.clone(),
+        agent_status_config: options.agent_status_config,
+        agent_status_cache: RwLock::new(None),
     });
 
     // Phase 20: start file-watcher if --watch was requested.
@@ -151,6 +155,7 @@ pub async fn serve(options: ServeOptions) -> anyhow::Result<()> {
         .route("/api/health", get(api::api_health))
         .route("/api/heatmap", get(api::api_heatmap))
         .route("/api/stream", get(api::api_stream))
+        .route("/api/agent-status", get(api::api_agent_status))
         .with_state(state);
 
     let addr = format!("{}:{}", options.host, options.port);

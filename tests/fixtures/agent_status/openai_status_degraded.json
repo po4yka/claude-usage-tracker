@@ -1,0 +1,12 @@
+{
+  "page": {
+    "id": "openai-status",
+    "name": "OpenAI",
+    "url": "https://status.openai.com",
+    "updated_at": "2026-04-17T10:00:00.000Z"
+  },
+  "status": {
+    "indicator": "major",
+    "description": "Partial System Outage"
+  }
+}

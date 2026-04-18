@@ -6,6 +6,7 @@
 // (src/hook/main.rs) uses `use claude_usage_tracker::hook` to reach the
 // shared code compiled here.
 
+pub mod agent_status;
 pub mod config;
 pub mod currency;
 pub mod db;

@@ -1,0 +1,61 @@
+{
+  "page": {
+    "id": "bx3nmbkggx3y",
+    "name": "Claude",
+    "url": "https://status.claude.com",
+    "updated_at": "2026-04-17T10:00:00.000Z"
+  },
+  "status": {
+    "indicator": "none",
+    "description": "All Systems Operational"
+  },
+  "components": [
+    {
+      "id": "yyzkbfz2thpt",
+      "name": "Claude Code",
+      "status": "operational",
+      "created_at": "2024-01-01T00:00:00.000Z",
+      "updated_at": "2026-04-17T10:00:00.000Z",
+      "position": 1,
+      "description": null,
+      "showcase": true,
+      "start_date": null,
+      "group_id": null,
+      "page_id": "bx3nmbkggx3y",
+      "group": false,
+      "only_show_if_degraded": false
+    },
+    {
+      "id": "k8w3r06qmzrp",
+      "name": "Claude API (api.anthropic.com)",
+      "status": "operational",
+      "created_at": "2024-01-01T00:00:00.000Z",
+      "updated_at": "2026-04-17T10:00:00.000Z",
+      "position": 2,
+      "description": null,
+      "showcase": true,
+      "start_date": null,
+      "group_id": null,
+      "page_id": "bx3nmbkggx3y",
+      "group": false,
+      "only_show_if_degraded": false
+    },
+    {
+      "id": "other-component",
+      "name": "Claude.ai Web",
+      "status": "operational",
+      "created_at": "2024-01-01T00:00:00.000Z",
+      "updated_at": "2026-04-17T10:00:00.000Z",
+      "position": 3,
+      "description": null,
+      "showcase": true,
+      "start_date": null,
+      "group_id": null,
+      "page_id": "bx3nmbkggx3y",
+      "group": false,
+      "only_show_if_degraded": false
+    }
+  ],
+  "incidents": [],
+  "scheduled_maintenances": []
+}

@@ -14,6 +14,7 @@ Determine which tests to run based on changed files:
 | `server/` | `cargo test server` |
 | `config.rs` | `cargo test config` |
 | `webhooks.rs` | `cargo test webhooks` |
+| `agent_status/` | `cargo test agent_status` |
 | `main.rs` or `cli_tests.rs` | `cargo test cli_tests` |
 | `app.ts` | `./node_modules/.bin/tsc --noEmit` |
 | Multiple modules or unsure | `cargo test` |
@@ -48,7 +49,7 @@ When tests fail:
 
 ## Coverage Baseline
 
-Current test count: **538+ tests** (across 4 suites: lib, main, heimdall-hook, doc-tests)
+Current test count: **572+ tests** (across 4 suites: lib, main, heimdall-hook, doc-tests)
 
 Rules:
 - New features MUST add tests

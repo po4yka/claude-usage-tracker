@@ -92,8 +92,16 @@ src/
   export.rs            -- `export` subcommand (csv / json / jsonl) with period filtering
   menubar.rs           -- SwiftBar widget renderer + injection-hardened sanitizer
   db.rs                -- `db reset` command with TTY confirmation guard (pure `should_proceed`)
-  webhooks.rs          -- Fire-and-forget webhook POSTs on session depletion / cost threshold
+  webhooks.rs          -- Fire-and-forget webhook POSTs on session depletion / cost threshold /
+                          agent status transitions (agent_status_degraded / agent_status_restored)
   openai.rs            -- OpenAI organization usage reconciliation client
+
+  agent_status/
+    mod.rs             -- poll() orchestrator + poll_with_injection() test seam + AlertDirection enum
+    client.rs          -- Claude HTTP client (ETag/If-None-Match) + OpenAI two-call client
+    models.rs          -- AgentStatusSnapshot, ProviderStatus, ComponentStatus, IncidentSummary,
+                          StatusIndicator enum, raw Statuspage wire structs
+    filter.rs          -- Hardcoded component allowlists (Claude IDs, OpenAI names)
 
   oauth/
     mod.rs             -- poll_usage(): load creds -> refresh if needed -> fetch API -> attach identity

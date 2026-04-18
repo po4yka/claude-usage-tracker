@@ -1117,7 +1117,8 @@
     "global": null,
     "rate-windows": null,
     "rescan": null,
-    "header-refresh": null
+    "header-refresh": null,
+    "agent-status": null
   });
   var SESSIONS_PAGE_SIZE = 25;
   var loadState = y3("idle");
@@ -1126,6 +1127,11 @@
     return ["cost", "calls", "tokens"].includes(p5) ? p5 : "cost";
   }
   var versionDonutMetric = y3(readVersionMetric());
+  function readAgentStatusExpanded() {
+    const p5 = new URLSearchParams(window.location.search).get("agent_status_expanded");
+    return p5 === "1" || p5 === "true";
+  }
+  var agent_status_expanded = y3(readAgentStatusExpanded());
 
   // src/ui/lib/status.ts
   var timers = {};
@@ -1559,6 +1565,167 @@
       /* @__PURE__ */ u2("div", { class: "stat-label", children: "Rate Windows" }),
       /* @__PURE__ */ u2("div", { class: "stat-value", style: { fontSize: "18px", color: "var(--text-secondary)" }, children: "Unavailable" }),
       /* @__PURE__ */ u2("div", { class: "stat-sub", children: error })
+    ] }) });
+  }
+
+  // src/ui/components/AgentStatusCard.tsx
+  function IndicatorDot({ indicator }) {
+    const isAlert = indicator === "major" || indicator === "critical";
+    const isMinor = indicator === "minor";
+    const color = isAlert ? "var(--accent)" : "var(--text-secondary)";
+    const opacity = isAlert ? 1 : isMinor ? 0.6 : 0.3;
+    return /* @__PURE__ */ u2(
+      "span",
+      {
+        "aria-label": `Status: ${indicator}`,
+        style: {
+          display: "inline-block",
+          width: "10px",
+          height: "10px",
+          borderRadius: "50%",
+          backgroundColor: color,
+          opacity,
+          marginRight: "8px",
+          flexShrink: 0
+        }
+      }
+    );
+  }
+  function ProviderRow({ name, status, expanded }) {
+    if (!status) {
+      return /* @__PURE__ */ u2("div", { style: { display: "flex", alignItems: "center", padding: "8px 0", gap: "8px" }, children: [
+        /* @__PURE__ */ u2(IndicatorDot, { indicator: "none" }),
+        /* @__PURE__ */ u2("span", { style: { fontFamily: "var(--font-mono)", fontSize: "13px", flex: 1 }, children: name }),
+        /* @__PURE__ */ u2("span", { style: { color: "var(--text-secondary)", fontSize: "12px" }, children: "unavailable" })
+      ] });
+    }
+    const incidentCount = status.active_incidents.length;
+    return /* @__PURE__ */ u2("div", { children: [
+      /* @__PURE__ */ u2("div", { style: { display: "flex", alignItems: "center", padding: "8px 0", gap: "8px" }, children: [
+        /* @__PURE__ */ u2(IndicatorDot, { indicator: status.indicator }),
+        /* @__PURE__ */ u2("span", { style: { fontFamily: "var(--font-mono)", fontSize: "13px", flex: 1 }, children: name }),
+        /* @__PURE__ */ u2("span", { style: { color: "var(--text-secondary)", fontSize: "12px" }, children: status.description }),
+        incidentCount > 0 && /* @__PURE__ */ u2(
+          "span",
+          {
+            style: {
+              fontFamily: "var(--font-mono)",
+              fontSize: "11px",
+              color: status.indicator === "major" || status.indicator === "critical" ? "var(--accent)" : "var(--text-secondary)",
+              marginLeft: "8px"
+            },
+            children: [
+              "(",
+              incidentCount,
+              " active)"
+            ]
+          }
+        ),
+        /* @__PURE__ */ u2(
+          "a",
+          {
+            href: status.page_url,
+            target: "_blank",
+            rel: "noopener noreferrer",
+            style: { color: "var(--text-secondary)", fontSize: "11px", marginLeft: "4px" },
+            "aria-label": `${name} status page`,
+            children: "\u2197"
+          }
+        )
+      ] }),
+      expanded && /* @__PURE__ */ u2("div", { style: { paddingLeft: "18px", paddingBottom: "8px" }, children: [
+        status.components.length > 0 && /* @__PURE__ */ u2("table", { style: { width: "100%", fontSize: "12px", borderCollapse: "collapse", marginBottom: "8px" }, children: [
+          /* @__PURE__ */ u2("thead", { children: /* @__PURE__ */ u2("tr", { style: { color: "var(--text-secondary)" }, children: [
+            /* @__PURE__ */ u2("th", { style: { textAlign: "left", padding: "2px 8px 2px 0", fontWeight: 500 }, children: "Component" }),
+            /* @__PURE__ */ u2("th", { style: { textAlign: "left", padding: "2px 0", fontWeight: 500 }, children: "Status" })
+          ] }) }),
+          /* @__PURE__ */ u2("tbody", { children: status.components.map((c4, i4) => /* @__PURE__ */ u2("tr", { children: [
+            /* @__PURE__ */ u2("td", { style: { padding: "2px 8px 2px 0", fontFamily: "var(--font-mono)" }, children: c4.name }),
+            /* @__PURE__ */ u2("td", { style: { padding: "2px 0", color: "var(--text-secondary)" }, children: c4.status.replace(/_/g, " ") })
+          ] }, i4)) })
+        ] }),
+        status.active_incidents.map((inc, i4) => /* @__PURE__ */ u2(
+          "div",
+          {
+            style: {
+              fontSize: "12px",
+              color: "var(--text-secondary)",
+              marginBottom: "4px",
+              paddingLeft: "4px",
+              borderLeft: "2px solid var(--border)"
+            },
+            children: [
+              /* @__PURE__ */ u2("span", { style: { fontFamily: "var(--font-mono)" }, children: inc.shortlink ? /* @__PURE__ */ u2(
+                "a",
+                {
+                  href: inc.shortlink,
+                  target: "_blank",
+                  rel: "noopener noreferrer",
+                  style: { color: "inherit", textDecoration: "underline" },
+                  children: inc.name
+                }
+              ) : inc.name }),
+              " ",
+              /* @__PURE__ */ u2("span", { style: { opacity: 0.7 }, children: [
+                "[",
+                inc.impact,
+                "] ",
+                inc.status,
+                " \u2014 ",
+                inc.started_at.slice(0, 16).replace("T", " ")
+              ] })
+            ]
+          },
+          i4
+        ))
+      ] })
+    ] });
+  }
+  function AgentStatusCard({ snapshot }) {
+    const expanded = agent_status_expanded.value;
+    const hasData = snapshot.claude != null || snapshot.openai != null;
+    return /* @__PURE__ */ u2("div", { class: "card stat-card", style: { minWidth: "300px" }, children: /* @__PURE__ */ u2("div", { class: "stat-content", children: [
+      /* @__PURE__ */ u2(
+        "div",
+        {
+          style: {
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: "8px"
+          },
+          children: [
+            /* @__PURE__ */ u2("div", { class: "stat-label", children: "Agent Status" }),
+            hasData && /* @__PURE__ */ u2(
+              "button",
+              {
+                onClick: () => {
+                  agent_status_expanded.value = !expanded;
+                },
+                style: {
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  color: "var(--text-secondary)",
+                  fontSize: "11px",
+                  fontFamily: "var(--font-mono)",
+                  padding: "2px 4px"
+                },
+                "aria-expanded": expanded,
+                "aria-label": "Toggle agent status details",
+                children: expanded ? "\u25B2 collapse" : "\u25BC expand"
+              }
+            )
+          ]
+        }
+      ),
+      /* @__PURE__ */ u2(ProviderRow, { name: "Claude", status: snapshot.claude, expanded }),
+      /* @__PURE__ */ u2(ProviderRow, { name: "OpenAI / Codex", status: snapshot.openai, expanded }),
+      snapshot.fetched_at && /* @__PURE__ */ u2("div", { style: { fontSize: "10px", color: "var(--text-secondary)", marginTop: "8px", fontFamily: "var(--font-mono)" }, children: [
+        "Refreshed ",
+        snapshot.fetched_at.slice(0, 19).replace("T", " "),
+        " UTC"
+      ] })
     ] }) });
   }
 
@@ -6061,6 +6228,7 @@
   var loadUsageWindowsInFlight = false;
   var loadHeatmapInFlight = false;
   var lastHeatmapData = null;
+  var loadAgentStatusInFlight = false;
   function getRangeCutoff(range) {
     if (range === "all") return null;
     const days = range === "7d" ? 7 : range === "30d" ? 30 : 90;
@@ -6513,6 +6681,25 @@
       loadUsageWindowsInFlight = false;
     }
   }
+  function renderAgentStatus(snapshot) {
+    const container = $2("agent-status");
+    if (!container) return;
+    container.style.display = "";
+    R(/* @__PURE__ */ u2(AgentStatusCard, { snapshot }), container);
+  }
+  async function loadAgentStatus() {
+    if (loadAgentStatusInFlight) return;
+    loadAgentStatusInFlight = true;
+    try {
+      const resp = await fetch("/api/agent-status");
+      if (!resp.ok) return;
+      const data = await resp.json();
+      renderAgentStatus(data);
+    } catch {
+    } finally {
+      loadAgentStatusInFlight = false;
+    }
+  }
   async function loadHeatmap(period = "month") {
     if (loadHeatmapInFlight) return;
     loadHeatmapInFlight = true;
@@ -6588,7 +6775,11 @@
   loadData();
   setInterval(loadData, 3e4);
   loadUsageWindows();
-  setInterval(loadUsageWindows, 6e4);
+  loadAgentStatus();
+  setInterval(() => {
+    loadUsageWindows();
+    loadAgentStatus();
+  }, 6e4);
   loadHeatmap("all");
   setInterval(() => loadHeatmap("all"), 3e4);
 })();

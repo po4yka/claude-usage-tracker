@@ -73,11 +73,18 @@ Reads local transcripts written by every supported tool, then presents an intera
 - `menubar` (SwiftBar-formatted output for macOS menu-bar widgets)
 - `pricing refresh` (fetch LiteLLM catalogue into `~/.cache/heimdall/litellm_pricing.json`)
 
+### Agent status monitoring
+
+- **Upstream provider health** -- polls `status.claude.com` and `status.openai.com` on every `/api/agent-status` request (cached 60 s). Displays an **Agent Status** card in the dashboard alongside rate-window cards.
+- **Dashboard card** -- two rows (Claude, OpenAI/Codex); monochrome dot at three opacity levels; red only on `major`/`critical`. Expand/collapse per-component table and active incident list. URL-persistent via `?agent_status_expanded=1`.
+- **Webhook alerts** -- fires `agent_status_degraded` / `agent_status_restored` on severity-threshold crossings. Alert floor is **Major** (minor degradations render on the dashboard but do not page).
+- **ETag support** -- conditional GET (`If-None-Match`) for Claude so unchanged status returns 304 with no body. OpenAI two-call flow polls cold.
+
 ### Extensibility
 
 - **Config file** -- `~/.claude/usage-tracker.toml` for all settings. Dual-path resolver adds `$HEIMDALL_CONFIG` and `~/.config/heimdall/config.toml`.
 - **Custom pricing overrides** -- per-model rate customization in config.
-- **Webhook notifications** -- POST to URL on session depletion or cost threshold.
+- **Webhook notifications** -- POST to URL on session depletion, cost threshold, or agent status transition.
 - **JSON API** -- all dashboard data available via REST endpoints, incl. SSE stream.
 - **Provider plugin pattern** -- add a new scanner provider in a single file under `src/scanner/providers/`; see [AGENTS.md](AGENTS.md).
 - **Detector plugin pattern** -- add a waste detector in a single file under `src/optimizer/`.
@@ -270,6 +277,15 @@ refresh_hours = 24
 url = "https://hooks.example.com/notify"
 cost_threshold = 50.0
 session_depleted = true
+agent_status = true   # fire on major/critical provider transitions (default: true)
+
+# Upstream coding-agent status monitoring
+[agent_status]
+enabled = true
+refresh_interval = 60    # seconds between polls
+claude_enabled = true
+openai_enabled = true
+alert_min_severity = "major"  # "minor" | "major" | "critical"
 ```
 
 ## Data Sources
@@ -314,6 +330,7 @@ Automatically discovers sessions from:
 | GET | `/api/data?tz_offset_min=N&week_starts_on=N` | Timezone-aware bucketing for day-grouped metrics |
 | GET | `/api/heatmap?period=<period>&tz_offset_min=N` | 7×24 cell grid + active-period averaging summary |
 | GET | `/api/usage-windows` | Real-time rate windows, budget, identity (cached 60s) |
+| GET | `/api/agent-status` | Upstream provider health: Claude (status.claude.com) + OpenAI (status.openai.com). Cached `refresh_interval` seconds; ETag conditional GET for Claude. Returns `AgentStatusSnapshot` JSON. |
 | POST | `/api/rescan` | Atomic full rescan |
 | GET | `/api/stream` | Server-Sent Events broadcasting `scan_completed` from the file-watcher |
 | GET | `/api/health` | Health check |

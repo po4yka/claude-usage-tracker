@@ -24,7 +24,7 @@ export const rescanDisabled = signal<boolean>(false);
 export const themeMode = signal<'dark' | 'light'>('dark');
 
 // ── Inline status (replaces toasts) ──────────────────────────────────
-export type StatusPlacement = 'global' | 'rate-windows' | 'rescan' | 'header-refresh';
+export type StatusPlacement = 'global' | 'rate-windows' | 'rescan' | 'header-refresh' | 'agent-status';
 export type StatusKind = 'success' | 'error' | 'loading' | 'info';
 
 export interface StatusEntry {
@@ -37,6 +37,7 @@ export const statusByPlacement = signal<Record<StatusPlacement, StatusEntry | nu
   'rate-windows': null,
   'rescan': null,
   'header-refresh': null,
+  'agent-status': null,
 });
 
 // ── Pagination page size (used by SessionsTable via DataTable) ───────
@@ -60,3 +61,11 @@ function readVersionMetric(): VersionMetric {
 }
 
 export const versionDonutMetric = signal<VersionMetric>(readVersionMetric());
+
+// ── Agent status expand/collapse (URL-persistent) ────────────────────
+function readAgentStatusExpanded(): boolean {
+  const p = new URLSearchParams(window.location.search).get('agent_status_expanded');
+  return p === '1' || p === 'true';
+}
+
+export const agent_status_expanded = signal<boolean>(readAgentStatusExpanded());

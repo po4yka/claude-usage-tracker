@@ -12,9 +12,9 @@ mod tests {
     use http_body_util::BodyExt;
     use tower::ServiceExt;
 
-    use crate::config::WebhookConfig;
+    use crate::config::{AgentStatusConfig, WebhookConfig};
     use crate::scanner;
-    use crate::server::api::{AppState, api_data, api_health, api_rescan};
+    use crate::server::api::{AppState, api_agent_status, api_data, api_health, api_rescan};
     use crate::server::assets;
     use crate::webhooks::WebhookState;
 
@@ -64,6 +64,14 @@ mod tests {
     }
 
     fn test_app(db_path: std::path::PathBuf, projects_dir: std::path::PathBuf) -> Router {
+        test_app_with_agent_status(db_path, projects_dir, AgentStatusConfig::default())
+    }
+
+    fn test_app_with_agent_status(
+        db_path: std::path::PathBuf,
+        projects_dir: std::path::PathBuf,
+        agent_status_config: AgentStatusConfig,
+    ) -> Router {
         let state = Arc::new(AppState {
             db_path,
             projects_dirs: Some(vec![projects_dir]),
@@ -79,6 +87,8 @@ mod tests {
             webhook_state: tokio::sync::Mutex::new(WebhookState::default()),
             webhook_config: WebhookConfig::default(),
             scan_event_tx: tokio::sync::broadcast::channel::<String>(16).0,
+            agent_status_config,
+            agent_status_cache: tokio::sync::RwLock::new(None),
         });
         let html = assets::render_dashboard();
 
@@ -98,6 +108,7 @@ mod tests {
                 get(crate::server::api::api_usage_windows),
             )
             .route("/api/heatmap", get(crate::server::api::api_heatmap))
+            .route("/api/agent-status", get(api_agent_status))
             .with_state(state)
     }
 
@@ -937,5 +948,78 @@ mod tests {
                 );
             }
         }
+    }
+
+    // -----------------------------------------------------------------------
+    // Agent status endpoint tests
+    // -----------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn test_agent_status_disabled_returns_empty_snapshot() {
+        let tmp = TempDir::new().unwrap();
+        let (db_path, projects) = setup_test_db(&tmp);
+
+        let mut cfg = AgentStatusConfig::default();
+        cfg.enabled = false;
+
+        let app = test_app_with_agent_status(db_path, projects, cfg);
+
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/agent-status")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let body = resp.into_body().collect().await.unwrap().to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+        // When disabled, both providers are null and fetched_at is present.
+        assert!(
+            json["claude"].is_null(),
+            "claude should be null when disabled"
+        );
+        assert!(
+            json["openai"].is_null(),
+            "openai should be null when disabled"
+        );
+        assert!(
+            json["fetched_at"].is_string(),
+            "fetched_at should be present"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_agent_status_enabled_with_both_providers_disabled_returns_empty() {
+        let tmp = TempDir::new().unwrap();
+        let (db_path, projects) = setup_test_db(&tmp);
+
+        let mut cfg = AgentStatusConfig::default();
+        cfg.enabled = true;
+        cfg.claude_enabled = false;
+        cfg.openai_enabled = false;
+
+        let app = test_app_with_agent_status(db_path, projects, cfg);
+
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/agent-status")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = resp.into_body().collect().await.unwrap().to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert!(json["claude"].is_null());
+        assert!(json["openai"].is_null());
     }
 }

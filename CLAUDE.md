@@ -41,7 +41,7 @@ The compiled `src/ui/app.js` and `src/ui/style.css` are committed to git so `car
 ## Test
 
 ```bash
-cargo test                        # full suite across 4 suites (538+ tests)
+cargo test                        # full suite across 4 suites (572+ tests)
 cargo test scanner                # scanner module tests
 cargo test pricing                # pricing + LiteLLM + cost-breakdown tests
 cargo test oauth                  # OAuth module tests
@@ -82,8 +82,15 @@ src/
   export.rs            -- `export` subcommand (csv / json / jsonl), period filtering
   menubar.rs           -- SwiftBar widget renderer + injection-hardened sanitizer
   db.rs                -- `db reset` TTY-guarded destructive command
-  webhooks.rs          -- Fire-and-forget webhook POSTs on session depletion / cost threshold
+  webhooks.rs          -- Fire-and-forget webhook POSTs on session depletion / cost threshold /
+                          agent status transitions (agent_status_degraded / agent_status_restored)
   openai.rs            -- OpenAI organization usage reconciliation client
+
+  agent_status/
+    mod.rs             -- poll() orchestrator + poll_with_injection() test seam + AlertDirection
+    client.rs          -- Claude HTTP client (ETag/If-None-Match) + OpenAI two-call client
+    models.rs          -- AgentStatusSnapshot, ProviderStatus, StatusIndicator, raw wire structs
+    filter.rs          -- Hardcoded component allowlists (Claude IDs, OpenAI names)
 
   oauth/
     mod.rs             -- poll_usage(): load creds -> refresh if needed -> fetch API -> attach identity

@@ -1,0 +1,32 @@
+{
+  "page": {
+    "id": "openai-status",
+    "name": "OpenAI",
+    "url": "https://status.openai.com",
+    "updated_at": "2026-04-17T10:00:00.000Z"
+  },
+  "incidents": [
+    {
+      "id": "inc-openai-001",
+      "name": "Codex API elevated latency and errors",
+      "status": "investigating",
+      "created_at": "2026-04-17T09:00:00.000Z",
+      "updated_at": "2026-04-17T09:30:00.000Z",
+      "monitoring_at": null,
+      "resolved_at": null,
+      "impact": "major",
+      "shortlink": "https://status.openai.com/incidents/inc-openai-001",
+      "page_id": "openai-status",
+      "incident_updates": [
+        {
+          "id": "upd-openai-001",
+          "status": "investigating",
+          "body": "We are investigating elevated latency affecting the Codex API.",
+          "incident_id": "inc-openai-001",
+          "created_at": "2026-04-17T09:00:00.000Z",
+          "updated_at": "2026-04-17T09:00:00.000Z"
+        }
+      ]
+    }
+  ]
+}

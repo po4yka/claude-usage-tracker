@@ -214,6 +214,7 @@ fn main() -> Result<()> {
     let cfg_openai_refresh_interval = cfg.openai.refresh_interval;
     let cfg_openai_lookback_days = cfg.openai.lookback_days;
     let cfg_display_currency = cfg.display.currency.unwrap_or_else(|| "USD".into());
+    let cfg_agent_status = cfg.agent_status;
 
     let default_db = |cli_db: Option<PathBuf>| -> PathBuf {
         cli_db
@@ -289,6 +290,7 @@ fn main() -> Result<()> {
                 openai_lookback_days: cfg_openai_lookback_days,
                 webhook_config: cfg_webhooks,
                 watch,
+                agent_status_config: cfg_agent_status,
             }))?;
         }
         Commands::Export {

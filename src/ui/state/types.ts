@@ -297,6 +297,43 @@ export interface CacheEfficiency {
   cache_hit_rate: number | null;
 }
 
+// ── Agent Status ────────────────────────────────────────────────────────────
+
+export type StatusIndicator =
+  | 'none'
+  | 'minor'
+  | 'major'
+  | 'critical'
+  | 'maintenance'
+  | 'unknown';
+
+export interface ComponentStatus {
+  name: string;
+  status: string;
+}
+
+export interface IncidentSummary {
+  name: string;
+  impact: string;
+  status: string;
+  shortlink: string | null;
+  started_at: string;
+}
+
+export interface ProviderStatus {
+  indicator: StatusIndicator;
+  description: string;
+  components: ComponentStatus[];
+  active_incidents: IncidentSummary[];
+  page_url: string;
+}
+
+export interface AgentStatusSnapshot {
+  claude: ProviderStatus | null;
+  openai: ProviderStatus | null;
+  fetched_at: string;
+}
+
 // ── Phase 13: Activity Heatmap ───────────────────────────────────────────────
 
 export interface HeatmapCell {

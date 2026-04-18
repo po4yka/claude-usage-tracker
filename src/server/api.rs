@@ -13,7 +13,9 @@ use tokio_stream::wrappers::BroadcastStream;
 
 use crate::tz::TzParams;
 
-use crate::config::WebhookConfig;
+use crate::agent_status;
+use crate::agent_status::models::AgentStatusSnapshot;
+use crate::config::{AgentStatusConfig, WebhookConfig};
 use crate::oauth;
 use crate::oauth::models::UsageWindowsResponse;
 use crate::openai;
@@ -38,6 +40,10 @@ pub struct AppState {
     /// Phase 20: broadcast channel for SSE scan_completed events.
     /// The watcher fires into this channel; SSE subscribers receive the events.
     pub scan_event_tx: broadcast::Sender<String>,
+    /// Agent status monitoring config and cache.
+    pub agent_status_config: AgentStatusConfig,
+    /// Cache: (fetched_at, snapshot, claude_etag).
+    pub agent_status_cache: RwLock<Option<(Instant, AgentStatusSnapshot, Option<String>)>>,
 }
 
 pub async fn api_data(
@@ -189,6 +195,89 @@ pub async fn api_usage_windows(
 
 pub async fn api_health() -> &'static str {
     "ok"
+}
+
+/// `GET /api/agent-status` — returns the latest upstream provider health snapshot.
+///
+/// When `agent_status_config.enabled` is false, returns an empty snapshot
+/// without making any network calls.
+pub async fn api_agent_status(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<Value>, StatusCode> {
+    if !state.agent_status_config.enabled {
+        let empty = AgentStatusSnapshot::default();
+        let value = serde_json::to_value(empty).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        return Ok(Json(value));
+    }
+
+    // Check cache
+    {
+        let cache = state.agent_status_cache.read().await;
+        if let Some((fetched_at, ref data, _)) = *cache
+            && fetched_at.elapsed().as_secs() < state.agent_status_config.refresh_interval
+        {
+            let value =
+                serde_json::to_value(data).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            return Ok(Json(value));
+        }
+    }
+
+    // Cache miss or expired: fetch fresh data in a blocking task.
+    let config = state.agent_status_config.clone();
+    let cached_etag: Option<String> = {
+        let cache = state.agent_status_cache.read().await;
+        cache.as_ref().and_then(|(_, _, etag)| etag.clone())
+    };
+
+    let (snapshot, new_etag) =
+        tokio::task::spawn_blocking(move || agent_status::poll(&config, cached_etag.as_deref()))
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Fire agent-status webhooks on severity-threshold transitions.
+    maybe_send_agent_status_webhooks(&state, &snapshot).await;
+
+    // Update cache (preserve existing snapshot on 304 / empty).
+    {
+        let mut cache = state.agent_status_cache.write().await;
+        let is_empty = snapshot.claude.is_none() && snapshot.openai.is_none();
+        if !is_empty {
+            *cache = Some((Instant::now(), snapshot.clone(), new_etag));
+        } else if cache.is_none() {
+            *cache = Some((Instant::now(), snapshot.clone(), None));
+        }
+    }
+
+    let value = serde_json::to_value(&snapshot).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(value))
+}
+
+async fn maybe_send_agent_status_webhooks(state: &Arc<AppState>, snapshot: &AgentStatusSnapshot) {
+    let mut webhook_state = state.webhook_state.lock().await;
+
+    if let Some(ref claude) = snapshot.claude
+        && let Some(event) = webhooks::agent_status_transition_event(
+            &state.webhook_config,
+            &mut webhook_state.claude_degraded,
+            "Claude",
+            &claude.indicator,
+            claude.active_incidents.len(),
+        )
+    {
+        webhooks::notify_if_configured(&state.webhook_config, event);
+    }
+
+    if let Some(ref openai) = snapshot.openai
+        && let Some(event) = webhooks::agent_status_transition_event(
+            &state.webhook_config,
+            &mut webhook_state.openai_degraded,
+            "OpenAI",
+            &openai.indicator,
+            openai.active_incidents.len(),
+        )
+    {
+        webhooks::notify_if_configured(&state.webhook_config, event);
+    }
 }
 
 /// Phase 13: Query params for the heatmap endpoint.
