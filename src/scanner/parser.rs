@@ -11,6 +11,16 @@ use crate::scanner::cowork::{is_cowork_session_path, resolve_cowork_label};
 pub const PROVIDER_CLAUDE: &str = "claude";
 pub const PROVIDER_CODEX: &str = "codex";
 pub const PROVIDER_XCODE: &str = "xcode";
+/// Pi is JSONL-backed; its parser is called via `parse_jsonl_file`.
+pub const PROVIDER_PI: &str = "pi";
+/// OpenCode is SQLite-backed; it parses via its Provider trait `parse()` directly.
+/// `parse_jsonl_file` is not used for opencode — this constant exists for
+/// consistent naming across the codebase.
+pub const PROVIDER_OPENCODE: &str = "opencode";
+/// Copilot is mixed-format (JSON/JSONL best-effort probe); it parses via its
+/// Provider trait `parse()` directly. `parse_jsonl_file` is not used for
+/// copilot — this constant exists for consistent naming.
+pub const PROVIDER_COPILOT: &str = "copilot";
 
 /// Classify a tool name into (category, mcp_server, mcp_tool).
 /// MCP tools follow the pattern: `mcp__<server>__<tool>`.
@@ -63,13 +73,96 @@ pub struct ParseResult {
 }
 
 /// Parse a provider-specific log file.
+///
+/// # Dispatcher routing
+///
+/// - `codex` — dedicated Codex JSONL parser (own record schema).
+/// - `xcode` — Claude JSONL parser with provider retag to "xcode".
+/// - `pi` — Pi JSONL parser (`responseId`-keyed dedup).
+/// - `opencode` — **SQLite-backed**; this arm is never reached in normal
+///   operation. OpenCode sessions are parsed via `OpenCodeProvider::parse()`
+///   directly. If somehow called here, returns empty and logs a warning.
+/// - `copilot` — **Mixed-format / best-effort probe**; this arm is never
+///   reached in normal operation. Copilot sessions are parsed via
+///   `CopilotProvider::parse()` directly. Returns empty with a warning if
+///   called here.
+/// - `_` — Falls through to the Claude JSONL parser (default format).
 pub fn parse_jsonl_file(provider: &str, filepath: &Path, skip_lines: i64) -> ParseResult {
     match provider {
         PROVIDER_CODEX => {
             crate::scanner::providers::codex::parse_codex_jsonl_file(filepath, skip_lines)
         }
         PROVIDER_XCODE => retag_claude_result(parse_claude_jsonl_file(filepath, skip_lines)),
+        PROVIDER_PI => parse_pi_result(
+            crate::scanner::providers::pi::parse_pi_jsonl_file(filepath),
+            filepath,
+        ),
+        PROVIDER_OPENCODE | PROVIDER_COPILOT => {
+            // These providers are SQLite-backed or mixed-format and must be
+            // parsed via their Provider trait `parse()`. The JSONL dispatcher
+            // is not the right path for them. Return empty gracefully.
+            warn!(
+                "parse_jsonl_file called for SQLite/mixed provider '{}' on {} — use Provider::parse() instead",
+                provider,
+                filepath.display()
+            );
+            empty_parse_result()
+        }
         _ => parse_claude_jsonl_file(filepath, skip_lines),
+    }
+}
+
+/// Wrap a `Vec<Turn>` from the Pi provider into a `ParseResult`.
+fn parse_pi_result(turns: Vec<crate::models::Turn>, filepath: &Path) -> ParseResult {
+    use crate::models::SessionMeta;
+    use std::collections::HashMap;
+
+    // Build minimal session metas from the turns.
+    let mut metas: HashMap<String, SessionMeta> = HashMap::new();
+    for t in &turns {
+        metas
+            .entry(t.session_id.clone())
+            .and_modify(|m| {
+                if !t.timestamp.is_empty() {
+                    if m.first_timestamp.is_empty() || t.timestamp < m.first_timestamp {
+                        m.first_timestamp.clone_from(&t.timestamp);
+                    }
+                    if m.last_timestamp.is_empty() || t.timestamp > m.last_timestamp {
+                        m.last_timestamp.clone_from(&t.timestamp);
+                    }
+                }
+            })
+            .or_insert_with(|| SessionMeta {
+                session_id: t.session_id.clone(),
+                provider: PROVIDER_PI.into(),
+                project_name: "unknown".into(),
+                project_slug: String::new(),
+                first_timestamp: t.timestamp.clone(),
+                last_timestamp: t.timestamp.clone(),
+                git_branch: String::new(),
+                model: if t.model.is_empty() {
+                    None
+                } else {
+                    Some(t.model.clone())
+                },
+                entrypoint: String::new(),
+            });
+    }
+
+    // line_count: best-effort count of JSONL lines (recount from file).
+    let line_count = std::fs::File::open(filepath)
+        .map(|f| {
+            use std::io::BufRead;
+            std::io::BufReader::new(f).lines().count() as i64
+        })
+        .unwrap_or(0);
+
+    ParseResult {
+        session_metas: metas.into_values().collect(),
+        turns,
+        line_count,
+        session_titles: HashMap::new(),
+        tool_results: HashMap::new(),
     }
 }
 

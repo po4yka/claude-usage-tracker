@@ -1,12 +1,18 @@
 pub mod claude;
 pub mod codex;
+pub mod copilot;
 pub mod cursor;
 pub mod cursor_cache;
+pub mod opencode;
+pub mod pi;
 pub mod xcode;
 
 pub use claude::ClaudeProvider;
 pub use codex::CodexProvider;
+pub use copilot::CopilotProvider;
 pub use cursor::CursorProvider;
+pub use opencode::OpenCodeProvider;
+pub use pi::PiProvider;
 pub use xcode::XcodeProvider;
 
 use crate::scanner::provider::Provider;
@@ -17,6 +23,16 @@ fn home_dir() -> PathBuf {
 }
 
 /// Returns the default provider set for a full scan.
+///
+/// Registry order: claude, codex, xcode, cursor, opencode, pi, copilot.
+///
+/// Provider backend notes:
+/// - JSONL-backed: Claude, Codex, Xcode, Pi — the dispatcher in `parser.rs`
+///   routes these through `parse_jsonl_file`.
+/// - SQLite-backed: Cursor, OpenCode — these providers parse via their trait
+///   `parse()` directly; `parse_jsonl_file` is not involved.
+/// - Mixed-format / best-effort probe: Copilot — uses its trait `parse()`
+///   directly; JSON and JSONL files are both probed.
 pub fn all() -> Vec<Box<dyn Provider>> {
     let home = home_dir();
     let mut providers: Vec<Box<dyn Provider>> = vec![
@@ -28,6 +44,9 @@ pub fn all() -> Vec<Box<dyn Provider>> {
             home.join(".codex").join("archived_sessions"),
         ])),
         Box::new(CursorProvider::new()),
+        Box::new(OpenCodeProvider::new()),
+        Box::new(PiProvider::new()),
+        Box::new(CopilotProvider::new()),
     ];
     #[cfg(target_os = "macos")]
     providers.push(Box::new(XcodeProvider::new(vec![home.join(
@@ -48,5 +67,53 @@ mod tests {
             names.contains(&"cursor"),
             "providers::all() must include a provider with name 'cursor', got: {names:?}"
         );
+    }
+
+    #[test]
+    fn all_contains_opencode_provider() {
+        let providers = all();
+        let names: Vec<&str> = providers.iter().map(|p| p.name()).collect();
+        assert!(
+            names.contains(&"opencode"),
+            "providers::all() must include 'opencode', got: {names:?}"
+        );
+    }
+
+    #[test]
+    fn all_contains_pi_provider() {
+        let providers = all();
+        let names: Vec<&str> = providers.iter().map(|p| p.name()).collect();
+        assert!(
+            names.contains(&"pi"),
+            "providers::all() must include 'pi', got: {names:?}"
+        );
+    }
+
+    #[test]
+    fn all_contains_copilot_provider() {
+        let providers = all();
+        let names: Vec<&str> = providers.iter().map(|p| p.name()).collect();
+        assert!(
+            names.contains(&"copilot"),
+            "providers::all() must include 'copilot', got: {names:?}"
+        );
+    }
+
+    #[test]
+    fn all_registry_order() {
+        let providers = all();
+        let names: Vec<&str> = providers.iter().map(|p| p.name()).collect();
+        // Verify the known non-platform-gated providers appear in the correct order.
+        let claude_pos = names.iter().position(|&n| n == "claude").unwrap();
+        let codex_pos = names.iter().position(|&n| n == "codex").unwrap();
+        let cursor_pos = names.iter().position(|&n| n == "cursor").unwrap();
+        let opencode_pos = names.iter().position(|&n| n == "opencode").unwrap();
+        let pi_pos = names.iter().position(|&n| n == "pi").unwrap();
+        let copilot_pos = names.iter().position(|&n| n == "copilot").unwrap();
+        assert!(claude_pos < codex_pos);
+        assert!(codex_pos < cursor_pos);
+        assert!(cursor_pos < opencode_pos);
+        assert!(opencode_pos < pi_pos);
+        assert!(pi_pos < copilot_pos);
     }
 }

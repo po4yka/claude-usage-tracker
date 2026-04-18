@@ -183,7 +183,13 @@ Steps:
 
 The explicit `--projects-dir` CLI override routes through `provider_for_dir()` in `src/scanner/mod.rs` — update that helper if the new provider needs path-based detection from that override surface.
 
-`src/scanner/providers/cursor.rs` is an example of a SQLite-backed provider (opens `state.vscdb` read-only via `rusqlite`) as opposed to the JSONL-backed providers (Claude, Codex, Xcode); see also `cursor_cache.rs` for the companion mtime+size cache-invalidation helper.
+Three provider backend categories exist — choose the matching template:
+
+- **JSONL-backed** (Claude, Codex, Xcode, Pi): one record per line; `parse_jsonl_file` in `parser.rs` dispatches to the per-provider parser. Pi uses `responseId` dedup (last-wins); Claude/Xcode use `message.id` dedup.
+- **SQLite-backed** (Cursor, OpenCode): open the DB read-only via `rusqlite`; probe for tables before querying; return empty on missing schema. The `parse_jsonl_file` dispatcher is bypassed — call `Provider::parse()` directly. See `cursor.rs` and `opencode.rs`.
+- **Mixed-format / best-effort probe** (Copilot): format varies by IDE and is not publicly documented; probe for JSON or JSONL files and look for recognizable usage fields; always return `Ok(Vec::new())` when the format is unrecognized — never error or panic. Document the uncertainty in the module header.
+
+See also `cursor_cache.rs` for the mtime+size cache-invalidation helper used by SQLite-backed providers.
 
 ### Changing the database schema
 
