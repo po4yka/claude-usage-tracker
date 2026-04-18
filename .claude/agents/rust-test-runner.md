@@ -48,7 +48,7 @@ When tests fail:
 
 ## Coverage Baseline
 
-Current test count: **118 tests**
+Current test count: **538+ tests** (across 4 suites: lib, main, heimdall-hook, doc-tests)
 
 Rules:
 - New features MUST add tests

@@ -1,57 +1,97 @@
-# Claude Usage Tracker
+# Heimdall -- Claude Usage Tracker
 
-A fast, local analytics dashboard for Claude Code and Codex usage. Built in Rust.
+A fast, local analytics platform for Claude Code, Codex, Cursor, OpenCode, Pi, Copilot, Xcode CodingAssistant, and Cowork sessions. Built in Rust.
 
-Reads local transcripts written by Claude Code and Codex, then presents an interactive dashboard with cost estimates, charts, provider-aware filtering, and rate limit tracking.
+Reads local transcripts written by every supported tool, then presents an interactive dashboard with cost estimates, cache efficiency, task categorization, activity heatmap, provider-aware filtering, waste-detection grade, and rate-limit tracking -- all running entirely on your machine. Two binaries ship together: `claude-usage-tracker` for CLI + dashboard, `heimdall-hook` for sub-second real-time ingest.
 
 ## Features
 
 ### Core
-- **Incremental scanning** -- only processes new/changed JSONL files
-- **Multi-provider analytics** -- Claude and Codex share one SQLite database and dashboard
-- **Streaming deduplication** -- handles Claude Code and Codex incremental session records
-- **Interactive dashboard** -- industrial monochrome UI (dark + light themes) with ApexCharts, sortable tables, CSV export
-- **Cost estimation** -- single source of truth in Rust, with volume discount support and integer-nanos precision
-- **Turn-level cost snapshots** -- each turn stores estimated cost, pricing snapshot, billing mode, and confidence tier
-- **CLI reporting** -- quick terminal summaries with `--json` flag for scripting
-- **Cross-platform** -- macOS, Linux, Windows
-- **Zero runtime dependencies** -- single binary, no Python/Node/npm required
 
-### Real-Time Monitoring (via OAuth)
-- **Rate window tracking** -- 5-hour session, 7-day weekly, and per-model (Opus/Sonnet) quotas with progress bars and reset countdowns
-- **Plan detection** -- automatically identifies Max/Pro/Team/Enterprise from Claude credentials
-- **Monthly budget tracking** -- spend vs limit progress bar from OAuth API
-- **Session depletion alerts** -- inline `[ERROR: ...]` status next to the rate-window cards when quota runs out or restores
-- **Auto token refresh** -- refreshes expired OAuth tokens automatically
+- **Multi-provider analytics** -- Claude Code, Codex, Cursor, OpenCode, Pi, Copilot, Xcode CodingAssistant, and Cowork share one SQLite database and dashboard.
+- **Incremental scanning** -- only processes new/changed JSONL or SQLite sources; cache-invalidated by mtime+size where applicable.
+- **Streaming deduplication** -- provider-specific dedup keys (`message.id`, `turn_id` + cumulative tokens, `responseId`, `session_id:message_id`, etc.).
+- **Interactive dashboard** -- industrial monochrome UI (dark + light themes) with ApexCharts, sortable tables, CSV export, URL-persistent filters, keep-previous-data refresh.
+- **Cost estimation** -- single source of truth in Rust, volume discounts, integer-nanos precision, 4-way CostBreakdown (input / output / cache-read / cache-write), 5-tier fallback with hardcoded Claude/GPT-5 priority + LiteLLM pass-through for long-tail models.
+- **Task categorization** -- 13-category deterministic classifier (Coding, Debugging, FeatureDev, Testing, Git, Docs, Research, Refactor, DevOps, Config, Planning, Review, Other). Zero LLM calls.
+- **One-shot rate tracking** -- detects Edit->Bash->Edit retry cycles as a proxy for first-try success rate.
+- **Cross-platform** -- macOS, Linux, Windows.
+- **Zero runtime dependencies** -- single binary, no Python/Node/npm required at runtime.
+
+### Real-time
+
+- **`heimdall-hook`** -- stdin-driven PreToolUse hook binary writes per-tool cost straight into SQLite (~50ms p99). Bypass mode (`--dangerously-skip-permissions`) short-circuits automatically. Install with `claude-usage-tracker hook install`.
+- **File-watcher auto-refresh** -- `dashboard --watch` enables a `notify`-backed watcher with 2s debounce that drives in-process rescans plus an `/api/stream` SSE channel.
+- **Usage-limits file source** -- parses `~/.claude/**/*-usage-limits` files into `rate_window_history`; provides OAuth-free rate-window data.
+
+### Real-time monitoring (via OAuth)
+
+- **Rate window tracking** -- 5-hour session, 7-day weekly, and per-model (Opus/Sonnet) quotas with progress bars and reset countdowns.
+- **Plan detection** -- automatically identifies Max/Pro/Team/Enterprise from Claude credentials.
+- **Monthly budget tracking** -- spend vs limit progress bar from OAuth API.
+- **Session depletion alerts** -- inline `[ERROR: ...]` status next to the rate-window cards when quota runs out or restores.
+- **Auto token refresh** -- refreshes expired OAuth tokens automatically.
 
 ### Analytics
-- **Codex local log support** -- scans archived Codex session JSONL and estimates cost from OpenAI API pricing
-- **Estimation confidence tiers** -- distinguishes exact pricing matches from fallback/unknown model estimates
-- **OpenAI org reconciliation** -- optional Codex comparison against official OpenAI organization usage buckets
-- **Subagent session linking** -- tracks parent vs subagent token usage with breakdown panel
-- **Entrypoint breakdown** -- usage split by CLI, VS Code, JetBrains
-- **Service tier tracking** -- inference region and service tier visibility
-- **Cost trend sparkline** -- 7-day mini chart
-- **Project search/filter** -- text search across projects with URL persistence
-- **Paginated sessions** -- 25 per page with prev/next navigation
+
+- **7×24 activity heatmap** -- CSS-grid heatmap with monochrome opacity ladder, timezone-aware bucketing.
+- **Active-period averaging** -- `avg / active day` divided by days with non-zero spend (not calendar days); tooltip documents the divisor.
+- **Cache efficiency card** -- cache hit-rate percentage with industrial progress bar; formula `cache_read / (cache_read + input_tokens)`.
+- **Version distribution donut** -- CC-version breakdown with URL-persistent cost / calls / tokens metric switcher.
+- **Tool-event cost attribution** -- each call's cost is split evenly across its tool invocations; per-MCP and per-file cost queries become tractable.
+- **Codex local log support** -- scans archived Codex session JSONL and estimates cost from OpenAI API pricing.
+- **Estimation confidence tiers** -- distinguishes exact pricing matches from fallback/unknown model estimates.
+- **OpenAI org reconciliation** -- optional Codex comparison against official OpenAI organization usage buckets.
+- **Subagent session linking** -- tracks parent vs subagent token usage with breakdown panel.
+- **Entrypoint breakdown** -- usage split by CLI, VS Code, JetBrains.
+- **Service tier tracking** -- inference region and service tier visibility.
+- **Cowork label resolution** -- walks `local-agent-mode-sessions/<slug>/audit.jsonl` to replace procedurally-generated session slugs with the first user message as a human-readable project label.
+- **Currency conversion** -- display-only conversion to 162 currencies via Frankfurter with 24h disk cache and hardcoded fallback; USD nanos remain the storage representation.
+- **Cost trend sparkline** -- 7-day mini chart.
+- **Project search/filter** -- text search across projects with URL persistence.
+- **Paginated sessions** -- 25 per page with prev/next navigation.
+
+### `optimize` waste detector
+
+`claude-usage-tracker optimize [--format=text|json]` runs five detectors and produces an A–F health grade:
+
+- `ClaudeMdBloatDetector` -- estimates tokens `× session count × input rate`.
+- `UnusedMcpDetector` -- MCP servers in `~/.claude/settings.json` never invoked in recorded sessions.
+- `GhostAgentDetector` -- agent definitions in `~/.claude/agents/*.md` never referenced.
+- `RereadDetector` -- same file read ≥3× per session.
+- `BashNoiseDetector` -- trivial commands (`ls`, `pwd`, `git status`, ...) repeated ≥5× per session.
+
+### CLI subcommands
+
+- `scan`, `today`, `stats`, `dashboard`, `dashboard --watch`
+- `export --format=<csv|json|jsonl> --period=<today|week|month|year|all> --output=<path>` (optional `--provider`, `--project`)
+- `optimize --format=<text|json>`
+- `scheduler install|uninstall|status [--interval=<hourly|daily>]` (platform-native via launchd / cron / schtasks)
+- `daemon install|uninstall|status` (macOS-only always-on dashboard via launchd with `KeepAlive: true`)
+- `hook install|uninstall|status` (wires `heimdall-hook` into `~/.claude/settings.json` PreToolUse)
+- `db reset [--yes]` (TTY-guarded destructive wipe — type `rebuild` interactively, or pass `--yes` in non-TTY)
+- `menubar` (SwiftBar-formatted output for macOS menu-bar widgets)
+- `pricing refresh` (fetch LiteLLM catalogue into `~/.cache/heimdall/litellm_pricing.json`)
 
 ### Extensibility
-- **Config file** -- `~/.claude/usage-tracker.toml` for all settings
-- **Custom pricing overrides** -- per-model rate customization
-- **Webhook notifications** -- POST to URL on session depletion or cost threshold
-- **JSON API** -- all dashboard data available via REST endpoints
+
+- **Config file** -- `~/.claude/usage-tracker.toml` for all settings. Dual-path resolver adds `$HEIMDALL_CONFIG` and `~/.config/heimdall/config.toml`.
+- **Custom pricing overrides** -- per-model rate customization in config.
+- **Webhook notifications** -- POST to URL on session depletion or cost threshold.
+- **JSON API** -- all dashboard data available via REST endpoints, incl. SSE stream.
+- **Provider plugin pattern** -- add a new scanner provider in a single file under `src/scanner/providers/`; see [AGENTS.md](AGENTS.md).
+- **Detector plugin pattern** -- add a waste detector in a single file under `src/optimizer/`.
 
 ## Install
 
 ### Prebuilt binary (recommended)
 
-Download the tarball for your platform from the [GitHub Releases](https://github.com/po4yka/heimdall/releases) page,
-extract it, and move both binaries to `/usr/local/bin`.
+Download the tarball for your platform from the [GitHub Releases](https://github.com/po4yka/heimdall/releases) page, extract it, and move both binaries to `/usr/local/bin`.
 
 **macOS (recommended): universal binary — runs natively on Apple Silicon and Intel**
 
 ```bash
-# macOS universal binary (arm64 + x86_64 in one file)
+# macOS universal binary (arm64 + x86_64 in one file, lipo-merged at release time)
 VERSION=$(curl -fsSL https://api.github.com/repos/po4yka/heimdall/releases/latest | jq -r '.tag_name')
 curl -fsSL "https://github.com/po4yka/heimdall/releases/download/${VERSION}/heimdall-${VERSION}-universal-apple-darwin.tar.gz" \
   | tar xz --strip-components=1 -C /usr/local/bin
@@ -81,7 +121,6 @@ Supported platforms:
 Verify the download against the published checksums:
 
 ```bash
-# Download and verify
 curl -fsSL "https://github.com/po4yka/heimdall/releases/download/${VERSION}/SHA256SUMS.txt" | sha256sum --check --ignore-missing
 ```
 
@@ -99,29 +138,46 @@ _The tap repository (`heimdall/homebrew-tap`) must be created and published by t
 Run the dashboard as a persistent background service that starts automatically at login:
 
 ```bash
-# Install the always-on dashboard daemon (macOS only)
 claude-usage-tracker daemon install
-
-# Check status
 claude-usage-tracker daemon status
-
-# Remove the daemon
 claude-usage-tracker daemon uninstall
 ```
 
 The daemon runs `claude-usage-tracker dashboard --host localhost --port 8080 --watch` under launchd with `KeepAlive: true`. Logs are written to `~/Library/Logs/heimdall/`. Linux systemd and Windows Service support is deferred to a future release.
 
+### Scheduler (cross-platform)
+
+For just periodic ingest (not a persistent dashboard), use the `scheduler` subcommand:
+
+```bash
+claude-usage-tracker scheduler install --interval=hourly
+claude-usage-tracker scheduler status
+claude-usage-tracker scheduler uninstall
+```
+
+It writes a native schedule entry: a launchd plist on macOS, a tagged `# heimdall-scheduler:v1` crontab line on Linux, or a `HeimdallScan` task on Windows. Runs at minute `:17` to avoid scheduler pile-up.
+
+### Real-time hook
+
+Install the PreToolUse hook so Claude Code reports every tool invocation's cost in real time:
+
+```bash
+claude-usage-tracker hook install
+claude-usage-tracker hook status
+claude-usage-tracker hook uninstall
+```
+
+This appends a tagged hook entry to `~/.claude/settings.json` that runs `heimdall-hook` on each tool call. A `settings.json.heimdall-bak` backup is written before every modification. The hook binary is fire-and-forget: ~50ms p99, never blocks Claude Code, and automatically respects bypass mode.
+
 ### From source
 
 ```bash
-# Install from git (requires Rust toolchain)
 cargo install --git https://github.com/po4yka/heimdall
 
-# Or build locally for development
+# Or build locally
 git clone https://github.com/po4yka/heimdall
 cd heimdall
 cargo build --release
-# Binaries appear in target/release/
 sudo cp target/release/claude-usage-tracker target/release/heimdall-hook /usr/local/bin/
 ```
 
@@ -131,9 +187,12 @@ sudo cp target/release/claude-usage-tracker target/release/heimdall-hook /usr/lo
 # Scan transcripts and open the dashboard
 claude-usage-tracker dashboard
 
+# Dashboard with live auto-refresh (file-watcher + SSE)
+claude-usage-tracker dashboard --watch
+
 # Quick terminal summary of today's usage
 claude-usage-tracker today
-claude-usage-tracker today --json    # machine-readable output
+claude-usage-tracker today --json
 
 # All-time statistics
 claude-usage-tracker stats
@@ -147,11 +206,25 @@ claude-usage-tracker scan --projects-dir /path/to/projects
 
 # Custom host/port
 claude-usage-tracker dashboard --host 0.0.0.0 --port 9090
+
+# Export aggregated usage
+claude-usage-tracker export --format=csv --period=month --output=usage.csv
+claude-usage-tracker export --format=json --period=all --output=all.json --provider=claude
+
+# Run the waste detector
+claude-usage-tracker optimize               # human-readable text
+claude-usage-tracker optimize --format=json
+
+# Refresh long-tail model pricing
+claude-usage-tracker pricing refresh
+
+# SwiftBar menu-bar widget (macOS)
+claude-usage-tracker menubar
 ```
 
 ## Configuration
 
-Create `~/.claude/usage-tracker.toml` (all fields optional):
+Create `~/.claude/usage-tracker.toml` (all fields optional). The dual-path resolver also checks `$HEIMDALL_CONFIG` and `~/.config/heimdall/config.toml`.
 
 ```toml
 # Custom project directories (overrides platform defaults)
@@ -164,17 +237,21 @@ db_path = "/custom/path/usage.db"
 host = "0.0.0.0"
 port = 9090
 
+# Display preferences (currency conversion is display-only; USD nanos remain in storage)
+[display]
+currency = "EUR"   # ISO 4217 code; default "USD"
+
 # OAuth settings (reads ~/.claude/.credentials.json)
 [oauth]
-enabled = true           # default: true (auto-detects credentials)
-refresh_interval = 60    # seconds between API polls
+enabled = true
+refresh_interval = 60
 
 # Optional OpenAI organization usage reconciliation for Codex API-backed usage
 [openai]
-enabled = true                    # default: true if OPENAI_ADMIN_KEY is set
+enabled = true
 admin_key_env = "OPENAI_ADMIN_KEY"
-refresh_interval = 300            # seconds between API polls
-lookback_days = 30                # compare local Codex estimates vs org usage over this window
+refresh_interval = 300
+lookback_days = 30
 
 # Custom pricing overrides ($/MTok)
 [pricing.my-custom-model]
@@ -183,93 +260,124 @@ output = 8.0
 cache_write = 2.5    # optional, defaults to input * 1.25
 cache_read = 0.2     # optional, defaults to input * 0.10
 
+# LiteLLM pricing source (pulls model_prices_and_context_window.json into a disk cache)
+[pricing_source]
+source = "litellm"      # or "static" (default)
+refresh_hours = 24
+
 # Webhook notifications
 [webhooks]
 url = "https://hooks.example.com/notify"
-cost_threshold = 50.0      # notify when daily cost exceeds this (USD)
-session_depleted = true    # notify on session depletion
+cost_threshold = 50.0
+session_depleted = true
 ```
 
 ## Data Sources
 
-Automatically discovers JSONL transcripts from:
+Automatically discovers sessions from:
 
-| Platform | Path |
-|----------|------|
+| Tool | Path |
+|------|------|
 | Claude Code CLI | `~/.claude/projects/` |
-| Xcode integration | `~/Library/Developer/Xcode/CodingAssistant/ClaudeAgentConfig/projects/` |
+| Claude Code subagents | `~/.claude/projects/<slug>/subagents/` |
+| Claude Desktop Cowork | `~/.claude/local-agent-mode-sessions/<slug>/audit.jsonl` (for label resolution) |
+| Xcode CodingAssistant (macOS) | `~/Library/Developer/Xcode/CodingAssistant/ClaudeAgentConfig/projects/` |
 | Codex archived sessions | `~/.codex/archived_sessions/` |
-| Codex live sessions (JSONL if present) | `~/.codex/sessions/` |
+| Codex live sessions (JSONL) | `~/.codex/sessions/` |
+| Cursor | `~/Library/Application Support/Cursor/User/workspaceStorage/*/state.vscdb` (macOS), `~/.config/Cursor/...` (Linux), `%APPDATA%/Cursor/...` (Windows) |
+| OpenCode | `~/Library/Application Support/opencode/*.db` (macOS) and platform equivalents |
+| Pi | `~/.pi/sessions/*.jsonl` |
+| GitHub Copilot | `~/Library/Application Support/Code/User/globalStorage/github.copilot-chat/` (VS Code), JetBrains paths (best-effort probe) |
+| Claude usage-limits snapshots | `~/.claude/**/*-usage-limits` |
 | Custom | `--projects-dir <PATH>` or config file |
 
 ## How It Works
 
-1. **Scan** -- walks project directories for `*.jsonl` files (including `subagents/` subdirectories)
-2. **Parse** -- extracts provider-aware session metadata, per-turn token usage, subagent flags, service tier, and Codex tool activity
-3. **Estimate** -- computes turn-level API-equivalent cost snapshots with pricing version + confidence metadata
-4. **Deduplicate** -- streaming events sharing the same `message.id` are collapsed (last record wins)
-5. **Store** -- upserts into a local SQLite database at `~/.claude/usage.db`
-6. **Serve** -- axum HTTP server delivers the dashboard UI and JSON API
-7. **Reconcile** -- optionally compares Codex local estimates to OpenAI organization usage buckets
-8. **Monitor** -- polls Claude OAuth API for real-time rate windows (optional)
+1. **Scan** -- walks provider-specific filesystem paths for session logs (JSONL / SQLite / mixed-format).
+2. **Parse** -- extracts provider-aware session metadata, per-turn token usage, subagent flags, service tier, tool invocations with captured arguments (file paths, bash commands) where present.
+3. **Classify** -- 13-category regex classifier assigns each turn a task category using tool names + first user message heuristics.
+4. **Estimate** -- computes turn-level API-equivalent cost snapshots with pricing version + confidence metadata; breaks down into input / output / cache-read / cache-write components that sum exactly.
+5. **Attribute** -- splits each turn's cost evenly across its tool invocations (remainder to the first event) into `tool_events` so per-tool cost queries are tractable.
+6. **Deduplicate** -- streaming events sharing the same provider-specific dedup key are collapsed (last record wins).
+7. **Store** -- upserts into a local SQLite database at `~/.claude/usage.db`.
+8. **Serve** -- axum HTTP server delivers the dashboard UI and JSON API.
+9. **Reconcile** -- optionally compares Codex local estimates to OpenAI organization usage buckets.
+10. **Monitor** -- polls Claude OAuth API for real-time rate windows (optional), parses usage-limits files as a fallback source.
+11. **Watch & push** -- with `dashboard --watch`, a `notify`-backed file watcher triggers in-process rescans and broadcasts via `/api/stream` SSE; `heimdall-hook` writes live per-tool-call events directly into the DB.
 
 ## API Endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/` | Dashboard HTML |
-| GET | `/api/data` | All dashboard data (models, sessions, daily, subagent summary, entrypoints, service tiers) |
+| GET | `/api/data` | All dashboard data (models, sessions, daily, subagent, entrypoints, service tiers, cache efficiency, version summary) |
+| GET | `/api/data?tz_offset_min=N&week_starts_on=N` | Timezone-aware bucketing for day-grouped metrics |
+| GET | `/api/heatmap?period=<period>&tz_offset_min=N` | 7×24 cell grid + active-period averaging summary |
 | GET | `/api/usage-windows` | Real-time rate windows, budget, identity (cached 60s) |
 | POST | `/api/rescan` | Atomic full rescan |
+| GET | `/api/stream` | Server-Sent Events broadcasting `scan_completed` from the file-watcher |
 | GET | `/api/health` | Health check |
 
 ## Architecture
 
 ```
 src/
-  main.rs              -- CLI entry point (clap)
-  config.rs            -- TOML config file loading
-  models.rs            -- shared data types
+  lib.rs               -- Library root shared between both binaries
+  main.rs              -- Primary CLI (clap): scan/today/stats/dashboard/export/
+                          optimize/scheduler/daemon/hook/db/menubar/pricing
+  config.rs            -- TOML config file loading + dual-path resolver
+  models.rs            -- Shared data types (Session, Turn, ToolEvent, CacheEfficiency, ...)
+  pricing.rs           -- Single pricing source, 4-way CostBreakdown, 5-tier fallback
+  currency.rs          -- Frankfurter USD->N conversion + 24h disk cache
+  litellm.rs           -- LiteLLM catalogue fetch + cache
+  tz.rs                -- TzParams for timezone-aware SQL bucketing
+  export.rs            -- `export` subcommand
+  menubar.rs           -- SwiftBar widget renderer + injection sanitizer
+  db.rs                -- TTY-guarded `db reset` command
+  webhooks.rs          -- Webhook notification system
   openai.rs            -- OpenAI organization usage reconciliation client
-  pricing.rs           -- model pricing (single source of truth, volume discounts, nanos precision)
-  webhooks.rs          -- webhook notification system
-  oauth/
-    mod.rs             -- OAuth orchestration (poll_usage)
-    credentials.rs     -- credential reading + token refresh
-    api.rs             -- Claude OAuth API client
-    models.rs          -- OAuth response types
+  oauth/               -- Claude OAuth (credentials, refresh, API, models)
   scanner/
-    mod.rs             -- scan orchestration, incremental processing
-    parser.rs          -- JSONL parsing, streaming dedup, subagent detection
-    db.rs              -- SQLite schema, queries, migrations, rate window history
-  server/
-    mod.rs             -- axum HTTP server
-    api.rs             -- JSON API endpoints (data, rescan, usage-windows, health)
-    assets.rs          -- embedded static assets
-  ui/
-    app.tsx            -- Dashboard entry (data loading, filters, render)
-    app.js             -- Compiled JS (committed)
-    index.html         -- Dashboard HTML shell (embeds compiled CSS + JS)
-    input.css          -- Tailwind v4 entry with industrial tokens
-    style.css          -- Generated CSS (committed)
-    components/        -- Preact components (header, filter bar, charts, tables, status)
-    lib/               -- format / csv / charts / theme / status / rescan
-    state/             -- Signals store and TypeScript types
+    classifier.rs      -- 13-category task classifier
+    oneshot.rs         -- Edit->Bash->Edit retry detection
+    cowork.rs          -- Ephemeral Cowork label resolution
+    usage_limits.rs    -- Usage-limits file parser
+    watcher.rs         -- `notify`-backed file watcher (--watch flag)
+    provider.rs        -- Provider trait + SessionSource
+    providers/         -- claude, codex, xcode, cursor, opencode, pi, copilot
+  hook/                -- heimdall-hook binary (bypass, ingest, install)
+  optimizer/           -- 5 waste detectors + A–F grade
+  scheduler/           -- Cross-platform scheduler (launchd, cron, schtasks) + daemon
+  server/              -- axum server, API endpoints, SSE stream, embedded assets
+  ui/                  -- Preact + Tailwind v4 dashboard (compiled JS/CSS committed)
 ```
+
+See [CLAUDE.md](CLAUDE.md) for the expanded architecture tree and [AGENTS.md](AGENTS.md) for development conventions and extension playbooks.
 
 ## Development
 
-See [CLAUDE.md](CLAUDE.md) for build instructions, conventions, and development guide.
-
 ```bash
-cargo build              # build
-cargo test               # 128 tests
-cargo clippy -- -D warnings # lint
+cargo build                      # build both binaries
+cargo test                       # full suite (538+ tests across 4 suites)
+cargo clippy -- -D warnings      # lint
+cargo fmt --check                # format check
+./node_modules/.bin/tsc --noEmit # TypeScript type check
+npm run build:ui                 # recompile dashboard bundle
 ```
 
-## Prior Art
+Release pipeline: `.github/workflows/release.yml` builds all 5 targets on `v*.*.*` tag push and produces a consolidated `SHA256SUMS.txt`. The universal macOS artifact is produced by a post-matrix `lipo` job. See [.github/RELEASING.md](.github/RELEASING.md) for the release-cutting playbook.
 
-Inspired by [phuryn/claude-usage](https://github.com/phuryn/claude-usage) (Python) and [CodexBar](https://github.com/nicepkg/CodexBar) (macOS menu bar app). This project combines ideas from both into a single cross-platform Rust binary.
+## Prior Art & Acknowledgements
+
+Heimdall harvests patterns from three sibling projects in the local-AI-observability space:
+
+- **[Codeburn](https://github.com/AgentSeal/codeburn)** (TypeScript CLI) — upstream session parser, 13-category classifier, provider plugin pattern, `optimize` waste detector concept, SwiftBar menubar, currency conversion.
+- **[Third-Eye](https://github.com/fien-atone/third-eye)** (TypeScript web) — tool-event cost attribution, 7×24 heatmap, client-sent timezone handling, active-period averaging, cross-platform scheduler, CC-version tracking.
+- **[Claude-Guardian](https://github.com/anshaneja5/Claude-Guardian)** (Swift + Python, macOS) — real-time PreToolUse cost injection, file-watcher auto-refresh, usage-limits file parsing, cache-token breakdown, Homebrew cask + LaunchAgent + universal-binary distribution stack.
+
+Also inspired by [phuryn/claude-usage](https://github.com/phuryn/claude-usage) (Python) and [CodexBar](https://github.com/nicepkg/CodexBar) (macOS menu bar app).
+
+See [ROADMAP.md](ROADMAP.md) for the full phased implementation history.
 
 ## License
 
