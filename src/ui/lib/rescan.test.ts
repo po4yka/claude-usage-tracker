@@ -31,7 +31,7 @@ describe('createTriggerRescan', () => {
     expect(errors).toEqual(['Rescan failed: HTTP 500 Internal Server Error']);
     expect(timers).toHaveLength(1);
 
-    timers[0]();
+    timers[0]!();
     expect(button.disabled).toBe(false);
     expect(button.textContent).toBe('\u21bb Rescan');
   });

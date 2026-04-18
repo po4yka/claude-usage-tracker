@@ -183,7 +183,8 @@ interface CommunitySignalRowProps {
 }
 
 function CommunitySignalRow({ label, signals }: CommunitySignalRowProps) {
-  if (!signals.length) return null;
+  const first = signals[0];
+  if (!first) return null;
 
   // Worst level across all slugs for this provider.
   const levelOrder: SignalLevel[] = ['spike', 'elevated', 'normal', 'unknown'];
@@ -195,7 +196,7 @@ function CommunitySignalRow({ label, signals }: CommunitySignalRowProps) {
       <span style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', flex: 1 }}>{label}</span>
       <span style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', color }}>{levelLabel}</span>
       <a
-        href={signals[0].source_url}
+        href={first.source_url}
         target="_blank"
         rel="noopener noreferrer"
         style={{ color: 'var(--text-secondary)', fontSize: '11px' }}

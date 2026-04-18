@@ -46,13 +46,14 @@ export function tokenSeriesColors(): string[] {
 // Base four: --text-display, --success, --warning, --interactive.
 // Overflow cycles the base with decreasing opacity.
 export function modelSeriesColors(n: number): string[] {
-  const baseVars = ['--text-display', '--success', '--warning', '--interactive'];
+  const baseVars = ['--text-display', '--success', '--warning', '--interactive'] as const;
   const out: string[] = [];
   for (let i = 0; i < n; i++) {
     const slot = i % baseVars.length;
     const cycle = Math.floor(i / baseVars.length);
     const alpha = Math.max(0.25, 1 - cycle * 0.25);
-    out.push(cycle === 0 ? cssVar(baseVars[slot]) : withAlpha(baseVars[slot], alpha));
+    const v = baseVars[slot]!;
+    out.push(cycle === 0 ? cssVar(v) : withAlpha(v, alpha));
   }
   return out;
 }

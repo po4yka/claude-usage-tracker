@@ -7,15 +7,15 @@ import type { Totals, StatCard, DailyAgg, CacheEfficiency } from '../state/types
 
 interface StatsCardsProps {
   totals: Totals;
-  daily?: DailyAgg[];
+  daily?: DailyAgg[] | undefined;
   /** Active-period average: days with non-zero spend. From /api/heatmap. */
-  activeDays?: number;
+  activeDays?: number | undefined;
   /** Total cost nanos for the heatmap period (matches activeDays). */
-  heatmapTotalNanos?: number;
+  heatmapTotalNanos?: number | undefined;
   /** Total calendar days in the heatmap period (for tooltip). */
-  calendarDays?: number;
+  calendarDays?: number | undefined;
   /** Phase 21: cache-efficiency aggregate from /api/data. */
-  cacheEfficiency?: CacheEfficiency;
+  cacheEfficiency?: CacheEfficiency | undefined;
 }
 
 export function StatsCards({ totals, daily, activeDays, heatmapTotalNanos, cacheEfficiency }: StatsCardsProps) {

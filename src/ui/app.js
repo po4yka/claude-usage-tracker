@@ -1713,7 +1713,8 @@
     }
   }
   function CommunitySignalRow({ label, signals }) {
-    if (!signals.length) return null;
+    const first = signals[0];
+    if (!first) return null;
     const levelOrder = ["spike", "elevated", "normal", "unknown"];
     const worstLevel = levelOrder.find((l5) => signals.some((s4) => s4.level === l5)) ?? "unknown";
     const { label: levelLabel, color } = signalLevelStyle(worstLevel);
@@ -1723,7 +1724,7 @@
       /* @__PURE__ */ u2(
         "a",
         {
-          href: signals[0].source_url,
+          href: first.source_url,
           target: "_blank",
           rel: "noopener noreferrer",
           style: { color: "var(--text-secondary)", fontSize: "11px" },
@@ -1925,7 +1926,8 @@
       const slot = i4 % baseVars.length;
       const cycle = Math.floor(i4 / baseVars.length);
       const alpha = Math.max(0.25, 1 - cycle * 0.25);
-      out.push(cycle === 0 ? cssVar(baseVars[slot]) : withAlpha(baseVars[slot], alpha));
+      const v4 = baseVars[slot];
+      out.push(cycle === 0 ? cssVar(v4) : withAlpha(v4, alpha));
     }
     return out;
   }
@@ -5533,6 +5535,7 @@
         ...base.tooltip,
         custom: ({ seriesIndex }) => {
           const r4 = normalized[seriesIndex];
+          if (!r4) return "";
           const label = r4.version;
           const cost = fmtCost(r4.cost);
           const calls = fmt(r4.turns);
@@ -6341,17 +6344,14 @@
   function buildAggregations(filteredDaily, filteredSessions) {
     const dailyMap = {};
     for (const r4 of filteredDaily) {
-      if (!dailyMap[r4.day]) {
-        dailyMap[r4.day] = {
-          day: r4.day,
-          input: 0,
-          output: 0,
-          cache_read: 0,
-          cache_creation: 0,
-          reasoning_output: 0
-        };
-      }
-      const d5 = dailyMap[r4.day];
+      const d5 = dailyMap[r4.day] ?? (dailyMap[r4.day] = {
+        day: r4.day,
+        input: 0,
+        output: 0,
+        cache_read: 0,
+        cache_creation: 0,
+        reasoning_output: 0
+      });
       d5.input += r4.input;
       d5.output += r4.output;
       d5.cache_read += r4.cache_read;
@@ -6361,25 +6361,22 @@
     const daily = Object.values(dailyMap).sort((a4, b4) => a4.day.localeCompare(b4.day));
     const modelMap = {};
     for (const r4 of filteredDaily) {
-      if (!modelMap[r4.model]) {
-        modelMap[r4.model] = {
-          model: r4.model,
-          input: 0,
-          output: 0,
-          cache_read: 0,
-          cache_creation: 0,
-          reasoning_output: 0,
-          turns: 0,
-          sessions: 0,
-          cost: 0,
-          is_billable: r4.cost > 0,
-          input_cost: 0,
-          output_cost: 0,
-          cache_read_cost: 0,
-          cache_write_cost: 0
-        };
-      }
-      const m4 = modelMap[r4.model];
+      const m4 = modelMap[r4.model] ?? (modelMap[r4.model] = {
+        model: r4.model,
+        input: 0,
+        output: 0,
+        cache_read: 0,
+        cache_creation: 0,
+        reasoning_output: 0,
+        turns: 0,
+        sessions: 0,
+        cost: 0,
+        is_billable: r4.cost > 0,
+        input_cost: 0,
+        output_cost: 0,
+        cache_read_cost: 0,
+        cache_write_cost: 0
+      });
       m4.input += r4.input;
       m4.output += r4.output;
       m4.cache_read += r4.cache_read;
@@ -6394,25 +6391,23 @@
       m4.cache_write_cost = (m4.cache_write_cost ?? 0) + (r4.cache_write_cost ?? 0);
     }
     for (const s4 of filteredSessions) {
-      if (modelMap[s4.model]) modelMap[s4.model].sessions++;
+      const m4 = modelMap[s4.model];
+      if (m4) m4.sessions++;
     }
     const byModel = Object.values(modelMap).sort((a4, b4) => b4.input + b4.output - (a4.input + a4.output));
     const projMap = {};
     for (const s4 of filteredSessions) {
-      if (!projMap[s4.project]) {
-        projMap[s4.project] = {
-          project: s4.project,
-          input: 0,
-          output: 0,
-          cache_read: 0,
-          cache_creation: 0,
-          reasoning_output: 0,
-          turns: 0,
-          sessions: 0,
-          cost: 0
-        };
-      }
-      const p5 = projMap[s4.project];
+      const p5 = projMap[s4.project] ?? (projMap[s4.project] = {
+        project: s4.project,
+        input: 0,
+        output: 0,
+        cache_read: 0,
+        cache_creation: 0,
+        reasoning_output: 0,
+        turns: 0,
+        sessions: 0,
+        cost: 0
+      });
       p5.input += s4.input;
       p5.output += s4.output;
       p5.cache_read += s4.cache_read;

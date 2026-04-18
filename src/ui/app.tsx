@@ -44,7 +44,6 @@ import type {
   Totals,
   RangeKey,
   HeatmapData,
-  CacheEfficiency,
   AgentStatusSnapshot,
   CommunitySignal,
 } from './state/types';
@@ -148,17 +147,14 @@ function matchesProjectSearch(project: string): boolean {
 function buildAggregations(filteredDaily: DailyModelRow[], filteredSessions: typeof lastFilteredSessions.value) {
   const dailyMap: Record<string, DailyAgg> = {};
   for (const r of filteredDaily) {
-    if (!dailyMap[r.day]) {
-      dailyMap[r.day] = {
-        day: r.day,
-        input: 0,
-        output: 0,
-        cache_read: 0,
-        cache_creation: 0,
-        reasoning_output: 0,
-      };
-    }
-    const d = dailyMap[r.day];
+    const d = dailyMap[r.day] ?? (dailyMap[r.day] = {
+      day: r.day,
+      input: 0,
+      output: 0,
+      cache_read: 0,
+      cache_creation: 0,
+      reasoning_output: 0,
+    });
     d.input += r.input;
     d.output += r.output;
     d.cache_read += r.cache_read;
@@ -169,25 +165,22 @@ function buildAggregations(filteredDaily: DailyModelRow[], filteredSessions: typ
 
   const modelMap: Record<string, ModelAgg> = {};
   for (const r of filteredDaily) {
-    if (!modelMap[r.model]) {
-      modelMap[r.model] = {
-        model: r.model,
-        input: 0,
-        output: 0,
-        cache_read: 0,
-        cache_creation: 0,
-        reasoning_output: 0,
-        turns: 0,
-        sessions: 0,
-        cost: 0,
-        is_billable: r.cost > 0,
-        input_cost: 0,
-        output_cost: 0,
-        cache_read_cost: 0,
-        cache_write_cost: 0,
-      };
-    }
-    const m = modelMap[r.model];
+    const m = modelMap[r.model] ?? (modelMap[r.model] = {
+      model: r.model,
+      input: 0,
+      output: 0,
+      cache_read: 0,
+      cache_creation: 0,
+      reasoning_output: 0,
+      turns: 0,
+      sessions: 0,
+      cost: 0,
+      is_billable: r.cost > 0,
+      input_cost: 0,
+      output_cost: 0,
+      cache_read_cost: 0,
+      cache_write_cost: 0,
+    });
     m.input += r.input;
     m.output += r.output;
     m.cache_read += r.cache_read;
@@ -204,26 +197,24 @@ function buildAggregations(filteredDaily: DailyModelRow[], filteredSessions: typ
   }
 
   for (const s of filteredSessions) {
-    if (modelMap[s.model]) modelMap[s.model].sessions++;
+    const m = modelMap[s.model];
+    if (m) m.sessions++;
   }
   const byModel = Object.values(modelMap).sort((a, b) => (b.input + b.output) - (a.input + a.output));
 
   const projMap: Record<string, ProjectAgg> = {};
   for (const s of filteredSessions) {
-    if (!projMap[s.project]) {
-      projMap[s.project] = {
-        project: s.project,
-        input: 0,
-        output: 0,
-        cache_read: 0,
-        cache_creation: 0,
-        reasoning_output: 0,
-        turns: 0,
-        sessions: 0,
-        cost: 0,
-      };
-    }
-    const p = projMap[s.project];
+    const p = projMap[s.project] ?? (projMap[s.project] = {
+      project: s.project,
+      input: 0,
+      output: 0,
+      cache_read: 0,
+      cache_creation: 0,
+      reasoning_output: 0,
+      turns: 0,
+      sessions: 0,
+      cost: 0,
+    });
     p.input += s.input;
     p.output += s.output;
     p.cache_read += s.cache_read;
