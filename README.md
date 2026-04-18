@@ -41,17 +41,56 @@ Reads local transcripts written by Claude Code and Codex, then presents an inter
 - **Webhook notifications** -- POST to URL on session depletion or cost threshold
 - **JSON API** -- all dashboard data available via REST endpoints
 
-## Installation
+## Install
+
+### Prebuilt binary (recommended)
+
+Download the tarball for your platform from the [GitHub Releases](https://github.com/po4yka/heimdall/releases) page,
+extract it, and move both binaries to `/usr/local/bin`:
+
+```bash
+# macOS / Linux one-liner (requires curl, jq, tar)
+PLATFORM="aarch64-apple-darwin"   # adjust: x86_64-apple-darwin, x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu
+VERSION=$(curl -fsSL https://api.github.com/repos/po4yka/heimdall/releases/latest | jq -r '.tag_name')
+curl -fsSL "https://github.com/po4yka/heimdall/releases/download/${VERSION}/heimdall-${VERSION}-${PLATFORM}.tar.gz" \
+  | tar xz --strip-components=1 -C /usr/local/bin
+```
+
+Supported platforms:
+
+| Platform | Archive |
+|----------|---------|
+| macOS (Apple Silicon) | `heimdall-<version>-aarch64-apple-darwin.tar.gz` |
+| macOS (Intel) | `heimdall-<version>-x86_64-apple-darwin.tar.gz` |
+| Linux x86\_64 | `heimdall-<version>-x86_64-unknown-linux-gnu.tar.gz` |
+| Linux ARM64 | `heimdall-<version>-aarch64-unknown-linux-gnu.tar.gz` |
+| Windows x86\_64 | `heimdall-<version>-x86_64-pc-windows-msvc.zip` |
+
+Verify the download against the published checksums:
+
+```bash
+# Download and verify
+curl -fsSL "https://github.com/po4yka/heimdall/releases/download/${VERSION}/SHA256SUMS.txt" | sha256sum --check --ignore-missing
+```
+
+### Homebrew (macOS)
+
+A Homebrew cask formula (`heimdall/tap/heimdall`) is planned for Phase 22 of the roadmap.
+Check back after that release for a one-liner `brew install`.
 
 ### From source
 
 ```bash
-cargo install --path .
+# Install from git (requires Rust toolchain)
+cargo install --git https://github.com/po4yka/heimdall
+
+# Or build locally for development
+git clone https://github.com/po4yka/heimdall
+cd heimdall
+cargo build --release
+# Binaries appear in target/release/
+sudo cp target/release/claude-usage-tracker target/release/heimdall-hook /usr/local/bin/
 ```
-
-### Pre-built binaries
-
-Download from [Releases](https://github.com/po4yka/claude-usage-tracker/releases).
 
 ## Usage
 

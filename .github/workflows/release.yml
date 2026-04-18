@@ -1,0 +1,161 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            archive_ext: tar.gz
+            use_cross: false
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            archive_ext: tar.gz
+            use_cross: false
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            archive_ext: tar.gz
+            use_cross: false
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            archive_ext: tar.gz
+            use_cross: true
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            archive_ext: zip
+            use_cross: false
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Install cross (Linux arm64 only)
+        if: matrix.use_cross
+        run: cargo install cross --git https://github.com/cross-rs/cross
+
+      - name: Build binaries (native)
+        if: "!matrix.use_cross"
+        run: |
+          cargo build --release --target ${{ matrix.target }} \
+            --bin claude-usage-tracker \
+            --bin heimdall-hook
+
+      - name: Build binaries (cross)
+        if: matrix.use_cross
+        run: |
+          cross build --release --target ${{ matrix.target }} \
+            --bin claude-usage-tracker \
+            --bin heimdall-hook
+
+      - name: Determine version
+        id: version
+        shell: bash
+        run: echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Package archive (Unix)
+        if: matrix.archive_ext == 'tar.gz'
+        shell: bash
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          TARGET=${{ matrix.target }}
+          ARCHIVE_NAME="heimdall-${VERSION}-${TARGET}.tar.gz"
+          STAGING_DIR="heimdall-${VERSION}-${TARGET}"
+
+          mkdir -p "${STAGING_DIR}"
+          cp "target/${TARGET}/release/claude-usage-tracker" "${STAGING_DIR}/"
+          cp "target/${TARGET}/release/heimdall-hook" "${STAGING_DIR}/"
+
+          tar czf "${ARCHIVE_NAME}" "${STAGING_DIR}"
+
+          sha256sum "${ARCHIVE_NAME}" > "${ARCHIVE_NAME}.sha256"
+
+          echo "ARCHIVE_NAME=${ARCHIVE_NAME}" >> "$GITHUB_ENV"
+
+      - name: Package archive (Windows)
+        if: matrix.archive_ext == 'zip'
+        shell: pwsh
+        run: |
+          $VERSION = "${{ steps.version.outputs.version }}"
+          $TARGET = "${{ matrix.target }}"
+          $ARCHIVE_NAME = "heimdall-${VERSION}-${TARGET}.zip"
+          $STAGING_DIR = "heimdall-${VERSION}-${TARGET}"
+
+          New-Item -ItemType Directory -Force -Path $STAGING_DIR | Out-Null
+          Copy-Item "target\${TARGET}\release\claude-usage-tracker.exe" "$STAGING_DIR\"
+          Copy-Item "target\${TARGET}\release\heimdall-hook.exe" "$STAGING_DIR\"
+
+          Compress-Archive -Path $STAGING_DIR -DestinationPath $ARCHIVE_NAME
+
+          $hash = (Get-FileHash $ARCHIVE_NAME -Algorithm SHA256).Hash.ToLower()
+          "$hash  $ARCHIVE_NAME" | Out-File -FilePath "${ARCHIVE_NAME}.sha256" -Encoding ascii
+
+          echo "ARCHIVE_NAME=${ARCHIVE_NAME}" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding ascii
+
+      - name: Extract release notes from CHANGELOG
+        id: changelog
+        shell: bash
+        run: |
+          if [ -f CHANGELOG.md ]; then
+            VERSION=${{ steps.version.outputs.version }}
+            # Extract the section for this version (between first and second "## [" markers)
+            NOTES=$(awk "/^## \[${VERSION#v}\]/{found=1; next} found && /^## \[/{exit} found{print}" CHANGELOG.md)
+            if [ -n "$NOTES" ]; then
+              echo "body<<EOF" >> "$GITHUB_OUTPUT"
+              echo "$NOTES" >> "$GITHUB_OUTPUT"
+              echo "EOF" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ env.ARCHIVE_NAME }}
+            ${{ env.ARCHIVE_NAME }}.sha256
+          body: ${{ steps.changelog.outputs.body }}
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+
+  consolidate-checksums:
+    name: Consolidate SHA256SUMS
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all release assets
+        uses: robinraju/release-downloader@v1
+        with:
+          tag: ${{ github.ref_name }}
+          fileName: "*.sha256"
+          out-file-path: "checksums"
+
+      - name: Merge into SHA256SUMS.txt
+        run: |
+          cat checksums/*.sha256 | sort > SHA256SUMS.txt
+          echo "Contents of SHA256SUMS.txt:"
+          cat SHA256SUMS.txt
+
+      - name: Upload SHA256SUMS.txt to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: SHA256SUMS.txt

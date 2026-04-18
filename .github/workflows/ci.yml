@@ -22,6 +22,19 @@ jobs:
       - run: cargo clippy -- -D warnings
       - run: cargo test
 
+  check_release_binaries_build:
+    name: Release binary build check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build release binaries
+        run: |
+          cargo build --release \
+            --bin claude-usage-tracker \
+            --bin heimdall-hook
+
   typecheck:
     runs-on: ubuntu-latest
     steps:
