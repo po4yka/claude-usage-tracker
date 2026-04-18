@@ -254,6 +254,32 @@ pub struct DailyProjectRow {
     pub cost: f64,
 }
 
+/// A single tool invocation with its share of the parent turn's cost.
+///
+/// Cost is split evenly across all tool invocations in the turn using integer
+/// arithmetic: `cost_per_event = turn.estimated_cost_nanos / n` for all events,
+/// with `remainder = turn.estimated_cost_nanos % n` added to the first event so
+/// the sum is preserved exactly.
+///
+/// Note: turns with zero tool invocations do NOT produce `ToolEvent` rows, so
+/// `SUM(cost_nanos) FROM tool_events WHERE session_id = X` will under-count relative
+/// to `SUM(estimated_cost_nanos) FROM turns WHERE session_id = X` for sessions that
+/// contain any tool-free turns.
+#[derive(Debug, Clone, Default)]
+pub struct ToolEvent {
+    pub dedup_key: String,
+    pub ts_epoch: i64,
+    pub session_id: String,
+    pub provider: String,
+    pub project: String,
+    /// One of: subagent | skill | mcp | bash | file | other
+    pub kind: String,
+    /// Tool name, file path, bash command, etc.
+    pub value: String,
+    pub cost_nanos: i64,
+    pub source_path: String,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct SessionRow {
     pub session_id: String,

@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use crate::models::{
     BillingModeSummary, BranchSummary, ConfidenceSummary, DailyModelRow, DailyProjectRow,
     DashboardData, EntrypointSummary, HourlyRow, McpServerSummary, ProviderSummary,
-    ServiceTierSummary, SessionRow, ToolSummary, Turn, VersionSummary,
+    ServiceTierSummary, SessionRow, ToolEvent, ToolSummary, Turn, VersionSummary,
 };
 use crate::scanner::parser::{classify_tool, raw_session_id};
 use crate::tz::TzParams;
@@ -205,6 +205,25 @@ pub fn init_db(conn: &Connection) -> Result<()> {
         conn.execute_batch("ALTER TABLE sessions ADD COLUMN one_shot INTEGER;")?;
     }
 
+    // Phase 12: Tool-event cost attribution table.
+    // Each row is one tool invocation with its share of the parent turn's cost_nanos.
+    // dedup_key = "{provider}:{tool_use_id}" ensures idempotent rescans.
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS tool_events (
+            dedup_key     TEXT PRIMARY KEY,
+            ts_epoch      INTEGER NOT NULL,
+            session_id    TEXT NOT NULL,
+            provider      TEXT NOT NULL,
+            project       TEXT NOT NULL DEFAULT '',
+            kind          TEXT NOT NULL,
+            value         TEXT NOT NULL,
+            cost_nanos    INTEGER NOT NULL,
+            source_path   TEXT NOT NULL DEFAULT ''
+        );
+        CREATE INDEX IF NOT EXISTS idx_tool_events_kind ON tool_events(kind, ts_epoch);
+        CREATE INDEX IF NOT EXISTS idx_tool_events_session ON tool_events(session_id);",
+    )?;
+
     // Dedup by tool_use_id so repeated use of the same tool in a single turn is preserved.
     conn.execute_batch(
         "DROP INDEX IF EXISTS idx_turns_message_id;
@@ -302,6 +321,182 @@ pub fn delete_tool_invocations_by_source_path(conn: &Connection, path: &str) -> 
     )?;
     Ok(())
 }
+
+// ── Phase 12: Tool-event cost attribution ────────────────────────────────────
+
+/// Classify a tool name into a `kind` string and return the `value` to store.
+///
+/// Mapping:
+/// - `mcp__<server>__<tool>` → kind `"mcp"`, value = bare tool name after the prefix
+/// - `Task`                  → kind `"subagent"`, value = tool name
+/// - `Edit` / `Write` / `MultiEdit` / `NotebookEdit` / `Read` → kind `"file"`, value = tool name
+/// - `Bash`                  → kind `"bash"`, value = tool name
+/// - anything else           → kind `"other"`, value = tool name
+pub fn classify_tool_event(tool_name: &str) -> (&'static str, String) {
+    if tool_name.starts_with("mcp__") {
+        // mcp__<server>__<bare_tool>  — value is the part after the second "__"
+        let bare = tool_name
+            .splitn(3, "__")
+            .nth(2)
+            .unwrap_or(tool_name)
+            .to_string();
+        return ("mcp", bare);
+    }
+    match tool_name {
+        "Task" => ("subagent", tool_name.to_string()),
+        "Edit" | "Write" | "MultiEdit" | "NotebookEdit" | "Read" => ("file", tool_name.to_string()),
+        "Bash" => ("bash", tool_name.to_string()),
+        _ => ("other", tool_name.to_string()),
+    }
+}
+
+/// Parse an ISO 8601 timestamp string to a Unix epoch (seconds).
+/// Returns 0 on any parse failure.
+pub fn parse_ts_epoch(ts: &str) -> i64 {
+    let parse = |s: &str| -> Option<i64> {
+        chrono::DateTime::parse_from_rfc3339(s)
+            .ok()
+            .map(|dt| dt.timestamp())
+            .or_else(|| {
+                chrono::DateTime::parse_from_rfc3339(&format!("{}+00:00", s.trim_end_matches('Z')))
+                    .ok()
+                    .map(|dt| dt.timestamp())
+            })
+    };
+    parse(ts).unwrap_or(0)
+}
+
+/// Build `ToolEvent` rows for a single `Turn`.
+///
+/// Cost is split evenly (integer nanos): `cost_per = total / n`, remainder added
+/// to the first event so `SUM(cost_nanos) == turn.estimated_cost_nanos` exactly.
+///
+/// Turns with no tool invocations produce an empty Vec — their cost does NOT appear
+/// in `tool_events`. This means per-session sums in `tool_events` will be lower than
+/// the corresponding `turns` sum for sessions that contain tool-free turns.
+pub fn compute_tool_events_for_turn(turn: &Turn, project: &str) -> Vec<ToolEvent> {
+    let n = turn.tool_use_ids.len();
+    if n == 0 {
+        return Vec::new();
+    }
+    let total = turn.estimated_cost_nanos;
+    let cost_per = total / n as i64;
+    let remainder = total % n as i64;
+    let ts_epoch = parse_ts_epoch(&turn.timestamp);
+
+    turn.tool_use_ids
+        .iter()
+        .enumerate()
+        .map(|(i, (tool_use_id, tool_name))| {
+            let (kind, value) = classify_tool_event(tool_name);
+            let cost_nanos = if i == 0 {
+                cost_per + remainder
+            } else {
+                cost_per
+            };
+            ToolEvent {
+                dedup_key: format!("{}:{}", turn.provider, tool_use_id),
+                ts_epoch,
+                session_id: turn.session_id.clone(),
+                provider: turn.provider.clone(),
+                project: project.to_string(),
+                kind: kind.to_string(),
+                value,
+                cost_nanos,
+                source_path: turn.source_path.clone(),
+            }
+        })
+        .collect()
+}
+
+/// Batch-insert `ToolEvent` rows. Uses INSERT OR IGNORE for idempotency.
+pub fn insert_tool_events(conn: &Connection, events: &[ToolEvent]) -> Result<()> {
+    let mut stmt = conn.prepare(
+        "INSERT OR IGNORE INTO tool_events
+            (dedup_key, ts_epoch, session_id, provider, project, kind, value, cost_nanos, source_path)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+    )?;
+    for e in events {
+        stmt.execute(rusqlite::params![
+            e.dedup_key,
+            e.ts_epoch,
+            e.session_id,
+            e.provider,
+            e.project,
+            e.kind,
+            e.value,
+            e.cost_nanos,
+            e.source_path,
+        ])?;
+    }
+    Ok(())
+}
+
+/// Delete all `tool_events` rows associated with a source file.
+/// Called when a file is re-ingested so events are not double-counted.
+pub fn delete_tool_events_by_source_path(conn: &Connection, path: &str) -> Result<()> {
+    conn.execute("DELETE FROM tool_events WHERE source_path = ?1", [path])?;
+    Ok(())
+}
+
+/// Aggregate `cost_nanos` by `kind`, sorted descending by total cost.
+/// Returns `Vec<(kind, total_cost_nanos)>`.
+#[allow(dead_code)]
+pub fn tool_event_cost_by_kind(conn: &Connection) -> Result<Vec<(String, i64)>> {
+    let mut stmt = conn.prepare(
+        "SELECT kind, COALESCE(SUM(cost_nanos), 0) as total
+         FROM tool_events
+         GROUP BY kind
+         ORDER BY total DESC",
+    )?;
+    let rows = stmt
+        .query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+        })?
+        .filter_map(|r| match r {
+            Ok(val) => Some(val),
+            Err(e) => {
+                warn!("tool_event_cost_by_kind row error: {}", e);
+                None
+            }
+        })
+        .collect();
+    Ok(rows)
+}
+
+/// Drilldown: aggregate `cost_nanos` by `value` for a specific `kind`.
+/// Returns up to `limit` rows sorted descending by total cost.
+/// Returns `Vec<(value, total_cost_nanos)>`.
+#[allow(dead_code)]
+pub fn tool_event_cost_by_value(
+    conn: &Connection,
+    kind: &str,
+    limit: usize,
+) -> Result<Vec<(String, i64)>> {
+    let mut stmt = conn.prepare(
+        "SELECT value, COALESCE(SUM(cost_nanos), 0) as total
+         FROM tool_events
+         WHERE kind = ?1
+         GROUP BY value
+         ORDER BY total DESC
+         LIMIT ?2",
+    )?;
+    let rows = stmt
+        .query_map(rusqlite::params![kind, limit as i64], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+        })?
+        .filter_map(|r| match r {
+            Ok(val) => Some(val),
+            Err(e) => {
+                warn!("tool_event_cost_by_value row error: {}", e);
+                None
+            }
+        })
+        .collect();
+    Ok(rows)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 fn backfill_turn_pricing(conn: &Connection) -> Result<()> {
     type PricingBackfillRow = (i64, String, i64, i64, i64, i64, String, String);
@@ -1876,5 +2071,341 @@ mod tests {
             .find(|row| row.day == "2026-04-08" && row.project == "proj")
             .unwrap();
         assert!((daily_project.cost - expected_cost).abs() < 1e-9);
+    }
+
+    // ── Phase 12: Tool-event cost attribution ────────────────────────────────
+
+    #[test]
+    fn test_tool_events_table_migration_idempotent() {
+        // Running init_db twice must not error; the tool_events table must exist.
+        let conn = Connection::open_in_memory().unwrap();
+        init_db(&conn).unwrap();
+        init_db(&conn).unwrap(); // second call must be a no-op
+
+        let tables: Vec<String> = conn
+            .prepare("SELECT name FROM sqlite_master WHERE type='table'")
+            .unwrap()
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .filter_map(|r| r.ok())
+            .collect();
+        assert!(tables.contains(&"tool_events".into()));
+
+        // Indexes must exist too
+        let indexes: Vec<String> = conn
+            .prepare("SELECT name FROM sqlite_master WHERE type='index'")
+            .unwrap()
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .filter_map(|r| r.ok())
+            .collect();
+        assert!(indexes.contains(&"idx_tool_events_kind".into()));
+        assert!(indexes.contains(&"idx_tool_events_session".into()));
+    }
+
+    #[test]
+    fn test_compute_tool_events_three_tools_cost_split() {
+        // One turn with 3 tools and cost 1000 nanos.
+        // Expected: first event gets 334, others get 333. Sum == 1000.
+        let turn = Turn {
+            session_id: "claude:s1".into(),
+            provider: "claude".into(),
+            timestamp: "2026-04-08T10:00:00Z".into(),
+            estimated_cost_nanos: 1000,
+            source_path: "/tmp/test.jsonl".into(),
+            tool_use_ids: vec![
+                ("id1".into(), "Edit".into()),
+                ("id2".into(), "Bash".into()),
+                ("id3".into(), "Read".into()),
+            ],
+            ..Default::default()
+        };
+        let events = compute_tool_events_for_turn(&turn, "myproject");
+        assert_eq!(events.len(), 3);
+        assert_eq!(events[0].cost_nanos, 334); // first gets remainder
+        assert_eq!(events[1].cost_nanos, 333);
+        assert_eq!(events[2].cost_nanos, 333);
+        let sum: i64 = events.iter().map(|e| e.cost_nanos).sum();
+        assert_eq!(sum, 1000);
+    }
+
+    #[test]
+    fn test_compute_tool_events_cost_sum_preserved_exactly() {
+        // Verify exact sum preservation for a variety of (total, n) pairs.
+        let cases: &[(i64, usize)] = &[(0, 3), (1, 3), (7, 2), (1_000_000_007, 5), (999, 1)];
+        for &(total, n) in cases {
+            let tool_ids: Vec<(String, String)> = (0..n)
+                .map(|i| (format!("id{}", i), "Edit".into()))
+                .collect();
+            let turn = Turn {
+                session_id: "s".into(),
+                provider: "claude".into(),
+                estimated_cost_nanos: total,
+                tool_use_ids: tool_ids,
+                ..Default::default()
+            };
+            let events = compute_tool_events_for_turn(&turn, "");
+            let sum: i64 = events.iter().map(|e| e.cost_nanos).sum();
+            assert_eq!(sum, total, "sum mismatch for total={total} n={n}");
+        }
+    }
+
+    #[test]
+    fn test_compute_tool_events_kind_classification() {
+        let cases: &[(&str, &str, &str)] = &[
+            ("mcp__filesystem__read_file", "mcp", "read_file"),
+            ("mcp__server__tool", "mcp", "tool"),
+            ("Task", "subagent", "Task"),
+            ("Edit", "file", "Edit"),
+            ("Write", "file", "Write"),
+            ("MultiEdit", "file", "MultiEdit"),
+            ("NotebookEdit", "file", "NotebookEdit"),
+            ("Read", "file", "Read"),
+            ("Bash", "bash", "Bash"),
+            ("WebSearch", "other", "WebSearch"),
+            ("unknown_tool", "other", "unknown_tool"),
+        ];
+        for &(tool_name, expected_kind, expected_value) in cases {
+            let (kind, value) = classify_tool_event(tool_name);
+            assert_eq!(kind, expected_kind, "kind mismatch for tool {tool_name}");
+            assert_eq!(value, expected_value, "value mismatch for tool {tool_name}");
+        }
+    }
+
+    #[test]
+    fn test_compute_tool_events_zero_tools_produces_no_events() {
+        let turn = Turn {
+            session_id: "s1".into(),
+            estimated_cost_nanos: 5000,
+            tool_use_ids: vec![],
+            ..Default::default()
+        };
+        let events = compute_tool_events_for_turn(&turn, "proj");
+        assert!(events.is_empty());
+    }
+
+    #[test]
+    fn test_insert_tool_events_idempotent() {
+        let conn = test_conn();
+        let events = vec![
+            crate::models::ToolEvent {
+                dedup_key: "claude:id1".into(),
+                ts_epoch: 1000,
+                session_id: "claude:s1".into(),
+                provider: "claude".into(),
+                project: "proj".into(),
+                kind: "file".into(),
+                value: "Edit".into(),
+                cost_nanos: 500,
+                source_path: "/tmp/f.jsonl".into(),
+            },
+            crate::models::ToolEvent {
+                dedup_key: "claude:id2".into(),
+                ts_epoch: 1001,
+                session_id: "claude:s1".into(),
+                provider: "claude".into(),
+                project: "proj".into(),
+                kind: "bash".into(),
+                value: "Bash".into(),
+                cost_nanos: 300,
+                source_path: "/tmp/f.jsonl".into(),
+            },
+        ];
+        insert_tool_events(&conn, &events).unwrap();
+        insert_tool_events(&conn, &events).unwrap(); // second call must be no-op (INSERT OR IGNORE)
+
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM tool_events", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 2);
+    }
+
+    #[test]
+    fn test_delete_tool_events_by_source_path() {
+        let conn = test_conn();
+        let events = vec![
+            crate::models::ToolEvent {
+                dedup_key: "claude:a1".into(),
+                ts_epoch: 0,
+                session_id: "s1".into(),
+                provider: "claude".into(),
+                project: "".into(),
+                kind: "file".into(),
+                value: "Edit".into(),
+                cost_nanos: 100,
+                source_path: "/tmp/a.jsonl".into(),
+            },
+            crate::models::ToolEvent {
+                dedup_key: "claude:b1".into(),
+                ts_epoch: 0,
+                session_id: "s1".into(),
+                provider: "claude".into(),
+                project: "".into(),
+                kind: "bash".into(),
+                value: "Bash".into(),
+                cost_nanos: 200,
+                source_path: "/tmp/b.jsonl".into(),
+            },
+        ];
+        insert_tool_events(&conn, &events).unwrap();
+
+        delete_tool_events_by_source_path(&conn, "/tmp/a.jsonl").unwrap();
+
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM tool_events", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 1);
+
+        let remaining_key: String = conn
+            .query_row("SELECT dedup_key FROM tool_events", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(remaining_key, "claude:b1");
+    }
+
+    #[test]
+    fn test_tool_event_cost_by_kind_aggregation() {
+        let conn = test_conn();
+
+        // Insert a fixture that exercises the aggregation.
+        let events = vec![
+            crate::models::ToolEvent {
+                dedup_key: "c:1".into(),
+                ts_epoch: 1,
+                session_id: "s1".into(),
+                provider: "claude".into(),
+                project: "p".into(),
+                kind: "file".into(),
+                value: "Edit".into(),
+                cost_nanos: 400,
+                source_path: "/tmp/x.jsonl".into(),
+            },
+            crate::models::ToolEvent {
+                dedup_key: "c:2".into(),
+                ts_epoch: 2,
+                session_id: "s1".into(),
+                provider: "claude".into(),
+                project: "p".into(),
+                kind: "file".into(),
+                value: "Read".into(),
+                cost_nanos: 200,
+                source_path: "/tmp/x.jsonl".into(),
+            },
+            crate::models::ToolEvent {
+                dedup_key: "c:3".into(),
+                ts_epoch: 3,
+                session_id: "s1".into(),
+                provider: "claude".into(),
+                project: "p".into(),
+                kind: "bash".into(),
+                value: "Bash".into(),
+                cost_nanos: 100,
+                source_path: "/tmp/x.jsonl".into(),
+            },
+            crate::models::ToolEvent {
+                dedup_key: "c:4".into(),
+                ts_epoch: 4,
+                session_id: "s1".into(),
+                provider: "claude".into(),
+                project: "p".into(),
+                kind: "mcp".into(),
+                value: "read_file".into(),
+                cost_nanos: 300,
+                source_path: "/tmp/x.jsonl".into(),
+            },
+        ];
+        insert_tool_events(&conn, &events).unwrap();
+
+        let by_kind = tool_event_cost_by_kind(&conn).unwrap();
+        // Sorted descending: file=600, mcp=300, bash=100
+        assert_eq!(by_kind.len(), 3);
+        assert_eq!(by_kind[0], ("file".into(), 600));
+        assert_eq!(by_kind[1], ("mcp".into(), 300));
+        assert_eq!(by_kind[2], ("bash".into(), 100));
+
+        let by_value = tool_event_cost_by_value(&conn, "file", 10).unwrap();
+        assert_eq!(by_value.len(), 2);
+        assert_eq!(by_value[0], ("Edit".into(), 400));
+        assert_eq!(by_value[1], ("Read".into(), 200));
+    }
+
+    #[test]
+    fn test_round_trip_invariant_tool_events_sum_equals_turns_sum() {
+        // Seed turns with tool invocations into the DB via the helpers and verify:
+        // SUM(cost_nanos) FROM tool_events WHERE session_id = ?
+        //   == SUM(estimated_cost_nanos) FROM turns WHERE session_id = ?
+        // for sessions where EVERY turn has at least one tool invocation.
+        //
+        // Note: turns with zero tools are intentionally excluded from tool_events.
+        // A session that mixes tool and tool-free turns will show a lower sum in
+        // tool_events than in turns — see the comment on `compute_tool_events_for_turn`.
+        let conn = test_conn();
+
+        // Build two turns each with 3 tools and a cost divisible by 3.
+        // Set pricing_version and cost_confidence to non-empty values so
+        // insert_turns does NOT recalculate estimated_cost_nanos; this
+        // ensures the stored cost matches what we use to split events.
+        let turns = vec![
+            Turn {
+                session_id: "claude:s1".into(),
+                provider: "claude".into(),
+                timestamp: "2026-04-08T10:00:00Z".into(),
+                message_id: "msg-1".into(),
+                estimated_cost_nanos: 900,
+                pricing_version: "v1".into(),
+                pricing_model: "claude-sonnet-4-6".into(),
+                cost_confidence: "high".into(),
+                billing_mode: "estimated_local".into(),
+                source_path: "/tmp/t.jsonl".into(),
+                tool_use_ids: vec![
+                    ("t1a".into(), "Edit".into()),
+                    ("t1b".into(), "Bash".into()),
+                    ("t1c".into(), "Read".into()),
+                ],
+                ..Default::default()
+            },
+            Turn {
+                session_id: "claude:s1".into(),
+                provider: "claude".into(),
+                timestamp: "2026-04-08T10:01:00Z".into(),
+                message_id: "msg-2".into(),
+                estimated_cost_nanos: 600,
+                pricing_version: "v1".into(),
+                pricing_model: "claude-sonnet-4-6".into(),
+                cost_confidence: "high".into(),
+                billing_mode: "estimated_local".into(),
+                source_path: "/tmp/t.jsonl".into(),
+                tool_use_ids: vec![
+                    ("t2a".into(), "mcp__fs__read".into()),
+                    ("t2b".into(), "Task".into()),
+                    ("t2c".into(), "Write".into()),
+                ],
+                ..Default::default()
+            },
+        ];
+
+        insert_turns(&conn, &turns).unwrap();
+
+        let all_events: Vec<crate::models::ToolEvent> = turns
+            .iter()
+            .flat_map(|t| compute_tool_events_for_turn(t, "proj"))
+            .collect();
+        insert_tool_events(&conn, &all_events).unwrap();
+
+        let te_sum: i64 = conn
+            .query_row(
+                "SELECT COALESCE(SUM(cost_nanos), 0) FROM tool_events WHERE session_id = 'claude:s1'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let turns_sum: i64 = conn
+            .query_row(
+                "SELECT COALESCE(SUM(estimated_cost_nanos), 0) FROM turns WHERE session_id = 'claude:s1'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(te_sum, turns_sum);
+        assert_eq!(te_sum, 1500);
     }
 }

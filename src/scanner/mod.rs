@@ -17,8 +17,9 @@ use walkdir::WalkDir;
 
 use crate::models::ScanResult;
 use db::{
-    delete_processed_file, delete_tool_invocations_by_source_path, delete_turns_by_source_path,
-    get_processed_file, init_db, insert_tool_invocations, insert_turns, list_processed_files,
+    compute_tool_events_for_turn, delete_processed_file, delete_tool_events_by_source_path,
+    delete_tool_invocations_by_source_path, delete_turns_by_source_path, get_processed_file,
+    init_db, insert_tool_events, insert_tool_invocations, insert_turns, list_processed_files,
     open_db, recompute_session_totals, sync_session_titles, upsert_processed_file, upsert_sessions,
 };
 use parser::{
@@ -110,6 +111,7 @@ pub fn scan(
         debug!("[DEL] {}", stale_path);
         delete_turns_by_source_path(&conn, &stale_path)?;
         delete_tool_invocations_by_source_path(&conn, &stale_path)?;
+        delete_tool_events_by_source_path(&conn, &stale_path)?;
         delete_processed_file(&conn, &stale_path)?;
         any_changes = true;
     }
@@ -142,6 +144,7 @@ pub fn scan(
         if !is_new {
             delete_turns_by_source_path(&conn, &filepath_str)?;
             delete_tool_invocations_by_source_path(&conn, &filepath_str)?;
+            delete_tool_events_by_source_path(&conn, &filepath_str)?;
             any_changes = true;
         }
 
@@ -157,6 +160,26 @@ pub fn scan(
             insert_turns(&conn, &parsed.turns)?;
             insert_tool_invocations(&conn, &parsed.turns, &parsed.tool_results)?;
             sync_session_titles(&conn, &session_ids, &parsed.session_titles)?;
+
+            // Phase 12: compute and insert tool-event cost attribution rows.
+            // Look up the project name from the sessions we just upserted so
+            // tool_events.project is populated even on first-scan.
+            let session_project: std::collections::HashMap<String, String> = sessions
+                .iter()
+                .map(|s| (s.session_id.clone(), s.project_name.clone()))
+                .collect();
+            let tool_events: Vec<crate::models::ToolEvent> = parsed
+                .turns
+                .iter()
+                .flat_map(|t| {
+                    let project = session_project
+                        .get(&t.session_id)
+                        .map(|s| s.as_str())
+                        .unwrap_or("");
+                    compute_tool_events_for_turn(t, project)
+                })
+                .collect();
+            insert_tool_events(&conn, &tool_events)?;
 
             result.sessions += sessions.len();
             result.turns += parsed.turns.len();
