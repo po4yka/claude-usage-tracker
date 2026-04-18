@@ -538,7 +538,7 @@ When porting, prefer reading the source file directly over reimplementing from m
 
 ---
 
-## Phase 19 -- Real-Time PreToolUse Hook Ingest
+## Phase 19 -- Real-Time PreToolUse Hook Ingest **[x]**
 
 **Motivation:** Heimdall currently only sees usage after Claude Code flushes JSONL to disk. Claude-Guardian proves that `hook_input["cost"]["total_cost_usd"]` arrives on *every* tool invocation via the PreToolUse hook -- true sub-second cost visibility with zero parsing overhead. Turns Heimdall from a periodic-scan tool into a live observer.
 
