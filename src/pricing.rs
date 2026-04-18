@@ -468,6 +468,117 @@ fn calc_cost_nanos_with_pricing(
     input_cost + output_cost + cache_read_cost + cache_write_cost
 }
 
+/// Per-type cost breakdown for a single pricing calculation.
+///
+/// All four components use the same floor-rounding (truncating cast to i64) as
+/// `calc_cost_nanos_with_pricing`, so their sum equals the value returned by
+/// `estimate_cost` for identical inputs — guaranteed by unit tests.
+#[derive(Debug, Clone, Default, serde::Serialize)]
+pub struct CostBreakdown {
+    pub input_cost_nanos: i64,
+    pub output_cost_nanos: i64,
+    pub cache_read_cost_nanos: i64,
+    pub cache_write_cost_nanos: i64,
+}
+
+impl CostBreakdown {
+    /// Sum of all four components.  Equal to `estimate_cost`'s
+    /// `estimated_cost_nanos` for identical inputs.
+    pub fn total_nanos(&self) -> i64 {
+        self.input_cost_nanos
+            + self.output_cost_nanos
+            + self.cache_read_cost_nanos
+            + self.cache_write_cost_nanos
+    }
+}
+
+/// Compute a 4-way cost breakdown in integer nanos.
+///
+/// Returns `(CostBreakdown, pricing_version, pricing_model, cost_confidence)`.
+/// Mirrors `estimate_cost` exactly: same pricing lookup, same per-token rate
+/// formula (`tokens * rate * 1000.0) as i64`), so that
+/// `breakdown.total_nanos() == estimate_cost(…).estimated_cost_nanos` always holds.
+///
+/// When the model is unknown, all four components are zero and `cost_confidence`
+/// is `"low"`.
+pub fn estimate_cost_breakdown(
+    model: &str,
+    input_tokens: i64,
+    output_tokens: i64,
+    cache_read_tokens: i64,
+    cache_creation_tokens: i64,
+) -> (CostBreakdown, String, String, String) {
+    let Some(lookup) = lookup_pricing(model) else {
+        return (
+            CostBreakdown::default(),
+            PRICING_VERSION.to_string(),
+            String::new(),
+            COST_CONFIDENCE_LOW.to_string(),
+        );
+    };
+
+    let (pricing, pricing_model, cost_confidence) = match lookup {
+        PricingLookup::Borrowed {
+            pricing,
+            pricing_model,
+            cost_confidence,
+        } => (*pricing, pricing_model, cost_confidence),
+    };
+
+    let total_tokens = input_tokens + output_tokens;
+
+    let (input_cost_nanos, output_cost_nanos) =
+        if let (Some(threshold), Some(input_above), Some(output_above)) = (
+            pricing.threshold_tokens,
+            pricing.input_above_threshold,
+            pricing.output_above_threshold,
+        ) {
+            if total_tokens > threshold {
+                let below_ratio = threshold as f64 / total_tokens as f64;
+
+                let input_below = (input_tokens as f64 * below_ratio) as i64;
+                let input_above_count = input_tokens - input_below;
+                let ic = (input_below as f64 * pricing.input * 1000.0) as i64
+                    + (input_above_count as f64 * input_above * 1000.0) as i64;
+
+                let output_below = (output_tokens as f64 * below_ratio) as i64;
+                let output_above_count = output_tokens - output_below;
+                let oc = (output_below as f64 * pricing.output * 1000.0) as i64
+                    + (output_above_count as f64 * output_above * 1000.0) as i64;
+
+                (ic, oc)
+            } else {
+                (
+                    (input_tokens as f64 * pricing.input * 1000.0) as i64,
+                    (output_tokens as f64 * pricing.output * 1000.0) as i64,
+                )
+            }
+        } else {
+            (
+                (input_tokens as f64 * pricing.input * 1000.0) as i64,
+                (output_tokens as f64 * pricing.output * 1000.0) as i64,
+            )
+        };
+
+    let cache_read_cost_nanos = (cache_read_tokens as f64 * pricing.cache_read * 1000.0) as i64;
+    let cache_write_cost_nanos =
+        (cache_creation_tokens as f64 * pricing.cache_write * 1000.0) as i64;
+
+    let breakdown = CostBreakdown {
+        input_cost_nanos,
+        output_cost_nanos,
+        cache_read_cost_nanos,
+        cache_write_cost_nanos,
+    };
+
+    (
+        breakdown,
+        format!("{PRICING_VERSION}@{PRICING_VALID_FROM}"),
+        pricing_model,
+        cost_confidence.to_string(),
+    )
+}
+
 pub fn estimate_cost(
     model: &str,
     input: i64,
@@ -769,6 +880,116 @@ mod tests {
         assert_eq!(p.input, 15.0);
         let p2 = get_pricing("claude-sonnet-4-5-20250929").unwrap();
         assert_eq!(p2.input, 3.0);
+    }
+
+    // ── estimate_cost_breakdown invariant tests ───────────────────────────────
+    // Core invariant: breakdown.total_nanos() == estimate_cost(…).estimated_cost_nanos
+    // for identical inputs. Verified across 8 model/token combinations.
+
+    #[test]
+    fn test_breakdown_sum_equals_estimate_sonnet_46_input_only() {
+        let model = "claude-sonnet-4-6";
+        let (bd, _, _, _) = estimate_cost_breakdown(model, 1_000_000, 0, 0, 0);
+        let est = estimate_cost(model, 1_000_000, 0, 0, 0);
+        assert_eq!(
+            bd.total_nanos(),
+            est.estimated_cost_nanos,
+            "breakdown total must equal estimate_cost for {model} input-only"
+        );
+        assert_eq!(bd.input_cost_nanos, 3_000_000_000);
+        assert_eq!(bd.output_cost_nanos, 0);
+        assert_eq!(bd.cache_read_cost_nanos, 0);
+        assert_eq!(bd.cache_write_cost_nanos, 0);
+    }
+
+    #[test]
+    fn test_breakdown_sum_equals_estimate_opus_46_all_types() {
+        let model = "claude-opus-4-6";
+        let (bd, _, _, _) = estimate_cost_breakdown(model, 100_000, 50_000, 200_000, 80_000);
+        let est = estimate_cost(model, 100_000, 50_000, 200_000, 80_000);
+        assert_eq!(
+            bd.total_nanos(),
+            est.estimated_cost_nanos,
+            "breakdown total must equal estimate_cost for {model} all-types"
+        );
+    }
+
+    #[test]
+    fn test_breakdown_sum_equals_estimate_haiku_45() {
+        let model = "claude-haiku-4-5";
+        let (bd, _, _, _) = estimate_cost_breakdown(model, 500_000, 250_000, 100_000, 50_000);
+        let est = estimate_cost(model, 500_000, 250_000, 100_000, 50_000);
+        assert_eq!(
+            bd.total_nanos(),
+            est.estimated_cost_nanos,
+            "breakdown total must equal estimate_cost for {model}"
+        );
+    }
+
+    #[test]
+    fn test_breakdown_sum_equals_estimate_sonnet_45_above_threshold() {
+        // Sonnet 4.5 has a 200K token threshold
+        let model = "claude-sonnet-4-5";
+        let (bd, _, _, _) = estimate_cost_breakdown(model, 200_000, 200_000, 50_000, 25_000);
+        let est = estimate_cost(model, 200_000, 200_000, 50_000, 25_000);
+        assert_eq!(
+            bd.total_nanos(),
+            est.estimated_cost_nanos,
+            "breakdown total must equal estimate_cost for {model} above-threshold"
+        );
+    }
+
+    #[test]
+    fn test_breakdown_sum_equals_estimate_gpt54() {
+        let model = "gpt-5.4";
+        let (bd, _, _, _) = estimate_cost_breakdown(model, 1_000_000, 500_000, 0, 0);
+        let est = estimate_cost(model, 1_000_000, 500_000, 0, 0);
+        assert_eq!(
+            bd.total_nanos(),
+            est.estimated_cost_nanos,
+            "breakdown total must equal estimate_cost for {model}"
+        );
+    }
+
+    #[test]
+    fn test_breakdown_sum_equals_estimate_gpt54_mini() {
+        let model = "gpt-5.4-mini";
+        let (bd, _, _, _) = estimate_cost_breakdown(model, 300_000, 150_000, 100_000, 50_000);
+        let est = estimate_cost(model, 300_000, 150_000, 100_000, 50_000);
+        assert_eq!(
+            bd.total_nanos(),
+            est.estimated_cost_nanos,
+            "breakdown total must equal estimate_cost for {model}"
+        );
+    }
+
+    #[test]
+    fn test_breakdown_sum_equals_estimate_cache_heavy() {
+        // Opus with mostly cache activity
+        let model = "claude-opus-4-6";
+        let (bd, _, _, _) = estimate_cost_breakdown(model, 10_000, 5_000, 1_000_000, 500_000);
+        let est = estimate_cost(model, 10_000, 5_000, 1_000_000, 500_000);
+        assert_eq!(
+            bd.total_nanos(),
+            est.estimated_cost_nanos,
+            "breakdown total must equal estimate_cost for {model} cache-heavy"
+        );
+        // Cache-read cost at $1.50/MTok: 1M * 1.50 * 1000 = 1_500_000_000
+        assert_eq!(bd.cache_read_cost_nanos, 1_500_000_000);
+        // Cache-write cost at $18.75/MTok: 500K * 18.75 * 1000 = 9_375_000_000
+        assert_eq!(bd.cache_write_cost_nanos, 9_375_000_000);
+    }
+
+    #[test]
+    fn test_breakdown_unknown_model_all_zero() {
+        let (bd, _, pm, conf) = estimate_cost_breakdown("gpt-4o", 1_000_000, 0, 0, 0);
+        assert_eq!(bd.total_nanos(), 0);
+        assert_eq!(bd.input_cost_nanos, 0);
+        assert_eq!(bd.output_cost_nanos, 0);
+        assert_eq!(bd.cache_read_cost_nanos, 0);
+        assert_eq!(bd.cache_write_cost_nanos, 0);
+        assert!(pm.is_empty());
+        assert_eq!(conf, COST_CONFIDENCE_LOW);
     }
 
     // ── LiteLLM cache loading ─────────────────────────────────────────────────

@@ -367,3 +367,22 @@ Max width:     1400px
 **Display rule:** Show `--` (two dashes) rather than a computed value when `active_days = 0` (no spend in the selected period) to avoid confusing a divide-by-zero edge case with a meaningful zero result.
 
 **Timezone note:** The day boundary respects `tz_offset_min` sent by the client (Phase 14). When absent, days are bucketed in UTC. The `GET /api/heatmap` endpoint computes both `active_days` and `total_cost_nanos` and returns them alongside the 7×24 cell matrix so the StatsCards "Avg / Active Day" card can read them without a separate request.
+
+---
+
+## 12. Cache Hit Rate
+
+**Formula:** `cache_hit_rate = cache_read_tokens / (cache_read_tokens + input_tokens)`
+
+**Denominator rationale:** `cache_read_tokens` is the tokens we avoided re-billing (served from cache). `input_tokens` is the tokens we still paid for at the full input rate. Their sum is the "addressable" token stream — the universe of tokens that could have been served from cache. This denominator makes the rate directly actionable: optimizing it means shifting tokens from the `input` bucket into the `cache_read` bucket.
+
+**Interpretation:**
+- **0%** — No cache reuse. Every addressable token was billed at full input price.
+- **50%** — Half the addressable tokens came from cache. Cache is providing meaningful savings.
+- **100%** — Theoretical maximum. Cache served everything; no new input tokens were billed.
+
+**Display rule:** The card displays `--` (two dashes) rather than a percentage when both `cache_read_tokens` and `input_tokens` are zero (denominator is zero). This distinguishes "no data" from a genuine 0% hit-rate (which can only occur when `cache_read = 0` but `input > 0`).
+
+**Lagging metric note:** This is a behavioral/lagging metric computed from stored turn data, not a real-time gauge. It reflects the aggregate cache behaviour over the selected data range, not the current moment. Users should interpret changes over days or weeks, not seconds.
+
+**Cost savings estimate (tooltip):** Approximated as `cache_read_tokens × (input_rate − cache_read_rate)` per MTok, using the Rust-computed pricing for the dominant model. This is an estimate because the actual savings depend on which model served each turn.

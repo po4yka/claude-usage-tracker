@@ -43,6 +43,7 @@ import type {
   Totals,
   RangeKey,
   HeatmapData,
+  CacheEfficiency,
 } from './state/types';
 import {
   rawData,
@@ -174,6 +175,10 @@ function buildAggregations(filteredDaily: DailyModelRow[], filteredSessions: typ
         sessions: 0,
         cost: 0,
         is_billable: r.cost > 0,
+        input_cost: 0,
+        output_cost: 0,
+        cache_read_cost: 0,
+        cache_write_cost: 0,
       };
     }
     const m = modelMap[r.model];
@@ -185,6 +190,11 @@ function buildAggregations(filteredDaily: DailyModelRow[], filteredSessions: typ
     m.turns += r.turns;
     m.cost += r.cost;
     if (r.cost > 0) m.is_billable = true;
+    // Phase 21: accumulate per-type costs
+    m.input_cost = (m.input_cost ?? 0) + (r.input_cost ?? 0);
+    m.output_cost = (m.output_cost ?? 0) + (r.output_cost ?? 0);
+    m.cache_read_cost = (m.cache_read_cost ?? 0) + (r.cache_read_cost ?? 0);
+    m.cache_write_cost = (m.cache_write_cost ?? 0) + (r.cache_write_cost ?? 0);
   }
 
   for (const s of filteredSessions) {
@@ -328,6 +338,7 @@ function applyFilter(): void {
       daily={daily}
       activeDays={lastHeatmapData?.active_days}
       heatmapTotalNanos={lastHeatmapData?.total_cost_nanos}
+      cacheEfficiency={rawData.value?.cache_efficiency}
     />,
     $('stats-row')
   );

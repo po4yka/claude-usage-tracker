@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Default)]
 pub struct Session {
@@ -115,6 +115,8 @@ pub struct DashboardData {
     pub daily_by_project: Vec<DailyProjectRow>,
     pub openai_reconciliation: Option<OpenAiReconciliation>,
     pub generated_at: String,
+    /// Phase 21: cache-token breakdown and derived hit-rate metric.
+    pub cache_efficiency: CacheEfficiency,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -183,6 +185,11 @@ pub struct DailyModelRow {
     pub reasoning_output: i64,
     pub turns: i64,
     pub cost: f64,
+    /// Phase 21: per-type cost breakdown (USD float, derived from integer nanos).
+    pub input_cost: f64,
+    pub output_cost: f64,
+    pub cache_read_cost: f64,
+    pub cache_write_cost: f64,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -293,6 +300,31 @@ pub struct ToolEvent {
     pub value: String,
     pub cost_nanos: i64,
     pub source_path: String,
+}
+
+/// Aggregated cache-efficiency metrics for the `/api/data` response.
+///
+/// `cache_hit_rate` formula: `cache_read / (cache_read + input_tokens)`.
+/// Denominator rationale (ROADMAP Phase 21): cache_read is the tokens we avoided
+/// re-billing; input is the tokens we still paid for; their sum is the
+/// "addressable" token stream — the universe of tokens that could have been
+/// served from cache. A rate of 0% means no cache reuse; 50% means half the
+/// addressable tokens came from cache; 100% is the theoretical maximum (cache
+/// served everything). `None` when the denominator is zero (no cache activity
+/// and no input tokens recorded) to distinguish "not enough data" from a
+/// meaningful 0% hit-rate.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct CacheEfficiency {
+    pub cache_read_tokens: i64,
+    pub cache_write_tokens: i64,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub cache_read_cost_nanos: i64,
+    pub cache_write_cost_nanos: i64,
+    pub input_cost_nanos: i64,
+    pub output_cost_nanos: i64,
+    /// `cache_read / (cache_read + input)` when denominator > 0; else `None`.
+    pub cache_hit_rate: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize)]

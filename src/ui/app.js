@@ -1824,8 +1824,74 @@
     ] });
   }
 
+  // src/ui/components/CacheEfficiencyCard.tsx
+  function CacheEfficiencyCard({
+    data,
+    inputRatePerMtok,
+    cacheReadRatePerMtok
+  }) {
+    const rate = data.cache_hit_rate;
+    const hasRate = rate !== null && rate !== void 0;
+    const displayPct = hasRate ? (rate * 100).toFixed(1) + "%" : "--";
+    const barFill = hasRate ? Math.max(0, Math.min(1, rate)) : 0;
+    const tooltipParts = [];
+    if (hasRate) {
+      const readM = (data.cache_read_tokens / 1e6).toFixed(2);
+      const totalM = ((data.cache_read_tokens + data.input_tokens) / 1e6).toFixed(2);
+      tooltipParts.push(`${readM}M tokens cache-read / ${totalM}M total input-addressable tokens`);
+      if (inputRatePerMtok !== void 0 && cacheReadRatePerMtok !== void 0 && data.cache_read_tokens > 0) {
+        const savedUsd = data.cache_read_tokens / 1e6 * (inputRatePerMtok - cacheReadRatePerMtok);
+        tooltipParts.push(
+          `saved approx $${savedUsd.toFixed(2)} vs. no-cache`
+        );
+      }
+    } else {
+      tooltipParts.push("No cache activity recorded");
+    }
+    const tooltip = tooltipParts.join(" \xB7 ");
+    return /* @__PURE__ */ u2("div", { class: "card stat-card", title: tooltip, children: [
+      /* @__PURE__ */ u2("div", { class: "stat-content", children: [
+        /* @__PURE__ */ u2("div", { class: "stat-label", children: "Cache Hit Rate" }),
+        /* @__PURE__ */ u2(
+          "div",
+          {
+            class: "stat-value",
+            style: { fontFamily: "var(--font-mono)", letterSpacing: "-0.02em" },
+            children: displayPct
+          }
+        ),
+        /* @__PURE__ */ u2("div", { class: "stat-sub", children: "prompt cache reuse" })
+      ] }),
+      /* @__PURE__ */ u2(
+        "div",
+        {
+          style: {
+            marginTop: "10px",
+            height: "4px",
+            borderRadius: "2px",
+            background: "rgba(var(--text-primary-rgb, 232,232,232), 0.12)",
+            overflow: "hidden"
+          },
+          "aria-label": `Cache hit rate: ${displayPct}`,
+          children: /* @__PURE__ */ u2(
+            "div",
+            {
+              style: {
+                height: "100%",
+                width: `${(barFill * 100).toFixed(2)}%`,
+                background: "rgba(var(--text-primary-rgb, 232,232,232), 0.70)",
+                borderRadius: "2px",
+                transition: "width 300ms cubic-bezier(0.25,0.1,0.25,1)"
+              }
+            }
+          )
+        }
+      )
+    ] });
+  }
+
   // src/ui/components/StatsCards.tsx
-  function StatsCards({ totals, daily, activeDays, heatmapTotalNanos }) {
+  function StatsCards({ totals, daily, activeDays, heatmapTotalNanos, cacheEfficiency }) {
     const rangeLabel = RANGE_LABELS[selectedRange.value].toLowerCase();
     const avgPerActiveDay = (() => {
       if (activeDays === void 0 || activeDays === null) return "--";
@@ -1857,7 +1923,8 @@
         /* @__PURE__ */ u2("div", { class: "stat-label", children: "Avg / Active Day" }),
         /* @__PURE__ */ u2("div", { class: "stat-value", children: avgPerActiveDay }),
         /* @__PURE__ */ u2("div", { class: "stat-sub", children: activeDays !== void 0 && activeDays !== null && activeDays > 0 ? `${activeDays} active ${activeDays === 1 ? "day" : "days"}` : "no spend" })
-      ] }) })
+      ] }) }),
+      cacheEfficiency && /* @__PURE__ */ u2(CacheEfficiencyCard, { data: cacheEfficiency })
     ] });
   }
 
@@ -5596,7 +5663,38 @@
 
   // src/ui/components/ModelCostTable.tsx
   var defaultSort2 = [{ id: "cost", desc: true }];
-  function useModelColumns(totalCost) {
+  function CostShareBar({ value, max: max2, label }) {
+    if (max2 <= 0 || value <= 0) return /* @__PURE__ */ u2("span", { class: "cost-na", children: "\u2014" });
+    const pct = value / max2 * 100;
+    return /* @__PURE__ */ u2("div", { style: { display: "flex", alignItems: "center", gap: "6px", minWidth: "100px" }, children: [
+      /* @__PURE__ */ u2("span", { class: "num", style: { fontSize: "13px", minWidth: "52px", textAlign: "right" }, children: fmtCost(value) }),
+      /* @__PURE__ */ u2(
+        "div",
+        {
+          style: {
+            flex: 1,
+            height: "4px",
+            background: "rgba(var(--text-primary-rgb,232,232,232),0.12)",
+            borderRadius: "2px",
+            overflow: "hidden"
+          },
+          "aria-label": label,
+          children: /* @__PURE__ */ u2(
+            "div",
+            {
+              style: {
+                height: "100%",
+                width: `${Math.min(100, pct).toFixed(1)}%`,
+                background: "rgba(var(--text-primary-rgb,232,232,232),0.65)",
+                borderRadius: "2px"
+              }
+            }
+          )
+        }
+      )
+    ] });
+  }
+  function useModelColumns(totalCost, totalCacheReadCost, totalCacheWriteCost) {
     return T2(
       () => [
         {
@@ -5674,9 +5772,45 @@
               ] })
             ] });
           }
+        },
+        // Phase 21: cache-read cost column with inline micro-bar
+        {
+          id: "cache_read_cost",
+          accessorFn: (row) => row.cache_read_cost ?? 0,
+          header: "Cache Read",
+          cell: (info) => {
+            const row = info.row.original;
+            if (!row.is_billable) return /* @__PURE__ */ u2("span", { class: "cost-na", children: "\u2014" });
+            return /* @__PURE__ */ u2(
+              CostShareBar,
+              {
+                value: row.cache_read_cost ?? 0,
+                max: totalCacheReadCost,
+                label: `${row.model} cache-read cost share`
+              }
+            );
+          }
+        },
+        // Phase 21: cache-write cost column with inline micro-bar
+        {
+          id: "cache_write_cost",
+          accessorFn: (row) => row.cache_write_cost ?? 0,
+          header: "Cache Write",
+          cell: (info) => {
+            const row = info.row.original;
+            if (!row.is_billable) return /* @__PURE__ */ u2("span", { class: "cost-na", children: "\u2014" });
+            return /* @__PURE__ */ u2(
+              CostShareBar,
+              {
+                value: row.cache_write_cost ?? 0,
+                max: totalCacheWriteCost,
+                label: `${row.model} cache-write cost share`
+              }
+            );
+          }
         }
       ],
-      [totalCost]
+      [totalCost, totalCacheReadCost, totalCacheWriteCost]
     );
   }
   function ModelCostTable({ byModel }) {
@@ -5684,7 +5818,15 @@
       () => byModel.reduce((s4, m4) => m4.is_billable ? s4 + m4.cost : s4, 0),
       [byModel]
     );
-    const columns4 = useModelColumns(totalCost);
+    const totalCacheReadCost = T2(
+      () => byModel.reduce((s4, m4) => s4 + (m4.cache_read_cost ?? 0), 0),
+      [byModel]
+    );
+    const totalCacheWriteCost = T2(
+      () => byModel.reduce((s4, m4) => s4 + (m4.cache_write_cost ?? 0), 0),
+      [byModel]
+    );
+    const columns4 = useModelColumns(totalCost, totalCacheReadCost, totalCacheWriteCost);
     return /* @__PURE__ */ u2(
       DataTable,
       {
@@ -5998,7 +6140,11 @@
           turns: 0,
           sessions: 0,
           cost: 0,
-          is_billable: r4.cost > 0
+          is_billable: r4.cost > 0,
+          input_cost: 0,
+          output_cost: 0,
+          cache_read_cost: 0,
+          cache_write_cost: 0
         };
       }
       const m4 = modelMap[r4.model];
@@ -6010,6 +6156,10 @@
       m4.turns += r4.turns;
       m4.cost += r4.cost;
       if (r4.cost > 0) m4.is_billable = true;
+      m4.input_cost = (m4.input_cost ?? 0) + (r4.input_cost ?? 0);
+      m4.output_cost = (m4.output_cost ?? 0) + (r4.output_cost ?? 0);
+      m4.cache_read_cost = (m4.cache_read_cost ?? 0) + (r4.cache_read_cost ?? 0);
+      m4.cache_write_cost = (m4.cache_write_cost ?? 0) + (r4.cache_write_cost ?? 0);
     }
     for (const s4 of filteredSessions) {
       if (modelMap[s4.model]) modelMap[s4.model].sessions++;
@@ -6137,7 +6287,8 @@
           totals,
           daily,
           activeDays: lastHeatmapData?.active_days,
-          heatmapTotalNanos: lastHeatmapData?.total_cost_nanos
+          heatmapTotalNanos: lastHeatmapData?.total_cost_nanos,
+          cacheEfficiency: rawData.value?.cache_efficiency
         }
       ),
       $2("stats-row")

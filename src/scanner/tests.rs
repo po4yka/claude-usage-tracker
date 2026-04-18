@@ -1051,4 +1051,175 @@ mod tests {
         assert!((seven.1 - 18.3).abs() < 0.01);
         assert_eq!(seven.3, "file");
     }
+
+    // ── Phase 21: Cache-efficiency aggregate tests ───────────────────────────
+
+    /// Helper: write a JSONL file with assistant turns that have explicit cache
+    /// token counts so we can verify the cache_efficiency aggregate.
+    fn make_assistant_with_cache(
+        session_id: &str,
+        ts: &str,
+        msg_id: &str,
+        input: i64,
+        output: i64,
+        cache_read: i64,
+        cache_creation: i64,
+    ) -> String {
+        serde_json::json!({
+            "type": "assistant",
+            "sessionId": session_id,
+            "timestamp": ts,
+            "cwd": "/home/user/project",
+            "message": {
+                "id": msg_id,
+                "model": "claude-sonnet-4-6",
+                "usage": {
+                    "input_tokens": input,
+                    "output_tokens": output,
+                    "cache_read_input_tokens": cache_read,
+                    "cache_creation_input_tokens": cache_creation,
+                },
+                "content": [],
+            }
+        })
+        .to_string()
+    }
+
+    #[test]
+    fn test_cache_efficiency_hit_rate_computed_correctly() {
+        // Seed DB with two turns: 1000 input + 500 cache_read.
+        // hit_rate = 500 / (500 + 1000) = 1/3 ≈ 0.333…
+        let tmp = TempDir::new().unwrap();
+        let db_path = tmp.path().join("test.db");
+
+        let projects_dir = tmp.path().join("projects");
+        let lines = vec![
+            make_user("sess1", "2024-01-01T10:00:00Z"),
+            make_assistant_with_cache("sess1", "2024-01-01T10:00:01Z", "m1", 600, 100, 200, 0),
+            make_assistant_with_cache("sess1", "2024-01-01T10:00:02Z", "m2", 400, 80, 300, 0),
+        ];
+        write_project_jsonl(&projects_dir, "proj1", "session.jsonl", &lines);
+
+        scanner::scan(Some(vec![projects_dir.clone()]), &db_path, false).unwrap();
+
+        let conn = db::open_db(&db_path).unwrap();
+        let tz = crate::tz::TzParams::default();
+        let data = db::get_dashboard_data(&conn, tz).unwrap();
+        let ce = &data.cache_efficiency;
+
+        // token counts
+        assert_eq!(ce.input_tokens, 1000); // 600 + 400
+        assert_eq!(ce.output_tokens, 180); // 100 + 80
+        assert_eq!(ce.cache_read_tokens, 500); // 200 + 300
+        assert_eq!(ce.cache_write_tokens, 0);
+
+        // hit_rate = 500 / (500 + 1000) = 1/3
+        let rate = ce.cache_hit_rate.expect("should have a hit rate");
+        assert!(
+            (rate - 1.0 / 3.0).abs() < 1e-9,
+            "expected ~0.333, got {rate}"
+        );
+
+        // cost nanos must be > 0 for sonnet (we have tokens)
+        assert!(ce.input_cost_nanos > 0);
+        assert!(ce.cache_read_cost_nanos > 0);
+        assert_eq!(ce.cache_write_cost_nanos, 0);
+    }
+
+    #[test]
+    fn test_cache_efficiency_hit_rate_zero_when_no_cache_reads() {
+        // Turns with only input/output — no cache_read tokens.
+        // cache_read=0, input=1000 → denominator = 1000 > 0 → rate = 0.0 (not None).
+        let tmp = TempDir::new().unwrap();
+        let db_path = tmp.path().join("test.db");
+
+        let projects_dir = tmp.path().join("projects");
+        let lines = vec![
+            make_user("sess1", "2024-01-01T10:00:00Z"),
+            make_assistant("sess1", "2024-01-01T10:00:01Z", 1000, 200, "m1"),
+        ];
+        write_project_jsonl(&projects_dir, "proj1", "session.jsonl", &lines);
+
+        scanner::scan(Some(vec![projects_dir.clone()]), &db_path, false).unwrap();
+
+        let conn = db::open_db(&db_path).unwrap();
+        let tz = crate::tz::TzParams::default();
+        let data = db::get_dashboard_data(&conn, tz).unwrap();
+        let ce = &data.cache_efficiency;
+
+        assert_eq!(ce.cache_read_tokens, 0);
+        assert_eq!(ce.cache_write_tokens, 0);
+        assert_eq!(ce.input_tokens, 1000);
+        let rate = ce
+            .cache_hit_rate
+            .expect("should have rate 0.0 when input > 0");
+        assert!((rate - 0.0).abs() < 1e-12, "expected 0.0, got {rate}");
+    }
+
+    #[test]
+    fn test_cache_efficiency_hit_rate_none_on_empty_db() {
+        // Completely empty DB — no turns → denominator zero → None.
+        let tmp = TempDir::new().unwrap();
+        let db_path = tmp.path().join("test.db");
+        let conn = db::open_db(&db_path).unwrap();
+        db::init_db(&conn).unwrap();
+
+        let tz = crate::tz::TzParams::default();
+        let data = db::get_dashboard_data(&conn, tz).unwrap();
+        let ce = &data.cache_efficiency;
+
+        assert_eq!(ce.cache_read_tokens, 0);
+        assert_eq!(ce.input_tokens, 0);
+        assert!(
+            ce.cache_hit_rate.is_none(),
+            "empty DB should produce None hit_rate, got {:?}",
+            ce.cache_hit_rate
+        );
+    }
+
+    #[test]
+    fn test_cache_efficiency_cost_nanos_match_breakdown() {
+        // Verify that the aggregated cost nanos in cache_efficiency equal what
+        // estimate_cost_breakdown returns for the same token totals on a single model.
+        let tmp = TempDir::new().unwrap();
+        let db_path = tmp.path().join("test.db");
+
+        let projects_dir = tmp.path().join("projects");
+        let input: i64 = 100_000;
+        let output: i64 = 50_000;
+        let cache_read: i64 = 200_000;
+        let cache_creation: i64 = 80_000;
+        let lines = vec![
+            make_user("sess1", "2024-01-01T10:00:00Z"),
+            make_assistant_with_cache(
+                "sess1",
+                "2024-01-01T10:00:01Z",
+                "m1",
+                input,
+                output,
+                cache_read,
+                cache_creation,
+            ),
+        ];
+        write_project_jsonl(&projects_dir, "proj1", "session.jsonl", &lines);
+
+        scanner::scan(Some(vec![projects_dir.clone()]), &db_path, false).unwrap();
+
+        let conn = db::open_db(&db_path).unwrap();
+        let tz = crate::tz::TzParams::default();
+        let data = db::get_dashboard_data(&conn, tz).unwrap();
+        let ce = &data.cache_efficiency;
+
+        let (bd, _, _, _) = crate::pricing::estimate_cost_breakdown(
+            "claude-sonnet-4-6",
+            input,
+            output,
+            cache_read,
+            cache_creation,
+        );
+        assert_eq!(ce.input_cost_nanos, bd.input_cost_nanos);
+        assert_eq!(ce.output_cost_nanos, bd.output_cost_nanos);
+        assert_eq!(ce.cache_read_cost_nanos, bd.cache_read_cost_nanos);
+        assert_eq!(ce.cache_write_cost_nanos, bd.cache_write_cost_nanos);
+    }
 }

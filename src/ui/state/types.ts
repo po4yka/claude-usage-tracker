@@ -65,6 +65,11 @@ export interface DailyModelRow {
   reasoning_output: number;
   turns: number;
   cost: number;
+  /** Phase 21: per-type cost breakdown (USD float) */
+  input_cost: number;
+  output_cost: number;
+  cache_read_cost: number;
+  cache_write_cost: number;
 }
 
 export interface SessionRow {
@@ -208,6 +213,8 @@ export interface DashboardData {
   daily_by_project: DailyProjectRow[];
   openai_reconciliation: OpenAiReconciliation | null;
   generated_at: string;
+  /** Phase 21: cache-token breakdown and derived hit-rate metric. */
+  cache_efficiency: CacheEfficiency;
   error?: string;
 }
 
@@ -232,6 +239,11 @@ export interface ModelAgg {
   sessions: number;
   cost: number;
   is_billable: boolean;
+  /** Phase 21: per-type cost breakdown (USD float, derived from nanos) */
+  input_cost?: number;
+  output_cost?: number;
+  cache_read_cost?: number;
+  cache_write_cost?: number;
 }
 
 export interface ProjectAgg {
@@ -269,6 +281,21 @@ export interface StatCard {
 
 export type SortDir = 'asc' | 'desc';
 export type RangeKey = '7d' | '30d' | '90d' | 'all';
+
+// ── Phase 21: Cache Efficiency ──────────────────────────────────────────────
+
+export interface CacheEfficiency {
+  cache_read_tokens: number;
+  cache_write_tokens: number;
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_cost_nanos: number;
+  cache_write_cost_nanos: number;
+  input_cost_nanos: number;
+  output_cost_nanos: number;
+  /** cache_read / (cache_read + input) when denominator > 0; else null */
+  cache_hit_rate: number | null;
+}
 
 // ── Phase 13: Activity Heatmap ───────────────────────────────────────────────
 

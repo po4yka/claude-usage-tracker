@@ -988,6 +988,15 @@ pub fn get_dashboard_data(conn: &Connection, tz: TzParams) -> Result<DashboardDa
             let output: i64 = row.get(4)?;
             let cache_read: i64 = row.get(5)?;
             let cache_creation: i64 = row.get(6)?;
+            let cost_nanos: i64 = row.get(9)?;
+            // Phase 21: compute per-type cost breakdown for this model/day slice.
+            let (bd, _, _, _) = crate::pricing::estimate_cost_breakdown(
+                &model,
+                input,
+                output,
+                cache_read,
+                cache_creation,
+            );
             Ok(DailyModelRow {
                 day: row.get(0)?,
                 provider,
@@ -998,7 +1007,11 @@ pub fn get_dashboard_data(conn: &Connection, tz: TzParams) -> Result<DashboardDa
                 cache_creation,
                 reasoning_output: row.get(7)?,
                 turns: row.get(8)?,
-                cost: row.get::<_, i64>(9)? as f64 / 1_000_000_000.0,
+                cost: cost_nanos as f64 / 1_000_000_000.0,
+                input_cost: bd.input_cost_nanos as f64 / 1_000_000_000.0,
+                output_cost: bd.output_cost_nanos as f64 / 1_000_000_000.0,
+                cache_read_cost: bd.cache_read_cost_nanos as f64 / 1_000_000_000.0,
+                cache_write_cost: bd.cache_write_cost_nanos as f64 / 1_000_000_000.0,
             })
         };
         let collect_rows = |mapped: rusqlite::MappedRows<'_, _>| -> Vec<DailyModelRow> {
@@ -1390,6 +1403,85 @@ pub fn get_dashboard_data(conn: &Connection, tz: TzParams) -> Result<DashboardDa
         .collect()
     };
 
+    // Phase 21: Cache-efficiency aggregate.
+    // Queries all turns for token totals, then uses estimate_cost_breakdown to
+    // compute per-type cost nanos and derive the hit rate.
+    let cache_efficiency: crate::models::CacheEfficiency = {
+        let (total_input, total_output, total_cache_read, total_cache_write): (i64, i64, i64, i64) =
+            conn.query_row(
+                "SELECT
+                    COALESCE(SUM(input_tokens), 0),
+                    COALESCE(SUM(output_tokens), 0),
+                    COALESCE(SUM(cache_read_tokens), 0),
+                    COALESCE(SUM(cache_creation_tokens), 0)
+                 FROM turns",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .unwrap_or((0, 0, 0, 0));
+
+        // Aggregate per-type cost across all distinct models.
+        // We iterate over each model's token totals and sum cost breakdowns so
+        // per-model pricing (including threshold discounts) is respected.
+        let model_totals: Vec<(String, i64, i64, i64, i64)> = {
+            let mut stmt = conn.prepare(
+                "SELECT COALESCE(model, ''),
+                        COALESCE(SUM(input_tokens), 0),
+                        COALESCE(SUM(output_tokens), 0),
+                        COALESCE(SUM(cache_read_tokens), 0),
+                        COALESCE(SUM(cache_creation_tokens), 0)
+                 FROM turns
+                 GROUP BY model",
+            )?;
+            stmt.query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, i64>(1)?,
+                    row.get::<_, i64>(2)?,
+                    row.get::<_, i64>(3)?,
+                    row.get::<_, i64>(4)?,
+                ))
+            })?
+            .filter_map(|r| r.ok())
+            .collect()
+        };
+
+        let mut agg_input_cost: i64 = 0;
+        let mut agg_output_cost: i64 = 0;
+        let mut agg_cache_read_cost: i64 = 0;
+        let mut agg_cache_write_cost: i64 = 0;
+
+        for (model, inp, out, cr, cw) in model_totals {
+            let (bd, _, _, _) = crate::pricing::estimate_cost_breakdown(&model, inp, out, cr, cw);
+            agg_input_cost += bd.input_cost_nanos;
+            agg_output_cost += bd.output_cost_nanos;
+            agg_cache_read_cost += bd.cache_read_cost_nanos;
+            agg_cache_write_cost += bd.cache_write_cost_nanos;
+        }
+
+        // cache_read / (cache_read + input) when denominator > 0; else None.
+        // Denominator rationale (ROADMAP Phase 21): cache_read is the tokens we
+        // avoided re-billing; input is the tokens we still paid for; their sum
+        // is the "addressable" token stream.
+        let cache_hit_rate = if total_cache_read + total_input > 0 {
+            Some(total_cache_read as f64 / (total_cache_read + total_input) as f64)
+        } else {
+            None
+        };
+
+        crate::models::CacheEfficiency {
+            cache_read_tokens: total_cache_read,
+            cache_write_tokens: total_cache_write,
+            input_tokens: total_input,
+            output_tokens: total_output,
+            cache_read_cost_nanos: agg_cache_read_cost,
+            cache_write_cost_nanos: agg_cache_write_cost,
+            input_cost_nanos: agg_input_cost,
+            output_cost_nanos: agg_output_cost,
+            cache_hit_rate,
+        }
+    };
+
     let generated_at = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
 
     Ok(DashboardData {
@@ -1410,6 +1502,7 @@ pub fn get_dashboard_data(conn: &Connection, tz: TzParams) -> Result<DashboardDa
         daily_by_project,
         openai_reconciliation: None,
         generated_at,
+        cache_efficiency,
     })
 }
 

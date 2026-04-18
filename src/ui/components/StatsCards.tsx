@@ -2,7 +2,8 @@ import { fmt, fmtCost, fmtCostBig } from '../lib/format';
 import { RANGE_LABELS } from '../lib/charts';
 import { selectedRange } from '../state/store';
 import { Sparkline } from './Sparkline';
-import type { Totals, StatCard, DailyAgg } from '../state/types';
+import { CacheEfficiencyCard } from './CacheEfficiencyCard';
+import type { Totals, StatCard, DailyAgg, CacheEfficiency } from '../state/types';
 
 interface StatsCardsProps {
   totals: Totals;
@@ -13,9 +14,11 @@ interface StatsCardsProps {
   heatmapTotalNanos?: number;
   /** Total calendar days in the heatmap period (for tooltip). */
   calendarDays?: number;
+  /** Phase 21: cache-efficiency aggregate from /api/data. */
+  cacheEfficiency?: CacheEfficiency;
 }
 
-export function StatsCards({ totals, daily, activeDays, heatmapTotalNanos }: StatsCardsProps) {
+export function StatsCards({ totals, daily, activeDays, heatmapTotalNanos, cacheEfficiency }: StatsCardsProps) {
   const rangeLabel = RANGE_LABELS[selectedRange.value].toLowerCase();
 
   // Active-period average: divide total by active days.
@@ -70,6 +73,10 @@ export function StatsCards({ totals, daily, activeDays, heatmapTotalNanos }: Sta
           </div>
         </div>
       </div>
+      {/* Phase 21: Cache hit rate card */}
+      {cacheEfficiency && (
+        <CacheEfficiencyCard data={cacheEfficiency} />
+      )}
     </>
   );
 }

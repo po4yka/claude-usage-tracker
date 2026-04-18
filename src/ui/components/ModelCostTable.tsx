@@ -7,7 +7,43 @@ import { SegmentedProgressBar } from './SegmentedProgressBar';
 
 const defaultSort: SortingState = [{ id: 'cost', desc: true }];
 
-function useModelColumns(totalCost: number): ColumnDef<ModelAgg, any>[] {
+/** Inline share-of-cost micro-bar matching the existing share column pattern. */
+function CostShareBar({ value, max, label }: { value: number; max: number; label: string }) {
+  if (max <= 0 || value <= 0) return <span class="cost-na">&mdash;</span>;
+  const pct = (value / max) * 100;
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: '100px' }}>
+      <span class="num" style={{ fontSize: '13px', minWidth: '52px', textAlign: 'right' }}>
+        {fmtCost(value)}
+      </span>
+      <div
+        style={{
+          flex: 1,
+          height: '4px',
+          background: 'rgba(var(--text-primary-rgb,232,232,232),0.12)',
+          borderRadius: '2px',
+          overflow: 'hidden',
+        }}
+        aria-label={label}
+      >
+        <div
+          style={{
+            height: '100%',
+            width: `${Math.min(100, pct).toFixed(1)}%`,
+            background: 'rgba(var(--text-primary-rgb,232,232,232),0.65)',
+            borderRadius: '2px',
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function useModelColumns(
+  totalCost: number,
+  totalCacheReadCost: number,
+  totalCacheWriteCost: number,
+): ColumnDef<ModelAgg, any>[] {
   return useMemo(
     () => [
       {
@@ -90,8 +126,42 @@ function useModelColumns(totalCost: number): ColumnDef<ModelAgg, any>[] {
           );
         },
       },
+      // Phase 21: cache-read cost column with inline micro-bar
+      {
+        id: 'cache_read_cost',
+        accessorFn: (row: ModelAgg) => row.cache_read_cost ?? 0,
+        header: 'Cache Read',
+        cell: (info: any) => {
+          const row = info.row.original as ModelAgg;
+          if (!row.is_billable) return <span class="cost-na">&mdash;</span>;
+          return (
+            <CostShareBar
+              value={row.cache_read_cost ?? 0}
+              max={totalCacheReadCost}
+              label={`${row.model} cache-read cost share`}
+            />
+          );
+        },
+      },
+      // Phase 21: cache-write cost column with inline micro-bar
+      {
+        id: 'cache_write_cost',
+        accessorFn: (row: ModelAgg) => row.cache_write_cost ?? 0,
+        header: 'Cache Write',
+        cell: (info: any) => {
+          const row = info.row.original as ModelAgg;
+          if (!row.is_billable) return <span class="cost-na">&mdash;</span>;
+          return (
+            <CostShareBar
+              value={row.cache_write_cost ?? 0}
+              max={totalCacheWriteCost}
+              label={`${row.model} cache-write cost share`}
+            />
+          );
+        },
+      },
     ],
-    [totalCost]
+    [totalCost, totalCacheReadCost, totalCacheWriteCost]
   );
 }
 
@@ -100,7 +170,15 @@ export function ModelCostTable({ byModel }: { byModel: ModelAgg[] }) {
     () => byModel.reduce((s, m) => (m.is_billable ? s + m.cost : s), 0),
     [byModel]
   );
-  const columns = useModelColumns(totalCost);
+  const totalCacheReadCost = useMemo(
+    () => byModel.reduce((s, m) => s + (m.cache_read_cost ?? 0), 0),
+    [byModel]
+  );
+  const totalCacheWriteCost = useMemo(
+    () => byModel.reduce((s, m) => s + (m.cache_write_cost ?? 0), 0),
+    [byModel]
+  );
+  const columns = useModelColumns(totalCost, totalCacheReadCost, totalCacheWriteCost);
 
   return (
     <DataTable
