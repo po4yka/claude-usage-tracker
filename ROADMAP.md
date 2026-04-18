@@ -516,7 +516,7 @@ When porting, prefer reading the source file directly over reimplementing from m
 
 ---
 
-## Phase 18 -- UI Polish Pack
+## Phase 18 -- UI Polish Pack **[x]**
 
 **Motivation:** Three small UX upgrades that each take hours but compound. From Third-Eye's dashboard.
 
