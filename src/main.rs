@@ -176,6 +176,9 @@ enum Commands {
         /// Path to SQLite DB file
         #[arg(long)]
         db_path: Option<PathBuf>,
+        /// Render the burn-rate tier indicator: off | bracket (default) | emoji | both
+        #[arg(long, default_value = "bracket", value_parser = parse_visual_burn_rate)]
+        visual_burn_rate: statusline::VisualBurnRate,
     },
     /// Manage the statusline PostToolUse hook entry in ~/.claude/settings.json
     StatuslineHook {
@@ -255,6 +258,10 @@ enum StatuslineHookAction {
 
 fn parse_cost_source(s: &str) -> Result<statusline::StatuslineCostSource, String> {
     statusline::StatuslineCostSource::parse(s)
+}
+
+fn parse_visual_burn_rate(s: &str) -> Result<statusline::VisualBurnRate, String> {
+    statusline::VisualBurnRate::parse(s)
 }
 
 fn parse_token_limit(s: &str) -> Result<TokenLimit, String> {
@@ -392,6 +399,8 @@ fn main() -> Result<()> {
     let cfg_blocks_token_limit = cfg.blocks.token_limit;
     let cfg_statusline_low = cfg.statusline.context_low_threshold;
     let cfg_statusline_medium = cfg.statusline.context_medium_threshold;
+    let cfg_burn_rate_normal_max = cfg.statusline.burn_rate_normal_max;
+    let cfg_burn_rate_moderate_max = cfg.statusline.burn_rate_moderate_max;
 
     let default_db = |cli_db: Option<PathBuf>| -> PathBuf {
         cli_db
@@ -553,6 +562,7 @@ fn main() -> Result<()> {
             cost_source,
             offline,
             db_path,
+            visual_burn_rate,
         } => {
             let opts = statusline::StatuslineOpts {
                 refresh_interval,
@@ -561,6 +571,9 @@ fn main() -> Result<()> {
                 db_path,
                 context_low_threshold: cfg_statusline_low,
                 context_medium_threshold: cfg_statusline_medium,
+                burn_rate_normal_max: cfg_burn_rate_normal_max,
+                burn_rate_moderate_max: cfg_burn_rate_moderate_max,
+                visual_burn_rate,
             };
             statusline::run(&opts);
         }
@@ -892,7 +905,10 @@ fn cmd_mcp(action: McpAction, default_db: &dyn Fn(Option<PathBuf>) -> PathBuf) -
         },
         McpAction::Uninstall { client } => match mcp::install::uninstall(&client)? {
             McpInstallResult::Uninstalled { path } => {
-                println!("Uninstalled: heimdall entry removed from {}", path.display());
+                println!(
+                    "Uninstalled: heimdall entry removed from {}",
+                    path.display()
+                );
             }
             McpInstallResult::NothingToUninstall => {
                 println!("Nothing to uninstall: no heimdall entry found (or user-customized)");

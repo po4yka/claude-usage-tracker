@@ -29,13 +29,44 @@ use crate::statusline::cache::{
 };
 use crate::statusline::compute::{CostSource, compute};
 use crate::statusline::input::parse_stdin_with_timeout;
-use crate::statusline::render::render_status_line_with_thresholds;
+use crate::statusline::render::render_status_line_with_opts;
 
 pub use compute::CostSource as StatuslineCostSource;
 pub use install::{
     StatuslineActionResult, StatuslineStatus, install, install_into, status, status_from,
     uninstall, uninstall_from,
 };
+
+// ── Visual burn-rate style ────────────────────────────────────────────────────
+
+/// Controls how the burn-rate tier is rendered in the statusline.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VisualBurnRate {
+    /// No tier indicator rendered.
+    Off,
+    /// Bracketed text only: `[NORMAL]` / `[WARN]` / `[CRIT]`.
+    Bracket,
+    /// Emoji only: `🟢` / `⚠️` / `🚨`.
+    Emoji,
+    /// Both emoji and bracket: `🟢 [NORMAL]` / `⚠️ [WARN]` / `🚨 [CRIT]`.
+    Both,
+}
+
+impl VisualBurnRate {
+    /// Parse from a CLI string value.
+    pub fn parse(s: &str) -> Result<Self, String> {
+        match s {
+            "off" => Ok(Self::Off),
+            "bracket" => Ok(Self::Bracket),
+            "emoji" => Ok(Self::Emoji),
+            "both" => Ok(Self::Both),
+            other => Err(format!(
+                "invalid visual-burn-rate '{}': expected one of off, bracket, emoji, both",
+                other
+            )),
+        }
+    }
+}
 
 // ── Options ───────────────────────────────────────────────────────────────────
 
@@ -46,6 +77,9 @@ pub struct StatuslineOpts {
     pub db_path: Option<PathBuf>,
     pub context_low_threshold: f64,
     pub context_medium_threshold: f64,
+    pub burn_rate_normal_max: f64,
+    pub burn_rate_moderate_max: f64,
+    pub visual_burn_rate: VisualBurnRate,
 }
 
 // ── Entry point ───────────────────────────────────────────────────────────────
@@ -107,11 +141,16 @@ fn run_inner(opts: &StatuslineOpts) -> anyhow::Result<String> {
     let stats = compute(&db_path, &input, opts.cost_source)?;
 
     // 5. Render.
-    let line = render_status_line_with_thresholds(
-        &stats,
-        opts.context_low_threshold,
-        opts.context_medium_threshold,
-    );
+    let render_opts = crate::statusline::render::RenderOpts {
+        context_low_threshold: opts.context_low_threshold,
+        context_medium_threshold: opts.context_medium_threshold,
+        burn_rate: crate::analytics::burn_rate::BurnRateConfig {
+            normal_max: opts.burn_rate_normal_max,
+            moderate_max: opts.burn_rate_moderate_max,
+        },
+        visual_burn_rate: opts.visual_burn_rate,
+    };
+    let line = render_status_line_with_opts(&stats, &render_opts);
 
     // 6. Write cache.
     let entry = CacheEntry {

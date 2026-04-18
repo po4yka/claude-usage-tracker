@@ -31,7 +31,9 @@ mod mcp_tests {
         let conn = open_db(&db_path).unwrap();
         init_db(&conn).unwrap();
 
-        let today = chrono::Local::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+        let today = chrono::Local::now()
+            .format("%Y-%m-%dT%H:%M:%SZ")
+            .to_string();
         conn.execute(
             "INSERT OR IGNORE INTO sessions
              (session_id, provider, first_timestamp, last_timestamp)
@@ -177,14 +179,17 @@ mod mcp_tests {
         let tools = v["result"]["tools"].as_array().expect("tools array");
         assert_eq!(tools.len(), 9, "expected 9 tools, got: {}", tools.len());
 
-        let names: Vec<&str> = tools
-            .iter()
-            .map(|t| t["name"].as_str().unwrap())
-            .collect();
+        let names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
         assert!(names.contains(&"heimdall_today"), "missing heimdall_today");
         assert!(names.contains(&"heimdall_stats"), "missing heimdall_stats");
-        assert!(names.contains(&"heimdall_weekly"), "missing heimdall_weekly");
-        assert!(names.contains(&"heimdall_sessions"), "missing heimdall_sessions");
+        assert!(
+            names.contains(&"heimdall_weekly"),
+            "missing heimdall_weekly"
+        );
+        assert!(
+            names.contains(&"heimdall_sessions"),
+            "missing heimdall_sessions"
+        );
         assert!(
             names.contains(&"heimdall_blocks_active"),
             "missing heimdall_blocks_active"
@@ -232,8 +237,14 @@ mod mcp_tests {
         let (mut w, mut r) = connect_server(db_path).await;
         do_initialize(&mut w, &mut r).await;
 
-        let resp =
-            call_tool(&mut w, &mut r, 3, "heimdall_blocks_active", serde_json::json!({})).await;
+        let resp = call_tool(
+            &mut w,
+            &mut r,
+            3,
+            "heimdall_blocks_active",
+            serde_json::json!({}),
+        )
+        .await;
         assert!(resp["error"].is_null(), "tool error: {:?}", resp["error"]);
 
         let text = resp["result"]["content"][0]["text"].as_str().unwrap();
@@ -249,8 +260,14 @@ mod mcp_tests {
         let (mut w, mut r) = connect_server(db_path).await;
         do_initialize(&mut w, &mut r).await;
 
-        let resp =
-            call_tool(&mut w, &mut r, 4, "heimdall_optimize_grade", serde_json::json!({})).await;
+        let resp = call_tool(
+            &mut w,
+            &mut r,
+            4,
+            "heimdall_optimize_grade",
+            serde_json::json!({}),
+        )
+        .await;
         assert!(resp["error"].is_null(), "tool error: {:?}", resp["error"]);
 
         let text = resp["result"]["content"][0]["text"].as_str().unwrap();
@@ -326,8 +343,14 @@ mod mcp_tests {
         let (mut w, mut r) = connect_server(db_path).await;
         do_initialize(&mut w, &mut r).await;
 
-        let resp =
-            call_tool(&mut w, &mut r, 7, "heimdall_rate_windows", serde_json::json!({})).await;
+        let resp = call_tool(
+            &mut w,
+            &mut r,
+            7,
+            "heimdall_rate_windows",
+            serde_json::json!({}),
+        )
+        .await;
         assert!(resp["error"].is_null(), "tool error: {:?}", resp["error"]);
 
         let text = resp["result"]["content"][0]["text"].as_str().unwrap();
@@ -343,13 +366,22 @@ mod mcp_tests {
         let (mut w, mut r) = connect_server(db_path).await;
         do_initialize(&mut w, &mut r).await;
 
-        let resp =
-            call_tool(&mut w, &mut r, 8, "heimdall_context_window", serde_json::json!({})).await;
+        let resp = call_tool(
+            &mut w,
+            &mut r,
+            8,
+            "heimdall_context_window",
+            serde_json::json!({}),
+        )
+        .await;
         assert!(resp["error"].is_null(), "tool error: {:?}", resp["error"]);
 
         let text = resp["result"]["content"][0]["text"].as_str().unwrap();
         let data: serde_json::Value = serde_json::from_str(text).unwrap();
-        assert_eq!(data["enabled"], false, "empty DB should return enabled:false");
+        assert_eq!(
+            data["enabled"], false,
+            "empty DB should return enabled:false"
+        );
     }
 
     // ── heimdall_weekly ───────────────────────────────────────────────────────
@@ -384,8 +416,7 @@ mod mcp_tests {
         let (mut w, mut r) = connect_server(db_path).await;
         do_initialize(&mut w, &mut r).await;
 
-        let resp =
-            call_tool(&mut w, &mut r, 10, "heimdall_quota", serde_json::json!({})).await;
+        let resp = call_tool(&mut w, &mut r, 10, "heimdall_quota", serde_json::json!({})).await;
         assert!(resp["error"].is_null(), "tool error: {:?}", resp["error"]);
 
         let text = resp["result"]["content"][0]["text"].as_str().unwrap();

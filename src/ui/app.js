@@ -2157,6 +2157,16 @@
   function severityLabel(s4) {
     return s4 === "ok" ? "[OK]" : s4 === "warn" ? "[WARN]" : "[CRIT]";
   }
+  function tierLabel(t4) {
+    if (t4 === "normal") return "[NORMAL]";
+    if (t4 === "moderate") return "[WARN]";
+    return "[CRIT]";
+  }
+  function tierColor(t4) {
+    if (t4 === "normal") return "var(--success)";
+    if (t4 === "moderate") return "var(--warning)";
+    return "var(--accent)";
+  }
   function formatDuration(from, to) {
     const diffMs = new Date(to).getTime() - new Date(from).getTime();
     if (isNaN(diffMs) || diffMs < 0) return "--";
@@ -2332,6 +2342,23 @@
           " \xB7 ",
           activeBlock.entry_count,
           " entries"
+        ] }),
+        activeBlock.burn_rate && /* @__PURE__ */ u2("div", { class: "stat-sub", style: { fontFamily: "var(--font-mono)", fontSize: "12px", marginTop: "4px" }, children: [
+          "$",
+          (activeBlock.burn_rate.cost_per_hour_nanos / 1e9).toFixed(4),
+          "/hr",
+          activeBlock.burn_rate.tier && /* @__PURE__ */ u2(
+            "span",
+            {
+              style: {
+                marginLeft: "6px",
+                color: tierColor(activeBlock.burn_rate.tier),
+                fontSize: "11px",
+                letterSpacing: "0.04em"
+              },
+              children: tierLabel(activeBlock.burn_rate.tier)
+            }
+          )
         ] })
       ] }),
       /* @__PURE__ */ u2(QuotaSection, { block: activeBlock })

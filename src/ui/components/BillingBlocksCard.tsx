@@ -1,5 +1,5 @@
 import { SegmentedProgressBar } from './SegmentedProgressBar';
-import type { BillingBlocksResponse, BillingBlockView, QuotaSeverity } from '../state/types';
+import type { BillingBlocksResponse, BillingBlockView, BurnRateTier, QuotaSeverity } from '../state/types';
 import type { SegmentedBarStatus } from './SegmentedProgressBar';
 
 // ── Helpers ──────────────────────────────────────────────────────────
@@ -12,6 +12,18 @@ function severityToStatus(s: QuotaSeverity): SegmentedBarStatus {
 
 function severityLabel(s: QuotaSeverity): string {
   return s === 'ok' ? '[OK]' : s === 'warn' ? '[WARN]' : '[CRIT]';
+}
+
+function tierLabel(t: BurnRateTier): string {
+  if (t === 'normal') return '[NORMAL]';
+  if (t === 'moderate') return '[WARN]';
+  return '[CRIT]';
+}
+
+function tierColor(t: BurnRateTier): string {
+  if (t === 'normal') return 'var(--success)';
+  if (t === 'moderate') return 'var(--warning)';
+  return 'var(--accent)';
 }
 
 function formatDuration(from: string, to: string): string {
@@ -206,6 +218,23 @@ export function BillingBlocksCard({ data }: BillingBlocksCardProps) {
         <div class="stat-sub">
           {elapsed} elapsed &middot; ends {blockEnd} &middot; {activeBlock.entry_count} entries
         </div>
+        {activeBlock.burn_rate && (
+          <div class="stat-sub" style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', marginTop: '4px' }}>
+            ${(activeBlock.burn_rate.cost_per_hour_nanos / 1e9).toFixed(4)}/hr
+            {activeBlock.burn_rate.tier && (
+              <span
+                style={{
+                  marginLeft: '6px',
+                  color: tierColor(activeBlock.burn_rate.tier),
+                  fontSize: '11px',
+                  letterSpacing: '0.04em',
+                }}
+              >
+                {tierLabel(activeBlock.burn_rate.tier)}
+              </span>
+            )}
+          </div>
+        )}
       </div>
       <QuotaSection block={activeBlock} />
     </div>

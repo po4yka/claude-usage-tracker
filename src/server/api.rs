@@ -462,6 +462,7 @@ pub async fn api_billing_blocks(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<Value>, StatusCode> {
     use crate::analytics::blocks::{calculate_burn_rate, identify_blocks, project_block_usage};
+    use crate::analytics::burn_rate::{self as br, BurnRateConfig};
     use crate::analytics::quota::compute_quota;
 
     let db_path = state.db_path.clone();
@@ -503,10 +504,15 @@ pub async fn api_billing_blocks(
                 });
                 if b.is_active {
                     v["burn_rate"] = match rate {
-                        Some(r) => serde_json::json!({
-                            "tokens_per_min": r.tokens_per_min,
-                            "cost_per_hour_nanos": r.cost_per_hour_nanos,
-                        }),
+                        Some(r) => {
+                            // TODO: thread AppState config thresholds here so API tier matches statusline when user overrides [statusline.burn_rate_*] in TOML.
+                            let tier = br::tier(r.tokens_per_min, &BurnRateConfig::default());
+                            serde_json::json!({
+                                "tokens_per_min": r.tokens_per_min,
+                                "cost_per_hour_nanos": r.cost_per_hour_nanos,
+                                "tier": tier,
+                            })
+                        }
                         None => Value::Null,
                     };
                     v["projection"] = serde_json::json!({

@@ -385,9 +385,12 @@ export interface CommunitySignal {
 
 export type QuotaSeverity = 'ok' | 'warn' | 'danger';
 
+export type BurnRateTier = 'normal' | 'moderate' | 'high';
+
 export interface BurnRate {
   tokens_per_min: number;
   cost_per_hour_nanos: number;
+  tier?: BurnRateTier;
 }
 
 export interface BlockProjection {

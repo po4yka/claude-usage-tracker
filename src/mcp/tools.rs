@@ -95,7 +95,9 @@ fn weekday_to_u8(day: chrono::Weekday) -> u8 {
 #[tool_router(server_handler)]
 impl HeimdallMcpServer {
     /// Return today's token and cost usage summary grouped by model and provider.
-    #[tool(description = "Return today's token and cost usage summary grouped by model and provider")]
+    #[tool(
+        description = "Return today's token and cost usage summary grouped by model and provider"
+    )]
     async fn heimdall_today(&self, _params: Parameters<EmptyInput>) -> String {
         let db = self.db_path.clone();
         match tokio::task::spawn_blocking(move || query_today(&db)).await {
@@ -106,7 +108,9 @@ impl HeimdallMcpServer {
     }
 
     /// Return all-time aggregate usage statistics (tokens, cost, sessions, providers).
-    #[tool(description = "Return all-time aggregate usage statistics (tokens, cost, sessions, providers)")]
+    #[tool(
+        description = "Return all-time aggregate usage statistics (tokens, cost, sessions, providers)"
+    )]
     async fn heimdall_stats(&self, _params: Parameters<EmptyInput>) -> String {
         let db = self.db_path.clone();
         match tokio::task::spawn_blocking(move || query_stats(&db)).await {
@@ -120,7 +124,11 @@ impl HeimdallMcpServer {
     #[tool(description = "Return weekly usage report grouped by ISO calendar week")]
     async fn heimdall_weekly(&self, params: Parameters<WeeklyInput>) -> String {
         let db = self.db_path.clone();
-        let sow = params.0.start_of_week.clone().unwrap_or_else(|| "monday".into());
+        let sow = params
+            .0
+            .start_of_week
+            .clone()
+            .unwrap_or_else(|| "monday".into());
         match tokio::task::spawn_blocking(move || query_weekly(&db, &sow)).await {
             Ok(Ok(v)) => json_ok(v),
             Ok(Err(e)) => json_err(e),
@@ -147,7 +155,9 @@ impl HeimdallMcpServer {
     }
 
     /// Return the currently active Claude billing block with burn rate and cost projection.
-    #[tool(description = "Return the currently active Claude billing block with burn rate and cost projection")]
+    #[tool(
+        description = "Return the currently active Claude billing block with burn rate and cost projection"
+    )]
     async fn heimdall_blocks_active(&self, params: Parameters<BlocksInput>) -> String {
         let db = self.db_path.clone();
         let hours = params.0.session_length_hours.unwrap_or(5.0);
@@ -159,7 +169,9 @@ impl HeimdallMcpServer {
     }
 
     /// Run waste detectors and return an A-F grade plus findings with estimated monthly waste.
-    #[tool(description = "Run waste detectors and return an A-F grade plus findings with estimated monthly waste")]
+    #[tool(
+        description = "Run waste detectors and return an A-F grade plus findings with estimated monthly waste"
+    )]
     async fn heimdall_optimize_grade(&self, _params: Parameters<EmptyInput>) -> String {
         let db = self.db_path.clone();
         match tokio::task::spawn_blocking(move || optimizer::run_optimize(&db)).await {
@@ -188,7 +200,9 @@ impl HeimdallMcpServer {
     }
 
     /// Return the most recent context-window utilization from live PreToolUse events.
-    #[tool(description = "Return the most recent context-window utilization from live PreToolUse events")]
+    #[tool(
+        description = "Return the most recent context-window utilization from live PreToolUse events"
+    )]
     async fn heimdall_context_window(&self, _params: Parameters<EmptyInput>) -> String {
         let db = self.db_path.clone();
         match tokio::task::spawn_blocking(move || query_context_window(&db)).await {
@@ -199,7 +213,9 @@ impl HeimdallMcpServer {
     }
 
     /// Return quota status for the active billing block if a token limit is configured.
-    #[tool(description = "Return quota status for the active billing block if a token limit is configured")]
+    #[tool(
+        description = "Return quota status for the active billing block if a token limit is configured"
+    )]
     async fn heimdall_quota(&self, _params: Parameters<EmptyInput>) -> String {
         let db = self.db_path.clone();
         match tokio::task::spawn_blocking(move || query_quota(&db)).await {
@@ -338,7 +354,13 @@ fn query_stats(db_path: &Path) -> Result<serde_json::Value> {
         .filter_map(|r| r.ok())
         .collect();
 
-    let f = |s: &Option<String>| s.as_deref().unwrap_or("").chars().take(10).collect::<String>();
+    let f = |s: &Option<String>| {
+        s.as_deref()
+            .unwrap_or("")
+            .chars()
+            .take(10)
+            .collect::<String>()
+    };
 
     Ok(serde_json::json!({
         "period": { "from": f(&first), "to": f(&last) },
@@ -382,8 +404,10 @@ fn query_weekly(db_path: &Path, sow: &str) -> Result<serde_json::Value> {
         .iter()
         .map(|week| {
             let wr = by_week.get(week).cloned().unwrap_or_default();
-            let total_cost: f64 =
-                wr.iter().map(|r| r.cost_nanos as f64 / 1_000_000_000.0).sum();
+            let total_cost: f64 = wr
+                .iter()
+                .map(|r| r.cost_nanos as f64 / 1_000_000_000.0)
+                .sum();
             let total_in: i64 = wr.iter().map(|r| r.input_tokens).sum();
             let total_out: i64 = wr.iter().map(|r| r.output_tokens).sum();
 
@@ -501,11 +525,17 @@ fn query_active_block(db_path: &Path, session_hours: f64) -> Result<serde_json::
             let proj = project_block_usage(b, rate, now);
 
             let burn = match rate {
-                Some(r) => serde_json::json!({
-                    "tokens_per_min": r.tokens_per_min,
-                    "cost_per_hour_nanos": r.cost_per_hour_nanos,
-                    "cost_per_hour_usd": r.cost_per_hour_nanos as f64 / 1_000_000_000.0,
-                }),
+                Some(r) => {
+                    use crate::analytics::burn_rate::{self as br, BurnRateConfig};
+                    // TODO: thread config thresholds here so MCP tier matches statusline when user overrides [statusline.burn_rate_*] in TOML.
+                    let tier = br::tier(r.tokens_per_min, &BurnRateConfig::default());
+                    serde_json::json!({
+                        "tokens_per_min": r.tokens_per_min,
+                        "cost_per_hour_nanos": r.cost_per_hour_nanos,
+                        "cost_per_hour_usd": r.cost_per_hour_nanos as f64 / 1_000_000_000.0,
+                        "tier": tier,
+                    })
+                }
                 None => serde_json::Value::Null,
             };
 

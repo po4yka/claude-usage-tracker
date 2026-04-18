@@ -53,7 +53,10 @@ pub fn resolve_client_path(client: &str) -> Result<PathBuf> {
             "claude-code" => ".mcp.json",
             "claude-desktop" => "claude_desktop_config.json",
             "cursor" => "mcp.json",
-            other => anyhow::bail!("unknown client '{}'; expected claude-code | claude-desktop | cursor", other),
+            other => anyhow::bail!(
+                "unknown client '{}'; expected claude-code | claude-desktop | cursor",
+                other
+            ),
         };
         return Ok(dir.join(file));
     }
@@ -86,7 +89,10 @@ pub fn resolve_client_path(client: &str) -> Result<PathBuf> {
             }
             #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
             {
-                Ok(home.join(".config").join("Claude").join("claude_desktop_config.json"))
+                Ok(home
+                    .join(".config")
+                    .join("Claude")
+                    .join("claude_desktop_config.json"))
             }
         }
         "cursor" => Ok(home.join(".cursor").join("mcp.json")),
@@ -139,7 +145,9 @@ pub fn install_into(path: &std::path::Path) -> Result<McpInstallResult> {
     if already_present {
         if already_installed {
             // Our sentinel is present — idempotent install.
-            return Ok(McpInstallResult::AlreadyInstalled { path: path.to_path_buf() });
+            return Ok(McpInstallResult::AlreadyInstalled {
+                path: path.to_path_buf(),
+            });
         } else {
             // User-customized entry without our sentinel: do NOT overwrite.
             return Err(anyhow::anyhow!(
@@ -161,7 +169,9 @@ pub fn install_into(path: &std::path::Path) -> Result<McpInstallResult> {
         .insert(SERVER_KEY.to_string(), make_entry());
 
     write_json(path, &root)?;
-    Ok(McpInstallResult::Installed { path: path.to_path_buf() })
+    Ok(McpInstallResult::Installed {
+        path: path.to_path_buf(),
+    })
 }
 
 pub fn uninstall(client: &str) -> Result<McpInstallResult> {
@@ -201,7 +211,9 @@ pub fn uninstall_from(path: &std::path::Path) -> Result<McpInstallResult> {
         .remove(SERVER_KEY);
 
     write_json(path, &root)?;
-    Ok(McpInstallResult::Uninstalled { path: path.to_path_buf() })
+    Ok(McpInstallResult::Uninstalled {
+        path: path.to_path_buf(),
+    })
 }
 
 pub fn status(client: &str) -> Result<McpInstallStatus> {
@@ -223,9 +235,13 @@ pub fn status_from(path: &std::path::Path) -> Result<McpInstallStatus> {
         None => return Ok(McpInstallStatus::Absent),
     };
     if entry.get(SENTINEL_KEY).and_then(|v| v.as_str()) == Some(SENTINEL_VAL) {
-        Ok(McpInstallStatus::Installed { path: path.to_path_buf() })
+        Ok(McpInstallStatus::Installed {
+            path: path.to_path_buf(),
+        })
     } else {
-        Ok(McpInstallStatus::Customized { path: path.to_path_buf() })
+        Ok(McpInstallStatus::Customized {
+            path: path.to_path_buf(),
+        })
     }
 }
 
@@ -235,13 +251,12 @@ fn read_or_empty(path: &std::path::Path) -> Result<serde_json::Value> {
     if !path.exists() {
         return Ok(serde_json::json!({}));
     }
-    let text = std::fs::read_to_string(path)
-        .with_context(|| format!("reading {}", path.display()))?;
+    let text =
+        std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
     if text.trim().is_empty() {
         return Ok(serde_json::json!({}));
     }
-    serde_json::from_str(&text)
-        .with_context(|| format!("parsing JSON from {}", path.display()))
+    serde_json::from_str(&text).with_context(|| format!("parsing JSON from {}", path.display()))
 }
 
 fn write_json(path: &std::path::Path, value: &serde_json::Value) -> Result<()> {
@@ -249,8 +264,8 @@ fn write_json(path: &std::path::Path, value: &serde_json::Value) -> Result<()> {
         std::fs::create_dir_all(parent)?;
     }
     let text = serde_json::to_string_pretty(value)?;
-    let mut file = std::fs::File::create(path)
-        .with_context(|| format!("writing {}", path.display()))?;
+    let mut file =
+        std::fs::File::create(path).with_context(|| format!("writing {}", path.display()))?;
     file.write_all(text.as_bytes())?;
     Ok(())
 }
@@ -259,17 +274,17 @@ fn backup(path: &std::path::Path, _value: &serde_json::Value) -> Result<()> {
     if !path.exists() {
         return Ok(());
     }
-    if std::fs::metadata(path).map(|m| m.len() == 0).unwrap_or(true) {
+    if std::fs::metadata(path)
+        .map(|m| m.len() == 0)
+        .unwrap_or(true)
+    {
         return Ok(());
     }
-    let bak = path.with_extension(
-        format!(
-            "{}.heimdall-bak",
-            path.extension().and_then(|s| s.to_str()).unwrap_or("json")
-        )
-    );
-    std::fs::copy(path, &bak)
-        .with_context(|| format!("writing backup {}", bak.display()))?;
+    let bak = path.with_extension(format!(
+        "{}.heimdall-bak",
+        path.extension().and_then(|s| s.to_str()).unwrap_or("json")
+    ));
+    std::fs::copy(path, &bak).with_context(|| format!("writing backup {}", bak.display()))?;
     Ok(())
 }
 
@@ -293,10 +308,7 @@ mod tests {
 
         let v: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
-        assert_eq!(
-            v["mcpServers"]["heimdall"]["_heimdall_mcp_version"],
-            "v1"
-        );
+        assert_eq!(v["mcpServers"]["heimdall"]["_heimdall_mcp_version"], "v1");
         assert_eq!(
             v["mcpServers"]["heimdall"]["command"],
             "claude-usage-tracker"
@@ -312,10 +324,7 @@ mod tests {
         assert!(matches!(r2, McpInstallResult::AlreadyInstalled { .. }));
         let v: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
-        assert_eq!(
-            v["mcpServers"].as_object().unwrap().len(),
-            1
-        );
+        assert_eq!(v["mcpServers"].as_object().unwrap().len(), 1);
     }
 
     #[test]
@@ -429,7 +438,10 @@ mod tests {
         });
         std::fs::write(&path, serde_json::to_string_pretty(&custom).unwrap()).unwrap();
         let result = install_into(&path);
-        assert!(result.is_err(), "install_into must refuse to overwrite a customized entry");
+        assert!(
+            result.is_err(),
+            "install_into must refuse to overwrite a customized entry"
+        );
         // The original entry must be untouched.
         let v: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
@@ -442,6 +454,9 @@ mod tests {
         let path = tmp_path(&dir, ".mcp.json");
         std::fs::write(&path, "{ this is not json").unwrap();
         let result = install_into(&path);
-        assert!(result.is_err(), "install_into must return Err for malformed JSON");
+        assert!(
+            result.is_err(),
+            "install_into must return Err for malformed JSON"
+        );
     }
 }

@@ -117,7 +117,12 @@ pub fn from_transcript(path: &Path) -> Result<ContextWindow> {
         });
     }
 
-    last.ok_or_else(|| anyhow::anyhow!("no assistant usage block found in transcript: {}", path.display()))
+    last.ok_or_else(|| {
+        anyhow::anyhow!(
+            "no assistant usage block found in transcript: {}",
+            path.display()
+        )
+    })
 }
 
 /// Combined resolver: prefer hook data, fall back to transcript, return `None`

@@ -1,12 +1,33 @@
 /// Compose the output status line from computed stats.
+use crate::analytics::burn_rate::{self, BurnRateConfig, BurnRateTier};
 use crate::analytics::quota::Severity;
 use crate::pricing::{fmt_cost, fmt_tokens};
+use crate::statusline::VisualBurnRate;
 use crate::statusline::compute::ComputedStats;
 
-/// Render a single-line status string.
+/// Options controlling how the status line is rendered.
+pub struct RenderOpts {
+    pub context_low_threshold: f64,
+    pub context_medium_threshold: f64,
+    pub burn_rate: BurnRateConfig,
+    pub visual_burn_rate: VisualBurnRate,
+}
+
+impl Default for RenderOpts {
+    fn default() -> Self {
+        Self {
+            context_low_threshold: 0.5,
+            context_medium_threshold: 0.8,
+            burn_rate: BurnRateConfig::default(),
+            visual_burn_rate: VisualBurnRate::Bracket,
+        }
+    }
+}
+
+/// Render a single-line status string using default options.
 ///
 /// Layout:
-///   MODEL | $SESSION / $TODAY / $BLOCK (Xh Ym left) | $COST/hr | N tokens (XX%)
+///   MODEL | $SESSION / $TODAY / $BLOCK (Xh Ym left) | $COST/hr [TIER] | N tokens (XX%)
 ///
 /// When no active block:
 ///   MODEL | $SESSION / $TODAY | N tokens (XX%)
@@ -17,15 +38,32 @@ use crate::statusline::compute::ComputedStats;
 ///   >= low and < medium → [WARN]
 ///   >= medium → [CRIT]
 pub fn render_status_line(stats: &ComputedStats) -> String {
-    render_status_line_with_thresholds(stats, 0.5, 0.8)
+    render_status_line_with_opts(stats, &RenderOpts::default())
 }
 
 /// Like `render_status_line` but with configurable severity thresholds.
+///
+/// Kept for backwards compatibility with callers that only need context thresholds.
+/// Pins `visual_burn_rate` to `Off` to preserve pre-Phase-7 output — callers that
+/// want the tier badge should use [`render_status_line_with_opts`] directly.
 pub fn render_status_line_with_thresholds(
     stats: &ComputedStats,
     context_low_threshold: f64,
     context_medium_threshold: f64,
 ) -> String {
+    render_status_line_with_opts(
+        stats,
+        &RenderOpts {
+            context_low_threshold,
+            context_medium_threshold,
+            burn_rate: BurnRateConfig::default(),
+            visual_burn_rate: VisualBurnRate::Off,
+        },
+    )
+}
+
+/// Full render with all options.
+pub fn render_status_line_with_opts(stats: &ComputedStats, opts: &RenderOpts) -> String {
     // Truncate model name to 24 Unicode scalar values (chars), not bytes,
     // to avoid a panic on multibyte UTF-8 codepoints.
     let model: &str = if stats.model.chars().count() > 24 {
@@ -54,7 +92,13 @@ pub fn render_status_line_with_thresholds(
 
             if let Some(burn) = block.burn_rate {
                 let per_hour = fmt_cost(burn.cost_per_hour_nanos as f64 / 1_000_000_000.0);
-                parts.push(format!("{}/hr", per_hour));
+                let tier = burn_rate::tier(burn.tokens_per_min, &opts.burn_rate);
+                let tag = burn_rate_tag(tier, opts.visual_burn_rate);
+                if tag.is_empty() {
+                    parts.push(format!("{}/hr", per_hour));
+                } else {
+                    parts.push(format!("{}/hr {}", per_hour, tag));
+                }
             }
         }
         None => {
@@ -68,7 +112,11 @@ pub fn render_status_line_with_thresholds(
         let fill = tokens as f64 / size as f64;
         let pct = (fill * 100.0).round() as u64;
         let tok_str = fmt_tokens(tokens);
-        let severity = context_severity(fill, context_low_threshold, context_medium_threshold);
+        let severity = context_severity(
+            fill,
+            opts.context_low_threshold,
+            opts.context_medium_threshold,
+        );
         let marker = match severity {
             Severity::Ok => String::new(),
             Severity::Warn => " [WARN]".to_string(),
@@ -78,6 +126,30 @@ pub fn render_status_line_with_thresholds(
     }
 
     parts.join(" | ")
+}
+
+/// Return the tier indicator string for the given style.
+///
+/// Returns `""` when `style == Off`.
+pub fn burn_rate_tag(tier: BurnRateTier, style: VisualBurnRate) -> &'static str {
+    match style {
+        VisualBurnRate::Off => "",
+        VisualBurnRate::Bracket => match tier {
+            BurnRateTier::Normal => "[NORMAL]",
+            BurnRateTier::Moderate => "[WARN]",
+            BurnRateTier::High => "[CRIT]",
+        },
+        VisualBurnRate::Emoji => match tier {
+            BurnRateTier::Normal => "🟢",
+            BurnRateTier::Moderate => "⚠️",
+            BurnRateTier::High => "🚨",
+        },
+        VisualBurnRate::Both => match tier {
+            BurnRateTier::Normal => "🟢 [NORMAL]",
+            BurnRateTier::Moderate => "⚠️ [WARN]",
+            BurnRateTier::High => "🚨 [CRIT]",
+        },
+    }
 }
 
 /// Derive severity for the context-window fill using configurable thresholds.
@@ -164,6 +236,8 @@ mod tests {
         assert!(line.contains("$0.4500"), "missing block cost: {}", line);
         assert!(line.contains("left"), "missing remaining: {}", line);
         assert!(line.contains("$0.1800/hr"), "missing burn rate: {}", line);
+        // Default style=Bracket, 100 tokens/min is Normal.
+        assert!(line.contains("[NORMAL]"), "missing tier tag: {}", line);
     }
 
     #[test]
@@ -305,5 +379,72 @@ mod tests {
             "should not be CRIT at 25% with medium=0.5: {}",
             custom_line
         );
+    }
+
+    // ── Burn-rate tier render tests ───────────────────────────────────────────
+
+    fn stats_with_burn(tokens_per_min: f64) -> ComputedStats {
+        let block_end = Utc::now() + chrono::Duration::minutes(120);
+        let mut s = base_stats();
+        s.active_block = Some(ActiveBlockInfo {
+            cost_nanos: 100_000_000,
+            block_end,
+            burn_rate: Some(BurnRate {
+                tokens_per_min,
+                cost_per_hour_nanos: 100_000_000,
+            }),
+        });
+        s
+    }
+
+    fn opts_with_style(style: VisualBurnRate) -> RenderOpts {
+        RenderOpts {
+            context_low_threshold: 0.5,
+            context_medium_threshold: 0.8,
+            burn_rate: BurnRateConfig::default(),
+            visual_burn_rate: style,
+        }
+    }
+
+    /// Normal tier (100 tokens/min) under Bracket style → [NORMAL].
+    #[test]
+    fn bracket_normal_tier() {
+        let stats = stats_with_burn(100.0);
+        let line = render_status_line_with_opts(&stats, &opts_with_style(VisualBurnRate::Bracket));
+        assert!(line.contains("[NORMAL]"), "expected [NORMAL]: {}", line);
+        assert!(!line.contains("[WARN]"), "unexpected [WARN]: {}", line);
+        assert!(!line.contains("[CRIT]"), "unexpected [CRIT]: {}", line);
+    }
+
+    /// Moderate tier (5000 tokens/min) under Bracket style → [WARN].
+    #[test]
+    fn bracket_moderate_tier() {
+        let stats = stats_with_burn(5000.0);
+        let line = render_status_line_with_opts(&stats, &opts_with_style(VisualBurnRate::Bracket));
+        assert!(line.contains("[WARN]"), "expected [WARN]: {}", line);
+        assert!(!line.contains("[NORMAL]"), "unexpected [NORMAL]: {}", line);
+        assert!(!line.contains("[CRIT]"), "unexpected [CRIT]: {}", line);
+    }
+
+    /// High tier (15000 tokens/min) under Bracket style → [CRIT].
+    #[test]
+    fn bracket_high_tier() {
+        let stats = stats_with_burn(15000.0);
+        let line = render_status_line_with_opts(&stats, &opts_with_style(VisualBurnRate::Bracket));
+        assert!(line.contains("[CRIT]"), "expected [CRIT]: {}", line);
+        assert!(!line.contains("[WARN]"), "unexpected [WARN]: {}", line);
+        assert!(!line.contains("[NORMAL]"), "unexpected [NORMAL]: {}", line);
+    }
+
+    /// Off style strips all tier markers.
+    #[test]
+    fn off_style_strips_tier() {
+        let stats = stats_with_burn(15000.0); // High tier
+        let line = render_status_line_with_opts(&stats, &opts_with_style(VisualBurnRate::Off));
+        assert!(!line.contains("[NORMAL]"), "unexpected [NORMAL]: {}", line);
+        assert!(!line.contains("[WARN]"), "unexpected [WARN]: {}", line);
+        assert!(!line.contains("[CRIT]"), "unexpected [CRIT]: {}", line);
+        // Burn rate $/hr is still present.
+        assert!(line.contains("/hr"), "expected /hr: {}", line);
     }
 }

@@ -80,8 +80,10 @@ pub struct BlocksConfig {
 /// Example TOML:
 /// ```toml
 /// [statusline]
-/// context_low_threshold = 0.5   # below → no marker
+/// context_low_threshold = 0.5    # below → no marker
 /// context_medium_threshold = 0.8 # below → [WARN], above → [CRIT]
+/// burn_rate_normal_max = 4000    # tokens/min at or below → Normal
+/// burn_rate_moderate_max = 10000 # tokens/min at or below → Moderate
 /// ```
 #[derive(Debug, Clone, serde::Deserialize)]
 #[serde(default)]
@@ -90,6 +92,10 @@ pub struct StatuslineConfig {
     pub context_low_threshold: f64,
     /// Fractional fill above which [CRIT] is shown; between low and this → [WARN] (default: 0.8).
     pub context_medium_threshold: f64,
+    /// tokens/min at or below this value → Normal tier (default: 4000).
+    pub burn_rate_normal_max: f64,
+    /// tokens/min at or below this value → Moderate tier; above → High (default: 10000).
+    pub burn_rate_moderate_max: f64,
 }
 
 impl Default for StatuslineConfig {
@@ -97,6 +103,8 @@ impl Default for StatuslineConfig {
         Self {
             context_low_threshold: 0.5,
             context_medium_threshold: 0.8,
+            burn_rate_normal_max: 4000.0,
+            burn_rate_moderate_max: 10000.0,
         }
     }
 }
