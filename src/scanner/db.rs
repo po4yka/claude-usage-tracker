@@ -1869,6 +1869,97 @@ fn compute_duration_min(first: &str, last: &str) -> f64 {
     }
 }
 
+// ── billing-block analytics helpers ──────────────────────────────────────────
+
+/// Load turns within [since_iso, until_iso) ordered by timestamp ascending.
+/// Used by the `blocks` CLI subcommand and its tests.
+pub fn load_turns_in_range(
+    conn: &Connection,
+    since_iso: &str,
+    until_iso: &str,
+) -> Result<Vec<crate::analytics::blocks::TurnForBlocks>> {
+    let mut stmt = conn.prepare(
+        "SELECT timestamp, COALESCE(model, 'unknown'),
+                input_tokens, output_tokens, cache_read_tokens,
+                cache_creation_tokens, reasoning_output_tokens,
+                COALESCE(estimated_cost_nanos, 0)
+         FROM turns
+         WHERE timestamp >= ?1 AND timestamp < ?2
+         ORDER BY timestamp ASC",
+    )?;
+    let rows = stmt.query_map([since_iso, until_iso], |row| {
+        let ts_str: String = row.get(0)?;
+        let ts = chrono::DateTime::parse_from_rfc3339(&ts_str)
+            .map_err(|e| {
+                rusqlite::Error::FromSqlConversionFailure(
+                    0,
+                    rusqlite::types::Type::Text,
+                    Box::new(e),
+                )
+            })?
+            .with_timezone(&chrono::Utc);
+        Ok(crate::analytics::blocks::TurnForBlocks {
+            timestamp: ts,
+            model: row.get::<_, String>(1)?,
+            tokens: crate::analytics::blocks::TokenBreakdown {
+                input: row.get(2)?,
+                output: row.get(3)?,
+                cache_read: row.get(4)?,
+                cache_creation: row.get(5)?,
+                reasoning_output: row.get(6)?,
+            },
+            cost_nanos: row.get(7)?,
+        })
+    })?;
+    let mut out = Vec::new();
+    for r in rows {
+        out.push(r?);
+    }
+    Ok(out)
+}
+
+/// Load all turns ordered by timestamp ascending (no date filter).
+/// Used by the `blocks` CLI subcommand when no range is specified.
+pub fn load_all_turns(conn: &Connection) -> Result<Vec<crate::analytics::blocks::TurnForBlocks>> {
+    let mut stmt = conn.prepare(
+        "SELECT timestamp, COALESCE(model, 'unknown'),
+                input_tokens, output_tokens, cache_read_tokens,
+                cache_creation_tokens, reasoning_output_tokens,
+                COALESCE(estimated_cost_nanos, 0)
+         FROM turns
+         ORDER BY timestamp ASC",
+    )?;
+    let rows = stmt.query_map([], |row| {
+        let ts_str: String = row.get(0)?;
+        let ts = chrono::DateTime::parse_from_rfc3339(&ts_str)
+            .map_err(|e| {
+                rusqlite::Error::FromSqlConversionFailure(
+                    0,
+                    rusqlite::types::Type::Text,
+                    Box::new(e),
+                )
+            })?
+            .with_timezone(&chrono::Utc);
+        Ok(crate::analytics::blocks::TurnForBlocks {
+            timestamp: ts,
+            model: row.get::<_, String>(1)?,
+            tokens: crate::analytics::blocks::TokenBreakdown {
+                input: row.get(2)?,
+                output: row.get(3)?,
+                cache_read: row.get(4)?,
+                cache_creation: row.get(5)?,
+                reasoning_output: row.get(6)?,
+            },
+            cost_nanos: row.get(7)?,
+        })
+    })?;
+    let mut out = Vec::new();
+    for r in rows {
+        out.push(r?);
+    }
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2905,5 +2996,64 @@ mod tests {
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].kind, "file");
         assert_eq!(events[0].value, "Read");
+    }
+
+    // ── load_turns_in_range ───────────────────────────────────────────────────
+
+    #[test]
+    fn test_load_turns_in_range_row_count_and_ordering() {
+        let conn = test_conn();
+
+        // Seed three turns at distinct timestamps.
+        let seed = vec![
+            Turn {
+                session_id: "s1".into(),
+                timestamp: "2026-01-01T09:00:00Z".into(),
+                model: "claude-sonnet-4-6".into(),
+                input_tokens: 100,
+                output_tokens: 50,
+                estimated_cost_nanos: 1_000,
+                message_id: "m1".into(),
+                ..Default::default()
+            },
+            Turn {
+                session_id: "s1".into(),
+                timestamp: "2026-01-01T10:00:00Z".into(),
+                model: "claude-haiku-3-5".into(),
+                input_tokens: 200,
+                output_tokens: 80,
+                estimated_cost_nanos: 2_000,
+                message_id: "m2".into(),
+                ..Default::default()
+            },
+            Turn {
+                session_id: "s1".into(),
+                timestamp: "2026-01-01T12:00:00Z".into(),
+                model: "claude-sonnet-4-6".into(),
+                input_tokens: 50,
+                output_tokens: 20,
+                estimated_cost_nanos: 500,
+                message_id: "m3".into(),
+                ..Default::default()
+            },
+        ];
+        insert_turns(&conn, &seed).unwrap();
+
+        // Query only the first two (09:00 <= ts < 11:00).
+        let rows =
+            load_turns_in_range(&conn, "2026-01-01T09:00:00Z", "2026-01-01T11:00:00Z").unwrap();
+        assert_eq!(rows.len(), 2, "should return exactly 2 turns in range");
+
+        // Verify ascending order.
+        assert!(
+            rows[0].timestamp < rows[1].timestamp,
+            "rows must be ordered ascending"
+        );
+
+        // Verify field mapping (cost_nanos is recalculated by insert_turns via
+        // the pricing engine, so we only assert on token fields which are stored verbatim).
+        assert_eq!(rows[0].tokens.input, 100);
+        assert_eq!(rows[0].tokens.output, 50);
+        assert_eq!(rows[1].tokens.input, 200);
     }
 }

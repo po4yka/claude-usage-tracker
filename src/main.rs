@@ -1,3 +1,4 @@
+use claude_usage_tracker::analytics;
 use claude_usage_tracker::config;
 use claude_usage_tracker::currency;
 use claude_usage_tracker::db as db_mod;
@@ -124,6 +125,21 @@ enum Commands {
     Db {
         #[command(subcommand)]
         action: DbAction,
+    },
+    /// Show Claude 5-hour billing blocks with burn rate and end-of-block projection
+    Blocks {
+        /// Path to SQLite DB file
+        #[arg(long)]
+        db_path: Option<PathBuf>,
+        /// Session block duration in hours (default: 5.0 — Claude's billing window)
+        #[arg(long, default_value_t = 5.0)]
+        session_length: f64,
+        /// Only show the currently active block
+        #[arg(long)]
+        active: bool,
+        /// Emit JSON instead of a human-readable table
+        #[arg(long)]
+        json: bool,
     },
 }
 
@@ -352,6 +368,15 @@ fn main() -> Result<()> {
                 db_mod::cmd_db_reset(&db, yes)?;
             }
         },
+        Commands::Blocks {
+            db_path,
+            session_length,
+            active,
+            json,
+        } => {
+            let db = default_db(db_path);
+            cmd_blocks(&db, session_length, active, json)?;
+        }
     }
     Ok(())
 }
@@ -1343,6 +1368,141 @@ fn cmd_stats(db_path: &std::path::Path, json_output: bool, display_currency: &st
         );
     }
     println!("{}", "=".repeat(70));
+    println!();
+    Ok(())
+}
+
+// ── blocks subcommand ─────────────────────────────────────────────────────────
+
+fn cmd_blocks(
+    db_path: &std::path::Path,
+    session_hours: f64,
+    active_only: bool,
+    json_output: bool,
+) -> anyhow::Result<()> {
+    use analytics::blocks::{calculate_burn_rate, identify_blocks, project_block_usage};
+
+    anyhow::ensure!(
+        session_hours > 0.0 && session_hours <= 168.0,
+        "session-length must be between 0 and 168 hours"
+    );
+
+    let conn = scanner::db::open_db(db_path)?;
+    let turns = scanner::db::load_all_turns(&conn)?;
+    let mut blocks = identify_blocks(&turns, session_hours);
+
+    if active_only {
+        blocks.retain(|b| b.is_active);
+    }
+
+    if json_output {
+        let now = chrono::Utc::now();
+        let json_blocks: Vec<serde_json::Value> = blocks
+            .iter()
+            .map(|b| {
+                let mut v = serde_json::json!({
+                    "start": b.start.to_rfc3339(),
+                    "end": b.end.to_rfc3339(),
+                    "tokens": b.tokens,
+                    "cost_nanos": b.cost_nanos,
+                    "estimated_cost": b.cost_nanos as f64 / 1_000_000_000.0,
+                    "models": b.models,
+                    "is_active": b.is_active,
+                    "entry_count": b.entry_count,
+                });
+                if b.is_active {
+                    let rate = calculate_burn_rate(b, now);
+                    let proj = project_block_usage(b, rate, now);
+                    v["burn_rate"] = match rate {
+                        Some(r) => serde_json::json!({
+                            "tokens_per_min": r.tokens_per_min,
+                            "cost_per_hour_nanos": r.cost_per_hour_nanos,
+                            "cost_per_hour": r.cost_per_hour_nanos as f64 / 1_000_000_000.0,
+                        }),
+                        None => serde_json::Value::Null,
+                    };
+                    v["projection"] = serde_json::json!({
+                        "projected_cost_nanos": proj.projected_cost_nanos,
+                        "projected_cost": proj.projected_cost_nanos as f64 / 1_000_000_000.0,
+                        "projected_tokens": proj.projected_tokens,
+                    });
+                }
+                v
+            })
+            .collect();
+        println!("{}", serde_json::to_string_pretty(&json_blocks)?);
+        return Ok(());
+    }
+
+    // ── text output ───────────────────────────────────────────────────────────
+
+    if blocks.is_empty() {
+        println!("No billing blocks found.");
+        return Ok(());
+    }
+
+    let col_w = 24usize;
+    println!();
+    println!("BLOCKS (session_length={session_hours:.1}h)");
+    println!("{}", "-".repeat(120));
+    println!(
+        "  {:<col_w$}  {:<col_w$}  {:<10}  {:<12}  {:<10}  {:<30}  STATUS",
+        "START", "END", "ELAPSED", "COST", "TOKENS", "MODELS"
+    );
+    println!("{}", "-".repeat(120));
+
+    let now = chrono::Utc::now();
+
+    for block in &blocks {
+        let elapsed = now - block.start;
+        let elapsed_h = elapsed.num_hours();
+        let elapsed_m = elapsed.num_minutes() % 60;
+        let elapsed_str = format!("{elapsed_h}h {elapsed_m:02}m");
+
+        let cost_str = pricing::fmt_cost(block.cost_nanos as f64 / 1_000_000_000.0);
+        let tokens_str = pricing::fmt_tokens(block.tokens.total());
+        let models_str = block.models.join(", ");
+        let status = if block.is_active { "ACTIVE" } else { "" };
+
+        println!(
+            "  {:<col_w$}  {:<col_w$}  {:<10}  {:<12}  {:<10}  {:<30}  {}",
+            block.start.format("%Y-%m-%dT%H:%M:%SZ"),
+            block.end.format("%Y-%m-%dT%H:%M:%SZ"),
+            elapsed_str,
+            cost_str,
+            tokens_str,
+            models_str,
+            status,
+        );
+
+        if block.is_active {
+            let rate = calculate_burn_rate(block, now);
+            let proj = project_block_usage(block, rate, now);
+
+            let remaining = (block.end - now).max(chrono::Duration::zero());
+            let rem_h = remaining.num_hours();
+            let rem_m = remaining.num_minutes() % 60;
+            let proj_cost = pricing::fmt_cost(proj.projected_cost_nanos as f64 / 1_000_000_000.0);
+            let proj_tok = pricing::fmt_tokens(proj.projected_tokens as i64);
+
+            match rate {
+                Some(r) => {
+                    let cost_per_hr =
+                        pricing::fmt_cost(r.cost_per_hour_nanos as f64 / 1_000_000_000.0);
+                    let tok_per_min = pricing::fmt_tokens(r.tokens_per_min.round() as i64);
+                    println!("      -> BURN RATE:  {tok_per_min} tok/min   {cost_per_hr}/hr");
+                }
+                None => {
+                    println!("      -> BURN RATE:  n/a (single-entry block)");
+                }
+            }
+            println!(
+                "      -> PROJECTED:  {rem_h}h {rem_m:02}m remaining   {proj_cost} total   {proj_tok} tokens"
+            );
+        }
+    }
+
+    println!("{}", "-".repeat(120));
     println!();
     Ok(())
 }

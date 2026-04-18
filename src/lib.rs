@@ -7,6 +7,7 @@
 // shared code compiled here.
 
 pub mod agent_status;
+pub mod analytics;
 pub mod config;
 pub mod currency;
 pub mod db;
