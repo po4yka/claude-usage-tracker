@@ -35,6 +35,7 @@ fn home_dir() -> PathBuf {
 ///   directly; JSON and JSONL files are both probed.
 pub fn all() -> Vec<Box<dyn Provider>> {
     let home = home_dir();
+    #[cfg_attr(not(target_os = "macos"), allow(unused_mut))]
     let mut providers: Vec<Box<dyn Provider>> = vec![
         Box::new(ClaudeProvider::new(vec![
             home.join(".claude").join("projects"),

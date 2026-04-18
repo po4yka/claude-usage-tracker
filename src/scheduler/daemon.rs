@@ -270,12 +270,20 @@ impl DaemonScheduler for LaunchdDaemonScheduler {
 ///
 /// # Safety
 /// Calls POSIX `getuid()` which is always safe.
-#[cfg(target_os = "macos")]
+#[cfg(unix)]
 unsafe fn libc_uid() -> u32 {
     unsafe extern "C" {
         fn getuid() -> u32;
     }
     unsafe { getuid() }
+}
+
+/// Windows stub. The `LaunchdDaemonScheduler` impl that references this fn
+/// is never reached at runtime on non-macOS (see `current_daemon_scheduler`),
+/// but the symbol must exist so the impl block compiles.
+#[cfg(not(unix))]
+unsafe fn libc_uid() -> u32 {
+    0
 }
 
 // ── Tests ──────────────────────────────────────────────────────────────────────
