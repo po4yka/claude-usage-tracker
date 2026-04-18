@@ -7,6 +7,8 @@ pub mod provider;
 pub mod providers;
 #[cfg(test)]
 mod tests;
+pub mod usage_limits;
+pub mod watcher;
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -25,6 +27,7 @@ use db::{
 use parser::{
     PROVIDER_CLAUDE, PROVIDER_CODEX, PROVIDER_XCODE, aggregate_sessions, parse_jsonl_file,
 };
+use usage_limits::{discover_usage_limits_files, insert_usage_limits_snapshot, parse_usage_limits};
 
 fn home_dir() -> PathBuf {
     dirs::home_dir().unwrap_or_else(|| PathBuf::from("."))
@@ -198,6 +201,27 @@ pub fn scan(
     // Recompute session totals from turns for dedup correctness
     if any_changes {
         recompute_session_totals(&conn)?;
+    }
+
+    // Phase 20: ingest usage-limits files from ~/.claude/ subtree.
+    // Runs on every scan (cheap: no re-reading already-seen identical values).
+    let claude_dir = home_dir().join(".claude");
+    let usage_limit_files = discover_usage_limits_files(&claude_dir);
+    if !usage_limit_files.is_empty() {
+        let now_iso = chrono::Utc::now().to_rfc3339();
+        for ulf in &usage_limit_files {
+            if let Some(snapshot) = parse_usage_limits(ulf)
+                && let Err(e) = insert_usage_limits_snapshot(&conn, &snapshot, &now_iso)
+            {
+                warn!("usage_limits: insert failed for {}: {}", ulf.display(), e);
+            }
+        }
+        if verbose {
+            info!(
+                "usage_limits: processed {} file(s)",
+                usage_limit_files.len()
+            );
+        }
     }
 
     if verbose {

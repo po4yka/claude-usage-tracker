@@ -246,6 +246,20 @@ pub fn init_db(conn: &Connection) -> Result<()> {
     backfill_turn_pricing(conn)?;
     recompute_session_totals(conn)?;
 
+    // Phase 20: Usage-limits file parser.
+    // Add source_kind ('oauth' | 'file') and source_path to rate_window_history
+    // so file-derived rows can be distinguished from OAuth-derived ones.
+    if !has_column(conn, "rate_window_history", "source_kind") {
+        conn.execute_batch(
+            "ALTER TABLE rate_window_history ADD COLUMN source_kind TEXT NOT NULL DEFAULT 'oauth';",
+        )?;
+    }
+    if !has_column(conn, "rate_window_history", "source_path") {
+        conn.execute_batch(
+            "ALTER TABLE rate_window_history ADD COLUMN source_path TEXT NOT NULL DEFAULT '';",
+        )?;
+    }
+
     // Phase 19: Real-time PreToolUse hook ingest.
     // The hook binary writes directly to this table; the scanner only reads it.
     // dedup_key = "{session_id}:{tool_use_id}" (or "{session_id}:{received_at_ns}")

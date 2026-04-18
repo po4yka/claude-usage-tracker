@@ -28,12 +28,18 @@ pub struct ServeOptions {
     pub openai_refresh_interval: u64,
     pub openai_lookback_days: i64,
     pub webhook_config: WebhookConfig,
+    /// Phase 20: enable file-watcher auto-refresh (started with `--watch`).
+    pub watch: bool,
 }
 
 pub async fn serve(options: ServeOptions) -> anyhow::Result<()> {
+    // Phase 20: broadcast channel for SSE scan_completed events.
+    // Capacity 16: enough to buffer events for slow subscribers.
+    let (scan_event_tx, _scan_event_rx) = tokio::sync::broadcast::channel::<String>(16);
+
     let state = Arc::new(AppState {
-        db_path: options.db_path,
-        projects_dirs: options.projects_dirs,
+        db_path: options.db_path.clone(),
+        projects_dirs: options.projects_dirs.clone(),
         oauth_enabled: options.oauth_enabled,
         oauth_refresh_interval: options.oauth_refresh_interval,
         oauth_cache: RwLock::new(None),
@@ -45,7 +51,83 @@ pub async fn serve(options: ServeOptions) -> anyhow::Result<()> {
         db_lock: Mutex::new(()),
         webhook_state: Mutex::new(WebhookState::default()),
         webhook_config: options.webhook_config,
+        scan_event_tx: scan_event_tx.clone(),
     });
+
+    // Phase 20: start file-watcher if --watch was requested.
+    // The watcher lives for the lifetime of the server; it is dropped when
+    // the server exits.
+    let _file_watcher = if options.watch {
+        let db_path = options.db_path.clone();
+        let projects_dirs = options.projects_dirs.clone();
+        let scan_tx = scan_event_tx.clone();
+        let scan_lock = crate::scanner::watcher::new_scan_lock();
+
+        // Determine directories to watch: ~/.claude/projects/ plus any
+        // explicit projects_dirs override.
+        let mut watch_paths: Vec<PathBuf> = Vec::new();
+        if let Some(ref dirs) = projects_dirs {
+            watch_paths.extend(dirs.iter().cloned());
+        } else {
+            let claude_dir = dirs::home_dir()
+                .unwrap_or_else(|| PathBuf::from("."))
+                .join(".claude");
+            watch_paths.push(claude_dir);
+        }
+        watch_paths.retain(|p| p.exists());
+
+        if watch_paths.is_empty() {
+            tracing::warn!("file-watcher: no watchable directories found; --watch has no effect");
+            None
+        } else {
+            let watcher = crate::scanner::watcher::FileWatcher::start(
+                watch_paths,
+                Box::new(move || {
+                    // Guard: only one scan at a time.
+                    let Ok(_guard) = scan_lock.try_lock() else {
+                        tracing::debug!("file-watcher: scan already running, skipping");
+                        return;
+                    };
+                    tracing::info!("file-watcher: triggered background re-scan");
+                    match crate::scanner::scan(projects_dirs.clone(), &db_path, false) {
+                        Ok(result) => {
+                            let ts = chrono::Utc::now().to_rfc3339();
+                            let payload = serde_json::json!({
+                                "type": "scan_completed",
+                                "ts": ts,
+                                "new": result.new,
+                                "updated": result.updated,
+                            })
+                            .to_string();
+                            // Best-effort broadcast; ignore errors if no subscribers.
+                            let _ = scan_tx.send(payload);
+                            tracing::info!(
+                                "file-watcher: scan complete ({} new, {} updated)",
+                                result.new,
+                                result.updated
+                            );
+                        }
+                        Err(e) => {
+                            tracing::warn!("file-watcher: scan failed: {}", e);
+                        }
+                    }
+                }),
+            );
+            match watcher {
+                Ok(w) => {
+                    tracing::info!("file-watcher: active (2s debounce)");
+                    Some(w)
+                }
+                Err(e) => {
+                    tracing::warn!("file-watcher: failed to start: {}", e);
+                    None
+                }
+            }
+        }
+    } else {
+        None
+    };
+
     let dashboard_html = assets::render_dashboard();
 
     let app = Router::new()
@@ -67,6 +149,7 @@ pub async fn serve(options: ServeOptions) -> anyhow::Result<()> {
         .route("/api/rescan", post(api::api_rescan))
         .route("/api/usage-windows", get(api::api_usage_windows))
         .route("/api/health", get(api::api_health))
+        .route("/api/stream", get(api::api_stream))
         .with_state(state);
 
     let addr = format!("{}:{}", options.host, options.port);

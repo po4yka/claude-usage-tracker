@@ -78,6 +78,7 @@ mod tests {
             db_lock: tokio::sync::Mutex::new(()),
             webhook_state: tokio::sync::Mutex::new(WebhookState::default()),
             webhook_config: WebhookConfig::default(),
+            scan_event_tx: tokio::sync::broadcast::channel::<String>(16).0,
         });
         let html = assets::render_dashboard();
 

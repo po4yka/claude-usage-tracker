@@ -62,6 +62,9 @@ enum Commands {
         host: String,
         #[arg(long, default_value = "8080")]
         port: u16,
+        /// Enable file-watcher auto-refresh: re-scan whenever .jsonl files change
+        #[arg(long, default_value_t = false)]
+        watch: bool,
     },
     /// Export aggregated usage to CSV / JSON / JSONL
     Export {
@@ -214,6 +217,7 @@ fn main() -> Result<()> {
             db_path,
             host,
             port,
+            watch,
         } => {
             let db = default_db(db_path);
             let dirs = default_dirs(projects_dir);
@@ -247,6 +251,7 @@ fn main() -> Result<()> {
                 openai_refresh_interval: cfg_openai_refresh_interval,
                 openai_lookback_days: cfg_openai_lookback_days,
                 webhook_config: cfg_webhooks,
+                watch,
             }))?;
         }
         Commands::Export {

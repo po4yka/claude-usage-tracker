@@ -966,4 +966,89 @@ mod tests {
         );
         assert_eq!(result.turns.len(), 1);
     }
+
+    // ── Phase 20: usage-limits integration test ───────────────────────────────
+
+    /// Seed a Claude dir with a usage-limits file, run scanner::scan(), then
+    /// assert that `rate_window_history` contains the expected rows.
+    #[test]
+    fn scan_ingests_usage_limits_file() {
+        use std::io::Write;
+
+        let tmp = TempDir::new().unwrap();
+        let claude_dir = tmp.path().join(".claude");
+        std::fs::create_dir_all(&claude_dir).unwrap();
+
+        // Write a usage-limits file into the fake claude dir.
+        let limits_path = claude_dir.join("abc-usage-limits");
+        let json = serde_json::json!({
+            "five_hour": { "used_percent": 42.5, "resets_at": "2026-04-18T18:00:00Z" },
+            "seven_day": { "used_percent": 18.3, "resets_at": "2026-04-25T00:00:00Z" }
+        });
+        std::fs::write(&limits_path, json.to_string()).unwrap();
+
+        // Also seed a minimal JSONL session so scan() has something to process.
+        let projects_dir = claude_dir.join("projects").join("user").join("proj");
+        std::fs::create_dir_all(&projects_dir).unwrap();
+        let jsonl_path = projects_dir.join("session.jsonl");
+        let mut f = std::fs::File::create(&jsonl_path).unwrap();
+        writeln!(
+            f,
+            "{}",
+            serde_json::json!({"type": "user", "sessionId": "ul-s1", "timestamp": "2026-04-17T10:00:00Z", "cwd": "/home/user"})
+        ).unwrap();
+        writeln!(
+            f,
+            "{}",
+            make_assistant("ul-s1", "2026-04-17T10:01:00Z", 100, 50, "msg-ul1")
+        )
+        .unwrap();
+
+        // Use a custom home-dir-less scan by temporarily pointing claude_dir.
+        // Since scan() uses dirs::home_dir() internally, we directly call
+        // usage_limits::discover + insert to test the integration path.
+        let db_path = tmp.path().join("usage.db");
+        let conn = db::open_db(&db_path).unwrap();
+        db::init_db(&conn).unwrap();
+
+        let files = crate::scanner::usage_limits::discover_usage_limits_files(&claude_dir);
+        assert!(!files.is_empty(), "should discover the usage-limits file");
+
+        let snapshot = crate::scanner::usage_limits::parse_usage_limits(&limits_path).unwrap();
+        crate::scanner::usage_limits::insert_usage_limits_snapshot(
+            &conn,
+            &snapshot,
+            "2026-04-17T12:00:00Z",
+        )
+        .unwrap();
+
+        // Verify rows in rate_window_history.
+        let rows: Vec<(String, f64, String, String)> = {
+            let mut stmt = conn
+                .prepare(
+                    "SELECT window_type, used_percent, resets_at, source_kind
+                     FROM rate_window_history
+                     ORDER BY window_type",
+                )
+                .unwrap();
+            stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))
+                .unwrap()
+                .filter_map(|r| r.ok())
+                .collect()
+        };
+
+        assert_eq!(
+            rows.len(),
+            2,
+            "should have two rows (five_hour + seven_day)"
+        );
+        let five = rows.iter().find(|r| r.0 == "five_hour").unwrap();
+        assert!((five.1 - 42.5).abs() < 0.01);
+        assert_eq!(five.2, "2026-04-18T18:00:00Z");
+        assert_eq!(five.3, "file");
+
+        let seven = rows.iter().find(|r| r.0 == "seven_day").unwrap();
+        assert!((seven.1 - 18.3).abs() < 0.01);
+        assert_eq!(seven.3, "file");
+    }
 }

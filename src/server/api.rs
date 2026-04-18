@@ -5,8 +5,11 @@ use std::time::Instant;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use axum::response::Json;
+use axum::response::sse::{Event, KeepAlive, Sse};
 use serde_json::Value;
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::{Mutex, RwLock, broadcast};
+use tokio_stream::StreamExt;
+use tokio_stream::wrappers::BroadcastStream;
 
 use crate::tz::TzParams;
 
@@ -32,6 +35,9 @@ pub struct AppState {
     pub db_lock: Mutex<()>,
     pub webhook_state: Mutex<WebhookState>,
     pub webhook_config: WebhookConfig,
+    /// Phase 20: broadcast channel for SSE scan_completed events.
+    /// The watcher fires into this channel; SSE subscribers receive the events.
+    pub scan_event_tx: broadcast::Sender<String>,
 }
 
 pub async fn api_data(
@@ -183,6 +189,33 @@ pub async fn api_usage_windows(
 
 pub async fn api_health() -> &'static str {
     "ok"
+}
+
+/// Phase 20: SSE endpoint — emits `event: scan_completed` whenever the
+/// file-watcher triggers a background re-scan.
+///
+/// Clients connect to `GET /api/stream` and receive a keep-alive ping every
+/// 15 seconds plus an event after each watcher-triggered scan.
+///
+/// Event body JSON: `{ "type": "scan_completed", "ts": "<iso8601>" }`
+pub async fn api_stream(State(state): State<Arc<AppState>>) -> impl axum::response::IntoResponse {
+    let rx = state.scan_event_tx.subscribe();
+    let broadcast_stream = BroadcastStream::new(rx);
+
+    let event_stream = broadcast_stream.filter_map(|res| {
+        // Ignore lagged-receiver errors by turning them into None (skip).
+        res.ok().map(|payload| {
+            Ok::<Event, std::convert::Infallible>(
+                Event::default().event("scan_completed").data(payload),
+            )
+        })
+    });
+
+    Sse::new(event_stream).keep_alive(
+        KeepAlive::new()
+            .interval(std::time::Duration::from_secs(15))
+            .text("ping"),
+    )
 }
 
 fn sqlite_sidecar_paths(path: &std::path::Path) -> [PathBuf; 2] {
