@@ -14,6 +14,8 @@ pub mod db;
 pub mod export;
 pub mod hook;
 pub mod litellm;
+#[cfg(feature = "mcp")]
+pub mod mcp;
 pub mod menubar;
 pub mod models;
 pub mod oauth;

@@ -5,6 +5,8 @@ use claude_usage_tracker::db as db_mod;
 use claude_usage_tracker::export;
 use claude_usage_tracker::hook;
 use claude_usage_tracker::litellm;
+#[cfg(feature = "mcp")]
+use claude_usage_tracker::mcp;
 use claude_usage_tracker::menubar;
 use claude_usage_tracker::optimizer;
 use claude_usage_tracker::pricing;
@@ -180,6 +182,56 @@ enum Commands {
         #[command(subcommand)]
         action: StatuslineHookAction,
     },
+    /// Run the MCP server or manage its installation
+    #[cfg(feature = "mcp")]
+    Mcp {
+        #[command(subcommand)]
+        action: McpAction,
+    },
+}
+
+/// Parse the MCP transport string.
+#[cfg(feature = "mcp")]
+fn parse_mcp_transport(s: &str) -> std::result::Result<mcp::McpTransport, String> {
+    s.parse()
+}
+
+#[cfg(feature = "mcp")]
+#[derive(Subcommand)]
+enum McpAction {
+    /// Start the MCP server (default: stdio transport)
+    Serve {
+        /// Transport: stdio | http
+        #[arg(long, default_value = "stdio", value_parser = parse_mcp_transport)]
+        transport: mcp::McpTransport,
+        /// Bind host for HTTP transport
+        #[arg(long, default_value = "127.0.0.1")]
+        host: String,
+        /// Bind port for HTTP transport
+        #[arg(long, default_value_t = 8081)]
+        port: u16,
+        /// Path to SQLite DB file
+        #[arg(long)]
+        db_path: Option<PathBuf>,
+    },
+    /// Install the Heimdall MCP server into a client's mcp.json
+    Install {
+        /// Target client: claude-code | claude-desktop | cursor
+        #[arg(long, default_value = "claude-code")]
+        client: String,
+    },
+    /// Remove the Heimdall MCP server entry from a client's mcp.json
+    Uninstall {
+        /// Target client: claude-code | claude-desktop | cursor
+        #[arg(long, default_value = "claude-code")]
+        client: String,
+    },
+    /// Show install status for a client
+    Status {
+        /// Target client: claude-code | claude-desktop | cursor
+        #[arg(long, default_value = "claude-code")]
+        client: String,
+    },
 }
 
 /// Token quota specification for `--token-limit`.
@@ -312,6 +364,7 @@ enum SchedulerAction {
 
 fn main() -> Result<()> {
     tracing_subscriber::fmt()
+        .with_writer(std::io::stderr)
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
         )
@@ -513,6 +566,10 @@ fn main() -> Result<()> {
         }
         Commands::StatuslineHook { action } => {
             cmd_statusline_hook(action)?;
+        }
+        #[cfg(feature = "mcp")]
+        Commands::Mcp { action } => {
+            cmd_mcp(action, &default_db)?;
         }
     }
     Ok(())
@@ -796,6 +853,65 @@ fn cmd_statusline_hook(action: StatuslineHookAction) -> Result<()> {
             StatuslineStatus::Absent => {
                 println!("Not installed");
                 println!("  Run: claude-usage-tracker statusline-hook install");
+            }
+        },
+    }
+    Ok(())
+}
+
+#[cfg(feature = "mcp")]
+fn cmd_mcp(action: McpAction, default_db: &dyn Fn(Option<PathBuf>) -> PathBuf) -> Result<()> {
+    use mcp::install::{McpInstallResult, McpInstallStatus};
+
+    match action {
+        McpAction::Serve {
+            transport,
+            host,
+            port,
+            db_path,
+        } => {
+            let db = default_db(db_path);
+            let rt = tokio::runtime::Runtime::new()?;
+            match transport {
+                mcp::McpTransport::Stdio => {
+                    rt.block_on(mcp::run_stdio(db))?;
+                }
+                mcp::McpTransport::Http => {
+                    rt.block_on(mcp::run_http(&host, port, db))?;
+                }
+            }
+        }
+        McpAction::Install { client } => match mcp::install::install(&client)? {
+            McpInstallResult::Installed { path } => {
+                println!("Installed: heimdall MCP server added to {}", path.display());
+            }
+            McpInstallResult::AlreadyInstalled { path } => {
+                println!("Already installed (no change): {}", path.display());
+            }
+            _ => {}
+        },
+        McpAction::Uninstall { client } => match mcp::install::uninstall(&client)? {
+            McpInstallResult::Uninstalled { path } => {
+                println!("Uninstalled: heimdall entry removed from {}", path.display());
+            }
+            McpInstallResult::NothingToUninstall => {
+                println!("Nothing to uninstall: no heimdall entry found (or user-customized)");
+            }
+            _ => {}
+        },
+        McpAction::Status { client } => match mcp::install::status(&client)? {
+            McpInstallStatus::Installed { path } => {
+                println!("Installed: {}", path.display());
+            }
+            McpInstallStatus::Customized { path } => {
+                println!(
+                    "Customized: heimdall entry present but not installed by us: {}",
+                    path.display()
+                );
+            }
+            McpInstallStatus::Absent => {
+                println!("Not installed");
+                println!("  Run: claude-usage-tracker mcp install");
             }
         },
     }
