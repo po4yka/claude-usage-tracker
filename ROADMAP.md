@@ -236,7 +236,7 @@ When porting, prefer reading the source file directly over reimplementing from m
 
 ---
 
-## Phase 7 -- OpenCode, Pi, Copilot Providers
+## Phase 7 -- OpenCode, Pi, Copilot Providers **[x]**
 
 **Motivation:** Round out provider coverage parity with Codeburn.
 
