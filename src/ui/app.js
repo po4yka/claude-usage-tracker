@@ -1116,9 +1116,11 @@
   var statusByPlacement = y3({
     "global": null,
     "rate-windows": null,
-    "rescan": null
+    "rescan": null,
+    "header-refresh": null
   });
   var SESSIONS_PAGE_SIZE = 25;
+  var loadState = y3("idle");
   function readVersionMetric() {
     const p5 = new URLSearchParams(window.location.search).get("version_metric");
     return ["cost", "calls", "tokens"].includes(p5) ? p5 : "cost";
@@ -1295,7 +1297,8 @@
             children: rescanLabel.value
           }
         ),
-        /* @__PURE__ */ u2(InlineStatus, { placement: "rescan", inline: true })
+        /* @__PURE__ */ u2(InlineStatus, { placement: "rescan", inline: true }),
+        /* @__PURE__ */ u2(InlineStatus, { placement: "header-refresh", inline: true, dismissable: false })
       ] })
     ] });
   }
@@ -2203,12 +2206,12 @@
   function buildHeaderGroups(allColumns, columnsToGroup, table, headerFamily) {
     var _headerGroups$0$heade, _headerGroups$;
     let maxDepth = 0;
-    const findMaxDepth = function(columns7, depth) {
+    const findMaxDepth = function(columns4, depth) {
       if (depth === void 0) {
         depth = 1;
       }
       maxDepth = Math.max(maxDepth, depth);
-      columns7.filter((column) => column.getIsVisible()).forEach((column) => {
+      columns4.filter((column) => column.getIsVisible()).forEach((column) => {
         var _column$columns;
         if ((_column$columns = column.columns) != null && _column$columns.length) {
           findMaxDepth(column.columns, depth + 1);
@@ -2818,16 +2821,16 @@
       };
     },
     createColumn: (column, table) => {
-      column.getIndex = memo((position) => [_getVisibleLeafColumns(table, position)], (columns7) => columns7.findIndex((d5) => d5.id === column.id), getMemoOptions(table.options, "debugColumns", "getIndex"));
+      column.getIndex = memo((position) => [_getVisibleLeafColumns(table, position)], (columns4) => columns4.findIndex((d5) => d5.id === column.id), getMemoOptions(table.options, "debugColumns", "getIndex"));
       column.getIsFirstColumn = (position) => {
         var _columns$;
-        const columns7 = _getVisibleLeafColumns(table, position);
-        return ((_columns$ = columns7[0]) == null ? void 0 : _columns$.id) === column.id;
+        const columns4 = _getVisibleLeafColumns(table, position);
+        return ((_columns$ = columns4[0]) == null ? void 0 : _columns$.id) === column.id;
       };
       column.getIsLastColumn = (position) => {
         var _columns;
-        const columns7 = _getVisibleLeafColumns(table, position);
-        return ((_columns = columns7[columns7.length - 1]) == null ? void 0 : _columns.id) === column.id;
+        const columns4 = _getVisibleLeafColumns(table, position);
+        return ((_columns = columns4[columns4.length - 1]) == null ? void 0 : _columns.id) === column.id;
       };
     },
     createTable: (table) => {
@@ -2836,13 +2839,13 @@
         var _table$initialState$c;
         table.setColumnOrder(defaultState ? [] : (_table$initialState$c = table.initialState.columnOrder) != null ? _table$initialState$c : []);
       };
-      table._getOrderColumnsFn = memo(() => [table.getState().columnOrder, table.getState().grouping, table.options.groupedColumnMode], (columnOrder, grouping, groupedColumnMode) => (columns7) => {
+      table._getOrderColumnsFn = memo(() => [table.getState().columnOrder, table.getState().grouping, table.options.groupedColumnMode], (columnOrder, grouping, groupedColumnMode) => (columns4) => {
         let orderedColumns = [];
         if (!(columnOrder != null && columnOrder.length)) {
-          orderedColumns = columns7;
+          orderedColumns = columns4;
         } else {
           const columnOrderCopy = [...columnOrder];
-          const columnsCopy = [...columns7];
+          const columnsCopy = [...columns4];
           while (columnsCopy.length && columnOrderCopy.length) {
             const targetColumnId = columnOrderCopy.shift();
             const foundIndex = columnsCopy.findIndex((d5) => d5.id === targetColumnId);
@@ -3008,8 +3011,8 @@
         const columnSize = table.getState().columnSizing[column.id];
         return Math.min(Math.max((_column$columnDef$min = column.columnDef.minSize) != null ? _column$columnDef$min : defaultColumnSizing.minSize, (_ref = columnSize != null ? columnSize : column.columnDef.size) != null ? _ref : defaultColumnSizing.size), (_column$columnDef$max = column.columnDef.maxSize) != null ? _column$columnDef$max : defaultColumnSizing.maxSize);
       };
-      column.getStart = memo((position) => [position, _getVisibleLeafColumns(table, position), table.getState().columnSizing], (position, columns7) => columns7.slice(0, column.getIndex(position)).reduce((sum2, column2) => sum2 + column2.getSize(), 0), getMemoOptions(table.options, "debugColumns", "getStart"));
-      column.getAfter = memo((position) => [position, _getVisibleLeafColumns(table, position), table.getState().columnSizing], (position, columns7) => columns7.slice(column.getIndex(position) + 1).reduce((sum2, column2) => sum2 + column2.getSize(), 0), getMemoOptions(table.options, "debugColumns", "getAfter"));
+      column.getStart = memo((position) => [position, _getVisibleLeafColumns(table, position), table.getState().columnSizing], (position, columns4) => columns4.slice(0, column.getIndex(position)).reduce((sum2, column2) => sum2 + column2.getSize(), 0), getMemoOptions(table.options, "debugColumns", "getStart"));
+      column.getAfter = memo((position) => [position, _getVisibleLeafColumns(table, position), table.getState().columnSizing], (position, columns4) => columns4.slice(column.getIndex(position) + 1).reduce((sum2, column2) => sum2 + column2.getSize(), 0), getMemoOptions(table.options, "debugColumns", "getAfter"));
       column.resetSize = () => {
         table.setColumnSizing((_ref2) => {
           let {
@@ -3260,8 +3263,8 @@
     },
     createTable: (table) => {
       const makeVisibleColumnsMethod = (key, getColumns) => {
-        return memo(() => [getColumns(), getColumns().filter((d5) => d5.getIsVisible()).map((d5) => d5.id).join("_")], (columns7) => {
-          return columns7.filter((d5) => d5.getIsVisible == null ? void 0 : d5.getIsVisible());
+        return memo(() => [getColumns(), getColumns().filter((d5) => d5.getIsVisible()).map((d5) => d5.id).join("_")], (columns4) => {
+          return columns4.filter((d5) => d5.getIsVisible == null ? void 0 : d5.getIsVisible());
         }, getMemoOptions(table.options, "debugColumns", key));
       };
       table.getVisibleFlatColumns = makeVisibleColumnsMethod("getVisibleFlatColumns", () => table.getAllFlatColumns());
@@ -4688,7 +4691,7 @@
     return typeof updater === "function" ? updater(prev) : updater;
   }
   function DataTable({
-    columns: columns7,
+    columns: columns4,
     data,
     title,
     exportFn,
@@ -4712,7 +4715,7 @@
     stateRef.current = { sorting, pagination, columnVisibility };
     if (!tableRef.current) {
       tableRef.current = createTable({
-        columns: columns7,
+        columns: columns4,
         data,
         state: { sorting, pagination, columnVisibility, columnPinning: { left: [], right: [] } },
         onStateChange: (updater) => {
@@ -4733,7 +4736,7 @@
     }
     tableRef.current.setOptions((prev) => ({
       ...prev,
-      columns: columns7,
+      columns: columns4,
       data,
       state: { ...tableRef.current.getState(), sorting, pagination, columnVisibility }
     }));
@@ -4873,147 +4876,267 @@
   }
 
   // src/ui/components/ToolUsageTable.tsx
-  var columns3 = [
-    {
-      accessorKey: "provider",
-      header: "Provider",
-      cell: ({ getValue }) => /* @__PURE__ */ u2("span", { class: "model-tag", children: String(getValue()).toUpperCase() })
-    },
-    {
-      accessorKey: "tool_name",
-      header: "Tool",
-      cell: ({ row }) => {
-        const cat = row.original.category;
-        const badge = cat === "mcp" ? "mcp" : "builtin";
-        return /* @__PURE__ */ u2("span", { children: [
-          /* @__PURE__ */ u2("span", { class: `model-tag ${badge}`, children: cat }),
-          " ",
-          row.original.tool_name
-        ] });
+  function RankBar({ value, max: max2, label }) {
+    const pct = max2 > 0 ? value / max2 * 100 : 0;
+    const tooltip = `${value} (${pct.toFixed(1)}% of max ${max2})`;
+    return /* @__PURE__ */ u2(
+      "span",
+      {
+        style: { position: "relative", display: "inline-block", width: "100%" },
+        title: tooltip,
+        children: [
+          /* @__PURE__ */ u2(
+            "span",
+            {
+              "data-testid": "rank-bar",
+              style: {
+                position: "absolute",
+                top: 0,
+                left: 0,
+                bottom: 0,
+                width: `${pct}%`,
+                backgroundColor: "var(--color-text-primary)",
+                opacity: 0.12,
+                pointerEvents: "none"
+              }
+            }
+          ),
+          /* @__PURE__ */ u2("span", { class: "num", style: { position: "relative", zIndex: 1 }, children: label })
+        ]
       }
-    },
-    {
-      accessorKey: "mcp_server",
-      header: "MCP Server",
-      cell: ({ getValue }) => {
-        const v4 = getValue();
-        return v4 ? /* @__PURE__ */ u2("span", { class: "muted", children: v4 }) : /* @__PURE__ */ u2("span", { class: "muted", children: "--" });
+    );
+  }
+  function makeColumns(data) {
+    const maxInvocations = data.reduce((m4, r4) => Math.max(m4, r4.invocations), 0);
+    return [
+      {
+        accessorKey: "provider",
+        header: "Provider",
+        cell: ({ getValue }) => /* @__PURE__ */ u2("span", { class: "model-tag", children: String(getValue()).toUpperCase() })
+      },
+      {
+        accessorKey: "tool_name",
+        header: "Tool",
+        cell: ({ row }) => {
+          const cat = row.original.category;
+          const badge = cat === "mcp" ? "mcp" : "builtin";
+          return /* @__PURE__ */ u2("span", { children: [
+            /* @__PURE__ */ u2("span", { class: `model-tag ${badge}`, children: cat }),
+            " ",
+            row.original.tool_name
+          ] });
+        }
+      },
+      {
+        accessorKey: "mcp_server",
+        header: "MCP Server",
+        cell: ({ getValue }) => {
+          const v4 = getValue();
+          return v4 ? /* @__PURE__ */ u2("span", { class: "muted", children: v4 }) : /* @__PURE__ */ u2("span", { class: "muted", children: "--" });
+        }
+      },
+      {
+        accessorKey: "invocations",
+        header: "Calls",
+        cell: ({ getValue }) => /* @__PURE__ */ u2(
+          RankBar,
+          {
+            value: getValue(),
+            max: maxInvocations,
+            label: fmt(getValue())
+          }
+        )
+      },
+      {
+        accessorKey: "turns_used",
+        header: "Turns",
+        cell: ({ getValue }) => /* @__PURE__ */ u2("span", { class: "num", children: fmt(getValue()) })
+      },
+      {
+        accessorKey: "sessions_used",
+        header: "Sessions",
+        cell: ({ getValue }) => /* @__PURE__ */ u2("span", { class: "num", children: fmt(getValue()) })
+      },
+      {
+        accessorKey: "errors",
+        header: "Errors",
+        cell: ({ row }) => {
+          const e4 = row.original.errors;
+          if (!e4) return /* @__PURE__ */ u2("span", { class: "dim", children: "0" });
+          const pct = row.original.invocations > 0 ? (e4 / row.original.invocations * 100).toFixed(1) : "0";
+          return /* @__PURE__ */ u2("span", { class: "num", style: { color: "var(--accent)" }, children: [
+            e4,
+            " (",
+            pct,
+            "%)"
+          ] });
+        }
       }
-    },
-    {
-      accessorKey: "invocations",
-      header: "Calls",
-      cell: ({ getValue }) => /* @__PURE__ */ u2("span", { class: "num", children: fmt(getValue()) })
-    },
-    {
-      accessorKey: "turns_used",
-      header: "Turns",
-      cell: ({ getValue }) => /* @__PURE__ */ u2("span", { class: "num", children: fmt(getValue()) })
-    },
-    {
-      accessorKey: "sessions_used",
-      header: "Sessions",
-      cell: ({ getValue }) => /* @__PURE__ */ u2("span", { class: "num", children: fmt(getValue()) })
-    },
-    {
-      accessorKey: "errors",
-      header: "Errors",
-      cell: ({ row }) => {
-        const e4 = row.original.errors;
-        if (!e4) return /* @__PURE__ */ u2("span", { class: "dim", children: "0" });
-        const pct = row.original.invocations > 0 ? (e4 / row.original.invocations * 100).toFixed(1) : "0";
-        return /* @__PURE__ */ u2("span", { class: "num", style: { color: "var(--accent)" }, children: [
-          e4,
-          " (",
-          pct,
-          "%)"
-        ] });
-      }
-    }
-  ];
+    ];
+  }
   function ToolUsageTable({ data }) {
     if (!data.length) return null;
-    return /* @__PURE__ */ u2(DataTable, { columns: columns3, data, title: "Tool Usage" });
+    return /* @__PURE__ */ u2(DataTable, { columns: makeColumns(data), data, title: "Tool Usage" });
   }
 
   // src/ui/components/McpSummaryTable.tsx
-  var columns4 = [
-    {
-      accessorKey: "provider",
-      header: "Provider",
-      cell: ({ getValue }) => /* @__PURE__ */ u2("span", { class: "model-tag", children: String(getValue()).toUpperCase() })
-    },
-    {
-      accessorKey: "server",
-      header: "MCP Server",
-      cell: ({ getValue }) => /* @__PURE__ */ u2("span", { class: "model-tag mcp", children: String(getValue()) })
-    },
-    {
-      accessorKey: "tools_used",
-      header: "Tools",
-      cell: ({ getValue }) => /* @__PURE__ */ u2("span", { class: "num", children: getValue() })
-    },
-    {
-      accessorKey: "invocations",
-      header: "Calls",
-      cell: ({ getValue }) => /* @__PURE__ */ u2("span", { class: "num", children: fmt(getValue()) })
-    },
-    {
-      accessorKey: "sessions_used",
-      header: "Sessions",
-      cell: ({ getValue }) => /* @__PURE__ */ u2("span", { class: "num", children: fmt(getValue()) })
-    }
-  ];
+  function RankBar2({ value, max: max2, label }) {
+    const pct = max2 > 0 ? value / max2 * 100 : 0;
+    const tooltip = `${value} (${pct.toFixed(1)}% of max ${max2})`;
+    return /* @__PURE__ */ u2(
+      "span",
+      {
+        style: { position: "relative", display: "inline-block", width: "100%" },
+        title: tooltip,
+        children: [
+          /* @__PURE__ */ u2(
+            "span",
+            {
+              "data-testid": "rank-bar",
+              style: {
+                position: "absolute",
+                top: 0,
+                left: 0,
+                bottom: 0,
+                width: `${pct}%`,
+                backgroundColor: "var(--color-text-primary)",
+                opacity: 0.12,
+                pointerEvents: "none"
+              }
+            }
+          ),
+          /* @__PURE__ */ u2("span", { class: "num", style: { position: "relative", zIndex: 1 }, children: label })
+        ]
+      }
+    );
+  }
+  function makeColumns2(data) {
+    const maxInvocations = data.reduce((m4, r4) => Math.max(m4, r4.invocations), 0);
+    return [
+      {
+        accessorKey: "provider",
+        header: "Provider",
+        cell: ({ getValue }) => /* @__PURE__ */ u2("span", { class: "model-tag", children: String(getValue()).toUpperCase() })
+      },
+      {
+        accessorKey: "server",
+        header: "MCP Server",
+        cell: ({ getValue }) => /* @__PURE__ */ u2("span", { class: "model-tag mcp", children: String(getValue()) })
+      },
+      {
+        accessorKey: "tools_used",
+        header: "Tools",
+        cell: ({ getValue }) => /* @__PURE__ */ u2("span", { class: "num", children: getValue() })
+      },
+      {
+        accessorKey: "invocations",
+        header: "Calls",
+        cell: ({ getValue }) => /* @__PURE__ */ u2(
+          RankBar2,
+          {
+            value: getValue(),
+            max: maxInvocations,
+            label: fmt(getValue())
+          }
+        )
+      },
+      {
+        accessorKey: "sessions_used",
+        header: "Sessions",
+        cell: ({ getValue }) => /* @__PURE__ */ u2("span", { class: "num", children: fmt(getValue()) })
+      }
+    ];
+  }
   function McpSummaryTable({ data }) {
     if (!data.length) return null;
-    return /* @__PURE__ */ u2(DataTable, { columns: columns4, data, title: "MCP Server Usage" });
+    return /* @__PURE__ */ u2(DataTable, { columns: makeColumns2(data), data, title: "MCP Server Usage" });
   }
 
   // src/ui/components/BranchTable.tsx
-  var columns5 = [
-    {
-      accessorKey: "provider",
-      header: "Provider",
-      cell: ({ getValue }) => /* @__PURE__ */ u2("span", { class: "model-tag", children: String(getValue()).toUpperCase() })
-    },
-    {
-      accessorKey: "branch",
-      header: "Branch",
-      cell: ({ getValue }) => /* @__PURE__ */ u2("span", { class: "model-tag", children: String(getValue()) })
-    },
-    {
-      accessorKey: "sessions",
-      header: "Sessions",
-      cell: ({ getValue }) => /* @__PURE__ */ u2("span", { class: "num", children: getValue() })
-    },
-    {
-      accessorKey: "turns",
-      header: "Turns",
-      cell: ({ getValue }) => /* @__PURE__ */ u2("span", { class: "num", children: fmt(getValue()) })
-    },
-    {
-      accessorKey: "input",
-      header: "Input",
-      cell: ({ getValue }) => /* @__PURE__ */ u2("span", { class: "num", children: fmt(getValue()) })
-    },
-    {
-      accessorKey: "output",
-      header: "Output",
-      cell: ({ getValue }) => /* @__PURE__ */ u2("span", { class: "num", children: fmt(getValue()) })
-    },
-    {
-      accessorKey: "cost",
-      header: "Est. Cost",
-      cell: ({ getValue }) => /* @__PURE__ */ u2("span", { class: "cost", children: fmtCost(getValue()) })
-    }
-  ];
+  function RankBar3({ value, max: max2, label }) {
+    const pct = max2 > 0 ? value / max2 * 100 : 0;
+    const tooltip = `${value} (${pct.toFixed(1)}% of max ${max2})`;
+    return /* @__PURE__ */ u2(
+      "span",
+      {
+        style: { position: "relative", display: "inline-block", width: "100%" },
+        title: tooltip,
+        children: [
+          /* @__PURE__ */ u2(
+            "span",
+            {
+              "data-testid": "rank-bar",
+              style: {
+                position: "absolute",
+                top: 0,
+                left: 0,
+                bottom: 0,
+                width: `${pct}%`,
+                backgroundColor: "var(--color-text-primary)",
+                opacity: 0.12,
+                pointerEvents: "none"
+              }
+            }
+          ),
+          /* @__PURE__ */ u2("span", { class: "num", style: { position: "relative", zIndex: 1 }, children: label })
+        ]
+      }
+    );
+  }
+  function makeColumns3(data) {
+    const maxSessions = data.reduce((m4, r4) => Math.max(m4, r4.sessions), 0);
+    return [
+      {
+        accessorKey: "provider",
+        header: "Provider",
+        cell: ({ getValue }) => /* @__PURE__ */ u2("span", { class: "model-tag", children: String(getValue()).toUpperCase() })
+      },
+      {
+        accessorKey: "branch",
+        header: "Branch",
+        cell: ({ getValue }) => /* @__PURE__ */ u2("span", { class: "model-tag", children: String(getValue()) })
+      },
+      {
+        accessorKey: "sessions",
+        header: "Sessions",
+        cell: ({ getValue }) => /* @__PURE__ */ u2(
+          RankBar3,
+          {
+            value: getValue(),
+            max: maxSessions,
+            label: String(getValue())
+          }
+        )
+      },
+      {
+        accessorKey: "turns",
+        header: "Turns",
+        cell: ({ getValue }) => /* @__PURE__ */ u2("span", { class: "num", children: fmt(getValue()) })
+      },
+      {
+        accessorKey: "input",
+        header: "Input",
+        cell: ({ getValue }) => /* @__PURE__ */ u2("span", { class: "num", children: fmt(getValue()) })
+      },
+      {
+        accessorKey: "output",
+        header: "Output",
+        cell: ({ getValue }) => /* @__PURE__ */ u2("span", { class: "num", children: fmt(getValue()) })
+      },
+      {
+        accessorKey: "cost",
+        header: "Est. Cost",
+        cell: ({ getValue }) => /* @__PURE__ */ u2("span", { class: "cost", children: fmtCost(getValue()) })
+      }
+    ];
+  }
   function BranchTable({ data }) {
     if (!data.length) return null;
-    return /* @__PURE__ */ u2(DataTable, { columns: columns5, data, title: "Usage by Git Branch" });
+    return /* @__PURE__ */ u2(DataTable, { columns: makeColumns3(data), data, title: "Usage by Git Branch" });
   }
 
   // src/ui/components/VersionTable.tsx
-  var columns6 = [
+  var columns3 = [
     {
       accessorKey: "provider",
       header: "Provider",
@@ -5037,7 +5160,7 @@
   ];
   function VersionTable({ data }) {
     if (!data.length) return null;
-    return /* @__PURE__ */ u2(DataTable, { columns: columns6, data, title: "CLI Versions" });
+    return /* @__PURE__ */ u2(DataTable, { columns: columns3, data, title: "CLI Versions" });
   }
 
   // src/ui/components/VersionDonut.tsx
@@ -5455,12 +5578,12 @@
     );
   }
   function SessionsTable({ onExportCSV }) {
-    const columns7 = useSessionColumns();
+    const columns4 = useSessionColumns();
     const data = lastFilteredSessions.value;
     return /* @__PURE__ */ u2(
       DataTable,
       {
-        columns: columns7,
+        columns: columns4,
         data,
         title: "Recent Sessions",
         exportFn: onExportCSV,
@@ -5561,11 +5684,11 @@
       () => byModel.reduce((s4, m4) => m4.is_billable ? s4 + m4.cost : s4, 0),
       [byModel]
     );
-    const columns7 = useModelColumns(totalCost);
+    const columns4 = useModelColumns(totalCost);
     return /* @__PURE__ */ u2(
       DataTable,
       {
-        columns: columns7,
+        columns: columns4,
         data: byModel,
         title: "Cost by Model",
         defaultSort: defaultSort2,
@@ -5623,11 +5746,11 @@
     byProject,
     onExportCSV
   }) {
-    const columns7 = useProjectColumns();
+    const columns4 = useProjectColumns();
     return /* @__PURE__ */ u2(
       DataTable,
       {
-        columns: columns7,
+        columns: columns4,
         data: byProject,
         title: "Cost by Project",
         exportFn: onExportCSV,
@@ -6258,6 +6381,11 @@
   async function loadData(force = false) {
     if (loadDataInFlight && !force) return;
     loadDataInFlight = true;
+    const isSubsequentFetch = rawData.value !== null;
+    if (isSubsequentFetch) {
+      loadState.value = "refreshing";
+      setStatus("header-refresh", "loading", "REFRESHING");
+    }
     try {
       const resp = await fetch("/api/data");
       if (!resp.ok) {
@@ -6270,6 +6398,7 @@
         return;
       }
       clearStatus("global");
+      clearStatus("header-refresh");
       metaText.value = "Updated: " + d5.generated_at + " \xB7 Auto-refresh 30s";
       const isFirstLoad = rawData.value === null;
       rawData.value = d5;
@@ -6282,8 +6411,10 @@
       }
       applyFilter();
     } catch (e4) {
-      console.error(e4);
+      setStatus("global", "error", "Network error loading data");
+      clearStatus("header-refresh");
     } finally {
+      loadState.value = "idle";
       loadDataInFlight = false;
     }
   }

@@ -93,6 +93,7 @@ export function Header({ onDataReload, onThemeToggle }: HeaderProps) {
           {rescanLabel.value}
         </button>
         <InlineStatus placement="rescan" inline />
+        <InlineStatus placement="header-refresh" inline dismissable={false} />
       </div>
     </header>
   );

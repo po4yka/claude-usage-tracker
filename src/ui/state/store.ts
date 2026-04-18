@@ -24,7 +24,7 @@ export const rescanDisabled = signal<boolean>(false);
 export const themeMode = signal<'dark' | 'light'>('dark');
 
 // ── Inline status (replaces toasts) ──────────────────────────────────
-export type StatusPlacement = 'global' | 'rate-windows' | 'rescan';
+export type StatusPlacement = 'global' | 'rate-windows' | 'rescan' | 'header-refresh';
 export type StatusKind = 'success' | 'error' | 'loading' | 'info';
 
 export interface StatusEntry {
@@ -36,10 +36,18 @@ export const statusByPlacement = signal<Record<StatusPlacement, StatusEntry | nu
   'global': null,
   'rate-windows': null,
   'rescan': null,
+  'header-refresh': null,
 });
 
 // ── Pagination page size (used by SessionsTable via DataTable) ───────
 export const SESSIONS_PAGE_SIZE = 25;
+
+// ── Phase 18: data-load state ─────────────────────────────────────────
+// 'idle'       — no fetch in progress; data (if any) is current.
+// 'refreshing' — a subsequent fetch is in progress; old data remains
+//                visible so the UI does not flash blank.
+export type LoadState = 'idle' | 'refreshing';
+export const loadState = signal<LoadState>('idle');
 
 // ── Phase 16: Version donut metric selector ──────────────────────────
 export type VersionMetric = 'cost' | 'calls' | 'tokens';

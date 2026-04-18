@@ -1,5 +1,6 @@
 use claude_usage_tracker::config;
 use claude_usage_tracker::currency;
+use claude_usage_tracker::db as db_mod;
 use claude_usage_tracker::export;
 use claude_usage_tracker::hook;
 use claude_usage_tracker::litellm;
@@ -118,6 +119,27 @@ enum Commands {
     Daemon {
         #[command(subcommand)]
         action: DaemonAction,
+    },
+    /// Database management utilities
+    Db {
+        #[command(subcommand)]
+        action: DbAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum DbAction {
+    /// Destructively reset the database (deletes the SQLite file).
+    ///
+    /// Interactive: prompts for confirmation by typing "rebuild".
+    /// Non-interactive (CI, pipes): requires --yes flag.
+    Reset {
+        /// Override the database path
+        #[arg(long)]
+        db_path: Option<PathBuf>,
+        /// Skip the interactive prompt and proceed non-interactively
+        #[arg(long, default_value_t = false)]
+        yes: bool,
     },
 }
 
@@ -320,6 +342,12 @@ fn main() -> Result<()> {
         Commands::Daemon { action } => {
             cmd_daemon(action)?;
         }
+        Commands::Db { action } => match action {
+            DbAction::Reset { db_path, yes } => {
+                let db = default_db(db_path);
+                db_mod::cmd_db_reset(&db, yes)?;
+            }
+        },
     }
     Ok(())
 }

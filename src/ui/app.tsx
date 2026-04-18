@@ -55,6 +55,7 @@ import {
   metaText,
   planBadge,
   versionDonutMetric,
+  loadState,
   type ProviderFilter,
 } from './state/store';
 import { $ } from './lib/format';
@@ -611,21 +612,36 @@ async function loadHeatmap(period = 'month'): Promise<void> {
 async function loadData(force = false): Promise<void> {
   if (loadDataInFlight && !force) return;
   loadDataInFlight = true;
+
+  // On a subsequent fetch (not the first load), keep old data visible and
+  // show a non-blocking [REFRESHING] status in the header instead of blanking
+  // the UI. This is the signals-based equivalent of TanStack Query's
+  // keepPreviousData pattern.
+  const isSubsequentFetch = rawData.value !== null;
+  if (isSubsequentFetch) {
+    loadState.value = 'refreshing';
+    setStatus('header-refresh', 'loading', 'REFRESHING');
+  }
+
   try {
     const resp = await fetch('/api/data');
     if (!resp.ok) {
       setStatus('global', 'error', `Failed to load data: HTTP ${resp.status}`);
+      // On error, keep old data visible — do NOT clear rawData.
       return;
     }
     const d: DashboardData = await resp.json();
     if (d.error) {
       setStatus('global', 'error', d.error);
+      // On error, keep old data visible — do NOT clear rawData.
       return;
     }
     clearStatus('global');
+    clearStatus('header-refresh');
     metaText.value = 'Updated: ' + d.generated_at + ' \u00b7 Auto-refresh 30s';
 
     const isFirstLoad = rawData.value === null;
+    // Atomic swap: replace signals in one assignment to avoid partial renders.
     rawData.value = d;
 
     if (isFirstLoad) {
@@ -638,9 +654,12 @@ async function loadData(force = false): Promise<void> {
 
     applyFilter();
   } catch (e) {
-    console.error(e);
+    // Network error — keep old data, show error, do not clear the view.
+    setStatus('global', 'error', 'Network error loading data');
+    clearStatus('header-refresh');
   }
   finally {
+    loadState.value = 'idle';
     loadDataInFlight = false;
   }
 }
