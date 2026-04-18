@@ -17,6 +17,7 @@
 //! tests never touch the real user crontab.
 
 pub mod cron;
+pub mod daemon;
 pub mod launchd;
 pub mod schtasks;
 

@@ -135,9 +135,96 @@ jobs:
           draft: false
           prerelease: ${{ contains(github.ref_name, '-') }}
 
+  macos-universal:
+    name: Build macOS universal binary
+    needs: build
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine version
+        id: version
+        shell: bash
+        run: echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Download aarch64 tarball
+        uses: robinraju/release-downloader@v1
+        with:
+          tag: ${{ github.ref_name }}
+          fileName: "heimdall-${{ github.ref_name }}-aarch64-apple-darwin.tar.gz"
+          out-file-path: "dl-arm64"
+
+      - name: Download x86_64 tarball
+        uses: robinraju/release-downloader@v1
+        with:
+          tag: ${{ github.ref_name }}
+          fileName: "heimdall-${{ github.ref_name }}-x86_64-apple-darwin.tar.gz"
+          out-file-path: "dl-x86"
+
+      - name: Unpack both tarballs
+        shell: bash
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          tar xzf "dl-arm64/heimdall-${VERSION}-aarch64-apple-darwin.tar.gz"
+          tar xzf "dl-x86/heimdall-${VERSION}-x86_64-apple-darwin.tar.gz"
+
+      - name: Merge with lipo
+        shell: bash
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          ARM_DIR="heimdall-${VERSION}-aarch64-apple-darwin"
+          X86_DIR="heimdall-${VERSION}-x86_64-apple-darwin"
+          STAGING_DIR="heimdall-${VERSION}-universal-apple-darwin"
+
+          mkdir -p "${STAGING_DIR}"
+
+          lipo -create \
+            "${ARM_DIR}/claude-usage-tracker" \
+            "${X86_DIR}/claude-usage-tracker" \
+            -output "${STAGING_DIR}/claude-usage-tracker"
+
+          lipo -create \
+            "${ARM_DIR}/heimdall-hook" \
+            "${X86_DIR}/heimdall-hook" \
+            -output "${STAGING_DIR}/heimdall-hook"
+
+          echo "=== lipo -info claude-usage-tracker ==="
+          lipo -info "${STAGING_DIR}/claude-usage-tracker"
+          echo "=== lipo -info heimdall-hook ==="
+          lipo -info "${STAGING_DIR}/heimdall-hook"
+
+          # Verify both architectures are present in each binary.
+          lipo -info "${STAGING_DIR}/claude-usage-tracker" | grep -q "arm64" || \
+            (echo "ERROR: arm64 slice missing from claude-usage-tracker" && exit 1)
+          lipo -info "${STAGING_DIR}/claude-usage-tracker" | grep -q "x86_64" || \
+            (echo "ERROR: x86_64 slice missing from claude-usage-tracker" && exit 1)
+          lipo -info "${STAGING_DIR}/heimdall-hook" | grep -q "arm64" || \
+            (echo "ERROR: arm64 slice missing from heimdall-hook" && exit 1)
+          lipo -info "${STAGING_DIR}/heimdall-hook" | grep -q "x86_64" || \
+            (echo "ERROR: x86_64 slice missing from heimdall-hook" && exit 1)
+
+      - name: Package universal tarball
+        shell: bash
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          STAGING_DIR="heimdall-${VERSION}-universal-apple-darwin"
+          ARCHIVE_NAME="heimdall-${VERSION}-universal-apple-darwin.tar.gz"
+
+          tar czf "${ARCHIVE_NAME}" "${STAGING_DIR}"
+          shasum -a 256 "${ARCHIVE_NAME}" > "${ARCHIVE_NAME}.sha256"
+
+          echo "ARCHIVE_NAME=${ARCHIVE_NAME}" >> "$GITHUB_ENV"
+
+      - name: Upload universal tarball to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ env.ARCHIVE_NAME }}
+            ${{ env.ARCHIVE_NAME }}.sha256
+
   consolidate-checksums:
     name: Consolidate SHA256SUMS
-    needs: build
+    needs: [build, macos-universal]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

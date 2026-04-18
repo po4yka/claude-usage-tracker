@@ -114,6 +114,21 @@ enum Commands {
         #[command(subcommand)]
         action: HookAction,
     },
+    /// Manage the always-on dashboard daemon (macOS only)
+    Daemon {
+        #[command(subcommand)]
+        action: DaemonAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum DaemonAction {
+    /// Install the always-on dashboard daemon into ~/Library/LaunchAgents (macOS only)
+    Install,
+    /// Remove the dashboard daemon plist and unregister it from launchd
+    Uninstall,
+    /// Show whether the daemon is installed and running
+    Status,
 }
 
 #[derive(Subcommand)]
@@ -301,6 +316,9 @@ fn main() -> Result<()> {
         }
         Commands::Hook { action } => {
             cmd_hook(action)?;
+        }
+        Commands::Daemon { action } => {
+            cmd_daemon(action)?;
         }
     }
     Ok(())
@@ -544,6 +562,68 @@ fn cmd_hook(action: HookAction) -> Result<()> {
             HookStatus::Absent => {
                 println!("Not installed");
                 println!("  Run: claude-usage-tracker hook install");
+            }
+        },
+    }
+    Ok(())
+}
+
+fn cmd_daemon(action: DaemonAction) -> Result<()> {
+    use scheduler::daemon::current_daemon_scheduler;
+    use scheduler::{InstallStatus, resolve_bin_path};
+
+    let sched = current_daemon_scheduler();
+
+    match action {
+        DaemonAction::Install => {
+            let bin = resolve_bin_path()?;
+            sched.install(&bin)?;
+            match sched.status()? {
+                InstallStatus::Installed {
+                    next_run_hint,
+                    config_path,
+                } => {
+                    println!("Installed: {}", next_run_hint);
+                    if let Some(p) = config_path {
+                        println!("  plist: {}", p.display());
+                    }
+                }
+                InstallStatus::NotInstalled => {
+                    println!("Installed (status unknown)");
+                }
+                InstallStatus::UnsupportedPlatform(plat) => {
+                    eprintln!(
+                        "daemon subcommand is currently macOS-only; \
+                         Linux systemd and Windows Service support is deferred (platform: {})",
+                        plat
+                    );
+                    std::process::exit(1);
+                }
+            }
+        }
+        DaemonAction::Uninstall => {
+            sched.uninstall()?;
+            println!("Uninstalled: dashboard daemon removed");
+        }
+        DaemonAction::Status => match sched.status()? {
+            InstallStatus::Installed {
+                next_run_hint,
+                config_path,
+            } => {
+                println!("Installed: {}", next_run_hint);
+                if let Some(p) = config_path {
+                    println!("  plist: {}", p.display());
+                }
+            }
+            InstallStatus::NotInstalled => {
+                println!("Not installed");
+            }
+            InstallStatus::UnsupportedPlatform(_) => {
+                eprintln!(
+                    "daemon subcommand is currently macOS-only; \
+                     Linux systemd and Windows Service support is deferred"
+                );
+                std::process::exit(1);
             }
         },
     }

@@ -46,11 +46,22 @@ Reads local transcripts written by Claude Code and Codex, then presents an inter
 ### Prebuilt binary (recommended)
 
 Download the tarball for your platform from the [GitHub Releases](https://github.com/po4yka/heimdall/releases) page,
-extract it, and move both binaries to `/usr/local/bin`:
+extract it, and move both binaries to `/usr/local/bin`.
+
+**macOS (recommended): universal binary — runs natively on Apple Silicon and Intel**
 
 ```bash
-# macOS / Linux one-liner (requires curl, jq, tar)
-PLATFORM="aarch64-apple-darwin"   # adjust: x86_64-apple-darwin, x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu
+# macOS universal binary (arm64 + x86_64 in one file)
+VERSION=$(curl -fsSL https://api.github.com/repos/po4yka/heimdall/releases/latest | jq -r '.tag_name')
+curl -fsSL "https://github.com/po4yka/heimdall/releases/download/${VERSION}/heimdall-${VERSION}-universal-apple-darwin.tar.gz" \
+  | tar xz --strip-components=1 -C /usr/local/bin
+```
+
+**All platforms one-liner (requires curl, jq, tar):**
+
+```bash
+# Replace PLATFORM with your target (see table below)
+PLATFORM="aarch64-apple-darwin"
 VERSION=$(curl -fsSL https://api.github.com/repos/po4yka/heimdall/releases/latest | jq -r '.tag_name')
 curl -fsSL "https://github.com/po4yka/heimdall/releases/download/${VERSION}/heimdall-${VERSION}-${PLATFORM}.tar.gz" \
   | tar xz --strip-components=1 -C /usr/local/bin
@@ -60,8 +71,9 @@ Supported platforms:
 
 | Platform | Archive |
 |----------|---------|
-| macOS (Apple Silicon) | `heimdall-<version>-aarch64-apple-darwin.tar.gz` |
-| macOS (Intel) | `heimdall-<version>-x86_64-apple-darwin.tar.gz` |
+| macOS (universal — Apple Silicon + Intel) | `heimdall-<version>-universal-apple-darwin.tar.gz` |
+| macOS (Apple Silicon only) | `heimdall-<version>-aarch64-apple-darwin.tar.gz` |
+| macOS (Intel only) | `heimdall-<version>-x86_64-apple-darwin.tar.gz` |
 | Linux x86\_64 | `heimdall-<version>-x86_64-unknown-linux-gnu.tar.gz` |
 | Linux ARM64 | `heimdall-<version>-aarch64-unknown-linux-gnu.tar.gz` |
 | Windows x86\_64 | `heimdall-<version>-x86_64-pc-windows-msvc.zip` |
@@ -75,8 +87,29 @@ curl -fsSL "https://github.com/po4yka/heimdall/releases/download/${VERSION}/SHA2
 
 ### Homebrew (macOS)
 
-A Homebrew cask formula (`heimdall/tap/heimdall`) is planned for Phase 22 of the roadmap.
-Check back after that release for a one-liner `brew install`.
+```bash
+brew tap heimdall/tap
+brew install heimdall/tap/heimdall
+```
+
+_The tap repository (`heimdall/homebrew-tap`) must be created and published by the maintainer before this works. The cask formula skeleton lives at `packaging/homebrew/heimdall.rb` in this repo._
+
+### Daemon mode (macOS only)
+
+Run the dashboard as a persistent background service that starts automatically at login:
+
+```bash
+# Install the always-on dashboard daemon (macOS only)
+claude-usage-tracker daemon install
+
+# Check status
+claude-usage-tracker daemon status
+
+# Remove the daemon
+claude-usage-tracker daemon uninstall
+```
+
+The daemon runs `claude-usage-tracker dashboard --host localhost --port 8080 --watch` under launchd with `KeepAlive: true`. Logs are written to `~/Library/Logs/heimdall/`. Linux systemd and Windows Service support is deferred to a future release.
 
 ### From source
 
