@@ -1509,6 +1509,11 @@
   function esc(s4) {
     return s4.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
+  function truncateMid(s4, max2, tailChars = 8) {
+    if (s4.length <= max2) return s4;
+    const head = Math.max(0, max2 - tailChars - 1);
+    return s4.slice(0, head) + "\u2026" + s4.slice(-tailChars);
+  }
 
   // src/ui/components/SegmentedProgressBar.tsx
   function resolveStatus(pct, status) {
@@ -6578,14 +6583,35 @@
         labels.push(`Other (${rest.length})`);
       }
     }
+    const OPACITY_LADDER = [1, 0.55, 0.4, 0.28, 0.18];
+    const sliceColors = labels.map(
+      (_4, i4) => withAlpha("--text-display", OPACITY_LADDER[Math.min(i4, OPACITY_LADDER.length - 1)] ?? 0.18)
+    );
     const base = industrialChartOptions("donut");
     const options = {
       ...base,
       chart: { ...base.chart, type: "donut" },
       series,
       labels,
-      colors: modelSeriesColors(labels.length),
+      colors: sliceColors,
       stroke: { width: 2, colors: [cssVar("--surface")] },
+      // Filter-based hover cue preserves the donut's colour palette. Without
+      // this, ApexCharts swaps the total label's colour to the hovered slice
+      // (see apexcharts/apexcharts.js#3264).
+      states: { hover: { filter: { type: "lighten", value: 0.12 } } },
+      legend: {
+        ...base.legend,
+        itemMargin: { horizontal: 10, vertical: 2 },
+        onItemHover: { highlightDataSeries: false },
+        formatter: (label) => truncateMid(label, 18, 6)
+      },
+      // Anchor the tooltip to the bottom-right of the plot so it never
+      // covers the card's "BY MODEL" title on hover.
+      tooltip: {
+        ...base.tooltip,
+        fixed: { enabled: true, position: "bottomRight", offsetX: 0, offsetY: 0 },
+        y: { formatter: (v4) => fmt(v4) + " tokens" }
+      },
       plotOptions: {
         pie: {
           donut: {
@@ -6594,6 +6620,8 @@
               show: true,
               total: {
                 show: true,
+                // Keep the resting TOTAL visible while a slice is hovered.
+                showAlways: true,
                 label: "TOTAL",
                 fontFamily: 'var(--font-mono), "Space Mono", monospace',
                 fontSize: "11px",
@@ -6609,13 +6637,12 @@
               name: {
                 fontFamily: 'var(--font-mono), "Space Mono", monospace',
                 fontSize: "11px",
-                color: cssVar("--text-secondary")
+                color: cssVar("--text-display")
               }
             }
           }
         }
-      },
-      tooltip: { ...base.tooltip, y: { formatter: (v4) => fmt(v4) + " tokens" } }
+      }
     };
     return /* @__PURE__ */ u2(ApexChart, { options, id: "chart-model" });
   }
@@ -6626,29 +6653,37 @@
     if (!top.length) return null;
     const base = industrialChartOptions("bar");
     const colors = tokenSeriesColors();
+    const totals = top.map((p5) => p5.input + p5.output);
+    const hasValidLog = totals.every((v4) => v4 > 0);
     const options = {
       ...base,
       chart: { ...base.chart, type: "bar" },
-      series: [
-        { name: "Input", data: top.map((p5) => p5.input) },
-        { name: "Output", data: top.map((p5) => p5.output) }
-      ],
-      colors: [colors[0], colors[1]],
+      series: [{ name: "Total tokens", data: totals }],
+      colors: [colors[0]],
       fill: { type: "solid" },
       plotOptions: { bar: { horizontal: true, barHeight: "60%", borderRadius: 0 } },
       xaxis: {
         ...base.xaxis,
-        categories: top.map((p5) => {
-          const n3 = p5.display_name || p5.project;
-          return n3.length > 16 ? "\u2026" + n3.slice(-14) : n3;
-        }),
-        labels: { ...base.xaxis.labels, formatter: (v4) => fmt(v4) }
+        categories: top.map((p5) => truncateMid(p5.display_name || p5.project, 18, 8)),
+        labels: {
+          ...base.xaxis.labels,
+          formatter: (v4) => fmt(v4),
+          hideOverlappingLabels: true
+        },
+        tickAmount: 4
       },
       yaxis: {
         ...base.yaxis,
-        labels: { ...base.yaxis.labels, maxWidth: 110 }
+        labels: { ...base.yaxis.labels, maxWidth: 120 },
+        ...hasValidLog ? { logarithmic: true, logBase: 10, forceNiceScale: false } : {}
       },
-      tooltip: { ...base.tooltip, y: { formatter: (v4) => fmt(v4) + " tokens" } }
+      // Anchor the tooltip to the plot's top-left with negative offset so it
+      // cannot cover the card's "TOP PROJECTS" title on hover.
+      tooltip: {
+        ...base.tooltip,
+        fixed: { enabled: true, position: "topLeft", offsetX: 0, offsetY: -8 },
+        y: { formatter: (v4) => fmt(v4) + " tokens" }
+      }
     };
     return /* @__PURE__ */ u2(ApexChart, { options, id: "chart-project" });
   }
