@@ -240,6 +240,11 @@
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: 16px;
+    /* Sized items sit at the top of their row instead of stretching to
+       match a tall neighbour; otherwise a short card (e.g. hourly-chart
+       at ~128px) paired with a tall sibling (version-summary at 640px)
+       renders mostly empty. */
+    align-items: start;
   }
   .bento-2 { grid-column: span 2; }
   .bento-3 { grid-column: span 3; }
