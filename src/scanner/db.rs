@@ -10,7 +10,10 @@ use crate::models::{
     EntrypointSummary, HourlyRow, McpServerSummary, ProviderSummary, ServiceTierSummary,
     SessionRow, ToolEvent, ToolSummary, Turn, VersionSummary, WeeklyModelRow,
 };
-use crate::official_pricing::{OfficialModelPricing, PricingSyncRun, StoredPricingModel};
+use crate::official_pricing::{
+    OfficialExtractedRecord, OfficialModelPricing, OfficialSyncRunRecord, PricingSyncRun,
+    StoredPricingModel,
+};
 use crate::scanner::parser::{classify_tool, raw_session_id};
 use crate::tz::TzParams;
 
@@ -154,6 +157,50 @@ pub fn init_db(conn: &Connection) -> Result<()> {
         );
         CREATE INDEX IF NOT EXISTS idx_psm_source_model_run
             ON pricing_sync_models(source_slug, model_id, run_id DESC);",
+    )?;
+
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS official_sync_runs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            fetched_at TEXT NOT NULL,
+            source_slug TEXT NOT NULL,
+            source_kind TEXT NOT NULL DEFAULT '',
+            source_url TEXT NOT NULL,
+            provider TEXT NOT NULL,
+            authority TEXT NOT NULL DEFAULT '',
+            format TEXT NOT NULL DEFAULT '',
+            cadence TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL,
+            http_status INTEGER,
+            content_type TEXT NOT NULL DEFAULT '',
+            etag TEXT NOT NULL DEFAULT '',
+            last_modified TEXT NOT NULL DEFAULT '',
+            raw_body TEXT NOT NULL DEFAULT '',
+            normalized_body TEXT NOT NULL DEFAULT '',
+            error_text TEXT NOT NULL DEFAULT '',
+            parser_version TEXT NOT NULL DEFAULT '',
+            raw_body_sha256 TEXT NOT NULL DEFAULT '',
+            normalized_body_sha256 TEXT NOT NULL DEFAULT '',
+            extracted_sha256 TEXT NOT NULL DEFAULT ''
+        );
+        CREATE INDEX IF NOT EXISTS idx_osr_source_fetched
+            ON official_sync_runs(source_slug, fetched_at DESC);
+
+        CREATE TABLE IF NOT EXISTS official_metadata_records (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            run_id INTEGER NOT NULL,
+            source_slug TEXT NOT NULL,
+            provider TEXT NOT NULL,
+            record_type TEXT NOT NULL,
+            record_key TEXT NOT NULL,
+            model_id TEXT NOT NULL DEFAULT '',
+            effective_at TEXT NOT NULL DEFAULT '',
+            payload_json TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_omr_run
+            ON official_metadata_records(run_id);
+        CREATE INDEX IF NOT EXISTS idx_omr_type_key
+            ON official_metadata_records(record_type, record_key);",
     )?;
 
     // Migration: add subagent columns if upgrading from older schema
@@ -1927,6 +1974,65 @@ pub fn insert_pricing_sync_run(conn: &Connection, run: &PricingSyncRun) -> Resul
     Ok(conn.last_insert_rowid())
 }
 
+pub fn insert_official_sync_run(conn: &Connection, run: &OfficialSyncRunRecord) -> Result<i64> {
+    conn.execute(
+        "INSERT INTO official_sync_runs
+            (fetched_at, source_slug, source_kind, source_url, provider, authority, format,
+             cadence, status, http_status, content_type, etag, last_modified, raw_body,
+             normalized_body, error_text, parser_version, raw_body_sha256,
+             normalized_body_sha256, extracted_sha256)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20)",
+        rusqlite::params![
+            run.fetched_at,
+            run.source_slug,
+            run.source_kind,
+            run.source_url,
+            run.provider,
+            run.authority,
+            run.format,
+            run.cadence,
+            run.status,
+            run.http_status,
+            run.content_type,
+            run.etag,
+            run.last_modified,
+            run.raw_body,
+            run.normalized_body,
+            run.error_text,
+            run.parser_version,
+            run.raw_body_sha256,
+            run.normalized_body_sha256,
+            run.extracted_sha256,
+        ],
+    )?;
+    Ok(conn.last_insert_rowid())
+}
+
+pub fn insert_official_extracted_records(
+    conn: &Connection,
+    run_id: i64,
+    records: &[OfficialExtractedRecord],
+) -> Result<()> {
+    let mut stmt = conn.prepare(
+        "INSERT INTO official_metadata_records
+            (run_id, source_slug, provider, record_type, record_key, model_id, effective_at, payload_json)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+    )?;
+    for record in records {
+        stmt.execute(rusqlite::params![
+            run_id,
+            record.source_slug,
+            record.provider,
+            record.record_type,
+            record.record_key,
+            record.model_id,
+            record.effective_at,
+            record.payload_json,
+        ])?;
+    }
+    Ok(())
+}
+
 pub fn insert_pricing_sync_models(
     conn: &Connection,
     run_id: i64,
@@ -2592,7 +2698,9 @@ pub fn load_all_turns(conn: &Connection) -> Result<Vec<crate::analytics::blocks:
 mod tests {
     use super::*;
     use crate::models::Turn;
-    use crate::official_pricing::{OfficialModelPricing, PricingSyncRun};
+    use crate::official_pricing::{
+        OfficialExtractedRecord, OfficialModelPricing, OfficialSyncRunRecord, PricingSyncRun,
+    };
     use crate::pricing;
     use std::collections::HashMap;
 
@@ -2635,6 +2743,80 @@ mod tests {
             .collect();
         assert!(tables.contains(&"pricing_sync_runs".into()));
         assert!(tables.contains(&"pricing_sync_models".into()));
+    }
+
+    #[test]
+    fn test_init_db_creates_official_sync_tables() {
+        let conn = test_conn();
+        let tables: Vec<String> = conn
+            .prepare("SELECT name FROM sqlite_master WHERE type='table'")
+            .unwrap()
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .filter_map(|r| r.ok())
+            .collect();
+        assert!(tables.contains(&"official_sync_runs".into()));
+        assert!(tables.contains(&"official_metadata_records".into()));
+    }
+
+    #[test]
+    fn test_insert_official_sync_run_and_records() {
+        let conn = test_conn();
+        let run_id = insert_official_sync_run(
+            &conn,
+            &OfficialSyncRunRecord {
+                fetched_at: "2026-04-19T10:00:00Z".into(),
+                source_slug: "openai_api_changelog".into(),
+                source_kind: "release_notes".into(),
+                source_url: "https://developers.openai.com/api/docs/changelog".into(),
+                provider: "openai".into(),
+                authority: "provider_release_notes".into(),
+                format: "html".into(),
+                cadence: "daily".into(),
+                status: "success".into(),
+                http_status: Some(200),
+                content_type: "text/html".into(),
+                etag: "\"abc\"".into(),
+                last_modified: "Sun, 19 Apr 2026 10:00:00 GMT".into(),
+                raw_body: "<html>ok</html>".into(),
+                normalized_body: "ok".into(),
+                error_text: String::new(),
+                parser_version: "official_pricing/v3".into(),
+                raw_body_sha256: "aaa".into(),
+                normalized_body_sha256: "bbb".into(),
+                extracted_sha256: "ccc".into(),
+            },
+        )
+        .unwrap();
+        insert_official_extracted_records(
+            &conn,
+            run_id,
+            &[OfficialExtractedRecord {
+                source_slug: "openai_api_changelog".into(),
+                provider: "openai".into(),
+                record_type: "release_note".into(),
+                record_key: "note-1".into(),
+                model_id: "gpt-5.4".into(),
+                effective_at: "2026-04-19".into(),
+                payload_json: "{\"title\":\"Launch\"}".into(),
+            }],
+        )
+        .unwrap();
+
+        let run_count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM official_sync_runs", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        let record_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM official_metadata_records",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(run_count, 1);
+        assert_eq!(record_count, 1);
     }
 
     #[test]

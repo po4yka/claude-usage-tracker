@@ -12,7 +12,6 @@ use crate::agent_status;
 use crate::agent_status::models::{InjectedResponses, ProviderStatus};
 use crate::config::AgentStatusConfig;
 use crate::currency::RatesSnapshot;
-use crate::models::OpenAiReconciliation;
 use crate::openai;
 use crate::pricing::{self, ModelPricing};
 use crate::scanner::db;
@@ -720,7 +719,10 @@ struct FetchedSourceBody {
     normalized_body: String,
 }
 
-pub fn sync_pricing(conn: &Connection, options: &OfficialSyncOptions) -> Result<PricingSyncSummary> {
+pub fn sync_pricing(
+    conn: &Connection,
+    options: &OfficialSyncOptions,
+) -> Result<PricingSyncSummary> {
     let old_latest = db::load_latest_pricing_models(conn)?;
     let old_catalog = build_effective_catalog(&old_latest);
 
@@ -841,11 +843,8 @@ pub fn sync_pricing(conn: &Connection, options: &OfficialSyncOptions) -> Result<
         let fetched_at = Utc::now().to_rfc3339();
         match fetch_source(source.url) {
             Ok(fetched) => {
-                let records = build_records_for_content_source(
-                    source,
-                    &fetched.normalized_body,
-                    &fetched_at,
-                );
+                let records =
+                    build_records_for_content_source(source, &fetched.normalized_body, &fetched_at);
                 let status = if records.is_empty() {
                     STATUS_PARSE_ERROR
                 } else {
@@ -1187,6 +1186,1163 @@ fn sha256_hex(input: &str) -> String {
 
 fn to_json<T: Serialize>(value: &T) -> String {
     serde_json::to_string(value).unwrap_or_else(|_| "{}".to_string())
+}
+
+#[cfg(test)]
+fn fetch_source_body(url: &str) -> std::result::Result<String, String> {
+    fetch_source(url).map(|fetched| fetched.raw_body)
+}
+
+#[cfg(test)]
+fn sync_pricing_with_fetch<F>(
+    conn: &Connection,
+    sources: &[PricingSourceDef],
+    mut fetch: F,
+) -> Result<PricingSyncSummary>
+where
+    F: FnMut(&PricingSourceDef) -> std::result::Result<String, String>,
+{
+    let old_latest = db::load_latest_pricing_models(conn)?;
+    let old_catalog = build_effective_catalog(&old_latest);
+    let mut successful_sources = 0;
+    let mut metadata_runs = 0;
+    let mut metadata_records = 0;
+
+    for source in sources {
+        let fetched_at = Utc::now().to_rfc3339();
+        match fetch(source) {
+            Ok(raw_body) => {
+                let normalized_body = strip_markup(&raw_body);
+                let parsed = parse_source(source, &raw_body);
+                let records = build_records_for_pricing_source(
+                    source,
+                    &normalized_body,
+                    &parsed,
+                    &fetched_at,
+                );
+                let (status, error_text) = if parsed.is_empty() {
+                    (
+                        STATUS_PARSE_ERROR.to_string(),
+                        "no recognizable pricing rows found".to_string(),
+                    )
+                } else {
+                    successful_sources += 1;
+                    (STATUS_SUCCESS.to_string(), String::new())
+                };
+
+                let metadata_run_id = db::insert_official_sync_run(
+                    conn,
+                    &OfficialSyncRunRecord {
+                        fetched_at: fetched_at.clone(),
+                        source_slug: source.slug.to_string(),
+                        source_kind: OfficialSourceKind::Pricing.as_str().to_string(),
+                        source_url: source.url.to_string(),
+                        provider: source.provider.to_string(),
+                        authority: OfficialSourceAuthority::ProviderDocs.as_str().to_string(),
+                        format: OfficialSourceFormat::Html.as_str().to_string(),
+                        cadence: OfficialSourceCadence::Daily.as_str().to_string(),
+                        status: status.clone(),
+                        http_status: Some(200),
+                        content_type: "text/html".to_string(),
+                        etag: String::new(),
+                        last_modified: String::new(),
+                        raw_body: raw_body.clone(),
+                        normalized_body: normalized_body.clone(),
+                        error_text: error_text.clone(),
+                        parser_version: PARSER_VERSION.to_string(),
+                        raw_body_sha256: sha256_hex(&raw_body),
+                        normalized_body_sha256: sha256_hex(&normalized_body),
+                        extracted_sha256: hash_records(&records),
+                    },
+                )?;
+                db::insert_official_extracted_records(conn, metadata_run_id, &records)?;
+                metadata_runs += 1;
+                metadata_records += records.len();
+
+                let run_id = db::insert_pricing_sync_run(
+                    conn,
+                    &PricingSyncRun {
+                        fetched_at,
+                        source_slug: source.slug.to_string(),
+                        source_url: source.url.to_string(),
+                        provider: source.provider.to_string(),
+                        status: status.clone(),
+                        raw_body,
+                        error_text,
+                    },
+                )?;
+                if status == STATUS_SUCCESS {
+                    db::insert_pricing_sync_models(conn, run_id, &parsed)?;
+                }
+            }
+            Err(err) => {
+                db::insert_pricing_sync_run(
+                    conn,
+                    &PricingSyncRun {
+                        fetched_at: fetched_at.clone(),
+                        source_slug: source.slug.to_string(),
+                        source_url: source.url.to_string(),
+                        provider: source.provider.to_string(),
+                        status: STATUS_FETCH_ERROR.to_string(),
+                        raw_body: String::new(),
+                        error_text: err.clone(),
+                    },
+                )?;
+                db::insert_official_sync_run(
+                    conn,
+                    &OfficialSyncRunRecord {
+                        fetched_at,
+                        source_slug: source.slug.to_string(),
+                        source_kind: OfficialSourceKind::Pricing.as_str().to_string(),
+                        source_url: source.url.to_string(),
+                        provider: source.provider.to_string(),
+                        authority: OfficialSourceAuthority::ProviderDocs.as_str().to_string(),
+                        format: OfficialSourceFormat::Html.as_str().to_string(),
+                        cadence: OfficialSourceCadence::Daily.as_str().to_string(),
+                        status: STATUS_FETCH_ERROR.to_string(),
+                        http_status: None,
+                        content_type: String::new(),
+                        etag: String::new(),
+                        last_modified: String::new(),
+                        raw_body: String::new(),
+                        normalized_body: String::new(),
+                        error_text: err,
+                        parser_version: PARSER_VERSION.to_string(),
+                        raw_body_sha256: String::new(),
+                        normalized_body_sha256: String::new(),
+                        extracted_sha256: String::new(),
+                    },
+                )?;
+                metadata_runs += 1;
+            }
+        }
+    }
+
+    let new_latest = db::load_latest_pricing_models(conn)?;
+    let new_catalog = build_effective_catalog(&new_latest);
+    let changed_models = diff_catalogs(&old_catalog, &new_catalog);
+
+    let mut repriced_turns = 0;
+    let mut repriced_sessions = 0;
+    let mut pricing_version = None;
+    if !changed_models.is_empty() {
+        let version = effective_catalog_version(&new_latest);
+        repriced_turns = db::reprice_turns_with_catalog(conn, &new_catalog, &version)?;
+        repriced_sessions = db::count_sessions(conn)?;
+        pricing_version = Some(version);
+    }
+
+    Ok(PricingSyncSummary {
+        total_sources: sources.len(),
+        successful_sources,
+        metadata_runs,
+        metadata_records,
+        changed_models,
+        repriced_turns,
+        repriced_sessions,
+        pricing_version,
+    })
+}
+
+fn build_records_for_pricing_source(
+    source: &PricingSourceDef,
+    text: &str,
+    pricing_rows: &[OfficialModelPricing],
+    fetched_at: &str,
+) -> Vec<OfficialExtractedRecord> {
+    let mut records = Vec::new();
+
+    for pricing in pricing_rows {
+        records.push(OfficialExtractedRecord {
+            source_slug: pricing.source_slug.clone(),
+            provider: pricing.provider.clone(),
+            record_type: "pricing_model".to_string(),
+            record_key: pricing.model_id.clone(),
+            model_id: pricing.model_id.clone(),
+            effective_at: fetched_at.to_string(),
+            payload_json: to_json(pricing),
+        });
+
+        let metadata = build_model_metadata_record(source, text, pricing);
+        records.push(OfficialExtractedRecord {
+            source_slug: source.slug.to_string(),
+            provider: source.provider.to_string(),
+            record_type: "model_metadata".to_string(),
+            record_key: metadata.model_id.clone(),
+            model_id: metadata.model_id.clone(),
+            effective_at: fetched_at.to_string(),
+            payload_json: to_json(&metadata),
+        });
+    }
+
+    for tool in parse_tool_pricing(source, text) {
+        let tool_key = format!(
+            "{}:{}:{}",
+            tool.provider,
+            tool.tool_slug,
+            tool.model_id.clone().unwrap_or_default()
+        );
+        records.push(OfficialExtractedRecord {
+            source_slug: tool.source_slug.clone(),
+            provider: tool.provider.clone(),
+            record_type: "tool_pricing".to_string(),
+            record_key: tool_key,
+            model_id: tool.model_id.clone().unwrap_or_default(),
+            effective_at: fetched_at.to_string(),
+            payload_json: to_json(&tool),
+        });
+    }
+
+    records
+}
+
+fn build_model_metadata_record(
+    source: &PricingSourceDef,
+    text: &str,
+    pricing: &OfficialModelPricing,
+) -> OfficialModelMetadataRecord {
+    let lower = text.to_ascii_lowercase();
+    let lifecycle = if source.provider == "anthropic"
+        && lower.contains(&format!(
+            "{} (deprecated)",
+            pricing.model_label.to_ascii_lowercase()
+        )) {
+        Some(ModelLifecycleMetadata {
+            stage: ModelLifecycleStage::Deprecated,
+            announced_at: None,
+            generally_available_at: None,
+            deprecation_announced_at: None,
+            sunset_at: None,
+            replacement_model_id: None,
+            notes: vec!["deprecated marker present on official pricing page".to_string()],
+        })
+    } else {
+        Some(ModelLifecycleMetadata {
+            stage: ModelLifecycleStage::GenerallyAvailable,
+            announced_at: None,
+            generally_available_at: None,
+            deprecation_announced_at: None,
+            sunset_at: None,
+            replacement_model_id: None,
+            notes: vec!["listed on official pricing page".to_string()],
+        })
+    };
+
+    let prompt_caching = Some(PromptCachingPolicyMetadata {
+        supported: pricing.cache_read_usd_per_mtok > 0.0 || pricing.cache_write_usd_per_mtok > 0.0,
+        default_ttl_seconds: if source.provider == "anthropic" {
+            Some(300)
+        } else {
+            None
+        },
+        max_ttl_seconds: if source.provider == "anthropic" {
+            Some(3600)
+        } else {
+            None
+        },
+        refresh_resets_ttl: None,
+        write_priced_as_input: Some(
+            (pricing.cache_write_usd_per_mtok - pricing.input_usd_per_mtok).abs() < f64::EPSILON,
+        ),
+        cache_read_discount_pct: if pricing.input_usd_per_mtok > 0.0 {
+            Some(100.0 - ((pricing.cache_read_usd_per_mtok / pricing.input_usd_per_mtok) * 100.0))
+        } else {
+            None
+        },
+        cache_write_multiplier: if pricing.input_usd_per_mtok > 0.0 {
+            Some(pricing.cache_write_usd_per_mtok / pricing.input_usd_per_mtok)
+        } else {
+            None
+        },
+        notes: if source.provider == "anthropic" {
+            vec!["Anthropic pricing page lists 5m default and 1h extended cache tiers".to_string()]
+        } else {
+            vec!["Derived from cached-input pricing on official OpenAI pricing page".to_string()]
+        },
+    });
+
+    let context_window = if source.provider == "anthropic"
+        && pricing.model_label.contains("Opus 4.7")
+        && lower.contains("opus 4.7 uses a new tokenizer")
+    {
+        Some(ContextWindowMetadata {
+            max_input_tokens: None,
+            max_output_tokens: None,
+            max_context_tokens: None,
+            tokenizer_family: Some(TokenizerFamily::ProviderSpecific),
+            tokenizer_name: None,
+            tokenizer_notes: vec![
+                "Official pricing page notes a new tokenizer with potentially higher token counts"
+                    .to_string(),
+            ],
+            truncation_behavior: None,
+        })
+    } else {
+        None
+    };
+
+    let mut processing_modes = Vec::new();
+    if source.provider == "anthropic" && lower.contains("batch api discount") {
+        processing_modes.push(ProcessingModePricingMetadata {
+            mode: ProcessingMode::Batch,
+            region_scope: None,
+            input_usd_per_mtok: None,
+            cache_write_usd_per_mtok: None,
+            cache_read_usd_per_mtok: None,
+            output_usd_per_mtok: None,
+            relative_uplift_pct: Some(-50.0),
+            notes: vec!["Official pricing page references Batch API discount".to_string()],
+        });
+    }
+    if source.provider == "anthropic"
+        && lower
+            .contains("us-only inference via the inference_geo parameter incurs a 1.1x multiplier")
+    {
+        processing_modes.push(ProcessingModePricingMetadata {
+            mode: ProcessingMode::Regional,
+            region_scope: Some("us_only".to_string()),
+            input_usd_per_mtok: Some(pricing.input_usd_per_mtok * 1.1),
+            cache_write_usd_per_mtok: Some(pricing.cache_write_usd_per_mtok * 1.1),
+            cache_read_usd_per_mtok: Some(pricing.cache_read_usd_per_mtok * 1.1),
+            output_usd_per_mtok: Some(pricing.output_usd_per_mtok * 1.1),
+            relative_uplift_pct: Some(10.0),
+            notes: vec![
+                "Official pricing page documents a 1.1x US-only inference multiplier".to_string(),
+            ],
+        });
+    }
+
+    if source.provider == "openai" && pricing.model_id == "gpt-5.3-codex" {
+        if let Some(batch) =
+            parse_openai_processing_mode(text, "gpt-5.3-codex", ProcessingMode::Batch, -50.0)
+        {
+            processing_modes.push(batch);
+        }
+        if let Some(priority) =
+            parse_openai_processing_mode(text, "gpt-5.3-codex", ProcessingMode::Priority, 100.0)
+        {
+            processing_modes.push(priority);
+        }
+    }
+
+    let notes = if pricing.notes.is_empty() {
+        Vec::new()
+    } else {
+        vec![pricing.notes.clone()]
+    };
+
+    OfficialModelMetadataRecord {
+        provider: source.provider.to_string(),
+        model_id: pricing.model_id.clone(),
+        model_label: pricing.model_label.clone(),
+        lifecycle,
+        context_window,
+        prompt_caching,
+        processing_modes,
+        notes,
+    }
+}
+
+fn parse_openai_processing_mode(
+    text: &str,
+    model_id: &str,
+    mode: ProcessingMode,
+    relative_uplift_pct: f64,
+) -> Option<ProcessingModePricingMetadata> {
+    let label = match mode {
+        ProcessingMode::Batch => "Batch",
+        ProcessingMode::Priority => "Priority",
+        _ => return None,
+    };
+    let pattern = format!(
+        r"{label}\s+Category Model Input Cached input Output .*?{model}\$(?P<input>\d+(?:\.\d+)?)\$(?P<cached>\d+(?:\.\d+)?)\$(?P<output>\d+(?:\.\d+)?)",
+        label = regex::escape(label),
+        model = regex::escape(model_id)
+    );
+    let re = Regex::new(&pattern).ok()?;
+    let caps = re.captures(text)?;
+    Some(ProcessingModePricingMetadata {
+        mode,
+        region_scope: None,
+        input_usd_per_mtok: parse_decimal(&caps, "input"),
+        cache_write_usd_per_mtok: parse_decimal(&caps, "input"),
+        cache_read_usd_per_mtok: parse_decimal(&caps, "cached"),
+        output_usd_per_mtok: parse_decimal(&caps, "output"),
+        relative_uplift_pct: Some(relative_uplift_pct),
+        notes: vec!["Parsed from official OpenAI pricing mode table".to_string()],
+    })
+}
+
+fn parse_tool_pricing(source: &PricingSourceDef, text: &str) -> Vec<OfficialToolPricing> {
+    if source.provider == "openai" {
+        return parse_openai_tool_pricing(source, text);
+    }
+    if source.provider == "anthropic" {
+        return parse_anthropic_tool_pricing(source, text);
+    }
+    Vec::new()
+}
+
+fn parse_openai_tool_pricing(source: &PricingSourceDef, text: &str) -> Vec<OfficialToolPricing> {
+    let mut rows = Vec::new();
+    let specs = [
+        (
+            "web-search",
+            "Web Search",
+            r"Web search Web search \(all models\)\$(?P<price>\d+(?:\.\d+)?) / 1k calls",
+            ToolBillingUnit::Per1KCalls,
+            None,
+        ),
+        (
+            "web-search-preview-reasoning",
+            "Web Search Preview (Reasoning)",
+            r"Web search preview \(reasoning models, including .*?\)\$(?P<price>\d+(?:\.\d+)?) / 1k calls",
+            ToolBillingUnit::Per1KCalls,
+            None,
+        ),
+        (
+            "web-search-preview-non-reasoning",
+            "Web Search Preview (Non-Reasoning)",
+            r"Web search preview \(non-reasoning models\)\$(?P<price>\d+(?:\.\d+)?) / 1k calls",
+            ToolBillingUnit::Per1KCalls,
+            None,
+        ),
+        (
+            "file-search-storage",
+            "File Search Storage",
+            r"File search Storage\$(?P<price>\d+(?:\.\d+)?) / GB per day \(1 GB free\)",
+            ToolBillingUnit::PerSession,
+            Some(1.0),
+        ),
+        (
+            "file-search-call",
+            "File Search Tool Call",
+            r"Tool call\$(?P<price>\d+(?:\.\d+)?) / 1k calls",
+            ToolBillingUnit::Per1KCalls,
+            None,
+        ),
+    ];
+
+    for (tool_slug, tool_label, pattern, billing_unit, included_units) in specs {
+        let Ok(re) = Regex::new(pattern) else {
+            continue;
+        };
+        let Some(caps) = re.captures(text) else {
+            continue;
+        };
+        let Some(unit_price_usd) = parse_decimal(&caps, "price") else {
+            continue;
+        };
+        rows.push(OfficialToolPricing {
+            source_slug: source.slug.to_string(),
+            provider: source.provider.to_string(),
+            tool_slug: tool_slug.to_string(),
+            tool_label: tool_label.to_string(),
+            model_id: None,
+            billing_unit,
+            unit_price_usd,
+            included_units,
+            notes: vec!["Parsed from official OpenAI pricing page".to_string()],
+        });
+    }
+
+    if let Ok(re) = Regex::new(
+        r"Containers Hosted Shell and Code Interpreter 1 GB \$(?P<gb1>\d+(?:\.\d+)?), 4 GB \$(?P<gb4>\d+(?:\.\d+)?), 16 GB \$(?P<gb16>\d+(?:\.\d+)?), 64 GB \$(?P<gb64>\d+(?:\.\d+)?) per 20-minute session per container",
+    ) && let Some(caps) = re.captures(text)
+    {
+        for (size, key) in [
+            ("1gb", "gb1"),
+            ("4gb", "gb4"),
+            ("16gb", "gb16"),
+            ("64gb", "gb64"),
+        ] {
+            if let Some(unit_price_usd) = parse_decimal(&caps, key) {
+                rows.push(OfficialToolPricing {
+                    source_slug: source.slug.to_string(),
+                    provider: source.provider.to_string(),
+                    tool_slug: format!("container-{size}"),
+                    tool_label: format!("Container Session {size}"),
+                    model_id: None,
+                    billing_unit: ToolBillingUnit::PerSession,
+                    unit_price_usd,
+                    included_units: None,
+                    notes: vec![
+                        "Hosted Shell and Code Interpreter session pricing (20-minute session)"
+                            .to_string(),
+                    ],
+                });
+            }
+        }
+    }
+
+    rows
+}
+
+fn parse_anthropic_tool_pricing(source: &PricingSourceDef, text: &str) -> Vec<OfficialToolPricing> {
+    let mut rows = Vec::new();
+    if let Ok(re) = Regex::new(r"Bash tool The bash tool adds (?P<input>\d+) input tokens")
+        && let Some(caps) = re.captures(text)
+        && let Some(input_tokens) = caps
+            .name("input")
+            .and_then(|m| m.as_str().parse::<f64>().ok())
+    {
+        rows.push(OfficialToolPricing {
+            source_slug: source.slug.to_string(),
+            provider: source.provider.to_string(),
+            tool_slug: "bash-tool-overhead".to_string(),
+            tool_label: "Bash Tool Overhead".to_string(),
+            model_id: None,
+            billing_unit: ToolBillingUnit::PerCall,
+            unit_price_usd: 0.0,
+            included_units: None,
+            notes: vec![format!(
+                "Billed at model token rates; official docs state each call adds {input_tokens} input tokens"
+            )],
+        });
+    }
+    rows
+}
+
+fn build_records_for_content_source(
+    source: &OfficialContentSourceDef,
+    text: &str,
+    fetched_at: &str,
+) -> Vec<OfficialExtractedRecord> {
+    match source.kind {
+        OfficialSourceKind::ModelCatalog => parse_model_catalog(source, text, fetched_at),
+        OfficialSourceKind::ReleaseNotes => parse_release_note_records(source, text),
+        _ => Vec::new(),
+    }
+}
+
+fn parse_model_catalog(
+    source: &OfficialContentSourceDef,
+    text: &str,
+    fetched_at: &str,
+) -> Vec<OfficialExtractedRecord> {
+    let mut out = Vec::new();
+    if source.provider == "openai" {
+        let Ok(re) = Regex::new(
+            r"\b(gpt-[a-z0-9.\-]+|o[1345](?:-[a-z0-9.\-]+)?|computer-use-preview|whisper-1|tts-1(?:-hd)?|text-embedding-[a-z0-9.\-]+)\b",
+        ) else {
+            return out;
+        };
+        let mut seen = BTreeSet::new();
+        for cap in re.captures_iter(text) {
+            let Some(model_id) = cap.get(1).map(|m| m.as_str().to_string()) else {
+                continue;
+            };
+            if !seen.insert(model_id.clone()) {
+                continue;
+            }
+            let payload = OfficialModelMetadataRecord {
+                provider: source.provider.to_string(),
+                model_id: model_id.clone(),
+                model_label: model_id.clone(),
+                lifecycle: Some(ModelLifecycleMetadata {
+                    stage: ModelLifecycleStage::GenerallyAvailable,
+                    announced_at: None,
+                    generally_available_at: None,
+                    deprecation_announced_at: None,
+                    sunset_at: None,
+                    replacement_model_id: None,
+                    notes: vec!["Listed on official models catalog page".to_string()],
+                }),
+                context_window: None,
+                prompt_caching: None,
+                processing_modes: Vec::new(),
+                notes: vec!["Catalog presence snapshot".to_string()],
+            };
+            out.push(OfficialExtractedRecord {
+                source_slug: source.slug.to_string(),
+                provider: source.provider.to_string(),
+                record_type: "catalog_model".to_string(),
+                record_key: model_id.clone(),
+                model_id,
+                effective_at: fetched_at.to_string(),
+                payload_json: to_json(&payload),
+            });
+        }
+    } else if source.provider == "anthropic" {
+        let Ok(re) = Regex::new(r"Claude (?P<family>Opus|Sonnet|Haiku) (?P<version>[0-9.]+)")
+        else {
+            return out;
+        };
+        let mut seen = BTreeSet::new();
+        for caps in re.captures_iter(text) {
+            let Some(family) = caps.name("family").map(|m| m.as_str()) else {
+                continue;
+            };
+            let Some(version) = caps.name("version").map(|m| m.as_str()) else {
+                continue;
+            };
+            let model_id = normalize_anthropic_model(family, version);
+            if !seen.insert(model_id.clone()) {
+                continue;
+            }
+            let payload = OfficialModelMetadataRecord {
+                provider: source.provider.to_string(),
+                model_id: model_id.clone(),
+                model_label: format!("Claude {family} {version}"),
+                lifecycle: Some(ModelLifecycleMetadata {
+                    stage: ModelLifecycleStage::GenerallyAvailable,
+                    announced_at: None,
+                    generally_available_at: None,
+                    deprecation_announced_at: None,
+                    sunset_at: None,
+                    replacement_model_id: None,
+                    notes: vec!["Listed on official models overview page".to_string()],
+                }),
+                context_window: None,
+                prompt_caching: None,
+                processing_modes: Vec::new(),
+                notes: vec!["Catalog presence snapshot".to_string()],
+            };
+            out.push(OfficialExtractedRecord {
+                source_slug: source.slug.to_string(),
+                provider: source.provider.to_string(),
+                record_type: "catalog_model".to_string(),
+                record_key: model_id.clone(),
+                model_id,
+                effective_at: fetched_at.to_string(),
+                payload_json: to_json(&payload),
+            });
+        }
+    }
+    out
+}
+
+fn parse_release_note_records(
+    source: &OfficialContentSourceDef,
+    text: &str,
+) -> Vec<OfficialExtractedRecord> {
+    parse_release_notes(source, text)
+        .into_iter()
+        .map(|note| OfficialExtractedRecord {
+            source_slug: note.source_slug.clone(),
+            provider: note.provider.clone(),
+            record_type: "release_note".to_string(),
+            record_key: note.snapshot_id.clone(),
+            model_id: note.affected_models.first().cloned().unwrap_or_default(),
+            effective_at: note.published_at.clone().unwrap_or_default(),
+            payload_json: to_json(&note),
+        })
+        .collect()
+}
+
+fn parse_release_notes(source: &OfficialContentSourceDef, text: &str) -> Vec<ReleaseNoteSnapshot> {
+    if source.provider == "anthropic" {
+        return parse_anthropic_release_notes(source, text);
+    }
+    parse_openai_release_notes(source, text)
+}
+
+fn parse_anthropic_release_notes(
+    source: &OfficialContentSourceDef,
+    text: &str,
+) -> Vec<ReleaseNoteSnapshot> {
+    let Ok(re) = Regex::new(
+        r"(?P<date>[A-Za-z]+ \d{1,2}(?:st|nd|rd|th), \d{4}) (?P<body>.*?)(?=(?:[A-Za-z]+ \d{1,2}(?:st|nd|rd|th), \d{4})|$)",
+    ) else {
+        return Vec::new();
+    };
+    re.captures_iter(text)
+        .take(20)
+        .filter_map(|caps| {
+            let date = caps.name("date")?.as_str().to_string();
+            let body = caps.name("body")?.as_str().trim().to_string();
+            if body.is_empty() {
+                return None;
+            }
+            let title = first_sentence(&body);
+            Some(ReleaseNoteSnapshot {
+                source_slug: source.slug.to_string(),
+                provider: source.provider.to_string(),
+                snapshot_id: sha256_hex(&format!("{}:{title}", date)),
+                title: title.clone(),
+                url: source.url.to_string(),
+                published_at: Some(date),
+                kind: classify_release_note_kind(&body),
+                summary: truncate_for_summary(&body),
+                affected_models: extract_affected_models(&body),
+                notes: vec!["Parsed from official Anthropic release notes page".to_string()],
+            })
+        })
+        .collect()
+}
+
+fn parse_openai_release_notes(
+    source: &OfficialContentSourceDef,
+    text: &str,
+) -> Vec<ReleaseNoteSnapshot> {
+    let Ok(re) = Regex::new(
+        r"(?P<date>Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) (?P<day>\d{1,2}) (?P<body>.*?)(?=(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{1,2}|$)",
+    ) else {
+        return Vec::new();
+    };
+    re.captures_iter(text)
+        .take(20)
+        .filter_map(|caps| {
+            let month = caps.name("date")?.as_str();
+            let day = caps.name("day")?.as_str();
+            let body = caps.name("body")?.as_str().trim().to_string();
+            if body.is_empty() {
+                return None;
+            }
+            let title = first_sentence(&body);
+            Some(ReleaseNoteSnapshot {
+                source_slug: source.slug.to_string(),
+                provider: source.provider.to_string(),
+                snapshot_id: sha256_hex(&format!("{month}-{day}:{title}")),
+                title: title.clone(),
+                url: source.url.to_string(),
+                published_at: Some(format!("{month} {day}")),
+                kind: classify_release_note_kind(&body),
+                summary: truncate_for_summary(&body),
+                affected_models: extract_affected_models(&body),
+                notes: vec!["Parsed from official OpenAI changelog".to_string()],
+            })
+        })
+        .collect()
+}
+
+fn sync_status_source(
+    conn: &Connection,
+    source: &StatusSourceDef,
+) -> Result<(usize, usize, usize)> {
+    let fetched_at = Utc::now().to_rfc3339();
+    if let Some(incidents_url) = source.incidents_url {
+        let summary = fetch_source(source.summary_url);
+        let incidents = fetch_source(incidents_url);
+        return match (summary, incidents) {
+            (Ok(summary), Ok(incidents)) => {
+                let snapshot = agent_status::poll_with_injection(InjectedResponses {
+                    claude_summary: None,
+                    openai_status: Some(summary.raw_body.clone()),
+                    openai_incidents: Some(incidents.raw_body.clone()),
+                });
+                let provider = snapshot.openai.unwrap_or(ProviderStatus {
+                    indicator: Default::default(),
+                    description: String::new(),
+                    components: Vec::new(),
+                    active_incidents: Vec::new(),
+                    page_url: source.page_url.to_string(),
+                });
+                let status_record = OfficialExtractedRecord {
+                    source_slug: source.slug.to_string(),
+                    provider: source.provider.to_string(),
+                    record_type: "status_snapshot".to_string(),
+                    record_key: source.provider.to_string(),
+                    model_id: String::new(),
+                    effective_at: fetched_at.clone(),
+                    payload_json: to_json(&StatusSnapshotRecord {
+                        provider: source.provider.to_string(),
+                        source_slug: source.slug.to_string(),
+                        page_url: source.page_url.to_string(),
+                        snapshot: provider.clone(),
+                    }),
+                };
+                let incident_records = provider
+                    .active_incidents
+                    .iter()
+                    .map(|incident| OfficialExtractedRecord {
+                        source_slug: source.slug.to_string(),
+                        provider: source.provider.to_string(),
+                        record_type: "status_incident".to_string(),
+                        record_key: incident
+                            .shortlink
+                            .clone()
+                            .unwrap_or_else(|| sha256_hex(&incident.name)),
+                        model_id: String::new(),
+                        effective_at: incident.started_at.clone(),
+                        payload_json: to_json(incident),
+                    })
+                    .collect::<Vec<_>>();
+
+                let summary_run_id = db::insert_official_sync_run(
+                    conn,
+                    &OfficialSyncRunRecord {
+                        fetched_at: fetched_at.clone(),
+                        source_slug: source.slug.to_string(),
+                        source_kind: OfficialSourceKind::StatusSummary.as_str().to_string(),
+                        source_url: source.summary_url.to_string(),
+                        provider: source.provider.to_string(),
+                        authority: source.authority.as_str().to_string(),
+                        format: source.format.as_str().to_string(),
+                        cadence: source.cadence.as_str().to_string(),
+                        status: STATUS_SUCCESS.to_string(),
+                        http_status: Some(i64::from(summary.http_status)),
+                        content_type: summary.content_type,
+                        etag: summary.etag,
+                        last_modified: summary.last_modified,
+                        raw_body_sha256: sha256_hex(&summary.raw_body),
+                        normalized_body_sha256: sha256_hex(&summary.normalized_body),
+                        extracted_sha256: sha256_hex(&status_record.payload_json),
+                        raw_body: summary.raw_body,
+                        normalized_body: summary.normalized_body,
+                        error_text: String::new(),
+                        parser_version: PARSER_VERSION.to_string(),
+                    },
+                )?;
+                db::insert_official_extracted_records(conn, summary_run_id, &[status_record])?;
+
+                let incident_run_id = db::insert_official_sync_run(
+                    conn,
+                    &OfficialSyncRunRecord {
+                        fetched_at,
+                        source_slug: format!("{}_incidents", source.slug),
+                        source_kind: OfficialSourceKind::StatusIncidents.as_str().to_string(),
+                        source_url: incidents_url.to_string(),
+                        provider: source.provider.to_string(),
+                        authority: source.authority.as_str().to_string(),
+                        format: source.format.as_str().to_string(),
+                        cadence: source.cadence.as_str().to_string(),
+                        status: STATUS_SUCCESS.to_string(),
+                        http_status: Some(i64::from(incidents.http_status)),
+                        content_type: incidents.content_type,
+                        etag: incidents.etag,
+                        last_modified: incidents.last_modified,
+                        raw_body_sha256: sha256_hex(&incidents.raw_body),
+                        normalized_body_sha256: sha256_hex(&incidents.normalized_body),
+                        extracted_sha256: hash_records(&incident_records),
+                        raw_body: incidents.raw_body,
+                        normalized_body: incidents.normalized_body,
+                        error_text: String::new(),
+                        parser_version: PARSER_VERSION.to_string(),
+                    },
+                )?;
+                db::insert_official_extracted_records(conn, incident_run_id, &incident_records)?;
+                Ok((2, 1 + incident_records.len(), 2))
+            }
+            (Err(err), _) | (_, Err(err)) => {
+                db::insert_official_sync_run(
+                    conn,
+                    &OfficialSyncRunRecord {
+                        fetched_at,
+                        source_slug: source.slug.to_string(),
+                        source_kind: OfficialSourceKind::StatusSummary.as_str().to_string(),
+                        source_url: source.summary_url.to_string(),
+                        provider: source.provider.to_string(),
+                        authority: source.authority.as_str().to_string(),
+                        format: source.format.as_str().to_string(),
+                        cadence: source.cadence.as_str().to_string(),
+                        status: STATUS_FETCH_ERROR.to_string(),
+                        http_status: None,
+                        content_type: String::new(),
+                        etag: String::new(),
+                        last_modified: String::new(),
+                        raw_body: String::new(),
+                        normalized_body: String::new(),
+                        error_text: err,
+                        parser_version: PARSER_VERSION.to_string(),
+                        raw_body_sha256: String::new(),
+                        normalized_body_sha256: String::new(),
+                        extracted_sha256: String::new(),
+                    },
+                )?;
+                Ok((1, 0, 0))
+            }
+        };
+    }
+
+    match fetch_source(source.summary_url) {
+        Ok(summary) => {
+            let snapshot = agent_status::poll_with_injection(InjectedResponses {
+                claude_summary: Some(summary.raw_body.clone()),
+                openai_status: None,
+                openai_incidents: None,
+            });
+            let provider = snapshot.claude.unwrap_or(ProviderStatus {
+                indicator: Default::default(),
+                description: String::new(),
+                components: Vec::new(),
+                active_incidents: Vec::new(),
+                page_url: source.page_url.to_string(),
+            });
+            let mut records = vec![OfficialExtractedRecord {
+                source_slug: source.slug.to_string(),
+                provider: source.provider.to_string(),
+                record_type: "status_snapshot".to_string(),
+                record_key: source.provider.to_string(),
+                model_id: String::new(),
+                effective_at: fetched_at.clone(),
+                payload_json: to_json(&StatusSnapshotRecord {
+                    provider: source.provider.to_string(),
+                    source_slug: source.slug.to_string(),
+                    page_url: source.page_url.to_string(),
+                    snapshot: provider.clone(),
+                }),
+            }];
+            records.extend(provider.active_incidents.iter().map(|incident| {
+                OfficialExtractedRecord {
+                    source_slug: source.slug.to_string(),
+                    provider: source.provider.to_string(),
+                    record_type: "status_incident".to_string(),
+                    record_key: incident
+                        .shortlink
+                        .clone()
+                        .unwrap_or_else(|| sha256_hex(&incident.name)),
+                    model_id: String::new(),
+                    effective_at: incident.started_at.clone(),
+                    payload_json: to_json(incident),
+                }
+            }));
+            let run_id = db::insert_official_sync_run(
+                conn,
+                &OfficialSyncRunRecord {
+                    fetched_at,
+                    source_slug: source.slug.to_string(),
+                    source_kind: OfficialSourceKind::StatusSummary.as_str().to_string(),
+                    source_url: source.summary_url.to_string(),
+                    provider: source.provider.to_string(),
+                    authority: source.authority.as_str().to_string(),
+                    format: source.format.as_str().to_string(),
+                    cadence: source.cadence.as_str().to_string(),
+                    status: STATUS_SUCCESS.to_string(),
+                    http_status: Some(i64::from(summary.http_status)),
+                    content_type: summary.content_type,
+                    etag: summary.etag,
+                    last_modified: summary.last_modified,
+                    raw_body_sha256: sha256_hex(&summary.raw_body),
+                    normalized_body_sha256: sha256_hex(&summary.normalized_body),
+                    extracted_sha256: hash_records(&records),
+                    raw_body: summary.raw_body,
+                    normalized_body: summary.normalized_body,
+                    error_text: String::new(),
+                    parser_version: PARSER_VERSION.to_string(),
+                },
+            )?;
+            db::insert_official_extracted_records(conn, run_id, &records)?;
+            Ok((1, records.len(), 1))
+        }
+        Err(err) => {
+            db::insert_official_sync_run(
+                conn,
+                &OfficialSyncRunRecord {
+                    fetched_at,
+                    source_slug: source.slug.to_string(),
+                    source_kind: OfficialSourceKind::StatusSummary.as_str().to_string(),
+                    source_url: source.summary_url.to_string(),
+                    provider: source.provider.to_string(),
+                    authority: source.authority.as_str().to_string(),
+                    format: source.format.as_str().to_string(),
+                    cadence: source.cadence.as_str().to_string(),
+                    status: STATUS_FETCH_ERROR.to_string(),
+                    http_status: None,
+                    content_type: String::new(),
+                    etag: String::new(),
+                    last_modified: String::new(),
+                    raw_body: String::new(),
+                    normalized_body: String::new(),
+                    error_text: err,
+                    parser_version: PARSER_VERSION.to_string(),
+                    raw_body_sha256: String::new(),
+                    normalized_body_sha256: String::new(),
+                    extracted_sha256: String::new(),
+                },
+            )?;
+            Ok((1, 0, 0))
+        }
+    }
+}
+
+fn parse_exchange_rates(
+    source: &ExchangeRateSourceDef,
+    raw_body: &str,
+    fetched_at: &str,
+) -> Vec<OfficialExtractedRecord> {
+    let Ok(snapshot) = serde_json::from_str::<RatesSnapshot>(raw_body) else {
+        return Vec::new();
+    };
+    snapshot
+        .rates
+        .iter()
+        .map(|(quote_currency, rate)| {
+            let payload = ExchangeRateRecord {
+                provider: source.provider.to_string(),
+                source_slug: source.slug.to_string(),
+                base_currency: snapshot.base.clone(),
+                quote_currency: quote_currency.clone(),
+                rate: *rate,
+                upstream_provider: source.upstream_provider.map(str::to_string),
+                observed_at: fetched_at.to_string(),
+            };
+            OfficialExtractedRecord {
+                source_slug: source.slug.to_string(),
+                provider: source.provider.to_string(),
+                record_type: "exchange_rate".to_string(),
+                record_key: format!("{}-{}", snapshot.base, quote_currency),
+                model_id: String::new(),
+                effective_at: fetched_at.to_string(),
+                payload_json: to_json(&payload),
+            }
+        })
+        .collect()
+}
+
+fn sync_openai_usage_reconciliation(
+    conn: &Connection,
+    options: &OfficialSyncOptions,
+) -> Result<(usize, usize, usize)> {
+    let fetched_at = Utc::now().to_rfc3339();
+    let Some(admin_key) = options.openai_admin_key.as_deref() else {
+        db::insert_official_sync_run(
+            conn,
+            &OfficialSyncRunRecord {
+                fetched_at,
+                source_slug: "openai_usage_api".to_string(),
+                source_kind: OfficialSourceKind::UsageReconciliation.as_str().to_string(),
+                source_url: OPENAI_USAGE_URL.to_string(),
+                provider: "openai".to_string(),
+                authority: OfficialSourceAuthority::UpstreamReference
+                    .as_str()
+                    .to_string(),
+                format: OfficialSourceFormat::Json.as_str().to_string(),
+                cadence: OfficialSourceCadence::Daily.as_str().to_string(),
+                status: STATUS_SKIPPED.to_string(),
+                http_status: None,
+                content_type: String::new(),
+                etag: String::new(),
+                last_modified: String::new(),
+                raw_body: String::new(),
+                normalized_body: String::new(),
+                error_text: "missing OpenAI admin key".to_string(),
+                parser_version: PARSER_VERSION.to_string(),
+                raw_body_sha256: String::new(),
+                normalized_body_sha256: String::new(),
+                extracted_sha256: String::new(),
+            },
+        )?;
+        return Ok((1, 0, 0));
+    };
+
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()?;
+    let reconciliation = rt.block_on(openai::fetch_org_usage_reconciliation(
+        admin_key,
+        options.openai_lookback_days,
+        0.0,
+    ));
+    let status = if reconciliation.available {
+        STATUS_SUCCESS
+    } else {
+        STATUS_FETCH_ERROR
+    };
+    let normalized_body = to_json(&reconciliation);
+    let record = OfficialExtractedRecord {
+        source_slug: "openai_usage_api".to_string(),
+        provider: "openai".to_string(),
+        record_type: "usage_reconciliation".to_string(),
+        record_key: format!("{}:{}", reconciliation.start_date, reconciliation.end_date),
+        model_id: String::new(),
+        effective_at: fetched_at.clone(),
+        payload_json: normalized_body.clone(),
+    };
+    let run_id = db::insert_official_sync_run(
+        conn,
+        &OfficialSyncRunRecord {
+            fetched_at,
+            source_slug: "openai_usage_api".to_string(),
+            source_kind: OfficialSourceKind::UsageReconciliation.as_str().to_string(),
+            source_url: OPENAI_USAGE_URL.to_string(),
+            provider: "openai".to_string(),
+            authority: OfficialSourceAuthority::UpstreamReference
+                .as_str()
+                .to_string(),
+            format: OfficialSourceFormat::Json.as_str().to_string(),
+            cadence: OfficialSourceCadence::Daily.as_str().to_string(),
+            status: status.to_string(),
+            http_status: None,
+            content_type: "application/json".to_string(),
+            etag: String::new(),
+            last_modified: String::new(),
+            raw_body: String::new(),
+            normalized_body: normalized_body.clone(),
+            error_text: reconciliation.error.clone().unwrap_or_default(),
+            parser_version: PARSER_VERSION.to_string(),
+            raw_body_sha256: String::new(),
+            normalized_body_sha256: sha256_hex(&normalized_body),
+            extracted_sha256: sha256_hex(&record.payload_json),
+        },
+    )?;
+    db::insert_official_extracted_records(conn, run_id, &[record])?;
+    Ok((1, 1, usize::from(reconciliation.available)))
+}
+
+fn classify_release_note_kind(text: &str) -> ReleaseNoteKind {
+    let lower = text.to_ascii_lowercase();
+    if lower.contains("deprecat") || lower.contains("retir") || lower.contains("sunset") {
+        ReleaseNoteKind::Deprecation
+    } else if lower.contains("pricing") || lower.contains("discount") || lower.contains("cost") {
+        ReleaseNoteKind::Pricing
+    } else if lower.contains("context window") || lower.contains("1m token") {
+        ReleaseNoteKind::ContextWindow
+    } else if lower.contains("tool")
+        || lower.contains("file search")
+        || lower.contains("code interpreter")
+    {
+        ReleaseNoteKind::Tooling
+    } else if lower.contains("reliability") || lower.contains("uptime") || lower.contains("latency")
+    {
+        ReleaseNoteKind::Reliability
+    } else if lower.contains("launch") || lower.contains("released") || lower.contains("introduced")
+    {
+        ReleaseNoteKind::Launch
+    } else if lower.contains("support") || lower.contains("added") || lower.contains("updated") {
+        ReleaseNoteKind::Capability
+    } else {
+        ReleaseNoteKind::Update
+    }
+}
+
+fn extract_affected_models(text: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut seen = BTreeSet::new();
+    if let Ok(re) =
+        Regex::new(r"\b(gpt-[a-z0-9.\-]+|o[1345](?:-[a-z0-9.\-]+)?|computer-use-preview)\b")
+    {
+        for caps in re.captures_iter(text) {
+            if let Some(model_id) = caps.get(1).map(|m| m.as_str().to_string())
+                && seen.insert(model_id.clone())
+            {
+                out.push(model_id);
+            }
+        }
+    }
+    if let Ok(re) = Regex::new(r"Claude (?P<family>Opus|Sonnet|Haiku) (?P<version>[0-9.]+)") {
+        for caps in re.captures_iter(text) {
+            let Some(family) = caps.name("family").map(|m| m.as_str()) else {
+                continue;
+            };
+            let Some(version) = caps.name("version").map(|m| m.as_str()) else {
+                continue;
+            };
+            let model_id = normalize_anthropic_model(family, version);
+            if seen.insert(model_id.clone()) {
+                out.push(model_id);
+            }
+        }
+    }
+    out
+}
+
+fn first_sentence(text: &str) -> String {
+    text.split(". ")
+        .next()
+        .unwrap_or(text)
+        .trim()
+        .trim_end_matches('.')
+        .to_string()
+}
+
+fn truncate_for_summary(text: &str) -> String {
+    const MAX: usize = 240;
+    if text.len() <= MAX {
+        text.to_string()
+    } else {
+        format!("{}...", &text[..MAX])
+    }
 }
 
 fn parse_source(source: &PricingSourceDef, raw_body: &str) -> Vec<OfficialModelPricing> {

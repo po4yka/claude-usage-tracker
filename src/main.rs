@@ -769,7 +769,19 @@ fn main() -> Result<()> {
             print!("{}", output);
         }
         Commands::Pricing { action } => {
-            cmd_pricing(action, &default_db(None))?;
+            cmd_pricing(
+                action,
+                &default_db(None),
+                &official_pricing::OfficialSyncOptions {
+                    openai_admin_key: if cfg_openai_enabled {
+                        std::env::var(&cfg_openai_admin_key_env).ok()
+                    } else {
+                        None
+                    },
+                    openai_lookback_days: cfg_openai_lookback_days,
+                    agent_status_config: cfg_agent_status.clone(),
+                },
+            )?;
         }
         Commands::Scheduler { action } => {
             cmd_scheduler(action, &default_db(None))?;
@@ -1136,7 +1148,11 @@ fn cmd_scheduler(action: SchedulerAction, default_db: &std::path::Path) -> Resul
     Ok(())
 }
 
-fn cmd_pricing(action: PricingAction, default_db: &std::path::Path) -> Result<()> {
+fn cmd_pricing(
+    action: PricingAction,
+    default_db: &std::path::Path,
+    sync_options: &official_pricing::OfficialSyncOptions,
+) -> Result<()> {
     use scheduler::{InstallStatus, Interval, PRICING_SYNC_JOB};
     use std::str::FromStr;
 
@@ -1156,11 +1172,15 @@ fn cmd_pricing(action: PricingAction, default_db: &std::path::Path) -> Result<()
             let db = db_path.unwrap_or_else(|| default_db.to_path_buf());
             let conn = scanner::db::open_db(&db)?;
             scanner::db::init_db(&conn)?;
-            let summary = official_pricing::sync_pricing(&conn)?;
+            let summary = official_pricing::sync_pricing(&conn, sync_options)?;
 
             println!(
                 "Pricing sync complete: {} / {} official sources parsed",
                 summary.successful_sources, summary.total_sources
+            );
+            println!(
+                "Stored {} sync run(s) and {} extracted record(s)",
+                summary.metadata_runs, summary.metadata_records
             );
             if summary.changed_models.is_empty() {
                 println!("No effective catalog changes detected");
