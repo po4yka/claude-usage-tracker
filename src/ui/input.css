@@ -244,6 +244,12 @@
   .bento-2 { grid-column: span 2; }
   .bento-3 { grid-column: span 3; }
   .bento-full { grid-column: 1 / -1; }
+  /* Grid items default to `min-width: auto` which lets them grow past the
+     track width when inner content is larger. On narrow viewports this
+     produces horizontal page scroll (e.g., #agent-status or #estimation-meta
+     forcing the bento to 1354px at a 500px viewport). Force min-width: 0 so
+     grid children respect the track width. */
+  .bento > * { min-width: 0; }
 
   /* ── Cards ───────────────────────────────────────────────────────── */
   .card {
@@ -260,9 +266,11 @@
   /* ── Stat Cards ──────────────────────────────────────────────────── */
   .stat-card {
     display: flex;
+    flex-direction: column;
     justify-content: space-between;
-    align-items: flex-start;
+    align-items: stretch;
     gap: 12px;
+    position: relative;
   }
   .stat-content { flex: 1; min-width: 0; }
   .stat-label {
@@ -283,16 +291,20 @@
     color: var(--text-display);
     font-feature-settings: "tnum";
     animation: fadeUp 0.4s ease-out;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
   }
   .stat-value.cost-value { color: var(--success); }
   .stat-value.doto-hero {
     font-family: var(--font-display);
-    font-size: 48px;
+    font-size: clamp(20px, 2.6vw, 32px);
     letter-spacing: -0.02em;
     line-height: 1;
   }
   @media (max-width: 480px) {
-    .stat-value.doto-hero { font-size: 32px; }
+    .stat-value.doto-hero { font-size: 24px; }
   }
   .stat-trend {
     display: inline-flex;
@@ -356,6 +368,8 @@
   .table-card {
     padding: 0;
     overflow-x: auto;
+    overflow-y: auto;
+    max-height: min(80vh, 640px);
   }
   .table-card .section-header,
   .table-card .section-title {
@@ -363,7 +377,8 @@
   }
 
   table { width: 100%; border-collapse: collapse; }
-  thead { position: sticky; top: 0; z-index: 1; }
+  /* Sticky header needs a background so scrolling rows don't show through. */
+  thead { position: sticky; top: 0; z-index: 1; background: var(--surface); }
   th {
     text-align: left;
     padding: 12px 16px;
