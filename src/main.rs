@@ -56,6 +56,9 @@ enum Commands {
         /// Format: "slug=Display Name". Merges into / overrides config's [project_aliases].
         #[arg(long = "project-alias", value_parser = parse_project_alias)]
         project_aliases: Vec<(String, String)>,
+        /// Show per-model breakdown sub-rows under each provider total
+        #[arg(long)]
+        breakdown: bool,
     },
     /// Show all-time statistics
     Stats {
@@ -71,6 +74,9 @@ enum Commands {
         /// Format: "slug=Display Name". Merges into / overrides config's [project_aliases].
         #[arg(long = "project-alias", value_parser = parse_project_alias)]
         project_aliases: Vec<(String, String)>,
+        /// Show per-model breakdown sub-rows under each provider total
+        #[arg(long)]
+        breakdown: bool,
     },
     /// Scan + start web dashboard
     Dashboard {
@@ -527,26 +533,35 @@ fn main() -> Result<()> {
             json,
             jq,
             project_aliases,
+            breakdown,
         } => {
             let db = default_db(db_path);
             let mut aliases = cfg_project_aliases.clone();
             for (k, v) in project_aliases {
                 aliases.insert(k, v);
             }
-            cmd_today(&db, json, jq.as_deref(), &aliases)?;
+            cmd_today(&db, json, breakdown, jq.as_deref(), &aliases)?;
         }
         Commands::Stats {
             db_path,
             json,
             jq,
             project_aliases,
+            breakdown,
         } => {
             let db = default_db(db_path);
             let mut aliases = cfg_project_aliases.clone();
             for (k, v) in project_aliases {
                 aliases.insert(k, v);
             }
-            cmd_stats(&db, json, &cfg_display_currency, jq.as_deref(), &aliases)?;
+            cmd_stats(
+                &db,
+                json,
+                breakdown,
+                &cfg_display_currency,
+                jq.as_deref(),
+                &aliases,
+            )?;
         }
         Commands::Dashboard {
             projects_dir,
@@ -1257,6 +1272,7 @@ type ProviderRollup = (i64, i64, i64, i64, i64, i64, i64);
 pub(crate) fn cmd_today(
     db_path: &std::path::Path,
     json_output: bool,
+    breakdown: bool,
     jq: Option<&str>,
     _aliases: &HashMap<String, String>,
 ) -> Result<()> {
@@ -1446,20 +1462,23 @@ pub(crate) fn cmd_today(
         std::collections::BTreeMap::new();
     let mut billing_mode_totals: std::collections::BTreeMap<String, (i64, f64)> =
         std::collections::BTreeMap::new();
-    for (
-        provider,
-        model,
-        inp,
-        out,
-        cr,
-        cc,
-        _ro,
-        turns,
-        cost_nanos,
-        cost_confidence,
-        billing_mode,
-    ) in &rows
-    {
+    // Group rows by provider for breakdown rendering (preserves insertion order via BTreeMap).
+    let mut rows_by_provider: std::collections::BTreeMap<String, Vec<&TodayModelRow>> =
+        std::collections::BTreeMap::new();
+    for row in &rows {
+        let (
+            provider,
+            _model,
+            inp,
+            out,
+            cr,
+            cc,
+            _ro,
+            turns,
+            cost_nanos,
+            cost_confidence,
+            billing_mode,
+        ) = row;
         let cost = *cost_nanos as f64 / 1_000_000_000.0;
         total_cost += cost;
         let entry = provider_totals
@@ -1481,17 +1500,111 @@ pub(crate) fn cmd_today(
             .or_insert((0, 0.0));
         billing_entry.0 += *turns;
         billing_entry.1 += cost;
-        println!(
-            "  {:<8}  {:<30}  turns={:<4}  in={:<8}  out={:<8}  cost={}  conf={}  mode={}",
+        rows_by_provider
+            .entry(provider.clone())
+            .or_default()
+            .push(row);
+    }
+
+    if breakdown {
+        for (provider, prov_rows) in &rows_by_provider {
+            let (p_turns, p_inp, p_out, _p_cr, _p_cc, p_cost) = provider_totals
+                .get(provider)
+                .copied()
+                .unwrap_or((0, 0, 0, 0, 0, 0.0));
+            if prov_rows.len() == 1 {
+                let (
+                    _,
+                    model,
+                    inp,
+                    out,
+                    _cr,
+                    _cc,
+                    _ro,
+                    turns,
+                    cost_nanos,
+                    cost_confidence,
+                    billing_mode,
+                ) = prov_rows[0];
+                let cost = *cost_nanos as f64 / 1_000_000_000.0;
+                println!(
+                    "  {:<8}  {:<30}  turns={:<4}  in={:<8}  out={:<8}  cost={}  conf={}  mode={}",
+                    provider,
+                    model,
+                    turns,
+                    pricing::fmt_tokens(*inp),
+                    pricing::fmt_tokens(*out),
+                    pricing::fmt_cost(cost),
+                    cost_confidence,
+                    billing_mode,
+                );
+            } else {
+                println!(
+                    "  {:<8}  ({} models){:<21}  turns={:<4}  in={:<8}  out={:<8}  cost={}",
+                    provider,
+                    prov_rows.len(),
+                    "",
+                    p_turns,
+                    pricing::fmt_tokens(p_inp),
+                    pricing::fmt_tokens(p_out),
+                    pricing::fmt_cost(p_cost),
+                );
+                for (
+                    _,
+                    model,
+                    inp,
+                    out,
+                    _cr,
+                    _cc,
+                    _ro,
+                    turns,
+                    cost_nanos,
+                    cost_confidence,
+                    billing_mode,
+                ) in prov_rows
+                {
+                    let cost = *cost_nanos as f64 / 1_000_000_000.0;
+                    println!(
+                        "  \u{2514}\u{2500} {:<28}  turns={:<4}  in={:<8}  out={:<8}  cost={}  conf={}  mode={}",
+                        model,
+                        turns,
+                        pricing::fmt_tokens(*inp),
+                        pricing::fmt_tokens(*out),
+                        pricing::fmt_cost(cost),
+                        cost_confidence,
+                        billing_mode,
+                    );
+                }
+            }
+        }
+    } else {
+        for (
             provider,
             model,
+            inp,
+            out,
+            _cr,
+            _cc,
+            _ro,
             turns,
-            pricing::fmt_tokens(*inp),
-            pricing::fmt_tokens(*out),
-            pricing::fmt_cost(cost),
+            cost_nanos,
             cost_confidence,
             billing_mode,
-        );
+        ) in &rows
+        {
+            let cost = *cost_nanos as f64 / 1_000_000_000.0;
+            println!(
+                "  {:<8}  {:<30}  turns={:<4}  in={:<8}  out={:<8}  cost={}  conf={}  mode={}",
+                provider,
+                model,
+                turns,
+                pricing::fmt_tokens(*inp),
+                pricing::fmt_tokens(*out),
+                pricing::fmt_cost(cost),
+                cost_confidence,
+                billing_mode,
+            );
+        }
     }
 
     println!("{}", "-".repeat(70));
@@ -1673,6 +1786,7 @@ fn cmd_weekly(
 pub(crate) fn cmd_stats(
     db_path: &std::path::Path,
     json_output: bool,
+    breakdown: bool,
     display_currency: &str,
     jq: Option<&str>,
     _aliases: &HashMap<String, String>,
@@ -2043,34 +2157,119 @@ pub(crate) fn cmd_stats(
     }
     println!("{}", "-".repeat(70));
     println!("  By Model:");
-    for (
-        provider,
-        model,
-        mi,
-        mo,
-        _mcr,
-        _mcc,
-        _mro,
-        mt,
-        ms,
-        cost_nanos,
-        cost_confidence,
-        billing_mode,
-    ) in &by_model
-    {
-        println!(
-            "    {:<8}  {:<30}  sessions={:<4}  turns={:<6}  in={:<8}  out={:<8}  cost={}  conf={}  mode={}",
+
+    if breakdown {
+        // Group by provider for breakdown rendering.
+        let mut rows_by_provider: std::collections::BTreeMap<String, Vec<&StatsModelRow>> =
+            std::collections::BTreeMap::new();
+        for row in &by_model {
+            rows_by_provider.entry(row.0.clone()).or_default().push(row);
+        }
+        for (provider, prov_rows) in &rows_by_provider {
+            if prov_rows.len() == 1 {
+                let (
+                    _,
+                    model,
+                    mi,
+                    mo,
+                    _mcr,
+                    _mcc,
+                    _mro,
+                    mt,
+                    ms,
+                    cost_nanos,
+                    cost_confidence,
+                    billing_mode,
+                ) = prov_rows[0];
+                println!(
+                    "    {:<8}  {:<30}  sessions={:<4}  turns={:<6}  in={:<8}  out={:<8}  cost={}  conf={}  mode={}",
+                    provider,
+                    model,
+                    ms,
+                    pricing::fmt_tokens(*mt),
+                    pricing::fmt_tokens(*mi),
+                    pricing::fmt_tokens(*mo),
+                    pricing::fmt_cost(*cost_nanos as f64 / 1_000_000_000.0),
+                    cost_confidence,
+                    billing_mode
+                );
+            } else {
+                let p_turns: i64 = prov_rows.iter().map(|r| r.7).sum();
+                let p_inp: i64 = prov_rows.iter().map(|r| r.2).sum();
+                let p_out: i64 = prov_rows.iter().map(|r| r.3).sum();
+                let p_sessions: i64 = prov_rows.iter().map(|r| r.8).sum();
+                let p_cost_nanos: i64 = prov_rows.iter().map(|r| r.9).sum();
+                println!(
+                    "    {:<8}  ({} models){:<21}  sessions={:<4}  turns={:<6}  in={:<8}  out={:<8}  cost={}",
+                    provider,
+                    prov_rows.len(),
+                    "",
+                    p_sessions,
+                    pricing::fmt_tokens(p_turns),
+                    pricing::fmt_tokens(p_inp),
+                    pricing::fmt_tokens(p_out),
+                    pricing::fmt_cost(p_cost_nanos as f64 / 1_000_000_000.0),
+                );
+                for (
+                    _,
+                    model,
+                    mi,
+                    mo,
+                    _mcr,
+                    _mcc,
+                    _mro,
+                    mt,
+                    ms,
+                    cost_nanos,
+                    cost_confidence,
+                    billing_mode,
+                ) in prov_rows
+                {
+                    println!(
+                        "    \u{2514}\u{2500} {:<28}  sessions={:<4}  turns={:<6}  in={:<8}  out={:<8}  cost={}  conf={}  mode={}",
+                        model,
+                        ms,
+                        pricing::fmt_tokens(*mt),
+                        pricing::fmt_tokens(*mi),
+                        pricing::fmt_tokens(*mo),
+                        pricing::fmt_cost(*cost_nanos as f64 / 1_000_000_000.0),
+                        cost_confidence,
+                        billing_mode
+                    );
+                }
+            }
+        }
+    } else {
+        for (
             provider,
             model,
+            mi,
+            mo,
+            _mcr,
+            _mcc,
+            _mro,
+            mt,
             ms,
-            pricing::fmt_tokens(*mt),
-            pricing::fmt_tokens(*mi),
-            pricing::fmt_tokens(*mo),
-            pricing::fmt_cost(*cost_nanos as f64 / 1_000_000_000.0),
+            cost_nanos,
             cost_confidence,
-            billing_mode
-        );
+            billing_mode,
+        ) in &by_model
+        {
+            println!(
+                "    {:<8}  {:<30}  sessions={:<4}  turns={:<6}  in={:<8}  out={:<8}  cost={}  conf={}  mode={}",
+                provider,
+                model,
+                ms,
+                pricing::fmt_tokens(*mt),
+                pricing::fmt_tokens(*mi),
+                pricing::fmt_tokens(*mo),
+                pricing::fmt_cost(*cost_nanos as f64 / 1_000_000_000.0),
+                cost_confidence,
+                billing_mode
+            );
+        }
     }
+
     println!("{}", "=".repeat(70));
     println!();
     Ok(())
