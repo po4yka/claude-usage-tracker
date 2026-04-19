@@ -10,9 +10,12 @@ export const costReconciliationData = signal<CostReconciliationResponse | null>(
 
 // ── Filter state ─────────────────────────────────────────────────────
 export type ProviderFilter = 'claude' | 'codex' | 'both';
+export type DashboardTab = 'overview' | 'activity' | 'breakdowns' | 'tables';
 const SESSIONS_PAGE_PARAM = 'sessions_page';
 const SESSIONS_HIDDEN_COLUMNS_PARAM = 'sessions_hidden';
 const FILTERS_EXPANDED_PARAM = 'filters_expanded';
+const DASHBOARD_TAB_PARAM = 'tab';
+const COLLAPSED_SECTIONS_PARAM = 'collapsed_sections';
 
 export const selectedModels = signal<Set<string>>(new Set());
 export const selectedRange = signal<RangeKey>('30d');
@@ -72,6 +75,13 @@ function readPositiveIntParam(name: string): number | null {
 function readRangeFromUrl(): RangeKey {
   const p = readSearchParam('range');
   return (['7d', '30d', '90d', 'all'] as RangeKey[]).includes(p as RangeKey) ? (p as RangeKey) : '30d';
+}
+
+function readDashboardTab(): DashboardTab {
+  const p = readSearchParam(DASHBOARD_TAB_PARAM);
+  return (['overview', 'activity', 'breakdowns', 'tables'] as DashboardTab[]).includes(p as DashboardTab)
+    ? (p as DashboardTab)
+    : 'overview';
 }
 
 function readProviderFromUrl(): ProviderFilter {
@@ -141,18 +151,38 @@ function readOfficialSyncExpanded(): boolean {
   return p === '1' || p === 'true';
 }
 
+function readCollapsedSections(): Set<string> {
+  const p = readSearchParam(COLLAPSED_SECTIONS_PARAM);
+  if (!p) return new Set();
+  return new Set(p.split(',').map(value => value.trim()).filter(Boolean));
+}
+
 function readFiltersExpanded(): boolean {
   const p = readSearchParam(FILTERS_EXPANDED_PARAM);
   return p === '1' || p === 'true';
 }
 
+export const activeDashboardTab = signal<DashboardTab>(readDashboardTab());
 export const agent_status_expanded = signal<boolean>(readAgentStatusExpanded());
 export const official_sync_expanded = signal<boolean>(readOfficialSyncExpanded());
 export const mobile_filters_expanded = signal<boolean>(readFiltersExpanded());
+export const collapsedSectionKeys = signal<Set<string>>(readCollapsedSections());
 export const sessionsTablePagination = signal<PaginationState>(readSessionsTablePagination());
 export const sessionsTableColumnVisibility = signal<VisibilityState>(readSessionsTableColumnVisibility());
 
+export function isSectionCollapsed(sectionKey: string): boolean {
+  return collapsedSectionKeys.value.has(sectionKey);
+}
+
+export function setSectionCollapsed(sectionKey: string, collapsed: boolean): void {
+  const next = new Set(collapsedSectionKeys.value);
+  if (collapsed) next.add(sectionKey);
+  else next.delete(sectionKey);
+  collapsedSectionKeys.value = next;
+}
+
 export function restoreDashboardStateFromUrl(allModels: string[]): void {
+  activeDashboardTab.value = readDashboardTab();
   selectedRange.value = readRangeFromUrl();
   selectedProvider.value = readProviderFromUrl();
   selectedModels.value = readModelsFromUrl(allModels);
@@ -162,6 +192,7 @@ export function restoreDashboardStateFromUrl(allModels: string[]): void {
   agent_status_expanded.value = readAgentStatusExpanded();
   official_sync_expanded.value = readOfficialSyncExpanded();
   mobile_filters_expanded.value = readFiltersExpanded();
+  collapsedSectionKeys.value = readCollapsedSections();
   sessionsTablePagination.value = readSessionsTablePagination();
   sessionsTableColumnVisibility.value = readSessionsTableColumnVisibility();
 }
@@ -170,6 +201,7 @@ export function syncDashboardUrl(): void {
   const allModels = rawData.value?.all_models ?? [];
   const params = new URLSearchParams();
 
+  if (activeDashboardTab.value !== 'overview') params.set(DASHBOARD_TAB_PARAM, activeDashboardTab.value);
   if (selectedRange.value !== '30d') params.set('range', selectedRange.value);
   if (selectedProvider.value !== 'both') params.set('provider', selectedProvider.value);
   if (!isDefaultModelSelection(allModels)) {
@@ -181,6 +213,10 @@ export function syncDashboardUrl(): void {
   if (agent_status_expanded.value) params.set('agent_status_expanded', '1');
   if (official_sync_expanded.value) params.set('official_sync_expanded', '1');
   if (mobile_filters_expanded.value) params.set(FILTERS_EXPANDED_PARAM, '1');
+  const collapsedSections = Array.from(collapsedSectionKeys.value).sort();
+  if (collapsedSections.length) {
+    params.set(COLLAPSED_SECTIONS_PARAM, collapsedSections.join(','));
+  }
 
   const pageNumber = sessionsTablePagination.value.pageIndex + 1;
   if (pageNumber > 1) params.set(SESSIONS_PAGE_PARAM, String(pageNumber));

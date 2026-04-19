@@ -14,5 +14,5 @@ const columns: ColumnDef<ServiceTierSummary, any>[] = [
 
 export function ServiceTiersTable({ data }: { data: ServiceTierSummary[] }) {
   if (!data.length) return null;
-  return <DataTable columns={columns} data={data} title="Service Tiers" />;
+  return <DataTable columns={columns} data={data} title="Service Tiers" sectionKey="service-tiers" />;
 }

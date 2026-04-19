@@ -45,11 +45,12 @@ afterEach(() => {
 describe('store url state', () => {
   it('restores filter and table state from the URL', async () => {
     const { store } = await loadStore(
-      'http://localhost/dashboard?range=90d&provider=codex&models=zeta,alpha,ignored&project=heimdall&bucket=week&version_metric=tokens&agent_status_expanded=true&official_sync_expanded=true&filters_expanded=1&sessions_page=3&sessions_hidden=cost,project',
+      'http://localhost/dashboard?tab=tables&range=90d&provider=codex&models=zeta,alpha,ignored&project=heimdall&bucket=week&version_metric=tokens&agent_status_expanded=true&official_sync_expanded=true&filters_expanded=1&collapsed_sections=tool-summary,version-summary&sessions_page=3&sessions_hidden=cost,project',
     );
 
     store.restoreDashboardStateFromUrl(['alpha', 'beta', 'zeta']);
 
+    expect(store.activeDashboardTab.value).toBe('tables');
     expect(store.selectedRange.value).toBe('90d');
     expect(store.selectedProvider.value).toBe('codex');
     expect([...store.selectedModels.value]).toEqual(['alpha', 'zeta']);
@@ -59,6 +60,7 @@ describe('store url state', () => {
     expect(store.agent_status_expanded.value).toBe(true);
     expect(store.official_sync_expanded.value).toBe(true);
     expect(store.mobile_filters_expanded.value).toBe(true);
+    expect([...store.collapsedSectionKeys.value]).toEqual(['tool-summary', 'version-summary']);
     expect(store.sessionsTablePagination.value).toEqual({
       pageIndex: 2,
       pageSize: store.SESSIONS_PAGE_SIZE,
@@ -76,6 +78,7 @@ describe('store url state', () => {
 
     store.restoreDashboardStateFromUrl(['alpha', 'beta']);
 
+    expect(store.activeDashboardTab.value).toBe('overview');
     expect(store.selectedRange.value).toBe('30d');
     expect(store.selectedProvider.value).toBe('both');
     expect([...store.selectedModels.value]).toEqual(['alpha', 'beta']);
@@ -84,6 +87,7 @@ describe('store url state', () => {
     expect(store.agent_status_expanded.value).toBe(false);
     expect(store.official_sync_expanded.value).toBe(false);
     expect(store.mobile_filters_expanded.value).toBe(false);
+    expect(store.collapsedSectionKeys.value).toEqual(new Set());
     expect(store.sessionsTablePagination.value).toEqual({
       pageIndex: 0,
       pageSize: store.SESSIONS_PAGE_SIZE,
@@ -95,6 +99,7 @@ describe('store url state', () => {
     const { store, location, replaceState } = await loadStore('http://localhost/dashboard');
 
     store.rawData.value = makeDashboardData(['alpha', 'beta', 'gamma']);
+    store.activeDashboardTab.value = 'tables';
     store.selectedRange.value = '90d';
     store.selectedProvider.value = 'codex';
     store.selectedModels.value = new Set(['gamma', 'alpha']);
@@ -104,6 +109,7 @@ describe('store url state', () => {
     store.agent_status_expanded.value = true;
     store.official_sync_expanded.value = true;
     store.mobile_filters_expanded.value = true;
+    store.collapsedSectionKeys.value = new Set(['version-summary', 'tool-summary']);
     store.sessionsTablePagination.value = {
       pageIndex: 2,
       pageSize: store.SESSIONS_PAGE_SIZE,
@@ -119,10 +125,10 @@ describe('store url state', () => {
     expect(replaceState).toHaveBeenCalledWith(
       null,
       '',
-      '/dashboard?range=90d&provider=codex&models=gamma%2Calpha&project=heimdall&version_metric=tokens&bucket=week&agent_status_expanded=1&official_sync_expanded=1&filters_expanded=1&sessions_page=3&sessions_hidden=alpha%2Czeta',
+      '/dashboard?tab=tables&range=90d&provider=codex&models=gamma%2Calpha&project=heimdall&version_metric=tokens&bucket=week&agent_status_expanded=1&official_sync_expanded=1&filters_expanded=1&collapsed_sections=tool-summary%2Cversion-summary&sessions_page=3&sessions_hidden=alpha%2Czeta',
     );
     expect(location.search).toBe(
-      '?range=90d&provider=codex&models=gamma%2Calpha&project=heimdall&version_metric=tokens&bucket=week&agent_status_expanded=1&official_sync_expanded=1&filters_expanded=1&sessions_page=3&sessions_hidden=alpha%2Czeta',
+      '?tab=tables&range=90d&provider=codex&models=gamma%2Calpha&project=heimdall&version_metric=tokens&bucket=week&agent_status_expanded=1&official_sync_expanded=1&filters_expanded=1&collapsed_sections=tool-summary%2Cversion-summary&sessions_page=3&sessions_hidden=alpha%2Czeta',
     );
   });
 
@@ -130,6 +136,7 @@ describe('store url state', () => {
     const { store, location, replaceState } = await loadStore('http://localhost/dashboard?range=7d');
 
     store.rawData.value = makeDashboardData(['alpha', 'beta']);
+    store.activeDashboardTab.value = 'overview';
     store.selectedRange.value = '30d';
     store.selectedProvider.value = 'both';
     store.selectedModels.value = new Set(['alpha', 'beta']);
@@ -139,6 +146,7 @@ describe('store url state', () => {
     store.agent_status_expanded.value = false;
     store.official_sync_expanded.value = false;
     store.mobile_filters_expanded.value = false;
+    store.collapsedSectionKeys.value = new Set();
     store.sessionsTablePagination.value = {
       pageIndex: 0,
       pageSize: store.SESSIONS_PAGE_SIZE,

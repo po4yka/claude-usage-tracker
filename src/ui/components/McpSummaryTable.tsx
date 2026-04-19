@@ -56,5 +56,5 @@ function makeColumns(data: McpServerSummary[]): ColumnDef<McpServerSummary, any>
 
 export function McpSummaryTable({ data }: { data: McpServerSummary[] }) {
   if (!data.length) return null;
-  return <DataTable columns={makeColumns(data)} data={data} title="MCP Server Usage" />;
+  return <DataTable columns={makeColumns(data)} data={data} title="MCP Server Usage" sectionKey="mcp-summary" />;
 }

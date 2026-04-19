@@ -60,5 +60,5 @@ function makeColumns(data: BranchSummary[]): ColumnDef<BranchSummary, any>[] {
 
 export function BranchTable({ data }: { data: BranchSummary[] }) {
   if (!data.length) return null;
-  return <DataTable columns={makeColumns(data)} data={data} title="Usage by Git Branch" />;
+  return <DataTable columns={makeColumns(data)} data={data} title="Usage by Git Branch" sectionKey="branch-summary" />;
 }

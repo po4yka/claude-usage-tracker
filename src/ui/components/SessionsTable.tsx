@@ -31,7 +31,11 @@ const projectOverflowStyle = {
   maxWidth: 'clamp(12rem, 24vw, 22rem)',
 };
 
-function useSessionColumns(showCredits: boolean): ColumnDef<SessionRow, any>[] {
+function useSessionColumns(
+  showCredits: boolean,
+  onSelectProject?: ((row: SessionRow) => void) | undefined,
+  onSelectModel?: ((model: string) => void) | undefined,
+): ColumnDef<SessionRow, any>[] {
   return useMemo(
     () => [
       {
@@ -68,14 +72,23 @@ function useSessionColumns(showCredits: boolean): ColumnDef<SessionRow, any>[] {
           const label = row.display_name || row.project;
           const showProjectPath = label !== row.project;
           const tooltip = showProjectPath ? `${label}\n${row.project}` : row.project;
-          return (
-            <div style={{ minWidth: 0, maxWidth: 'clamp(12rem, 24vw, 22rem)' }} title={tooltip}>
+          const content = (
+            <>
               <span style={projectOverflowStyle}>{label}</span>
               {showProjectPath && (
                 <span class="muted" style={secondaryOverflowStyle}>
                   {row.project}
                 </span>
               )}
+            </>
+          );
+          return (
+            <div style={{ minWidth: 0, maxWidth: 'clamp(12rem, 24vw, 22rem)' }} title={tooltip}>
+              {onSelectProject ? (
+                <button type="button" class="table-action-btn table-action-btn--stack" onClick={() => onSelectProject(row)}>
+                  {content}
+                </button>
+              ) : content}
             </div>
           );
         },
@@ -106,7 +119,15 @@ function useSessionColumns(showCredits: boolean): ColumnDef<SessionRow, any>[] {
         accessorKey: 'model',
         header: 'Model',
         enableSorting: false,
-        cell: (info: any) => <span class="model-tag">{info.getValue()}</span>,
+        cell: (info: any) => {
+          const model = String(info.getValue());
+          if (!onSelectModel) return <span class="model-tag">{model}</span>;
+          return (
+            <button type="button" class="table-action-btn table-action-btn--tag" onClick={() => onSelectModel(model)}>
+              <span class="model-tag">{model}</span>
+            </button>
+          );
+        },
       },
       {
         id: 'turns',
@@ -197,14 +218,22 @@ function useSessionColumns(showCredits: boolean): ColumnDef<SessionRow, any>[] {
         },
       },
     ],
-    [showCredits]
+    [showCredits, onSelectProject, onSelectModel]
   );
 }
 
-export function SessionsTable({ onExportCSV }: { onExportCSV: () => void }) {
+export function SessionsTable({
+  onExportCSV,
+  onSelectProject,
+  onSelectModel,
+}: {
+  onExportCSV: () => void;
+  onSelectProject?: (row: SessionRow) => void;
+  onSelectModel?: (model: string) => void;
+}) {
   const data = lastFilteredSessions.value;
   const showCredits = anyHasCredits(data);
-  const columns = useSessionColumns(showCredits);
+  const columns = useSessionColumns(showCredits, onSelectProject, onSelectModel);
   const pagination = sessionsTablePagination.value;
   const columnVisibility = sessionsTableColumnVisibility.value;
 
@@ -223,6 +252,7 @@ export function SessionsTable({ onExportCSV }: { onExportCSV: () => void }) {
       columns={columns}
       data={data}
       title="Recent Sessions"
+      sectionKey="sessions-mount"
       exportFn={onExportCSV}
       pageSize={SESSIONS_PAGE_SIZE}
       defaultSort={defaultSort}

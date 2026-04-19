@@ -56,7 +56,13 @@ function formatShare(share: number): string {
   return `${share.toFixed(1)}%`;
 }
 
-export function ModelChart({ byModel }: { byModel: ModelAgg[] }) {
+export function ModelChart({
+  byModel,
+  onSelectModel,
+}: {
+  byModel: ModelAgg[];
+  onSelectModel?: (model: string) => void;
+}) {
   if (!byModel.length) return null;
 
   const [selectedMetric, setSelectedMetric] = useState<ModelMetric>('cost');
@@ -113,7 +119,16 @@ export function ModelChart({ byModel }: { byModel: ModelAgg[] }) {
   const base = industrialChartOptions('donut');
   const options = {
     ...base,
-    chart: { ...base.chart, type: 'donut' },
+    chart: {
+      ...base.chart,
+      type: 'donut',
+      events: onSelectModel ? {
+        dataPointSelection: (_event: unknown, _ctx: unknown, config: { dataPointIndex: number }) => {
+          const row = rows[config.dataPointIndex];
+          if (row && !row.isOther) onSelectModel(row.label);
+        },
+      } : undefined,
+    },
     series: rows.map(row => row.value),
     labels: rows.map(row => row.label),
     colors: rows.map(row => row.color),
@@ -181,7 +196,14 @@ export function ModelChart({ byModel }: { byModel: ModelAgg[] }) {
 
       <div class="model-share-list">
         {rows.map(row => (
-          <div key={row.label} class="model-share-row">
+          <button
+            key={row.label}
+            type="button"
+            class={`model-share-row${onSelectModel && !row.isOther ? ' interactive' : ''}`}
+            onClick={onSelectModel && !row.isOther ? () => onSelectModel(row.label) : undefined}
+            disabled={!onSelectModel || row.isOther}
+            aria-label={row.isOther ? `${row.label} ${METRIC_LABELS[metric]} summary` : `Filter to ${row.label}`}
+          >
             <div class="model-share-row-head">
               <div class="model-share-label">
                 <span class="model-share-swatch" style={{ background: row.color }} aria-hidden="true" />
@@ -195,7 +217,7 @@ export function ModelChart({ byModel }: { byModel: ModelAgg[] }) {
               </div>
               <div class="model-share-percent">{formatShare(row.share)}</div>
             </div>
-          </div>
+          </button>
         ))}
       </div>
     </div>

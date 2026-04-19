@@ -20,5 +20,5 @@ const columns: ColumnDef<EntrypointSummary, any>[] = [
 
 export function EntrypointTable({ data }: { data: EntrypointSummary[] }) {
   if (!data.length) return null;
-  return <DataTable columns={columns} data={data} title="Usage by Entrypoint" />;
+  return <DataTable columns={columns} data={data} title="Usage by Entrypoint" sectionKey="entrypoint-breakdown" />;
 }

@@ -3,7 +3,13 @@ import { industrialChartOptions, tokenSeriesColors } from '../lib/charts';
 import { fmt, truncateMid } from '../lib/format';
 import type { ProjectAgg } from '../state/types';
 
-export function ProjectChart({ byProject }: { byProject: ProjectAgg[] }) {
+export function ProjectChart({
+  byProject,
+  onSelectProject,
+}: {
+  byProject: ProjectAgg[];
+  onSelectProject?: (project: ProjectAgg) => void;
+}) {
   const top = byProject.slice(0, 10);
   if (!top.length) return null;
 
@@ -22,7 +28,16 @@ export function ProjectChart({ byProject }: { byProject: ProjectAgg[] }) {
 
   const options = {
     ...base,
-    chart: { ...base.chart, type: 'bar' },
+    chart: {
+      ...base.chart,
+      type: 'bar',
+      events: onSelectProject ? {
+        dataPointSelection: (_event: unknown, _ctx: unknown, config: { dataPointIndex: number }) => {
+          const row = top[config.dataPointIndex];
+          if (row) onSelectProject(row);
+        },
+      } : undefined,
+    },
     series: [{ name: 'Share of top', data: shares }],
     colors: [colors[0]],
     fill: { type: 'solid' },

@@ -13,11 +13,13 @@ import {
   type VisibilityState,
   type Updater,
 } from '@tanstack/table-core';
+import { isSectionCollapsed, setSectionCollapsed, syncDashboardUrl } from '../state/store';
 
 interface DataTableProps<T> {
   columns: ColumnDef<T, any>[];
   data: T[];
   title?: string;
+  sectionKey?: string;
   exportFn?: () => void;
   pageSize?: number;
   defaultSort?: SortingState;
@@ -53,6 +55,7 @@ export function DataTable<T>({
   columns,
   data,
   title,
+  sectionKey,
   exportFn,
   pageSize,
   defaultSort,
@@ -145,6 +148,13 @@ export function DataTable<T>({
   const headerGroups = table.getHeaderGroups();
   const rows = table.getRowModel().rows;
   const headingId = title ? `table-heading-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}` : undefined;
+  const sectionContentId = sectionKey ? `section-content-${sectionKey}` : undefined;
+  const collapsed = sectionKey ? isSectionCollapsed(sectionKey) : false;
+  const handleToggleCollapse = () => {
+    if (!sectionKey) return;
+    setSectionCollapsed(sectionKey, !collapsed);
+    syncDashboardUrl();
+  };
 
   return (
     <div class="table-card">
@@ -155,100 +165,115 @@ export function DataTable<T>({
               {title}
             </h2>
           )}
-          {exportFn && (
-            <button class="export-btn" onClick={exportFn} title="Export to CSV">
-              &#x2913; CSV
-            </button>
-          )}
-        </div>
-      )}
-
-      {enableColumnVisibility && (
-        <div class="column-toggle">
-          {table.getAllLeafColumns().map(column => (
-            <label key={column.id}>
-              <input
-                type="checkbox"
-                checked={column.getIsVisible()}
-                onChange={column.getToggleVisibilityHandler()}
-              />
-              {typeof column.columnDef.header === 'string'
-                ? column.columnDef.header
-                : column.id}
-            </label>
-          ))}
-        </div>
-      )}
-
-      <table aria-labelledby={headingId}>
-        <thead>
-          {headerGroups.map(headerGroup => (
-            <tr key={headerGroup.id}>
-              {headerGroup.headers.map(header => {
-                const canSort = header.column.getCanSort();
-                const sorted = header.column.getIsSorted();
-                return (
-                  <th
-                    key={header.id}
-                    scope="col"
-                    class={canSort ? 'sortable' : undefined}
-                    aria-sort={sorted === 'asc' ? 'ascending' : sorted === 'desc' ? 'descending' : undefined}
-                    style={sorted ? { borderBottom: '2px solid var(--text-display)' } : undefined}
-                    tabIndex={canSort ? 0 : undefined}
-                    onClick={canSort ? header.column.getToggleSortingHandler() : undefined}
-                    onKeyDown={canSort ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); header.column.getToggleSortingHandler()?.(e); } } : undefined}
-                  >
-                    {renderHeader(header)}
-                    {canSort && (
-                      <span class="sort-icon">
-                        {sorted === 'desc' ? ' \u25bc' : sorted === 'asc' ? ' \u25b2' : ''}
-                      </span>
-                    )}
-                  </th>
-                );
-              })}
-            </tr>
-          ))}
-        </thead>
-        <tbody>
-          {rows.map(row => (
-            <tr key={row.id} class={costRows ? 'cost-row' : undefined}>
-              {row.getVisibleCells().map(cell => (
-                <td key={cell.id}>{renderCell(cell)}</td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
-      {pageSize && (
-        <div class="pagination">
-          <span>
-            {table.getRowCount() > 0
-              ? `Showing ${pagination.pageIndex * pagination.pageSize + 1}\u2013${Math.min(
-                  (pagination.pageIndex + 1) * pagination.pageSize,
-                  table.getRowCount()
-                )} of ${table.getRowCount()}`
-              : 'No sessions'}
-          </span>
-          <div style={{ display: 'flex', gap: '6px' }}>
-            <button
-              class="filter-btn"
-              disabled={!table.getCanPreviousPage()}
-              onClick={() => table.previousPage()}
-            >
-              &laquo; Prev
-            </button>
-            <button
-              class="filter-btn"
-              disabled={!table.getCanNextPage()}
-              onClick={() => table.nextPage()}
-            >
-              Next &raquo;
-            </button>
+          <div class="section-actions">
+            {sectionKey && (
+              <button
+                class="section-toggle"
+                type="button"
+                aria-expanded={!collapsed}
+                aria-controls={sectionContentId}
+                onClick={handleToggleCollapse}
+              >
+                {collapsed ? 'Show' : 'Hide'}
+              </button>
+            )}
+            {exportFn && (
+              <button class="export-btn" type="button" onClick={exportFn} title="Export to CSV">
+                &#x2913; CSV
+              </button>
+            )}
           </div>
         </div>
       )}
+
+      <div id={sectionContentId} style={collapsed ? { display: 'none' } : undefined}>
+        {enableColumnVisibility && (
+          <div class="column-toggle">
+            {table.getAllLeafColumns().map(column => (
+              <label key={column.id}>
+                <input
+                  type="checkbox"
+                  checked={column.getIsVisible()}
+                  onChange={column.getToggleVisibilityHandler()}
+                />
+                {typeof column.columnDef.header === 'string'
+                  ? column.columnDef.header
+                  : column.id}
+              </label>
+            ))}
+          </div>
+        )}
+
+        <table aria-labelledby={headingId}>
+          <thead>
+            {headerGroups.map(headerGroup => (
+              <tr key={headerGroup.id}>
+                {headerGroup.headers.map(header => {
+                  const canSort = header.column.getCanSort();
+                  const sorted = header.column.getIsSorted();
+                  return (
+                    <th
+                      key={header.id}
+                      scope="col"
+                      class={canSort ? 'sortable' : undefined}
+                      aria-sort={sorted === 'asc' ? 'ascending' : sorted === 'desc' ? 'descending' : undefined}
+                      style={sorted ? { borderBottom: '2px solid var(--text-display)' } : undefined}
+                      tabIndex={canSort ? 0 : undefined}
+                      onClick={canSort ? header.column.getToggleSortingHandler() : undefined}
+                      onKeyDown={canSort ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); header.column.getToggleSortingHandler()?.(e); } } : undefined}
+                    >
+                      {renderHeader(header)}
+                      {canSort && (
+                        <span class="sort-icon">
+                          {sorted === 'desc' ? ' \u25bc' : sorted === 'asc' ? ' \u25b2' : ''}
+                        </span>
+                      )}
+                    </th>
+                  );
+                })}
+              </tr>
+            ))}
+          </thead>
+          <tbody>
+            {rows.map(row => (
+              <tr key={row.id} class={costRows ? 'cost-row' : undefined}>
+                {row.getVisibleCells().map(cell => (
+                  <td key={cell.id}>{renderCell(cell)}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {pageSize && (
+          <div class="pagination">
+            <span>
+              {table.getRowCount() > 0
+                ? `Showing ${pagination.pageIndex * pagination.pageSize + 1}\u2013${Math.min(
+                    (pagination.pageIndex + 1) * pagination.pageSize,
+                    table.getRowCount()
+                  )} of ${table.getRowCount()}`
+                : 'No sessions'}
+            </span>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <button
+                class="filter-btn"
+                disabled={!table.getCanPreviousPage()}
+                onClick={() => table.previousPage()}
+              >
+                &laquo; Prev
+              </button>
+              <button
+                class="filter-btn"
+                disabled={!table.getCanNextPage()}
+                onClick={() => table.nextPage()}
+              >
+                Next &raquo;
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

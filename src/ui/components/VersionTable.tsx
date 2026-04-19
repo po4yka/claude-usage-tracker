@@ -14,7 +14,10 @@ const columns: ColumnDef<VersionSummary, any>[] = [
     cell: ({ getValue }) => <span class="num">{getValue()}</span> },
 ];
 
-export function VersionTable({ data }: { data: VersionSummary[] }) {
+export function VersionTable({ data, title = 'CLI Versions' }: { data: VersionSummary[]; title?: string | null }) {
   if (!data.length) return null;
-  return <DataTable columns={columns} data={data} title="CLI Versions" />;
+  if (title == null) {
+    return <DataTable columns={columns} data={data} />;
+  }
+  return <DataTable columns={columns} data={data} title={title} />;
 }

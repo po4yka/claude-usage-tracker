@@ -45,6 +45,7 @@ function useModelColumns(
   totalCacheReadCost: number,
   totalCacheWriteCost: number,
   showCredits: boolean,
+  onSelectModel?: ((model: string) => void) | undefined,
 ): ColumnDef<ModelAgg, any>[] {
   return useMemo(
     () => [
@@ -53,7 +54,15 @@ function useModelColumns(
         accessorKey: 'model',
         header: 'Model',
         enableSorting: false,
-        cell: (info: any) => <span class="model-tag">{info.getValue()}</span>,
+        cell: (info: any) => {
+          const model = String(info.getValue());
+          if (!onSelectModel) return <span class="model-tag">{model}</span>;
+          return (
+            <button type="button" class="table-action-btn table-action-btn--tag" onClick={() => onSelectModel(model)}>
+              <span class="model-tag">{model}</span>
+            </button>
+          );
+        },
       },
       {
         id: 'turns',
@@ -174,11 +183,17 @@ function useModelColumns(
         },
       }] : []),
     ],
-    [totalCost, totalCacheReadCost, totalCacheWriteCost, showCredits]
+    [totalCost, totalCacheReadCost, totalCacheWriteCost, showCredits, onSelectModel]
   );
 }
 
-export function ModelCostTable({ byModel }: { byModel: ModelAgg[] }) {
+export function ModelCostTable({
+  byModel,
+  onSelectModel,
+}: {
+  byModel: ModelAgg[];
+  onSelectModel?: (model: string) => void;
+}) {
   const totalCost = useMemo(
     () => byModel.reduce((s, m) => (m.is_billable ? s + m.cost : s), 0),
     [byModel]
@@ -192,13 +207,14 @@ export function ModelCostTable({ byModel }: { byModel: ModelAgg[] }) {
     [byModel]
   );
   const showCredits = anyHasCredits(byModel);
-  const columns = useModelColumns(totalCost, totalCacheReadCost, totalCacheWriteCost, showCredits);
+  const columns = useModelColumns(totalCost, totalCacheReadCost, totalCacheWriteCost, showCredits, onSelectModel);
 
   return (
     <DataTable
       columns={columns}
       data={byModel}
       title="Cost by Model"
+      sectionKey="model-cost-mount"
       defaultSort={defaultSort}
       costRows
     />

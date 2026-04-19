@@ -79,5 +79,5 @@ function makeColumns(data: ToolSummary[]): ColumnDef<ToolSummary, any>[] {
 
 export function ToolUsageTable({ data }: { data: ToolSummary[] }) {
   if (!data.length) return null;
-  return <DataTable columns={makeColumns(data)} data={data} title="Tool Usage" />;
+  return <DataTable columns={makeColumns(data)} data={data} title="Tool Usage" sectionKey="tool-summary" />;
 }

@@ -7,7 +7,10 @@ import { DataTable } from './DataTable';
 
 const defaultSort: SortingState = [{ id: 'cost', desc: true }];
 
-function useProjectColumns(showCredits: boolean): ColumnDef<ProjectAgg, any>[] {
+function useProjectColumns(
+  showCredits: boolean,
+  onSelectProject?: ((project: ProjectAgg) => void) | undefined,
+): ColumnDef<ProjectAgg, any>[] {
   return useMemo(
     () => [
       {
@@ -18,7 +21,17 @@ function useProjectColumns(showCredits: boolean): ColumnDef<ProjectAgg, any>[] {
         cell: (info: any) => {
           const row = info.row.original as ProjectAgg;
           const label = row.display_name || row.project;
-          return <span title={row.project}>{label}</span>;
+          if (!onSelectProject) return <span title={row.project}>{label}</span>;
+          return (
+            <button
+              type="button"
+              class="table-action-btn"
+              title={row.project}
+              onClick={() => onSelectProject(row)}
+            >
+              {label}
+            </button>
+          );
         },
       },
       {
@@ -62,25 +75,28 @@ function useProjectColumns(showCredits: boolean): ColumnDef<ProjectAgg, any>[] {
         },
       }] : []),
     ],
-    [showCredits]
+    [showCredits, onSelectProject]
   );
 }
 
 export function ProjectCostTable({
   byProject,
   onExportCSV,
+  onSelectProject,
 }: {
   byProject: ProjectAgg[];
   onExportCSV: () => void;
+  onSelectProject?: (project: ProjectAgg) => void;
 }) {
   const showCredits = anyHasCredits(byProject);
-  const columns = useProjectColumns(showCredits);
+  const columns = useProjectColumns(showCredits, onSelectProject);
 
   return (
     <DataTable
       columns={columns}
       data={byProject}
       title="Cost by Project"
+      sectionKey="project-cost-mount"
       exportFn={onExportCSV}
       defaultSort={defaultSort}
       costRows

@@ -2,6 +2,7 @@ import { render } from 'preact';
 import { Footer } from './components/Footer';
 import { Header } from './components/Header';
 import { FilterBar } from './components/FilterBar';
+import { DashboardTabs } from './components/DashboardTabs';
 import { RateWindowCard, BudgetCard, RateWindowUnavailable } from './components/RateWindowCard';
 import { AgentStatusCard } from './components/AgentStatusCard';
 import { ClaudeUsagePanel } from './components/ClaudeUsagePanel';
@@ -61,6 +62,7 @@ import {
   billingBlocksData,
   contextWindowData,
   costReconciliationData,
+  activeDashboardTab,
   selectedModels,
   selectedRange,
   selectedProvider,
@@ -72,8 +74,11 @@ import {
   planBadge,
   versionDonutMetric,
   loadState,
+  isSectionCollapsed,
   restoreDashboardStateFromUrl,
+  setSectionCollapsed,
   syncDashboardUrl,
+  type DashboardTab,
 } from './state/store';
 import { $ } from './lib/format';
 import { downloadCSV } from './lib/csv';
@@ -104,6 +109,64 @@ let loadBillingBlocksInFlight = false;
 let loadContextWindowInFlight = false;
 let loadCostReconciliationInFlight = false;
 
+const SECTION_TAB_MAP: Record<string, DashboardTab> = {
+  'usage-windows': 'overview',
+  'claude-usage': 'overview',
+  'agent-status': 'overview',
+  'estimation-meta': 'overview',
+  'official-sync': 'overview',
+  'openai-reconciliation': 'overview',
+  'stats-row': 'overview',
+  'daily-chart-card': 'activity',
+  'model-chart-card': 'activity',
+  'project-chart-card': 'activity',
+  'hourly-chart': 'activity',
+  'activity-heatmap': 'activity',
+  'subagent-summary': 'breakdowns',
+  'entrypoint-breakdown': 'breakdowns',
+  'service-tiers': 'breakdowns',
+  'tool-summary': 'breakdowns',
+  'mcp-summary': 'breakdowns',
+  'branch-summary': 'breakdowns',
+  'version-summary': 'breakdowns',
+  'cost-reconciliation': 'breakdowns',
+  'model-cost-mount': 'tables',
+  'sessions-mount': 'tables',
+  'project-cost-mount': 'tables',
+};
+
+const SECTION_DISPLAY_MODE: Record<string, string> = {
+  'usage-windows': 'grid',
+  'agent-status': 'grid',
+  'estimation-meta': 'grid',
+  'stats-row': 'grid',
+};
+
+function setSectionVisibility(sectionId: string, hasContent: boolean, displayMode = ''): void {
+  const container = $(sectionId);
+  if (!container) return;
+  container.dataset['hasContent'] = hasContent ? '1' : '0';
+  const visibleInTab = SECTION_TAB_MAP[sectionId] === activeDashboardTab.value;
+  container.style.display = hasContent && visibleInTab ? displayMode : 'none';
+}
+
+function refreshSectionVisibility(): void {
+  for (const [sectionId, tab] of Object.entries(SECTION_TAB_MAP)) {
+    const container = $(sectionId);
+    if (!container) continue;
+    const hasContent = container.dataset['hasContent'] !== '0';
+    const displayMode = SECTION_DISPLAY_MODE[sectionId] ?? '';
+    container.style.display = hasContent && tab === activeDashboardTab.value ? displayMode : 'none';
+  }
+}
+
+function handleDashboardTabChange(tab: DashboardTab): void {
+  if (activeDashboardTab.value === tab) return;
+  activeDashboardTab.value = tab;
+  syncDashboardUrl();
+  refreshSectionVisibility();
+}
+
 // ── URL persistence ──────────────────────────────────────────────────
 function formatLocalDate(date: Date): string {
   const year = date.getFullYear();
@@ -132,6 +195,21 @@ function matchesProjectSearch(project: string, displayName?: string): boolean {
   if (project.toLowerCase().includes(q)) return true;
   if (displayName && displayName.toLowerCase().includes(q)) return true;
   return false;
+}
+
+function focusSingleModel(model: string): void {
+  if (!rawData.value) return;
+  const isSoleSelection = selectedModels.value.size === 1 && selectedModels.value.has(model);
+  selectedModels.value = isSoleSelection ? new Set(rawData.value.all_models) : new Set([model]);
+  syncDashboardUrl();
+  applyFilter();
+}
+
+function focusProjectQuery(project: string): void {
+  const normalized = project.toLowerCase().trim();
+  projectSearchQuery.value = projectSearchQuery.value === normalized ? '' : normalized;
+  syncDashboardUrl();
+  applyFilter();
 }
 
 // ── SQLite %W week range filter ──────────────────────────────────────
@@ -349,12 +427,12 @@ function renderEstimationMeta(
   if (!container) return;
 
   if (!confidenceBreakdown.length && !billingModeBreakdown.length && !pricingVersions.length) {
-    container.style.display = 'none';
+    setSectionVisibility('estimation-meta', false, 'grid');
     render(null, container);
     return;
   }
 
-  container.style.display = 'grid';
+  setSectionVisibility('estimation-meta', true, 'grid');
   render(
     <EstimationMeta
       confidenceBreakdown={confidenceBreakdown}
@@ -369,11 +447,11 @@ function renderOpenAiReconciliation(reconciliation: DashboardData['openai_reconc
   const container = $('openai-reconciliation');
   if (!container) return;
   if (!reconciliation) {
-    container.style.display = 'none';
+    setSectionVisibility('openai-reconciliation', false);
     render(null, container);
     return;
   }
-  container.style.display = '';
+  setSectionVisibility('openai-reconciliation', true);
   render(<ReconciliationBlock reconciliation={reconciliation} />, container);
 }
 
@@ -381,11 +459,11 @@ function renderOfficialSync(summary: DashboardData['official_sync']): void {
   const container = $('official-sync');
   if (!container) return;
   if (!summary?.available) {
-    container.style.display = 'none';
+    setSectionVisibility('official-sync', false);
     render(null, container);
     return;
   }
-  container.style.display = '';
+  setSectionVisibility('official-sync', true);
   render(
     <OfficialSyncPanel
       summary={summary}
@@ -434,6 +512,7 @@ function applyFilter(): void {
     />,
     $('stats-row')
   );
+  setSectionVisibility('stats-row', true, 'grid');
   renderEstimationMeta(confidenceBreakdown, billingModeBreakdown, pricingVersions);
   renderOfficialSync(rawData.value.official_sync);
   renderOpenAiReconciliation(rawData.value.openai_reconciliation);
@@ -441,18 +520,39 @@ function applyFilter(): void {
   if (bucketIsWeek) {
     const weekly = buildWeeklyAgg(selectedRange.value);
     render(<WeeklyChart weekly={weekly} />, $('chart-daily'));
+    setSectionVisibility('daily-chart-card', weekly.length > 0);
   } else {
     render(<DailyChart daily={daily} />, $('chart-daily'));
+    setSectionVisibility('daily-chart-card', daily.length > 0);
   }
-  render(<ModelChart byModel={byModel} />, $('chart-model'));
-  render(<ProjectChart byProject={byProject} />, $('chart-project'));
+  render(<ModelChart byModel={byModel} onSelectModel={focusSingleModel} />, $('chart-model'));
+  render(<ProjectChart byProject={byProject} onSelectProject={(project) => focusProjectQuery(project.display_name || project.project)} />, $('chart-project'));
+  setSectionVisibility('model-chart-card', byModel.length > 0);
+  setSectionVisibility('project-chart-card', byProject.length > 0);
 
   lastFilteredSessions.value = filteredSessions;
   lastByProject.value = byProject;
 
-  render(<ModelCostTable byModel={byModel} />, $('model-cost-mount'));
-  render(<SessionsTable onExportCSV={exportSessionsCSV} />, $('sessions-mount'));
-  render(<ProjectCostTable byProject={lastByProject.value.slice(0, 30)} onExportCSV={exportProjectsCSV} />, $('project-cost-mount'));
+  render(<ModelCostTable byModel={byModel} onSelectModel={focusSingleModel} />, $('model-cost-mount'));
+  render(
+    <SessionsTable
+      onExportCSV={exportSessionsCSV}
+      onSelectProject={(session) => focusProjectQuery(session.display_name || session.project)}
+      onSelectModel={focusSingleModel}
+    />,
+    $('sessions-mount')
+  );
+  render(
+    <ProjectCostTable
+      byProject={lastByProject.value.slice(0, 30)}
+      onExportCSV={exportProjectsCSV}
+      onSelectProject={(project) => focusProjectQuery(project.display_name || project.project)}
+    />,
+    $('project-cost-mount')
+  );
+  setSectionVisibility('model-cost-mount', byModel.length > 0);
+  setSectionVisibility('sessions-mount', filteredSessions.length > 0);
+  setSectionVisibility('project-cost-mount', lastByProject.value.length > 0);
 
   // Secondary tables honour the provider filter too.
   if (rawData.value.subagent_summary) renderSubagentSummary(rawData.value.subagent_summary);
@@ -463,6 +563,7 @@ function applyFilter(): void {
   renderBranchSummary((rawData.value.git_branch_summary ?? []).filter(matchesProvider));
   renderVersionSummary((rawData.value.version_summary ?? []).filter(matchesProvider));
   renderHourlyChart((rawData.value.hourly_distribution ?? []).filter(matchesProvider));
+  refreshSectionVisibility();
 }
 
 // ── CSV Export ───────────────────────────────────────────────────────
@@ -495,16 +596,16 @@ function renderUsageWindows(data: UsageWindowsResponse): void {
   if (!data.available) {
     planBadge.value = '';
     if (data.error) {
-      container.style.display = 'grid';
+      setSectionVisibility('usage-windows', true, 'grid');
       render(<RateWindowUnavailable error={data.error} />, container);
     } else {
-      container.style.display = 'none';
+      setSectionVisibility('usage-windows', false, 'grid');
       render(null, container);
     }
     return;
   }
 
-  container.style.display = 'grid';
+  setSectionVisibility('usage-windows', true, 'grid');
   render(
     <>
       {data.session && <RateWindowCard label="Session (5h)" window={data.session} />}
@@ -552,11 +653,11 @@ function renderClaudeUsage(data: ClaudeUsageResponse): void {
   const container = $('claude-usage');
   if (!container) return;
   if (!data.last_run && !data.latest_snapshot) {
-    container.style.display = 'none';
+    setSectionVisibility('claude-usage', false);
     render(null, container);
     return;
   }
-  container.style.display = '';
+  setSectionVisibility('claude-usage', true);
   render(<ClaudeUsagePanel data={data} />, container);
 }
 
@@ -565,11 +666,11 @@ function renderSubagentSummary(summary: SubagentSummary): void {
   const container = $('subagent-summary');
   if (!container) return;
   if (summary.subagent_turns === 0) {
-    container.style.display = 'none';
+    setSectionVisibility('subagent-summary', false);
     render(null, container);
     return;
   }
-  container.style.display = '';
+  setSectionVisibility('subagent-summary', true);
   render(<SubagentSummaryComponent summary={summary} />, container);
 }
 
@@ -577,11 +678,11 @@ function renderEntrypointBreakdown(data: EntrypointSummary[]): void {
   const container = $('entrypoint-breakdown');
   if (!container) return;
   if (!data.length) {
-    container.style.display = 'none';
+    setSectionVisibility('entrypoint-breakdown', false);
     render(null, container);
     return;
   }
-  container.style.display = '';
+  setSectionVisibility('entrypoint-breakdown', true);
   render(<EntrypointTable data={data} />, container);
 }
 
@@ -589,11 +690,11 @@ function renderServiceTiers(data: ServiceTierSummary[]): void {
   const container = $('service-tiers');
   if (!container) return;
   if (!data.length) {
-    container.style.display = 'none';
+    setSectionVisibility('service-tiers', false);
     render(null, container);
     return;
   }
-  container.style.display = '';
+  setSectionVisibility('service-tiers', true);
   render(<ServiceTiersTable data={data} />, container);
 }
 
@@ -601,11 +702,11 @@ function renderToolSummary(data: ToolSummary[]): void {
   const container = $('tool-summary');
   if (!container) return;
   if (!data.length) {
-    container.style.display = 'none';
+    setSectionVisibility('tool-summary', false);
     render(null, container);
     return;
   }
-  container.style.display = '';
+  setSectionVisibility('tool-summary', true);
   render(<ToolUsageTable data={data} />, container);
 }
 
@@ -613,11 +714,11 @@ function renderMcpSummary(data: McpServerSummary[]): void {
   const container = $('mcp-summary');
   if (!container) return;
   if (!data.length) {
-    container.style.display = 'none';
+    setSectionVisibility('mcp-summary', false);
     render(null, container);
     return;
   }
-  container.style.display = '';
+  setSectionVisibility('mcp-summary', true);
   render(<McpSummaryTable data={data} />, container);
 }
 
@@ -625,11 +726,11 @@ function renderBranchSummary(data: BranchSummary[]): void {
   const container = $('branch-summary');
   if (!container) return;
   if (!data.length) {
-    container.style.display = 'none';
+    setSectionVisibility('branch-summary', false);
     render(null, container);
     return;
   }
-  container.style.display = '';
+  setSectionVisibility('branch-summary', true);
   render(<BranchTable data={data} />, container);
 }
 
@@ -637,30 +738,54 @@ function renderVersionSummary(data: VersionSummary[]): void {
   const container = $('version-summary');
   if (!container) return;
   if (!data.length) {
-    container.style.display = 'none';
+    setSectionVisibility('version-summary', false);
     render(null, container);
     return;
   }
-  container.style.display = '';
+  setSectionVisibility('version-summary', true);
 
   const handleMetricChange = (next: import('./state/store').VersionMetric) => {
     versionDonutMetric.value = next;
     syncDashboardUrl();
     renderVersionSummary(data);
   };
+  const collapsed = isSectionCollapsed('version-summary');
+  const toggleCollapsed = () => {
+    setSectionCollapsed('version-summary', !collapsed);
+    syncDashboardUrl();
+    renderVersionSummary(data);
+  };
 
   render(
-    <div style={{ display: 'flex', gap: '24px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
-      <div style={{ flex: '1 1 260px', minWidth: '220px', height: '300px' }}>
-        <VersionDonut
-          rows={data}
-          metric={versionDonutMetric.value}
-          onMetricChange={handleMetricChange}
-        />
+    <div class="table-card">
+      <div class="section-header" style={{ padding: '20px 20px 0' }}>
+        <h2 class="section-title" style={{ margin: 0 }}>CLI Versions</h2>
+        <div class="section-actions">
+          <button
+            class="section-toggle"
+            type="button"
+            aria-expanded={!collapsed}
+            aria-controls="version-summary-content"
+            onClick={toggleCollapsed}
+          >
+            {collapsed ? 'Show' : 'Hide'}
+          </button>
+        </div>
       </div>
-      <div style={{ flex: '2 1 320px', minWidth: '280px' }}>
-        <VersionTable data={data} />
-      </div>
+      {!collapsed && (
+        <div id="version-summary-content" style={{ display: 'flex', gap: '24px', alignItems: 'flex-start', flexWrap: 'wrap', padding: '20px' }}>
+          <div style={{ flex: '1 1 260px', minWidth: '220px', height: '300px' }}>
+            <VersionDonut
+              rows={data}
+              metric={versionDonutMetric.value}
+              onMetricChange={handleMetricChange}
+            />
+          </div>
+          <div style={{ flex: '2 1 320px', minWidth: '280px' }}>
+            <VersionTable data={data} title={null} />
+          </div>
+        </div>
+      )}
     </div>,
     container
   );
@@ -670,11 +795,11 @@ function renderHourlyChart(data: HourlyRow[]): void {
   const container = $('hourly-chart');
   if (!container) return;
   if (!data.length) {
-    container.style.display = 'none';
+    setSectionVisibility('hourly-chart', false);
     render(null, container);
     return;
   }
-  container.style.display = '';
+  setSectionVisibility('hourly-chart', true);
   render(<HourlyChart data={data} />, container);
 }
 
@@ -682,11 +807,11 @@ function renderActivityHeatmap(data: HeatmapData | null): void {
   const container = $('activity-heatmap');
   if (!container) return;
   if (!data) {
-    container.style.display = 'none';
+    setSectionVisibility('activity-heatmap', false);
     render(null, container);
     return;
   }
-  container.style.display = '';
+  setSectionVisibility('activity-heatmap', true);
   render(<ActivityHeatmap data={data} />, container);
 }
 
@@ -722,9 +847,7 @@ async function loadClaudeUsage(): Promise<void> {
 function renderAgentStatus(snapshot: AgentStatusSnapshot): void {
   const container = $('agent-status');
   if (!container) return;
-  // Must be 'grid' to activate the grid-template-columns set inline; empty
-  // string resets to <div>'s default of 'block' and the card overflows.
-  container.style.display = 'grid';
+  setSectionVisibility('agent-status', true, 'grid');
   render(<AgentStatusCard snapshot={snapshot} communitySignal={lastCommunitySignal} />, container);
 }
 
@@ -838,11 +961,11 @@ function renderCostReconciliation(): void {
   if (!container) return;
   const data = costReconciliationData.value;
   if (!data || !data.enabled) {
-    container.style.display = 'none';
+    setSectionVisibility('cost-reconciliation', false);
     render(null, container);
     return;
   }
-  container.style.display = '';
+  setSectionVisibility('cost-reconciliation', true);
   render(<CostReconciliationPanel data={data} />, container);
 }
 
@@ -930,6 +1053,11 @@ if (headerMount) {
 const filterBarMount = document.getElementById('filter-bar-mount');
 if (filterBarMount) {
   render(<FilterBar onFilterChange={applyFilter} onURLUpdate={syncDashboardUrl} />, filterBarMount);
+}
+
+const dashboardTabsMount = document.getElementById('dashboard-tabs-mount');
+if (dashboardTabsMount) {
+  render(<DashboardTabs onTabChange={handleDashboardTabChange} />, dashboardTabsMount);
 }
 
 const footerEl = document.querySelector('footer');

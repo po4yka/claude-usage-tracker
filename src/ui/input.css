@@ -368,6 +368,54 @@
     color: var(--text-display);
   }
 
+  /* ── Dashboard Tabs ─────────────────────────────────────────────── */
+  #dashboard-tabs {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .dashboard-tab {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    min-height: 72px;
+    padding: 12px 14px;
+    border: 1px solid var(--border-visible);
+    border-radius: 10px;
+    background: var(--surface);
+    color: var(--text-secondary);
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s, background-color 0.15s;
+  }
+  .dashboard-tab:hover {
+    border-color: var(--text-display);
+    color: var(--text-primary);
+  }
+  .dashboard-tab.active {
+    border-color: var(--text-display);
+    color: var(--text-display);
+    background: var(--surface-raised);
+  }
+  .dashboard-tab-label,
+  .dashboard-tab-summary {
+    font-family: var(--font-mono);
+    letter-spacing: 0.06em;
+  }
+  .dashboard-tab-label {
+    font-size: 12px;
+    text-transform: uppercase;
+  }
+  .dashboard-tab-summary {
+    font-size: 10px;
+    color: var(--text-disabled);
+    text-transform: uppercase;
+  }
+  .dashboard-tab.active .dashboard-tab-summary {
+    color: var(--text-secondary);
+  }
+
   /* ── Bento Grid ──────────────────────────────────────────────────── */
   .bento {
     max-width: 1400px;
@@ -494,6 +542,32 @@
     margin-bottom: 16px;
   }
   .section-header .section-title { margin-bottom: 0; }
+  .section-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .section-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 32px;
+    padding: 4px 10px;
+    border: 1px solid var(--border-visible);
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .section-toggle:hover {
+    border-color: var(--text-display);
+    color: var(--text-display);
+  }
 
   /* ── Charts ──────────────────────────────────────────────────────── */
   .chart-card h2 {
@@ -559,6 +633,23 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: transparent;
+    text-align: left;
+  }
+  .model-share-row.interactive {
+    cursor: pointer;
+    transition: border-color 0.15s, background-color 0.15s;
+  }
+  .model-share-row.interactive:hover {
+    border-color: var(--border-visible);
+    background: var(--surface-raised);
+  }
+  .model-share-row:disabled {
+    cursor: default;
   }
   .model-share-row-head,
   .model-share-row-meta {
@@ -667,6 +758,36 @@
   .cost-na { color: var(--text-disabled); font-family: var(--font-mono); font-size: 11px; font-feature-settings: "tnum"; }
   .num { font-family: var(--font-mono); font-feature-settings: "tnum"; }
   .muted { color: var(--text-secondary); }
+  .table-action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-start;
+    min-width: 0;
+    gap: 6px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--text-primary);
+    cursor: pointer;
+    text-align: left;
+  }
+  .table-action-btn:hover {
+    color: var(--text-display);
+    text-decoration: underline;
+    text-underline-offset: 0.16em;
+  }
+  .table-action-btn--tag {
+    align-items: center;
+  }
+  .table-action-btn--tag:hover {
+    text-decoration: none;
+  }
+  .table-action-btn--stack {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    width: 100%;
+  }
 
   /* ── Export & Action Buttons ─────────────────────────────────────── */
   .export-btn {
@@ -759,6 +880,9 @@
     .bento-3 { grid-column: span 2; }
   }
   @media (max-width: 768px) {
+    #dashboard-tabs {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
     .bento { grid-template-columns: 1fr; padding: 12px; gap: 8px; }
     .bento-2, .bento-3, .bento-full { grid-column: 1; }
     #filter-bar { padding: 10px 12px; }
@@ -804,7 +928,8 @@
     .range-btn,
     .project-search-input,
     #rescan-btn,
-    .theme-toggle {
+    .theme-toggle,
+    .section-toggle {
       min-height: 40px;
     }
     .theme-toggle { min-width: 40px; }
@@ -827,6 +952,9 @@
     }
   }
   @media (max-width: 480px) {
+    #dashboard-tabs {
+      grid-template-columns: 1fr;
+    }
     .stat-value { font-size: 28px; }
     .stat-sparkline { display: none; }
   }
