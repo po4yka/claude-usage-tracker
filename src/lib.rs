@@ -13,6 +13,7 @@ pub mod currency;
 pub mod db;
 pub mod export;
 pub mod hook;
+pub mod jq;
 pub mod litellm;
 #[cfg(feature = "mcp")]
 pub mod mcp;

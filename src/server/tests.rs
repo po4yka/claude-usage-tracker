@@ -1786,7 +1786,9 @@ mod tests {
             "local_total_nanos missing"
         );
         assert!(data["divergence_pct"].is_number(), "divergence_pct missing");
-        let breakdown = data["breakdown"].as_array().expect("breakdown must be array");
+        let breakdown = data["breakdown"]
+            .as_array()
+            .expect("breakdown must be array");
         assert!(!breakdown.is_empty(), "breakdown should be non-empty");
         // Each entry must have day, hook_nanos, local_nanos.
         let first = &breakdown[0];

@@ -289,9 +289,7 @@ pub fn init_db(conn: &Connection) -> Result<()> {
     // Phase 8: hook-reported cost alongside Heimdall's local estimate.
     // NULL = hook did not report a cost for this event.
     if !has_column(conn, "live_events", "hook_reported_cost_nanos") {
-        conn.execute_batch(
-            "ALTER TABLE live_events ADD COLUMN hook_reported_cost_nanos INTEGER;",
-        )?;
+        conn.execute_batch("ALTER TABLE live_events ADD COLUMN hook_reported_cost_nanos INTEGER;")?;
     }
 
     // Agent status history: one row per component per poll.

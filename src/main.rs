@@ -4,6 +4,7 @@ use claude_usage_tracker::currency;
 use claude_usage_tracker::db as db_mod;
 use claude_usage_tracker::export;
 use claude_usage_tracker::hook;
+use claude_usage_tracker::jq as jq_mod;
 use claude_usage_tracker::litellm;
 #[cfg(feature = "mcp")]
 use claude_usage_tracker::mcp;
@@ -48,6 +49,9 @@ enum Commands {
         /// Output as JSON
         #[arg(long)]
         json: bool,
+        /// jq-style filter applied to the JSON output (implies --json)
+        #[arg(long, value_name = "FILTER")]
+        jq: Option<String>,
     },
     /// Show all-time statistics
     Stats {
@@ -56,6 +60,9 @@ enum Commands {
         /// Output as JSON
         #[arg(long)]
         json: bool,
+        /// jq-style filter applied to the JSON output (implies --json)
+        #[arg(long, value_name = "FILTER")]
+        jq: Option<String>,
     },
     /// Scan + start web dashboard
     Dashboard {
@@ -81,7 +88,7 @@ enum Commands {
         /// Time window: today | week | month | year | all
         #[arg(long, default_value = "all")]
         period: String,
-        /// Output file path
+        /// Output file path ("-" for stdout)
         #[arg(long)]
         output: PathBuf,
         /// Restrict to a single provider (claude | codex | xcode | ...)
@@ -90,6 +97,9 @@ enum Commands {
         /// Restrict to a single project_name
         #[arg(long)]
         project: Option<String>,
+        /// jq-style filter applied to each JSON/JSONL record (implies --format=json/jsonl)
+        #[arg(long, value_name = "FILTER")]
+        jq: Option<String>,
     },
     /// Print SwiftBar-formatted menubar widget showing today's cost
     Menubar {
@@ -113,6 +123,9 @@ enum Commands {
         /// Output format: text | json
         #[arg(long, default_value = "text")]
         format: String,
+        /// jq-style filter applied to the JSON output (implies --format=json)
+        #[arg(long, value_name = "FILTER")]
+        jq: Option<String>,
     },
     /// Manage the heimdall-hook real-time PreToolUse ingest hook
     Hook {
@@ -146,6 +159,9 @@ enum Commands {
         /// Token quota for the active billing block: a number, or "max" to use the historical peak.
         #[arg(long, value_parser = parse_token_limit)]
         token_limit: Option<TokenLimit>,
+        /// jq-style filter applied to the JSON output (implies --json)
+        #[arg(long, value_name = "FILTER")]
+        jq: Option<String>,
     },
     /// Aggregated usage by ISO calendar week
     Weekly {
@@ -161,6 +177,9 @@ enum Commands {
         /// Include per-model breakdown sub-rows under each week
         #[arg(long)]
         breakdown: bool,
+        /// jq-style filter applied to the JSON output (implies --json)
+        #[arg(long, value_name = "FILTER")]
+        jq: Option<String>,
     },
     /// Emit a Claude Code status line from the PostToolUse hook JSON on stdin
     Statusline {
@@ -428,13 +447,13 @@ fn main() -> Result<()> {
             let dirs = default_dirs(projects_dir);
             scanner::scan(dirs, &db, true)?;
         }
-        Commands::Today { db_path, json } => {
+        Commands::Today { db_path, json, jq } => {
             let db = default_db(db_path);
-            cmd_today(&db, json)?;
+            cmd_today(&db, json, jq.as_deref())?;
         }
-        Commands::Stats { db_path, json } => {
+        Commands::Stats { db_path, json, jq } => {
             let db = default_db(db_path);
-            cmd_stats(&db, json, &cfg_display_currency)?;
+            cmd_stats(&db, json, &cfg_display_currency, jq.as_deref())?;
         }
         Commands::Dashboard {
             projects_dir,
@@ -488,6 +507,7 @@ fn main() -> Result<()> {
             output,
             provider,
             project,
+            jq,
         } => {
             let db = default_db(db_path);
             let opts = export::ExportOptions {
@@ -496,9 +516,14 @@ fn main() -> Result<()> {
                 output,
                 provider,
                 project,
+                jq,
             };
             let n = export::run_export(&db, &opts)?;
-            eprintln!("Exported {} rows to {}", n, opts.output.display());
+            // When writing to stdout (`-`), suppress the status message so it
+            // doesn't pollute the data stream.  Otherwise emit to stderr.
+            if opts.output != std::path::Path::new("-") {
+                eprintln!("Exported {} rows to {}", n, opts.output.display());
+            }
         }
         Commands::Menubar { db_path } => {
             let db = default_db(db_path);
@@ -522,9 +547,13 @@ fn main() -> Result<()> {
         Commands::Scheduler { action } => {
             cmd_scheduler(action, &default_db(None))?;
         }
-        Commands::Optimize { db_path, format } => {
+        Commands::Optimize {
+            db_path,
+            format,
+            jq,
+        } => {
             let db = default_db(db_path);
-            cmd_optimize(&db, &format)?;
+            cmd_optimize(&db, &format, jq.as_deref())?;
         }
         Commands::Hook { action } => {
             cmd_hook(action)?;
@@ -544,18 +573,27 @@ fn main() -> Result<()> {
             active,
             json,
             token_limit,
+            jq,
         } => {
             let db = default_db(db_path);
-            cmd_blocks(&db, session_length, active, json, token_limit)?;
+            cmd_blocks(
+                &db,
+                session_length,
+                active,
+                json,
+                token_limit,
+                jq.as_deref(),
+            )?;
         }
         Commands::Weekly {
             db_path,
             start_of_week,
             json,
             breakdown,
+            jq,
         } => {
             let db = default_db(db_path);
-            cmd_weekly(&db, start_of_week, json, breakdown)?;
+            cmd_weekly(&db, start_of_week, json, breakdown, jq.as_deref())?;
         }
         Commands::Statusline {
             refresh_interval,
@@ -676,7 +714,29 @@ fn apply_pricing_overrides(cfg: &config::Config) {
     pricing::set_overrides(overrides);
 }
 
-fn cmd_optimize(db_path: &std::path::Path, format: &str) -> Result<()> {
+/// Apply a jq filter to `value` and print the result, or exit 2 on error.
+///
+/// - Empty result → no output, exit 0.
+/// - Single result → println, exit 0.
+/// - Multiple results → one line each, exit 0.
+/// - Error → eprintln to stderr, std::process::exit(2).
+fn apply_jq_and_print(value: &serde_json::Value, filter: &str) {
+    match jq_mod::apply(value, filter) {
+        Ok(jq_mod::JqResult::Empty) => {}
+        Ok(jq_mod::JqResult::Single(s)) => println!("{s}"),
+        Ok(jq_mod::JqResult::Multiple(vs)) => {
+            for v in vs {
+                println!("{v}");
+            }
+        }
+        Err(e) => {
+            eprintln!("jq error: {e}");
+            std::process::exit(2);
+        }
+    }
+}
+
+fn cmd_optimize(db_path: &std::path::Path, format: &str, jq: Option<&str>) -> Result<()> {
     use optimizer::Severity;
 
     if !db_path.exists() {
@@ -688,9 +748,17 @@ fn cmd_optimize(db_path: &std::path::Path, format: &str) -> Result<()> {
 
     let report = optimizer::run_optimize(db_path)?;
 
-    match format.to_ascii_lowercase().as_str() {
+    // --jq implies JSON output.
+    let effective_format = if jq.is_some() { "json" } else { format };
+
+    match effective_format.to_ascii_lowercase().as_str() {
         "json" => {
-            println!("{}", serde_json::to_string_pretty(&report)?);
+            let value = serde_json::to_value(&report)?;
+            if let Some(filter) = jq {
+                apply_jq_and_print(&value, filter);
+            } else {
+                println!("{}", serde_json::to_string_pretty(&value)?);
+            }
         }
         _ => {
             println!();
@@ -1028,7 +1096,7 @@ type StatsModelRow = (
 );
 type ProviderRollup = (i64, i64, i64, i64, i64, i64, i64);
 
-fn cmd_today(db_path: &std::path::Path, json_output: bool) -> Result<()> {
+fn cmd_today(db_path: &std::path::Path, json_output: bool, jq: Option<&str>) -> Result<()> {
     if !db_path.exists() {
         anyhow::bail!("Database not found. Run: claude-usage-tracker scan");
     }
@@ -1080,7 +1148,7 @@ fn cmd_today(db_path: &std::path::Path, json_output: bool) -> Result<()> {
         })
         .collect();
 
-    if json_output {
+    if json_output || jq.is_some() {
         let by_provider: Vec<serde_json::Value> = {
             let mut stmt = conn.prepare(
                 "SELECT provider, COUNT(*) as turns,
@@ -1189,7 +1257,11 @@ fn cmd_today(db_path: &std::path::Path, json_output: bool) -> Result<()> {
             "billing_mode_breakdown": billing_mode_breakdown,
             "total_estimated_cost": (total_cost * 10000.0).round() / 10000.0,
         });
-        println!("{}", serde_json::to_string_pretty(&output)?);
+        if let Some(filter) = jq {
+            apply_jq_and_print(&output, filter);
+        } else {
+            println!("{}", serde_json::to_string_pretty(&output)?);
+        }
         return Ok(());
     }
 
@@ -1301,6 +1373,7 @@ fn cmd_weekly(
     start_of_week: chrono::Weekday,
     json_output: bool,
     breakdown: bool,
+    jq: Option<&str>,
 ) -> Result<()> {
     if !db_path.exists() {
         anyhow::bail!("Database not found. Run: claude-usage-tracker scan");
@@ -1327,7 +1400,7 @@ fn cmd_weekly(
 
     let sow_str = format!("{}", start_of_week).to_lowercase();
 
-    if json_output {
+    if json_output || jq.is_some() {
         let weeks_json: Vec<serde_json::Value> = weeks
             .iter()
             .map(|week| {
@@ -1392,7 +1465,11 @@ fn cmd_weekly(
             "start_of_week": sow_str,
             "weeks": weeks_json,
         });
-        println!("{}", serde_json::to_string_pretty(&out)?);
+        if let Some(filter) = jq {
+            apply_jq_and_print(&out, filter);
+        } else {
+            println!("{}", serde_json::to_string_pretty(&out)?);
+        }
     } else {
         println!("Weekly usage summary (start-of-week: {})\n", sow_str);
         for week in &weeks {
@@ -1429,7 +1506,12 @@ fn cmd_weekly(
     Ok(())
 }
 
-fn cmd_stats(db_path: &std::path::Path, json_output: bool, display_currency: &str) -> Result<()> {
+fn cmd_stats(
+    db_path: &std::path::Path,
+    json_output: bool,
+    display_currency: &str,
+    jq: Option<&str>,
+) -> Result<()> {
     if !db_path.exists() {
         anyhow::bail!("Database not found. Run: claude-usage-tracker scan");
     }
@@ -1504,7 +1586,7 @@ fn cmd_stats(db_path: &std::path::Path, json_output: bool, display_currency: &st
         .map(|(_, _, _, _, _, _, _, _, _, cost_nanos, _, _)| *cost_nanos as f64 / 1_000_000_000.0)
         .sum();
 
-    if json_output {
+    if json_output || jq.is_some() {
         let by_provider: Vec<serde_json::Value> = {
             let mut stmt = conn.prepare(
                 "SELECT provider,
@@ -1651,7 +1733,11 @@ fn cmd_stats(db_path: &std::path::Path, json_output: bool, display_currency: &st
         if let Some(dc) = display_currency_value {
             output["display_currency"] = dc;
         }
-        println!("{}", serde_json::to_string_pretty(&output)?);
+        if let Some(filter) = jq {
+            apply_jq_and_print(&output, filter);
+        } else {
+            println!("{}", serde_json::to_string_pretty(&output)?);
+        }
         return Ok(());
     }
 
@@ -1822,6 +1908,7 @@ fn cmd_blocks(
     active_only: bool,
     json_output: bool,
     token_limit: Option<TokenLimit>,
+    jq: Option<&str>,
 ) -> anyhow::Result<()> {
     use analytics::blocks::{calculate_burn_rate, identify_blocks, project_block_usage};
     use analytics::quota::compute_quota;
@@ -1849,7 +1936,7 @@ fn cmd_blocks(
         blocks.retain(|b| b.is_active);
     }
 
-    if json_output {
+    if json_output || jq.is_some() {
         let now = chrono::Utc::now();
         let json_blocks: Vec<serde_json::Value> = blocks
             .iter()
@@ -1896,7 +1983,12 @@ fn cmd_blocks(
                 v
             })
             .collect();
-        println!("{}", serde_json::to_string_pretty(&json_blocks)?);
+        let json_blocks_value = serde_json::Value::Array(json_blocks);
+        if let Some(filter) = jq {
+            apply_jq_and_print(&json_blocks_value, filter);
+        } else {
+            println!("{}", serde_json::to_string_pretty(&json_blocks_value)?);
+        }
         return Ok(());
     }
 

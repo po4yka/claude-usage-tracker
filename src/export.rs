@@ -15,7 +15,26 @@ use chrono::{Duration, Local, NaiveDate};
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 
+use crate::jq as jq_mod;
 use crate::scanner::db::open_db;
+
+/// Returns `true` when the output path means "write to stdout" (the path is literally `-`).
+fn is_stdout(path: &Path) -> bool {
+    path == Path::new("-")
+}
+
+/// Open a `BufWriter` over either stdout (when `path` is `-`) or the given file path.
+///
+/// The caller receives a `Box<dyn Write>` so the rest of the code is sink-agnostic.
+fn open_writer(path: &Path) -> Result<Box<dyn Write>> {
+    if is_stdout(path) {
+        Ok(Box::new(std::io::BufWriter::new(std::io::stdout())))
+    } else {
+        let f =
+            std::fs::File::create(path).with_context(|| format!("creating {}", path.display()))?;
+        Ok(Box::new(std::io::BufWriter::new(f)))
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExportFormat {
@@ -100,6 +119,9 @@ pub struct ExportOptions {
     pub output: PathBuf,
     pub provider: Option<String>,
     pub project: Option<String>,
+    /// Optional jq filter applied to each row's JSON representation.
+    /// When set, only JSON and JSONL outputs are produced (CSV is unaffected).
+    pub jq: Option<String>,
 }
 
 pub fn run_export(db_path: &Path, opts: &ExportOptions) -> Result<usize> {
@@ -118,8 +140,61 @@ pub fn run_export(db_path: &Path, opts: &ExportOptions) -> Result<usize> {
         opts.provider.as_deref(),
         opts.project.as_deref(),
     )?;
-    write_rows(&rows, opts.format, &opts.output)
-        .with_context(|| format!("writing {}", opts.output.display()))?;
+
+    if let Some(filter) = &opts.jq {
+        // Apply jq filter per-row for JSON/JSONL; for CSV output jq is ignored.
+        // Compile the filter once; reuse across all rows (FIX 3).
+        match opts.format {
+            ExportFormat::Csv => {
+                // jq is ignored for CSV — write normally.
+                write_rows(&rows, opts.format, &opts.output)
+                    .with_context(|| format!("writing {}", opts.output.display()))?;
+            }
+            ExportFormat::Json => {
+                // Build JSON array, apply filter to whole array value.
+                let compiled = jq_mod::CompiledJqFilter::compile(filter)
+                    .with_context(|| "compiling --jq filter")?;
+                let arr = serde_json::to_value(&rows)?;
+                let result = compiled
+                    .apply(&arr)
+                    .with_context(|| "applying --jq filter to JSON export")?;
+                let out_str = match result {
+                    jq_mod::JqResult::Empty => String::new(),
+                    jq_mod::JqResult::Single(s) => s,
+                    jq_mod::JqResult::Multiple(vs) => vs.join("\n"),
+                };
+                let mut w = open_writer(&opts.output)?;
+                if !out_str.is_empty() {
+                    writeln!(w, "{out_str}")?;
+                }
+            }
+            ExportFormat::Jsonl => {
+                // Compile filter once, apply per row.
+                let compiled = jq_mod::CompiledJqFilter::compile(filter)
+                    .with_context(|| "compiling --jq filter")?;
+                let mut w = open_writer(&opts.output)?;
+                for row in &rows {
+                    let row_val = serde_json::to_value(row)?;
+                    let result = compiled
+                        .apply(&row_val)
+                        .with_context(|| "applying --jq filter to JSONL export row")?;
+                    match result {
+                        jq_mod::JqResult::Empty => {}
+                        jq_mod::JqResult::Single(s) => writeln!(w, "{s}")?,
+                        jq_mod::JqResult::Multiple(vs) => {
+                            for v in vs {
+                                writeln!(w, "{v}")?;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    } else {
+        write_rows(&rows, opts.format, &opts.output)
+            .with_context(|| format!("writing {}", opts.output.display()))?;
+    }
+
     Ok(rows.len())
 }
 
@@ -194,7 +269,9 @@ fn write_rows(rows: &[ExportRow], format: ExportFormat, output: &Path) -> Result
 }
 
 fn write_csv(rows: &[ExportRow], output: &Path) -> Result<()> {
-    let mut wtr = csv::Writer::from_path(output)?;
+    // csv::Writer::from_path cannot write to stdout; fall back to a generic writer.
+    let w = open_writer(output)?;
+    let mut wtr = csv::Writer::from_writer(w);
     for r in rows {
         wtr.serialize(r)?;
     }
@@ -203,16 +280,16 @@ fn write_csv(rows: &[ExportRow], output: &Path) -> Result<()> {
 }
 
 fn write_json(rows: &[ExportRow], output: &Path) -> Result<()> {
-    let f = std::fs::File::create(output)?;
-    serde_json::to_writer_pretty(f, rows)?;
+    let mut w = open_writer(output)?;
+    serde_json::to_writer_pretty(&mut w, rows)?;
     Ok(())
 }
 
 fn write_jsonl(rows: &[ExportRow], output: &Path) -> Result<()> {
-    let mut f = std::fs::File::create(output)?;
+    let mut w = open_writer(output)?;
     for r in rows {
-        serde_json::to_writer(&mut f, r)?;
-        writeln!(f)?;
+        serde_json::to_writer(&mut w, r)?;
+        writeln!(w)?;
     }
     Ok(())
 }
@@ -429,6 +506,7 @@ mod tests {
             output: out.clone(),
             provider: None,
             project: None,
+            jq: None,
         };
         let n = run_export(&db, &opts).unwrap();
         assert_eq!(n, 2);
@@ -448,7 +526,91 @@ mod tests {
             output: out,
             provider: None,
             project: None,
+            jq: None,
         };
         assert!(run_export(&db, &opts).is_err());
+    }
+
+    /// Verify that `open_writer("-")` returns a writer (stdout) rather than
+    /// creating a file literally named `-`.
+    #[test]
+    fn open_writer_dash_does_not_create_file() {
+        // We cannot easily capture stdout in a unit test, but we can assert
+        // that no file named `-` was created in the current directory and
+        // that the function succeeds without error.
+        let result = open_writer(Path::new("-"));
+        assert!(result.is_ok(), "open_writer(\"-\") must succeed");
+        // No file named `-` should exist (we only write to stdout).
+        assert!(
+            !Path::new("-").exists(),
+            "file literally named `-` must not be created"
+        );
+    }
+
+    /// Verify that `is_stdout` correctly identifies the `-` sentinel.
+    #[test]
+    fn is_stdout_detects_dash() {
+        assert!(is_stdout(Path::new("-")));
+        assert!(!is_stdout(Path::new("out.json")));
+        assert!(!is_stdout(Path::new("--")));
+    }
+
+    /// Verify that jq filter is compiled once and applied per-row (compile-once path).
+    /// We exercise this via `run_export` with JSONL + jq and confirm correctness.
+    #[test]
+    fn run_export_jsonl_jq_compiles_once_and_applies_per_row() {
+        let dir = TempDir::new().unwrap();
+        let db = dir.path().join("t.db");
+        seed_db(&db);
+        let out = dir.path().join("out.jsonl");
+
+        let opts = ExportOptions {
+            format: ExportFormat::Jsonl,
+            period: ExportPeriod::All,
+            output: out.clone(),
+            provider: None,
+            project: None,
+            jq: Some(".model".to_string()),
+        };
+        let n = run_export(&db, &opts).unwrap();
+        assert_eq!(n, 2);
+
+        let text = std::fs::read_to_string(&out).unwrap();
+        let lines: Vec<&str> = text.lines().collect();
+        // Each row should produce one model name (as a JSON string).
+        assert_eq!(lines.len(), 2, "expected 2 model lines, got: {text}");
+        for line in &lines {
+            // Each line should be a JSON string value.
+            let parsed: serde_json::Value = serde_json::from_str(line).unwrap();
+            assert!(parsed.is_string(), "expected JSON string, got {line}");
+        }
+    }
+
+    /// Verify that a jq filter producing `null` (missing field) outputs `null` per row.
+    #[test]
+    fn run_export_jsonl_jq_null_field_outputs_null() {
+        let dir = TempDir::new().unwrap();
+        let db = dir.path().join("t.db");
+        seed_db(&db);
+        let out = dir.path().join("out.jsonl");
+
+        let opts = ExportOptions {
+            format: ExportFormat::Jsonl,
+            period: ExportPeriod::All,
+            output: out.clone(),
+            provider: None,
+            project: None,
+            jq: Some(".nonexistent_field".to_string()),
+        };
+        let n = run_export(&db, &opts).unwrap();
+        assert_eq!(n, 2);
+
+        let text = std::fs::read_to_string(&out).unwrap();
+        let lines: Vec<&str> = text.lines().collect();
+        // Each row yields `null` — two rows means two `null` lines.
+        assert_eq!(lines.len(), 2, "expected 2 null lines, got: {text}");
+        for line in &lines {
+            assert_eq!(*line, "null", "expected null output, got {line}");
+        }
     }
 }

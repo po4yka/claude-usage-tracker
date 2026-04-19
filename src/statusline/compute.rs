@@ -98,9 +98,7 @@ pub fn compute(
     let session_cost_nanos = match cost_source {
         CostSource::Hook => hook_nanos_opt.unwrap_or(0),
         CostSource::Local => local_session_cost_nanos,
-        CostSource::Auto | CostSource::Both => {
-            hook_nanos_opt.unwrap_or(local_session_cost_nanos)
-        }
+        CostSource::Auto | CostSource::Both => hook_nanos_opt.unwrap_or(local_session_cost_nanos),
     };
 
     // ── Phase 8: hook_session_cost_nanos (None when hook had no cost) ─────────
@@ -140,9 +138,7 @@ fn zeroed_stats(input: &HookInput, cost_source: CostSource) -> ComputedStats {
     let session_cost_nanos = match cost_source {
         CostSource::Hook => hook_nanos_opt.unwrap_or(0),
         CostSource::Local => local_session_cost_nanos,
-        CostSource::Auto | CostSource::Both => {
-            hook_nanos_opt.unwrap_or(local_session_cost_nanos)
-        }
+        CostSource::Auto | CostSource::Both => hook_nanos_opt.unwrap_or(local_session_cost_nanos),
     };
     let cw = context_window::resolve(input);
     let context_tokens = cw.map(|c| c.total_input_tokens);

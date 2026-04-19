@@ -238,6 +238,22 @@ claude-usage-tracker pricing refresh
 claude-usage-tracker menubar
 ```
 
+### Filter output with `--jq`
+
+Every report command accepts `--jq <filter>` for in-tool post-processing
+(implies `--json`). No system `jq` needed.
+
+```bash
+claude-usage-tracker today --jq '.total_estimated_cost'
+claude-usage-tracker stats --jq '.by_model[] | select(.provider == "claude") | .model'
+claude-usage-tracker weekly --jq '.weeks | length'
+claude-usage-tracker blocks --jq '.[0].estimated_cost'
+claude-usage-tracker optimize --jq '.grade'
+claude-usage-tracker export --format=jsonl --jq '.model' --output=-
+```
+
+Filter errors exit with status 2. Empty results (null or no match) produce no output and exit 0.
+
 ## Configuration
 
 Create `~/.claude/usage-tracker.toml` (all fields optional). The dual-path resolver also checks `$HEIMDALL_CONFIG` and `~/.config/heimdall/config.toml`.

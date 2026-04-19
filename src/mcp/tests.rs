@@ -500,8 +500,14 @@ mod mcp_tests {
         let data: serde_json::Value = serde_json::from_str(text).unwrap();
         assert_eq!(data["enabled"], serde_json::json!(true));
         assert_eq!(data["period"].as_str(), Some("month"));
-        assert!(data["hook_total_nanos"].is_number(), "hook_total_nanos missing");
-        assert!(data["local_total_nanos"].is_number(), "local_total_nanos missing");
+        assert!(
+            data["hook_total_nanos"].is_number(),
+            "hook_total_nanos missing"
+        );
+        assert!(
+            data["local_total_nanos"].is_number(),
+            "local_total_nanos missing"
+        );
         assert!(data["divergence_pct"].is_number(), "divergence_pct missing");
         assert!(data["breakdown"].is_array(), "breakdown must be array");
     }

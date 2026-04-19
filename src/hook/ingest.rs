@@ -100,10 +100,7 @@ pub fn parse_hook_payload(json: &str, received_at: &str) -> Option<LiveEvent> {
     let payload: HookPayload = serde_json::from_str(json).ok()?;
 
     // hook_input.cost is now Option<f64> (already decoded from bare number OR object)
-    let hook_cost_usd: Option<f64> = payload
-        .hook_input
-        .as_ref()
-        .and_then(|hi| hi.cost);
+    let hook_cost_usd: Option<f64> = payload.hook_input.as_ref().and_then(|hi| hi.cost);
 
     let cost_usd_nanos = hook_cost_usd.map(usd_to_nanos).unwrap_or(0);
 

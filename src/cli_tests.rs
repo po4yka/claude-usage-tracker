@@ -51,7 +51,7 @@ mod tests {
         db::init_db(&conn).unwrap();
         drop(conn);
         // Should not panic
-        crate::cmd_today(&db_path, false).unwrap();
+        crate::cmd_today(&db_path, false, None).unwrap();
     }
 
     #[test]
@@ -59,7 +59,7 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let (db_path, _) = setup_test_db(&tmp);
         // JSON mode should not panic (output goes to stdout)
-        crate::cmd_today(&db_path, true).unwrap();
+        crate::cmd_today(&db_path, true, None).unwrap();
     }
 
     #[test]
@@ -70,14 +70,14 @@ mod tests {
         db::init_db(&conn).unwrap();
         drop(conn);
         // Should not panic on empty DB
-        crate::cmd_stats(&db_path, false, "USD").unwrap();
+        crate::cmd_stats(&db_path, false, "USD", None).unwrap();
     }
 
     #[test]
     fn test_cmd_stats_json() {
         let tmp = TempDir::new().unwrap();
         let (db_path, _) = setup_test_db(&tmp);
-        crate::cmd_stats(&db_path, true, "USD").unwrap();
+        crate::cmd_stats(&db_path, true, "USD", None).unwrap();
     }
 
     // ── pricing refresh integration tests (no network) ───────────────────────

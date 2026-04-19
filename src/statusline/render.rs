@@ -84,8 +84,7 @@ pub fn render_status_line_with_opts(stats: &ComputedStats, opts: &RenderOpts) ->
     let today = fmt_cost(stats.today_cost_nanos as f64 / 1_000_000_000.0);
 
     // Phase 8: build session cost segment — dual in Both mode, single otherwise.
-    let (session_segment, drift_warn) =
-        build_session_segment(stats, opts.cost_source);
+    let (session_segment, drift_warn) = build_session_segment(stats, opts.cost_source);
 
     let mut parts: Vec<String> = Vec::new();
     parts.push(model.to_string());
@@ -94,8 +93,10 @@ pub fn render_status_line_with_opts(stats: &ComputedStats, opts: &RenderOpts) ->
         Some(block) => {
             let block_cost = fmt_cost(block.cost_nanos as f64 / 1_000_000_000.0);
             let remaining = format_remaining(block.block_end);
-            let mut cost_segment =
-                format!("{} / {} / {} ({})", session_segment, today, block_cost, remaining);
+            let mut cost_segment = format!(
+                "{} / {} / {} ({})",
+                session_segment, today, block_cost, remaining
+            );
             if let Some(warn) = &drift_warn {
                 cost_segment.push(' ');
                 cost_segment.push_str(warn);

@@ -682,8 +682,7 @@ fn query_cost_reconciliation(db_path: &Path, period: &str) -> Result<serde_json:
     let now = chrono::Utc::now();
     let cutoff = (now - chrono::Duration::days(days_back)).to_rfc3339();
 
-    let mut hook_by_day: std::collections::HashMap<String, i64> =
-        std::collections::HashMap::new();
+    let mut hook_by_day: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
     {
         let mut stmt = conn.prepare(
             "SELECT date(received_at) AS day,
@@ -702,8 +701,7 @@ fn query_cost_reconciliation(db_path: &Path, period: &str) -> Result<serde_json:
         }
     }
 
-    let mut local_by_day: std::collections::HashMap<String, i64> =
-        std::collections::HashMap::new();
+    let mut local_by_day: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
     {
         let mut stmt = conn.prepare(
             "SELECT date(timestamp) AS day,
