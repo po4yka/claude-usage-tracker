@@ -7,8 +7,9 @@ use std::collections::HashMap;
 use crate::models::{
     BillingModeSummary, BranchSummary, ClaudeUsageFactor, ClaudeUsageResponse, ClaudeUsageRunMeta,
     ClaudeUsageSnapshot, ConfidenceSummary, DailyModelRow, DailyProjectRow, DashboardData,
-    EntrypointSummary, HourlyRow, McpServerSummary, ProviderSummary, ServiceTierSummary,
-    SessionRow, ToolEvent, ToolSummary, Turn, VersionSummary, WeeklyModelRow,
+    EntrypointSummary, HourlyRow, McpServerSummary, OfficialSyncRecordCount,
+    OfficialSyncSourceStatus, OfficialSyncSummary, ProviderSummary, ServiceTierSummary, SessionRow,
+    ToolEvent, ToolSummary, Turn, VersionSummary, WeeklyModelRow,
 };
 use crate::official_pricing::{
     OfficialExtractedRecord, OfficialModelPricing, OfficialSyncRunRecord, PricingSyncRun,
@@ -1831,6 +1832,111 @@ pub fn get_dashboard_data(conn: &Connection, tz: TzParams) -> Result<DashboardDa
         }
     };
 
+    let official_sync: OfficialSyncSummary = {
+        let total_runs: i64 =
+            conn.query_row("SELECT COUNT(*) FROM official_sync_runs", [], |row| {
+                row.get(0)
+            })?;
+        let total_records: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM official_metadata_records",
+            [],
+            |row| row.get(0),
+        )?;
+
+        let sources: Vec<OfficialSyncSourceStatus> = {
+            let mut stmt = conn.prepare(
+                "SELECT r.source_slug,
+                        r.source_kind,
+                        r.provider,
+                        r.status,
+                        r.fetched_at,
+                        COALESCE(COUNT(m.id), 0) AS record_count,
+                        r.error_text
+                 FROM official_sync_runs r
+                 LEFT JOIN official_metadata_records m ON m.run_id = r.id
+                 JOIN (
+                     SELECT source_slug, MAX(id) AS max_id
+                     FROM official_sync_runs
+                     GROUP BY source_slug
+                 ) latest
+                   ON latest.source_slug = r.source_slug AND latest.max_id = r.id
+                 GROUP BY r.id, r.source_slug, r.source_kind, r.provider, r.status, r.fetched_at, r.error_text
+                 ORDER BY r.provider, r.source_kind, r.source_slug",
+            )?;
+            stmt.query_map([], |row| {
+                Ok(OfficialSyncSourceStatus {
+                    source_slug: row.get(0)?,
+                    source_kind: row.get(1)?,
+                    provider: row.get(2)?,
+                    status: row.get(3)?,
+                    fetched_at: row.get(4)?,
+                    record_count: row.get(5)?,
+                    error_text: row.get(6)?,
+                })
+            })?
+            .filter_map(|row| row.ok())
+            .collect()
+        };
+
+        let record_counts: Vec<OfficialSyncRecordCount> = {
+            let mut stmt = conn.prepare(
+                "SELECT record_type, COUNT(*) as count
+                 FROM official_metadata_records
+                 GROUP BY record_type
+                 ORDER BY count DESC, record_type ASC",
+            )?;
+            stmt.query_map([], |row| {
+                Ok(OfficialSyncRecordCount {
+                    record_type: row.get(0)?,
+                    count: row.get(1)?,
+                })
+            })?
+            .filter_map(|row| row.ok())
+            .collect()
+        };
+
+        let last_sync_at: Option<String> = conn
+            .query_row(
+                "SELECT fetched_at FROM official_sync_runs ORDER BY id DESC LIMIT 1",
+                [],
+                |row| row.get(0),
+            )
+            .ok();
+        let latest_success_at: Option<String> = conn
+            .query_row(
+                "SELECT fetched_at
+                 FROM official_sync_runs
+                 WHERE status = 'success'
+                 ORDER BY id DESC
+                 LIMIT 1",
+                [],
+                |row| row.get(0),
+            )
+            .ok();
+
+        OfficialSyncSummary {
+            available: total_runs > 0,
+            last_sync_at,
+            latest_success_at,
+            total_runs,
+            total_records,
+            sources_success: sources
+                .iter()
+                .filter(|source| source.status == "success")
+                .count() as i64,
+            sources_error: sources
+                .iter()
+                .filter(|source| source.status == "fetch_error" || source.status == "parse_error")
+                .count() as i64,
+            sources_skipped: sources
+                .iter()
+                .filter(|source| source.status == "skipped")
+                .count() as i64,
+            sources,
+            record_counts,
+        }
+    };
+
     let generated_at = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
 
     // Phase 3: populate weekly_by_model — group sum_by_week rows by (week, model),
@@ -1876,6 +1982,7 @@ pub fn get_dashboard_data(conn: &Connection, tz: TzParams) -> Result<DashboardDa
         version_summary,
         daily_by_project,
         openai_reconciliation: None,
+        official_sync,
         generated_at,
         cache_efficiency,
         weekly_by_model,
@@ -2817,6 +2924,63 @@ mod tests {
             .unwrap();
         assert_eq!(run_count, 1);
         assert_eq!(record_count, 1);
+    }
+
+    #[test]
+    fn test_get_dashboard_data_includes_official_sync_summary() {
+        let conn = test_conn();
+        let run_id = insert_official_sync_run(
+            &conn,
+            &OfficialSyncRunRecord {
+                fetched_at: "2026-04-19T10:00:00Z".into(),
+                source_slug: "openai_api_docs".into(),
+                source_kind: "pricing".into(),
+                source_url: "https://developers.openai.com/api/docs/pricing".into(),
+                provider: "openai".into(),
+                authority: "provider_docs".into(),
+                format: "html".into(),
+                cadence: "daily".into(),
+                status: "success".into(),
+                http_status: Some(200),
+                content_type: "text/html".into(),
+                etag: String::new(),
+                last_modified: String::new(),
+                raw_body: "<html></html>".into(),
+                normalized_body: String::new(),
+                error_text: String::new(),
+                parser_version: "official_pricing/v3".into(),
+                raw_body_sha256: "aaa".into(),
+                normalized_body_sha256: "bbb".into(),
+                extracted_sha256: "ccc".into(),
+            },
+        )
+        .unwrap();
+        insert_official_extracted_records(
+            &conn,
+            run_id,
+            &[OfficialExtractedRecord {
+                source_slug: "openai_api_docs".into(),
+                provider: "openai".into(),
+                record_type: "pricing_model".into(),
+                record_key: "gpt-5.4".into(),
+                model_id: "gpt-5.4".into(),
+                effective_at: "2026-04-19T10:00:00Z".into(),
+                payload_json: "{\"model_id\":\"gpt-5.4\"}".into(),
+            }],
+        )
+        .unwrap();
+
+        let data = get_dashboard_data(&conn, TzParams::default()).unwrap();
+        assert!(data.official_sync.available);
+        assert_eq!(data.official_sync.total_runs, 1);
+        assert_eq!(data.official_sync.total_records, 1);
+        assert_eq!(data.official_sync.sources.len(), 1);
+        assert_eq!(data.official_sync.record_counts.len(), 1);
+        assert_eq!(data.official_sync.sources[0].source_slug, "openai_api_docs");
+        assert_eq!(
+            data.official_sync.record_counts[0].record_type,
+            "pricing_model"
+        );
     }
 
     #[test]

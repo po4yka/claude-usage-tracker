@@ -127,6 +127,7 @@ pub struct DashboardData {
     pub version_summary: Vec<VersionSummary>,
     pub daily_by_project: Vec<DailyProjectRow>,
     pub openai_reconciliation: Option<OpenAiReconciliation>,
+    pub official_sync: OfficialSyncSummary,
     pub generated_at: String,
     /// Phase 21: cache-token breakdown and derived hit-rate metric.
     pub cache_efficiency: CacheEfficiency,
@@ -203,6 +204,37 @@ pub struct OpenAiReconciliation {
     pub api_requests: i64,
     pub delta_cost: f64,
     pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct OfficialSyncSourceStatus {
+    pub source_slug: String,
+    pub source_kind: String,
+    pub provider: String,
+    pub status: String,
+    pub fetched_at: String,
+    pub record_count: i64,
+    pub error_text: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct OfficialSyncRecordCount {
+    pub record_type: String,
+    pub count: i64,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct OfficialSyncSummary {
+    pub available: bool,
+    pub last_sync_at: Option<String>,
+    pub latest_success_at: Option<String>,
+    pub total_runs: i64,
+    pub total_records: i64,
+    pub sources_success: i64,
+    pub sources_error: i64,
+    pub sources_skipped: i64,
+    pub sources: Vec<OfficialSyncSourceStatus>,
+    pub record_counts: Vec<OfficialSyncRecordCount>,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]

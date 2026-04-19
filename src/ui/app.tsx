@@ -6,6 +6,7 @@ import { RateWindowCard, BudgetCard, RateWindowUnavailable } from './components/
 import { AgentStatusCard } from './components/AgentStatusCard';
 import { ClaudeUsagePanel } from './components/ClaudeUsagePanel';
 import { EstimationMeta } from './components/EstimationMeta';
+import { OfficialSyncPanel } from './components/OfficialSyncPanel';
 import { ReconciliationBlock } from './components/ReconciliationBlock';
 import { StatsCards } from './components/StatsCards';
 import { InlineStatus } from './components/InlineStatus';
@@ -376,6 +377,24 @@ function renderOpenAiReconciliation(reconciliation: DashboardData['openai_reconc
   render(<ReconciliationBlock reconciliation={reconciliation} />, container);
 }
 
+function renderOfficialSync(summary: DashboardData['official_sync']): void {
+  const container = $('official-sync');
+  if (!container) return;
+  if (!summary?.available) {
+    container.style.display = 'none';
+    render(null, container);
+    return;
+  }
+  container.style.display = '';
+  render(
+    <OfficialSyncPanel
+      summary={summary}
+      providerFilter={selectedProvider.value}
+    />,
+    container
+  );
+}
+
 // ── Filter driver ────────────────────────────────────────────────────
 function applyFilter(): void {
   if (!rawData.value) return;
@@ -416,6 +435,7 @@ function applyFilter(): void {
     $('stats-row')
   );
   renderEstimationMeta(confidenceBreakdown, billingModeBreakdown, pricingVersions);
+  renderOfficialSync(rawData.value.official_sync);
   renderOpenAiReconciliation(rawData.value.openai_reconciliation);
 
   if (bucketIsWeek) {

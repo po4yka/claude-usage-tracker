@@ -236,6 +236,34 @@ export interface OpenAiReconciliation {
   error: string | null;
 }
 
+export interface OfficialSyncSourceStatus {
+  source_slug: string;
+  source_kind: string;
+  provider: string;
+  status: string;
+  fetched_at: string;
+  record_count: number;
+  error_text: string;
+}
+
+export interface OfficialSyncRecordCount {
+  record_type: string;
+  count: number;
+}
+
+export interface OfficialSyncSummary {
+  available: boolean;
+  last_sync_at: string | null;
+  latest_success_at: string | null;
+  total_runs: number;
+  total_records: number;
+  sources_success: number;
+  sources_error: number;
+  sources_skipped: number;
+  sources: OfficialSyncSourceStatus[];
+  record_counts: OfficialSyncRecordCount[];
+}
+
 export interface DashboardData {
   all_models: string[];
   provider_breakdown: ProviderSummary[];
@@ -254,6 +282,7 @@ export interface DashboardData {
   daily_by_project: DailyProjectRow[];
   weekly_by_model: WeeklyModelRow[];
   openai_reconciliation: OpenAiReconciliation | null;
+  official_sync: OfficialSyncSummary;
   generated_at: string;
   /** Phase 21: cache-token breakdown and derived hit-rate metric. */
   cache_efficiency: CacheEfficiency;

@@ -1184,7 +1184,12 @@
     const p5 = readSearchParam("agent_status_expanded");
     return p5 === "1" || p5 === "true";
   }
+  function readOfficialSyncExpanded() {
+    const p5 = readSearchParam("official_sync_expanded");
+    return p5 === "1" || p5 === "true";
+  }
   var agent_status_expanded = y3(readAgentStatusExpanded());
+  var official_sync_expanded = y3(readOfficialSyncExpanded());
   var sessionsTablePagination = y3(readSessionsTablePagination());
   var sessionsTableColumnVisibility = y3(readSessionsTableColumnVisibility());
   function restoreDashboardStateFromUrl(allModels) {
@@ -1195,6 +1200,7 @@
     selectedBucket.value = readBucket();
     versionDonutMetric.value = readVersionMetric();
     agent_status_expanded.value = readAgentStatusExpanded();
+    official_sync_expanded.value = readOfficialSyncExpanded();
     sessionsTablePagination.value = readSessionsTablePagination();
     sessionsTableColumnVisibility.value = readSessionsTableColumnVisibility();
   }
@@ -1210,6 +1216,7 @@
     if (versionDonutMetric.value !== "cost") params.set("version_metric", versionDonutMetric.value);
     if (selectedBucket.value !== "day") params.set("bucket", selectedBucket.value);
     if (agent_status_expanded.value) params.set("agent_status_expanded", "1");
+    if (official_sync_expanded.value) params.set("official_sync_expanded", "1");
     const pageNumber = sessionsTablePagination.value.pageIndex + 1;
     if (pageNumber > 1) params.set(SESSIONS_PAGE_PARAM, String(pageNumber));
     const hiddenColumns = Object.entries(sessionsTableColumnVisibility.value).filter(([, isVisible]) => isVisible === false).map(([columnId]) => columnId).sort();
@@ -2065,6 +2072,199 @@
         /* @__PURE__ */ u2("div", { class: "stat-sub", children: "Stored per-session pricing metadata" })
       ] }) })
     ] });
+  }
+
+  // src/ui/components/OfficialSyncPanel.tsx
+  function sourceVisible(provider, providerFilter) {
+    if (providerFilter === "both") return true;
+    if (provider === "frankfurter") return true;
+    if (providerFilter === "claude") return provider === "anthropic";
+    return provider === "openai";
+  }
+  function statusLabel(status) {
+    if (status === "success") return "OK";
+    if (status === "skipped") return "SKIP";
+    if (status === "parse_error") return "PARSE";
+    if (status === "fetch_error") return "FETCH";
+    return status.toUpperCase();
+  }
+  function statusColor2(status) {
+    if (status === "success") return "var(--text-primary)";
+    if (status === "skipped") return "var(--text-secondary)";
+    return "var(--accent)";
+  }
+  function formatTs(ts) {
+    if (!ts) return "n/a";
+    return ts.slice(0, 19).replace("T", " ");
+  }
+  function OfficialSyncPanel({ summary, providerFilter }) {
+    const expanded = official_sync_expanded.value;
+    const sources = summary.sources.filter((source) => sourceVisible(source.provider, providerFilter));
+    const recordCounts = summary.record_counts.filter((record) => {
+      if (providerFilter === "both") return true;
+      if (providerFilter === "claude") {
+        return !record.record_type.startsWith("usage_");
+      }
+      return true;
+    });
+    const successCount = sources.filter((source) => source.status === "success").length;
+    const errorCount = sources.filter(
+      (source) => source.status === "fetch_error" || source.status === "parse_error"
+    ).length;
+    const skippedCount = sources.filter((source) => source.status === "skipped").length;
+    return /* @__PURE__ */ u2("div", { class: "card stat-card", children: /* @__PURE__ */ u2("div", { class: "stat-content", children: [
+      /* @__PURE__ */ u2(
+        "div",
+        {
+          style: {
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: "8px"
+          },
+          children: [
+            /* @__PURE__ */ u2("div", { class: "stat-label", children: "Official History" }),
+            summary.available && /* @__PURE__ */ u2(
+              "button",
+              {
+                onClick: () => {
+                  official_sync_expanded.value = !expanded;
+                  syncDashboardUrl();
+                },
+                style: {
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  color: "var(--text-secondary)",
+                  fontSize: "11px",
+                  fontFamily: "var(--font-mono)",
+                  padding: "2px 4px"
+                },
+                "aria-expanded": expanded,
+                "aria-label": "Toggle official history details",
+                children: expanded ? "\u25B2 collapse" : "\u25BC expand"
+              }
+            )
+          ]
+        }
+      ),
+      !summary.available ? /* @__PURE__ */ u2("div", { class: "muted", children: "No persisted official sync history yet" }) : /* @__PURE__ */ u2(S, { children: [
+        /* @__PURE__ */ u2(
+          "div",
+          {
+            style: {
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))",
+              gap: "12px",
+              marginBottom: expanded ? "12px" : "0"
+            },
+            children: [
+              /* @__PURE__ */ u2("div", { children: [
+                /* @__PURE__ */ u2("div", { class: "stat-value", style: { fontSize: "18px" }, children: formatTs(summary.last_sync_at) }),
+                /* @__PURE__ */ u2("div", { class: "stat-sub", children: "Latest sync" })
+              ] }),
+              /* @__PURE__ */ u2("div", { children: [
+                /* @__PURE__ */ u2("div", { class: "stat-value", style: { fontSize: "18px" }, children: [
+                  summary.total_runs,
+                  " / ",
+                  summary.total_records
+                ] }),
+                /* @__PURE__ */ u2("div", { class: "stat-sub", children: "Runs / extracted records" })
+              ] }),
+              /* @__PURE__ */ u2("div", { children: [
+                /* @__PURE__ */ u2("div", { class: "stat-value", style: { fontSize: "18px" }, children: [
+                  successCount,
+                  " / ",
+                  errorCount,
+                  " / ",
+                  skippedCount
+                ] }),
+                /* @__PURE__ */ u2("div", { class: "stat-sub", children: "OK / error / skipped sources" })
+              ] })
+            ]
+          }
+        ),
+        expanded && /* @__PURE__ */ u2("div", { style: { display: "grid", gap: "12px" }, children: [
+          /* @__PURE__ */ u2("div", { children: [
+            /* @__PURE__ */ u2(
+              "div",
+              {
+                style: {
+                  fontSize: "11px",
+                  fontFamily: "var(--font-mono)",
+                  color: "var(--text-secondary)",
+                  marginBottom: "6px",
+                  letterSpacing: "0.06em"
+                },
+                children: "LATEST SOURCES"
+              }
+            ),
+            /* @__PURE__ */ u2("table", { style: { width: "100%", fontSize: "12px", borderCollapse: "collapse" }, children: [
+              /* @__PURE__ */ u2("thead", { children: /* @__PURE__ */ u2("tr", { style: { color: "var(--text-secondary)" }, children: [
+                /* @__PURE__ */ u2("th", { style: { textAlign: "left", padding: "2px 8px 2px 0", fontWeight: 500 }, children: "Source" }),
+                /* @__PURE__ */ u2("th", { style: { textAlign: "left", padding: "2px 8px 2px 0", fontWeight: 500 }, children: "Kind" }),
+                /* @__PURE__ */ u2("th", { style: { textAlign: "left", padding: "2px 8px 2px 0", fontWeight: 500 }, children: "Status" }),
+                /* @__PURE__ */ u2("th", { style: { textAlign: "right", padding: "2px 0", fontWeight: 500 }, children: "Rows" })
+              ] }) }),
+              /* @__PURE__ */ u2("tbody", { children: sources.map((source) => /* @__PURE__ */ u2("tr", { children: [
+                /* @__PURE__ */ u2("td", { style: { padding: "2px 8px 2px 0", fontFamily: "var(--font-mono)" }, children: source.source_slug }),
+                /* @__PURE__ */ u2("td", { style: { padding: "2px 8px 2px 0", color: "var(--text-secondary)" }, children: source.source_kind }),
+                /* @__PURE__ */ u2("td", { style: { padding: "2px 8px 2px 0", color: statusColor2(source.status), fontFamily: "var(--font-mono)" }, children: statusLabel(source.status) }),
+                /* @__PURE__ */ u2("td", { style: { padding: "2px 0", textAlign: "right", fontFamily: "var(--font-mono)" }, children: source.record_count.toLocaleString() })
+              ] }, source.source_slug)) })
+            ] })
+          ] }),
+          /* @__PURE__ */ u2("div", { children: [
+            /* @__PURE__ */ u2(
+              "div",
+              {
+                style: {
+                  fontSize: "11px",
+                  fontFamily: "var(--font-mono)",
+                  color: "var(--text-secondary)",
+                  marginBottom: "6px",
+                  letterSpacing: "0.06em"
+                },
+                children: "RECORD TYPES"
+              }
+            ),
+            /* @__PURE__ */ u2("div", { style: { display: "flex", flexWrap: "wrap", gap: "8px" }, children: recordCounts.map((record) => /* @__PURE__ */ u2(
+              "div",
+              {
+                style: {
+                  border: "1px solid var(--border)",
+                  padding: "6px 8px",
+                  minWidth: "140px"
+                },
+                children: [
+                  /* @__PURE__ */ u2("div", { style: { fontFamily: "var(--font-mono)", fontSize: "12px" }, children: record.record_type }),
+                  /* @__PURE__ */ u2("div", { style: { fontSize: "11px", color: "var(--text-secondary)" }, children: [
+                    record.count.toLocaleString(),
+                    " rows"
+                  ] })
+                ]
+              },
+              record.record_type
+            )) })
+          ] }),
+          summary.latest_success_at && /* @__PURE__ */ u2(
+            "div",
+            {
+              style: {
+                fontSize: "10px",
+                color: "var(--text-secondary)",
+                fontFamily: "var(--font-mono)"
+              },
+              children: [
+                "Latest successful extraction ",
+                formatTs(summary.latest_success_at),
+                " UTC"
+              ]
+            }
+          )
+        ] })
+      ] })
+    ] }) });
   }
 
   // src/ui/components/ReconciliationBlock.tsx
@@ -7398,6 +7598,26 @@ ${row.project}` : row.project;
     container.style.display = "";
     R(/* @__PURE__ */ u2(ReconciliationBlock, { reconciliation }), container);
   }
+  function renderOfficialSync(summary) {
+    const container = $2("official-sync");
+    if (!container) return;
+    if (!summary?.available) {
+      container.style.display = "none";
+      R(null, container);
+      return;
+    }
+    container.style.display = "";
+    R(
+      /* @__PURE__ */ u2(
+        OfficialSyncPanel,
+        {
+          summary,
+          providerFilter: selectedProvider.value
+        }
+      ),
+      container
+    );
+  }
   function applyFilter() {
     if (!rawData.value) return;
     const cutoff = getRangeCutoff(selectedRange.value);
@@ -7434,6 +7654,7 @@ ${row.project}` : row.project;
       $2("stats-row")
     );
     renderEstimationMeta(confidenceBreakdown, billingModeBreakdown, pricingVersions);
+    renderOfficialSync(rawData.value.official_sync);
     renderOpenAiReconciliation(rawData.value.openai_reconciliation);
     if (bucketIsWeek) {
       const weekly = buildWeeklyAgg(selectedRange.value);

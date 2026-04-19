@@ -135,7 +135,13 @@ function readAgentStatusExpanded(): boolean {
   return p === '1' || p === 'true';
 }
 
+function readOfficialSyncExpanded(): boolean {
+  const p = readSearchParam('official_sync_expanded');
+  return p === '1' || p === 'true';
+}
+
 export const agent_status_expanded = signal<boolean>(readAgentStatusExpanded());
+export const official_sync_expanded = signal<boolean>(readOfficialSyncExpanded());
 export const sessionsTablePagination = signal<PaginationState>(readSessionsTablePagination());
 export const sessionsTableColumnVisibility = signal<VisibilityState>(readSessionsTableColumnVisibility());
 
@@ -147,6 +153,7 @@ export function restoreDashboardStateFromUrl(allModels: string[]): void {
   selectedBucket.value = readBucket();
   versionDonutMetric.value = readVersionMetric();
   agent_status_expanded.value = readAgentStatusExpanded();
+  official_sync_expanded.value = readOfficialSyncExpanded();
   sessionsTablePagination.value = readSessionsTablePagination();
   sessionsTableColumnVisibility.value = readSessionsTableColumnVisibility();
 }
@@ -164,6 +171,7 @@ export function syncDashboardUrl(): void {
   if (versionDonutMetric.value !== 'cost') params.set('version_metric', versionDonutMetric.value);
   if (selectedBucket.value !== 'day') params.set('bucket', selectedBucket.value);
   if (agent_status_expanded.value) params.set('agent_status_expanded', '1');
+  if (official_sync_expanded.value) params.set('official_sync_expanded', '1');
 
   const pageNumber = sessionsTablePagination.value.pageIndex + 1;
   if (pageNumber > 1) params.set(SESSIONS_PAGE_PARAM, String(pageNumber));
