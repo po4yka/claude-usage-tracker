@@ -5,10 +5,12 @@ mod tests;
 pub mod tz;
 
 use std::path::PathBuf;
+use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 
 use axum::Router;
+use axum::http::StatusCode;
 use axum::response::Html;
 use axum::routing::{get, post};
 use tokio::sync::{Mutex, RwLock};
@@ -16,6 +18,10 @@ use tokio::sync::{Mutex, RwLock};
 use crate::config::{AgentStatusConfig, AggregatorConfig, WebhookConfig};
 use crate::webhooks::WebhookState;
 use api::AppState;
+
+type BackgroundPollFuture =
+    Pin<Box<dyn std::future::Future<Output = Result<(), StatusCode>> + Send>>;
+type BackgroundPollRefresh = Box<dyn Fn() -> BackgroundPollFuture + Send + Sync>;
 
 pub struct ServeOptions {
     pub host: String,
@@ -45,12 +51,11 @@ pub struct ServeOptions {
     pub project_aliases: std::collections::HashMap<String, String>,
 }
 
-pub async fn serve(options: ServeOptions) -> anyhow::Result<()> {
-    // Phase 20: broadcast channel for SSE scan_completed events.
-    // Capacity 16: enough to buffer events for slow subscribers.
-    let (scan_event_tx, _scan_event_rx) = tokio::sync::broadcast::channel::<String>(16);
-
-    let state = Arc::new(AppState {
+pub(crate) fn build_state(
+    options: &ServeOptions,
+    scan_event_tx: tokio::sync::broadcast::Sender<String>,
+) -> Arc<AppState> {
+    Arc::new(AppState {
         db_path: options.db_path.clone(),
         projects_dirs: options.projects_dirs.clone(),
         oauth_enabled: options.oauth_enabled,
@@ -58,25 +63,73 @@ pub async fn serve(options: ServeOptions) -> anyhow::Result<()> {
         oauth_cache: RwLock::new(None),
         oauth_refresh_lock: Mutex::new(()),
         openai_enabled: options.openai_enabled,
-        openai_admin_key_env: options.openai_admin_key_env,
+        openai_admin_key_env: options.openai_admin_key_env.clone(),
         openai_refresh_interval: options.openai_refresh_interval,
         openai_lookback_days: options.openai_lookback_days,
         openai_cache: RwLock::new(None),
         openai_refresh_lock: Mutex::new(()),
         db_lock: Mutex::new(()),
         webhook_state: Mutex::new(WebhookState::default()),
-        webhook_config: options.webhook_config,
-        scan_event_tx: scan_event_tx.clone(),
-        agent_status_config: options.agent_status_config,
+        webhook_config: options.webhook_config.clone(),
+        scan_event_tx,
+        agent_status_config: options.agent_status_config.clone(),
         agent_status_cache: RwLock::new(None),
         agent_status_refresh_lock: Mutex::new(()),
-        aggregator_config: options.aggregator_config,
+        aggregator_config: options.aggregator_config.clone(),
         aggregator_cache: RwLock::new(None),
         aggregator_refresh_lock: Mutex::new(()),
         blocks_token_limit: options.blocks_token_limit,
         session_length_hours: options.session_length_hours,
-        project_aliases: options.project_aliases,
-    });
+        project_aliases: options.project_aliases.clone(),
+    })
+}
+
+pub(crate) fn build_router(state: Arc<AppState>) -> Router {
+    let dashboard_html = assets::render_dashboard();
+
+    Router::new()
+        .route(
+            "/",
+            get({
+                let html = dashboard_html.clone();
+                move || async { Html(html) }
+            }),
+        )
+        .route(
+            "/index.html",
+            get({
+                let html = dashboard_html;
+                move || async { Html(html) }
+            }),
+        )
+        .route(
+            "/favicon.ico",
+            get(|| async { axum::http::StatusCode::NO_CONTENT }),
+        )
+        .route("/api/data", get(api::api_data))
+        .route("/api/rescan", post(api::api_rescan))
+        .route("/api/usage-windows", get(api::api_usage_windows))
+        .route("/api/claude-usage", get(api::api_claude_usage))
+        .route("/api/health", get(api::api_health))
+        .route("/api/heatmap", get(api::api_heatmap))
+        .route("/api/stream", get(api::api_stream))
+        .route("/api/agent-status", get(api::api_agent_status))
+        .route("/api/community-signal", get(api::api_community_signal))
+        .route("/api/billing-blocks", get(api::api_billing_blocks))
+        .route("/api/context-window", get(api::api_context_window))
+        .route(
+            "/api/cost-reconciliation",
+            get(api::api_cost_reconciliation),
+        )
+        .with_state(state)
+}
+
+pub async fn serve(options: ServeOptions) -> anyhow::Result<()> {
+    // Phase 20: broadcast channel for SSE scan_completed events.
+    // Capacity 16: enough to buffer events for slow subscribers.
+    let (scan_event_tx, _scan_event_rx) = tokio::sync::broadcast::channel::<String>(16);
+
+    let state = build_state(&options, scan_event_tx.clone());
 
     if options.background_poll {
         start_background_pollers(state.clone());
@@ -156,43 +209,7 @@ pub async fn serve(options: ServeOptions) -> anyhow::Result<()> {
         None
     };
 
-    let dashboard_html = assets::render_dashboard();
-
-    let app = Router::new()
-        .route(
-            "/",
-            get({
-                let html = dashboard_html.clone();
-                move || async { Html(html) }
-            }),
-        )
-        .route(
-            "/index.html",
-            get({
-                let html = dashboard_html;
-                move || async { Html(html) }
-            }),
-        )
-        .route(
-            "/favicon.ico",
-            get(|| async { axum::http::StatusCode::NO_CONTENT }),
-        )
-        .route("/api/data", get(api::api_data))
-        .route("/api/rescan", post(api::api_rescan))
-        .route("/api/usage-windows", get(api::api_usage_windows))
-        .route("/api/claude-usage", get(api::api_claude_usage))
-        .route("/api/health", get(api::api_health))
-        .route("/api/heatmap", get(api::api_heatmap))
-        .route("/api/stream", get(api::api_stream))
-        .route("/api/agent-status", get(api::api_agent_status))
-        .route("/api/community-signal", get(api::api_community_signal))
-        .route("/api/billing-blocks", get(api::api_billing_blocks))
-        .route("/api/context-window", get(api::api_context_window))
-        .route(
-            "/api/cost-reconciliation",
-            get(api::api_cost_reconciliation),
-        )
-        .with_state(state);
+    let app = build_router(state);
 
     let addr = format!("{}:{}", options.host, options.port);
     let listener = tokio::net::TcpListener::bind(&addr).await?;
@@ -204,59 +221,72 @@ pub async fn serve(options: ServeOptions) -> anyhow::Result<()> {
 }
 
 pub(crate) fn start_background_pollers(state: Arc<AppState>) {
+    start_background_pollers_with(state, |name, interval_secs, refresh| {
+        std::mem::drop(spawn_background_loop(name, interval_secs, refresh));
+    });
+}
+
+pub(crate) fn start_background_pollers_with<F>(state: Arc<AppState>, mut spawn: F)
+where
+    F: FnMut(&'static str, u64, BackgroundPollRefresh),
+{
     if state.oauth_enabled {
         let state = state.clone();
-        spawn_background_loop("oauth usage", state.oauth_refresh_interval, move || {
-            let state = state.clone();
-            async move {
-                let _ = api::refresh_usage_windows(&state).await;
-                Ok(())
-            }
-        });
+        spawn(
+            "oauth usage",
+            state.oauth_refresh_interval,
+            Box::new(move || {
+                let state = state.clone();
+                Box::pin(async move {
+                    let _ = api::refresh_usage_windows(&state).await;
+                    Ok(())
+                })
+            }),
+        );
     }
 
     if state.agent_status_config.enabled {
         let state = state.clone();
-        spawn_background_loop(
+        spawn(
             "agent status",
             state.agent_status_config.refresh_interval,
-            move || {
+            Box::new(move || {
                 let state = state.clone();
-                async move {
+                Box::pin(async move {
                     let _ = api::refresh_agent_status(&state).await?;
                     Ok(())
-                }
-            },
+                })
+            }),
         );
     }
 
     if state.aggregator_config.enabled {
         let state = state.clone();
-        spawn_background_loop(
+        spawn(
             "community signal",
             state.aggregator_config.refresh_interval,
-            move || {
+            Box::new(move || {
                 let state = state.clone();
-                async move {
+                Box::pin(async move {
                     let _ = api::refresh_community_signal(&state).await?;
                     Ok(())
-                }
-            },
+                })
+            }),
         );
     }
 
     if state.openai_enabled {
         let state = state.clone();
-        spawn_background_loop(
+        spawn(
             "OpenAI reconciliation",
             state.openai_refresh_interval,
-            move || {
+            Box::new(move || {
                 let state = state.clone();
-                async move {
+                Box::pin(async move {
                     let _ = api::refresh_openai_reconciliation(&state, None).await;
                     Ok(())
-                }
-            },
+                })
+            }),
         );
     }
 }

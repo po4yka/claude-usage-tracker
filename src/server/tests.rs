@@ -10,15 +10,14 @@ mod tests {
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
     use axum::response::Html;
-    use axum::routing::{get, post};
+    use axum::routing::get;
     use http_body_util::BodyExt;
     use tower::ServiceExt;
 
     use crate::config::{AgentStatusConfig, AggregatorConfig, WebhookConfig};
     use crate::scanner;
-    use crate::server::api::{
-        AppState, api_agent_status, api_community_signal, api_data, api_health, api_rescan,
-    };
+    use crate::server::api::{AppState, api_agent_status, api_community_signal};
+    use crate::server::{ServeOptions, build_router, build_state, start_background_pollers_with};
     use crate::server::assets;
     use crate::webhooks::WebhookState;
 
@@ -67,8 +66,43 @@ mod tests {
         (db_path, parent)
     }
 
+    fn test_options(db_path: std::path::PathBuf, projects_dir: std::path::PathBuf) -> ServeOptions {
+        test_options_with_agent_status(db_path, projects_dir, AgentStatusConfig::default())
+    }
+
+    fn test_options_with_agent_status(
+        db_path: std::path::PathBuf,
+        projects_dir: std::path::PathBuf,
+        agent_status_config: AgentStatusConfig,
+    ) -> ServeOptions {
+        ServeOptions {
+            host: "127.0.0.1".into(),
+            port: 0,
+            db_path,
+            projects_dirs: Some(vec![projects_dir]),
+            oauth_enabled: false,
+            oauth_refresh_interval: 60,
+            openai_enabled: false,
+            openai_admin_key_env: "OPENAI_ADMIN_KEY".into(),
+            openai_refresh_interval: 300,
+            openai_lookback_days: 30,
+            webhook_config: WebhookConfig::default(),
+            watch: false,
+            background_poll: false,
+            agent_status_config,
+            aggregator_config: AggregatorConfig::default(),
+            blocks_token_limit: None,
+            session_length_hours: 5.0,
+            project_aliases: std::collections::HashMap::new(),
+        }
+    }
+
     fn test_app(db_path: std::path::PathBuf, projects_dir: std::path::PathBuf) -> Router {
-        test_app_with_agent_status(db_path, projects_dir, AgentStatusConfig::default())
+        let options = test_options(db_path, projects_dir);
+        build_router(build_state(
+            &options,
+            tokio::sync::broadcast::channel::<String>(16).0,
+        ))
     }
 
     fn test_app_with_agent_status(
@@ -76,70 +110,11 @@ mod tests {
         projects_dir: std::path::PathBuf,
         agent_status_config: AgentStatusConfig,
     ) -> Router {
-        let state = Arc::new(AppState {
-            db_path,
-            projects_dirs: Some(vec![projects_dir]),
-            oauth_enabled: false,
-            oauth_refresh_interval: 60,
-            oauth_cache: tokio::sync::RwLock::new(None),
-            oauth_refresh_lock: tokio::sync::Mutex::new(()),
-            openai_enabled: false,
-            openai_admin_key_env: "OPENAI_ADMIN_KEY".into(),
-            openai_refresh_interval: 300,
-            openai_lookback_days: 30,
-            openai_cache: tokio::sync::RwLock::new(None),
-            openai_refresh_lock: tokio::sync::Mutex::new(()),
-            db_lock: tokio::sync::Mutex::new(()),
-            webhook_state: tokio::sync::Mutex::new(WebhookState::default()),
-            webhook_config: WebhookConfig::default(),
-            scan_event_tx: tokio::sync::broadcast::channel::<String>(16).0,
-            agent_status_config,
-            agent_status_cache: tokio::sync::RwLock::new(None),
-            agent_status_refresh_lock: tokio::sync::Mutex::new(()),
-            aggregator_config: AggregatorConfig::default(),
-            aggregator_cache: tokio::sync::RwLock::new(None),
-            aggregator_refresh_lock: tokio::sync::Mutex::new(()),
-            blocks_token_limit: None,
-            session_length_hours: 5.0,
-            project_aliases: std::collections::HashMap::new(),
-        });
-        let html = assets::render_dashboard();
-
-        Router::new()
-            .route(
-                "/",
-                get({
-                    let h = html.clone();
-                    move || async { Html(h) }
-                }),
-            )
-            .route("/api/data", get(api_data))
-            .route("/api/rescan", post(api_rescan))
-            .route("/api/health", get(api_health))
-            .route(
-                "/api/usage-windows",
-                get(crate::server::api::api_usage_windows),
-            )
-            .route(
-                "/api/claude-usage",
-                get(crate::server::api::api_claude_usage),
-            )
-            .route("/api/heatmap", get(crate::server::api::api_heatmap))
-            .route("/api/agent-status", get(api_agent_status))
-            .route("/api/community-signal", get(api_community_signal))
-            .route(
-                "/api/billing-blocks",
-                get(crate::server::api::api_billing_blocks),
-            )
-            .route(
-                "/api/context-window",
-                get(crate::server::api::api_context_window),
-            )
-            .route(
-                "/api/cost-reconciliation",
-                get(crate::server::api::api_cost_reconciliation),
-            )
-            .with_state(state)
+        let options = test_options_with_agent_status(db_path, projects_dir, agent_status_config);
+        build_router(build_state(
+            &options,
+            tokio::sync::broadcast::channel::<String>(16).0,
+        ))
     }
 
     #[tokio::test]
@@ -161,6 +136,97 @@ mod tests {
             .to_str()
             .unwrap();
         assert!(ct.contains("text/html"));
+    }
+
+    #[tokio::test]
+    async fn test_real_router_wires_dashboard_aliases_and_favicon() {
+        let tmp = TempDir::new().unwrap();
+        let (db_path, projects) = setup_test_db(&tmp);
+        let app = test_app(db_path, projects);
+
+        let root = app
+            .clone()
+            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        let root_body = root.into_body().collect().await.unwrap().to_bytes();
+
+        let index = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/index.html")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(index.status(), StatusCode::OK);
+        let index_body = index.into_body().collect().await.unwrap().to_bytes();
+        assert_eq!(root_body, index_body, "/ and /index.html should share the same asset");
+
+        let favicon = app
+            .oneshot(
+                Request::builder()
+                    .uri("/favicon.ico")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(favicon.status(), StatusCode::NO_CONTENT);
+    }
+
+    #[tokio::test]
+    async fn test_real_router_registers_all_bootstrap_routes() {
+        let tmp = TempDir::new().unwrap();
+        let (db_path, projects) = setup_test_db(&tmp);
+        let app = test_app(db_path, projects);
+
+        let cases = [
+            ("GET", "/", StatusCode::OK),
+            ("GET", "/index.html", StatusCode::OK),
+            ("GET", "/favicon.ico", StatusCode::NO_CONTENT),
+            ("GET", "/api/data", StatusCode::OK),
+            ("POST", "/api/rescan", StatusCode::OK),
+            ("GET", "/api/usage-windows", StatusCode::OK),
+            ("GET", "/api/claude-usage", StatusCode::OK),
+            ("GET", "/api/health", StatusCode::OK),
+            ("GET", "/api/heatmap", StatusCode::OK),
+            ("GET", "/api/stream", StatusCode::OK),
+            ("GET", "/api/agent-status", StatusCode::OK),
+            ("GET", "/api/community-signal", StatusCode::OK),
+            ("GET", "/api/billing-blocks", StatusCode::OK),
+            ("GET", "/api/context-window", StatusCode::OK),
+            ("GET", "/api/cost-reconciliation", StatusCode::OK),
+        ];
+
+        for (method, path, expected) in cases {
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .method(method)
+                        .uri(path)
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), expected, "route {method} {path} should be wired");
+        }
+
+        let wrong_method = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/api/rescan")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(wrong_method.status(), StatusCode::METHOD_NOT_ALLOWED);
     }
 
     #[tokio::test]
@@ -1576,6 +1642,58 @@ mod tests {
         );
 
         handle.abort();
+    }
+
+    #[test]
+    fn test_start_background_pollers_wires_enabled_features() {
+        let tmp = TempDir::new().unwrap();
+        let db_path = tmp.path().join("pollers.db");
+        let projects = tmp.path().join("projects");
+        std::fs::create_dir_all(&projects).unwrap();
+
+        let mut options = test_options(db_path, projects);
+        options.oauth_enabled = true;
+        options.oauth_refresh_interval = 61;
+        options.openai_enabled = true;
+        options.openai_refresh_interval = 305;
+        options.agent_status_config.enabled = true;
+        options.agent_status_config.refresh_interval = 901;
+        options.aggregator_config.enabled = true;
+        options.aggregator_config.refresh_interval = 1201;
+
+        let state = build_state(&options, tokio::sync::broadcast::channel::<String>(16).0);
+        let mut spawned = Vec::new();
+        start_background_pollers_with(state, |name, interval_secs, _refresh| {
+            spawned.push((name, interval_secs));
+        });
+
+        assert_eq!(
+            spawned,
+            vec![
+                ("oauth usage", 61),
+                ("agent status", 901),
+                ("community signal", 1201),
+                ("OpenAI reconciliation", 305),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_start_background_pollers_skips_disabled_features() {
+        let tmp = TempDir::new().unwrap();
+        let db_path = tmp.path().join("pollers-disabled.db");
+        let projects = tmp.path().join("projects");
+        std::fs::create_dir_all(&projects).unwrap();
+
+        let mut options = test_options(db_path, projects);
+        options.agent_status_config.enabled = false;
+        let state = build_state(&options, tokio::sync::broadcast::channel::<String>(16).0);
+        let mut spawned = Vec::new();
+        start_background_pollers_with(state, |name, interval_secs, _refresh| {
+            spawned.push((name, interval_secs));
+        });
+
+        assert!(spawned.is_empty(), "disabled features should not register background pollers");
     }
 
     // -----------------------------------------------------------------------
