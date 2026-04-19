@@ -6581,13 +6581,26 @@
   // src/ui/components/ModelChart.tsx
   function ModelChart({ byModel }) {
     if (!byModel.length) return null;
+    const sorted = [...byModel].sort((a4, b4) => b4.input + b4.output - (a4.input + a4.output));
+    const TOP_N = 4;
+    const top = sorted.slice(0, TOP_N);
+    const rest = sorted.slice(TOP_N);
+    const series = top.map((m4) => m4.input + m4.output);
+    const labels = top.map((m4) => m4.model);
+    if (rest.length > 0) {
+      const otherTotal = rest.reduce((s4, m4) => s4 + m4.input + m4.output, 0);
+      if (otherTotal > 0) {
+        series.push(otherTotal);
+        labels.push(`Other (${rest.length})`);
+      }
+    }
     const base = industrialChartOptions("donut");
     const options = {
       ...base,
       chart: { ...base.chart, type: "donut" },
-      series: byModel.map((m4) => m4.input + m4.output),
-      labels: byModel.map((m4) => m4.model),
-      colors: modelSeriesColors(byModel.length),
+      series,
+      labels,
+      colors: modelSeriesColors(labels.length),
       stroke: { width: 2, colors: [cssVar("--surface")] },
       plotOptions: {
         pie: {
@@ -6643,13 +6656,13 @@
         ...base.xaxis,
         categories: top.map((p5) => {
           const n3 = p5.display_name || p5.project;
-          return n3.length > 22 ? "\u2026" + n3.slice(-20) : n3;
+          return n3.length > 16 ? "\u2026" + n3.slice(-14) : n3;
         }),
         labels: { ...base.xaxis.labels, formatter: (v4) => fmt(v4) }
       },
       yaxis: {
         ...base.yaxis,
-        labels: { ...base.yaxis.labels, maxWidth: 160 }
+        labels: { ...base.yaxis.labels, maxWidth: 110 }
       },
       tooltip: { ...base.tooltip, y: { formatter: (v4) => fmt(v4) + " tokens" } }
     };
