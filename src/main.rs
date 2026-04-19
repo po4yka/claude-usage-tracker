@@ -6,6 +6,7 @@ use claude_usage_tracker::export;
 use claude_usage_tracker::hook;
 use claude_usage_tracker::jq as jq_mod;
 use claude_usage_tracker::litellm;
+use claude_usage_tracker::locale;
 #[cfg(feature = "mcp")]
 use claude_usage_tracker::mcp;
 use claude_usage_tracker::menubar;
@@ -59,6 +60,10 @@ enum Commands {
         /// Show per-model breakdown sub-rows under each provider total
         #[arg(long)]
         breakdown: bool,
+        /// Locale for date formatting (BCP-47, e.g., "ja-JP", "de-DE").
+        /// Defaults to $LANG or "en-US".
+        #[arg(long)]
+        locale: Option<String>,
     },
     /// Show all-time statistics
     Stats {
@@ -77,6 +82,10 @@ enum Commands {
         /// Show per-model breakdown sub-rows under each provider total
         #[arg(long)]
         breakdown: bool,
+        /// Locale for date formatting (BCP-47, e.g., "ja-JP", "de-DE").
+        /// Defaults to $LANG or "en-US".
+        #[arg(long)]
+        locale: Option<String>,
     },
     /// Scan + start web dashboard
     Dashboard {
@@ -118,6 +127,10 @@ enum Commands {
         /// Format: "slug=Display Name". Merges into / overrides config's [project_aliases].
         #[arg(long = "project-alias", value_parser = parse_project_alias)]
         project_aliases: Vec<(String, String)>,
+        /// Locale for date formatting (BCP-47, e.g., "ja-JP", "de-DE").
+        /// Defaults to $LANG or "en-US".
+        #[arg(long)]
+        locale: Option<String>,
     },
     /// Print SwiftBar-formatted menubar widget showing today's cost
     Menubar {
@@ -188,6 +201,10 @@ enum Commands {
         /// Suppress gap rows between activity blocks (shown by default)
         #[arg(long)]
         no_gaps: bool,
+        /// Locale for date formatting (BCP-47, e.g., "ja-JP", "de-DE").
+        /// Defaults to $LANG or "en-US".
+        #[arg(long)]
+        locale: Option<String>,
     },
     /// Aggregated usage by ISO calendar week
     Weekly {
@@ -210,6 +227,10 @@ enum Commands {
         /// Format: "slug=Display Name". Merges into / overrides config's [project_aliases].
         #[arg(long = "project-alias", value_parser = parse_project_alias)]
         project_aliases: Vec<(String, String)>,
+        /// Locale for date formatting (BCP-47, e.g., "ja-JP", "de-DE").
+        /// Defaults to $LANG or "en-US".
+        #[arg(long)]
+        locale: Option<String>,
     },
     /// Emit a Claude Code status line from the PostToolUse hook JSON on stdin
     Statusline {
@@ -495,6 +516,7 @@ fn main() -> Result<()> {
     let cfg_openai_refresh_interval = cfg.openai.refresh_interval;
     let cfg_openai_lookback_days = cfg.openai.lookback_days;
     let cfg_display_currency = cfg.display.currency.unwrap_or_else(|| "USD".into());
+    let cfg_display_locale = cfg.display.locale;
     let cfg_agent_status = cfg.agent_status;
     let cfg_aggregator = cfg.aggregator;
     let cfg_blocks_token_limit = resolved_blocks.token_limit;
@@ -537,13 +559,15 @@ fn main() -> Result<()> {
             jq,
             project_aliases,
             breakdown,
+            locale,
         } => {
             let db = default_db(db_path);
             let mut aliases = cfg_project_aliases.clone();
             for (k, v) in project_aliases {
                 aliases.insert(k, v);
             }
-            cmd_today(&db, json, breakdown, jq.as_deref(), &aliases)?;
+            let loc = locale::resolve_locale(locale.as_deref(), cfg_display_locale.as_deref());
+            cmd_today(&db, json, breakdown, jq.as_deref(), &aliases, loc)?;
         }
         Commands::Stats {
             db_path,
@@ -551,12 +575,14 @@ fn main() -> Result<()> {
             jq,
             project_aliases,
             breakdown,
+            locale,
         } => {
             let db = default_db(db_path);
             let mut aliases = cfg_project_aliases.clone();
             for (k, v) in project_aliases {
                 aliases.insert(k, v);
             }
+            let loc = locale::resolve_locale(locale.as_deref(), cfg_display_locale.as_deref());
             cmd_stats(
                 &db,
                 json,
@@ -564,6 +590,7 @@ fn main() -> Result<()> {
                 &cfg_display_currency,
                 jq.as_deref(),
                 &aliases,
+                loc,
             )?;
         }
         Commands::Dashboard {
@@ -622,6 +649,7 @@ fn main() -> Result<()> {
             project,
             jq,
             project_aliases,
+            locale: _,
         } => {
             let db = default_db(db_path);
             let mut aliases = cfg_project_aliases.clone();
@@ -695,6 +723,7 @@ fn main() -> Result<()> {
             token_limit,
             jq,
             no_gaps,
+            locale,
         } => {
             let db = default_db(db_path);
             // Resolution order: CLI flag > provider-specific config > flat config > 5.0.
@@ -718,6 +747,7 @@ fn main() -> Result<()> {
             } else {
                 cfg_blocks_session_length
             };
+            let loc = locale::resolve_locale(locale.as_deref(), cfg_display_locale.as_deref());
             cmd_blocks(
                 &db,
                 session_hours,
@@ -726,6 +756,7 @@ fn main() -> Result<()> {
                 token_limit,
                 jq.as_deref(),
                 !no_gaps,
+                loc,
             )?;
         }
         Commands::Weekly {
@@ -735,13 +766,23 @@ fn main() -> Result<()> {
             breakdown,
             jq,
             project_aliases,
+            locale,
         } => {
             let db = default_db(db_path);
             let mut aliases = cfg_project_aliases.clone();
             for (k, v) in project_aliases {
                 aliases.insert(k, v);
             }
-            cmd_weekly(&db, start_of_week, json, breakdown, jq.as_deref(), &aliases)?;
+            let loc = locale::resolve_locale(locale.as_deref(), cfg_display_locale.as_deref());
+            cmd_weekly(
+                &db,
+                start_of_week,
+                json,
+                breakdown,
+                jq.as_deref(),
+                &aliases,
+                loc,
+            )?;
         }
         Commands::Statusline {
             refresh_interval,
@@ -1287,6 +1328,7 @@ pub(crate) fn cmd_today(
     breakdown: bool,
     jq: Option<&str>,
     _aliases: &HashMap<String, String>,
+    display_locale: chrono::Locale,
 ) -> Result<()> {
     if !db_path.exists() {
         anyhow::bail!("Database not found. Run: claude-usage-tracker scan");
@@ -1456,9 +1498,11 @@ pub(crate) fn cmd_today(
         return Ok(());
     }
 
+    let today_display =
+        locale::format_naive_date(chrono::Local::now().date_naive(), display_locale);
     println!();
     println!("{}", "-".repeat(70));
-    println!("  Today's Usage  ({})", today);
+    println!("  Today's Usage  ({})", today_display);
     println!("{}", "-".repeat(70));
 
     if rows.is_empty() {
@@ -1663,6 +1707,7 @@ fn cmd_weekly(
     breakdown: bool,
     jq: Option<&str>,
     _aliases: &HashMap<String, String>,
+    display_locale: chrono::Locale,
 ) -> Result<()> {
     if !db_path.exists() {
         anyhow::bail!("Database not found. Run: claude-usage-tracker scan");
@@ -1767,10 +1812,11 @@ fn cmd_weekly(
             let total_input: i64 = week_rows.iter().map(|r| r.input_tokens).sum();
             let total_output: i64 = week_rows.iter().map(|r| r.output_tokens).sum();
             let total_turns: i64 = week_rows.iter().map(|r| r.turns).sum();
+            let week_label = locale::format_week_label(week, display_locale);
 
             println!(
                 "Week {}  turns={}  in={}  out={}  cost={}",
-                week,
+                week_label,
                 pricing::fmt_tokens(total_turns),
                 pricing::fmt_tokens(total_input),
                 pricing::fmt_tokens(total_output),
@@ -1802,6 +1848,7 @@ pub(crate) fn cmd_stats(
     display_currency: &str,
     jq: Option<&str>,
     _aliases: &HashMap<String, String>,
+    display_locale: chrono::Locale,
 ) -> Result<()> {
     if !db_path.exists() {
         anyhow::bail!("Database not found. Run: claude-usage-tracker scan");
@@ -2047,14 +2094,24 @@ pub(crate) fn cmd_stats(
     println!("{}", "=".repeat(70));
     println!("  Usage - All-Time Statistics");
     println!("{}", "=".repeat(70));
-    let f = |s: &Option<String>| {
-        s.as_deref()
+    let fmt_period_date = |s: &Option<String>| -> String {
+        let iso = s
+            .as_deref()
             .unwrap_or("")
             .chars()
             .take(10)
-            .collect::<String>()
+            .collect::<String>();
+        if let Ok(d) = chrono::NaiveDate::parse_from_str(&iso, "%Y-%m-%d") {
+            locale::format_naive_date(d, display_locale)
+        } else {
+            iso
+        }
     };
-    println!("  Period:           {} to {}", f(&first), f(&last));
+    println!(
+        "  Period:           {} to {}",
+        fmt_period_date(&first),
+        fmt_period_date(&last)
+    );
     println!("  Total sessions:   {}", sessions);
     println!("  Total turns:      {}", pricing::fmt_tokens(turns));
     println!();
@@ -2289,6 +2346,7 @@ pub(crate) fn cmd_stats(
 
 // ── blocks subcommand ─────────────────────────────────────────────────────────
 
+#[allow(clippy::too_many_arguments)]
 fn cmd_blocks(
     db_path: &std::path::Path,
     session_hours: f64,
@@ -2297,6 +2355,7 @@ fn cmd_blocks(
     token_limit: Option<TokenLimit>,
     jq: Option<&str>,
     include_gaps: bool,
+    display_locale: chrono::Locale,
 ) -> anyhow::Result<()> {
     use analytics::blocks::{calculate_burn_rate, identify_blocks_with_gaps, project_block_usage};
     use analytics::quota::compute_quota;
@@ -2424,15 +2483,11 @@ fn cmd_blocks(
         let models_str = block.models.join(", ");
         let status = if block.is_active { "ACTIVE" } else { "" };
 
+        let start_display = locale::format_date(block.start, display_locale);
+        let end_display = locale::format_date(block.end, display_locale);
         println!(
             "  {:<col_w$}  {:<col_w$}  {:<10}  {:<12}  {:<10}  {:<30}  {}",
-            block.start.format("%Y-%m-%dT%H:%M:%SZ"),
-            block.end.format("%Y-%m-%dT%H:%M:%SZ"),
-            elapsed_str,
-            cost_str,
-            tokens_str,
-            models_str,
-            status,
+            start_display, end_display, elapsed_str, cost_str, tokens_str, models_str, status,
         );
 
         if block.is_active {

@@ -303,6 +303,17 @@ heimdall blocks --provider=codex        # uses codex's 1.0h window
 heimdall blocks --session-length=3      # forces 3h, ignores provider
 ```
 
+### Locale
+
+Dates in CLI tables can be localized. Set `[display] locale = "ja-JP"` in config
+or pass `--locale=ja-JP` on the command. Default resolves from `$LANG` and falls
+back to `en-US`.
+
+```bash
+heimdall today --locale=ja-JP
+heimdall weekly --locale=de-DE
+```
+
 Generate/refresh the schema locally:
 
 ```bash
@@ -323,6 +334,7 @@ port = 9090
 # Display preferences (currency conversion is display-only; USD nanos remain in storage)
 [display]
 currency = "EUR"   # ISO 4217 code; default "USD"
+locale = "ja-JP"   # BCP-47 locale for date formatting; default resolved from $LANG or "en-US"
 
 # OAuth settings (reads ~/.claude/.credentials.json)
 [oauth]

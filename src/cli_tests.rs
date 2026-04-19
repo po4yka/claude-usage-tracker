@@ -57,6 +57,7 @@ mod tests {
             false,
             None,
             &std::collections::HashMap::new(),
+            chrono::Locale::en_US,
         )
         .unwrap();
     }
@@ -72,6 +73,7 @@ mod tests {
             false,
             None,
             &std::collections::HashMap::new(),
+            chrono::Locale::en_US,
         )
         .unwrap();
     }
@@ -91,6 +93,7 @@ mod tests {
             "USD",
             None,
             &std::collections::HashMap::new(),
+            chrono::Locale::en_US,
         )
         .unwrap();
     }
@@ -106,6 +109,7 @@ mod tests {
             "USD",
             None,
             &std::collections::HashMap::new(),
+            chrono::Locale::en_US,
         )
         .unwrap();
     }
@@ -179,6 +183,7 @@ mod tests {
             true,
             None,
             &std::collections::HashMap::new(),
+            chrono::Locale::en_US,
         )
         .unwrap();
         // If we reach here without panic, the breakdown path executed correctly.
@@ -196,6 +201,7 @@ mod tests {
             true,
             None,
             &std::collections::HashMap::new(),
+            chrono::Locale::en_US,
         )
         .unwrap();
     }
@@ -211,6 +217,7 @@ mod tests {
             false,
             None,
             &std::collections::HashMap::new(),
+            chrono::Locale::en_US,
         )
         .unwrap();
     }
@@ -226,6 +233,7 @@ mod tests {
             "USD",
             None,
             &std::collections::HashMap::new(),
+            chrono::Locale::en_US,
         )
         .unwrap();
     }

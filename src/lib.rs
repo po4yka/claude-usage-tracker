@@ -15,6 +15,7 @@ pub mod export;
 pub mod hook;
 pub mod jq;
 pub mod litellm;
+pub mod locale;
 #[cfg(feature = "mcp")]
 pub mod mcp;
 pub mod menubar;

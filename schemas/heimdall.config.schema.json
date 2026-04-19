@@ -55,7 +55,8 @@
       "description": "Display settings (currency, formatting).",
       "$ref": "#/$defs/Display",
       "default": {
-        "currency": "USD"
+        "currency": "USD",
+        "locale": null
       }
     },
     "host": {
@@ -340,6 +341,14 @@
             "null"
           ],
           "default": "USD"
+        },
+        "locale": {
+          "description": "BCP-47 locale for date formatting (\"en-US\", \"ja-JP\", \"de-DE\", ...).\nResolved from CLI flag > config > $LANG > \"en-US\".",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
         }
       }
     },

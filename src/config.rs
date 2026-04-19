@@ -488,12 +488,16 @@ pub struct PricingOverride {
 pub struct Display {
     /// ISO 4217 currency code for cost display (default: USD, no conversion).
     pub currency: Option<String>,
+    /// BCP-47 locale for date formatting ("en-US", "ja-JP", "de-DE", ...).
+    /// Resolved from CLI flag > config > $LANG > "en-US".
+    pub locale: Option<String>,
 }
 
 impl Default for Display {
     fn default() -> Self {
         Self {
             currency: Some("USD".into()),
+            locale: None,
         }
     }
 }
