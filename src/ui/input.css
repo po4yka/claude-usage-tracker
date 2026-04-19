@@ -79,6 +79,28 @@
     -moz-osx-font-smoothing: grayscale;
   }
 
+  .skip-link {
+    position: absolute;
+    top: 8px;
+    left: 24px;
+    z-index: 100;
+    padding: 8px 12px;
+    border: 1px solid var(--text-display);
+    border-radius: 4px;
+    background: var(--surface);
+    color: var(--text-display);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-decoration: none;
+    text-transform: uppercase;
+    transform: translateY(-160%);
+    transition: transform 0.15s ease;
+  }
+  .skip-link:focus {
+    transform: translateY(0);
+  }
+
   :focus-visible {
     outline: 1px solid var(--text-display);
     outline-offset: 2px;
@@ -139,6 +161,7 @@
   }
   #rescan-btn:disabled { opacity: 0.4; cursor: not-allowed; }
   .theme-toggle { display: flex; align-items: center; padding: 4px 8px; }
+  .theme-toggle svg { flex-shrink: 0; }
 
   /* ── Filter Bar ──────────────────────────────────────────────────── */
   #filter-bar {
@@ -169,6 +192,7 @@
     display: flex;
     align-items: center;
     gap: 4px;
+    position: relative;
     padding: 3px 10px;
     border-radius: 999px;
     border: 1px solid var(--border-visible);
@@ -187,7 +211,22 @@
     color: var(--text-display);
     background: transparent;
   }
-  .model-cb-label input { display: none; }
+  .model-cb-label:focus-within {
+    outline: 1px solid var(--text-display);
+    outline-offset: 2px;
+  }
+  .model-cb-label input {
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+  .model-cb-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 
   .filter-btn {
     padding: 3px 10px;
@@ -230,6 +269,33 @@
   .range-btn.active {
     background: var(--text-display);
     color: var(--black);
+  }
+  .project-search-input {
+    background: transparent;
+    border: 1px solid var(--border-visible);
+    color: var(--text-primary);
+    padding: 3px 10px;
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    width: 160px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .project-search-input::placeholder {
+    color: var(--text-disabled);
+    text-overflow: ellipsis;
+  }
+  .project-search-input:hover {
+    border-color: var(--text-display);
+  }
+  .project-search-input:focus,
+  .project-search-input:focus-visible {
+    border-color: var(--text-display);
+    color: var(--text-display);
   }
 
   /* ── Bento Grid ──────────────────────────────────────────────────── */
@@ -525,4 +591,14 @@
 @keyframes fadeUp {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skip-link {
+    transition: none;
+  }
+
+  .stat-value {
+    animation: none;
+  }
 }

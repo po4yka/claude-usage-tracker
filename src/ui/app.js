@@ -467,7 +467,7 @@
   }) {
     return async function triggerRescan() {
       button.disabled = true;
-      button.textContent = "\u21BB Scanning...";
+      button.textContent = "\u21BB Scanning\u2026";
       try {
         const resp = await fetchImpl("/api/rescan", { method: "POST" });
         if (!resp.ok) {
@@ -1105,6 +1105,8 @@
   var billingBlocksData = y3(null);
   var contextWindowData = y3(null);
   var costReconciliationData = y3(null);
+  var SESSIONS_PAGE_PARAM = "sessions_page";
+  var SESSIONS_HIDDEN_COLUMNS_PARAM = "sessions_hidden";
   var selectedModels = y3(/* @__PURE__ */ new Set());
   var selectedRange = y3("30d");
   var selectedProvider = y3("both");
@@ -1130,6 +1132,48 @@
     "community-signal": null
   });
   var SESSIONS_PAGE_SIZE = 25;
+  function readSearchParam(name) {
+    return new URLSearchParams(window.location.search).get(name);
+  }
+  function readPositiveIntParam(name) {
+    const raw = readSearchParam(name);
+    if (!raw) return null;
+    const parsed = Number.parseInt(raw, 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  }
+  function readRangeFromUrl() {
+    const p5 = readSearchParam("range");
+    return ["7d", "30d", "90d", "all"].includes(p5) ? p5 : "30d";
+  }
+  function readProviderFromUrl() {
+    const p5 = readSearchParam("provider");
+    return ["claude", "codex", "both"].includes(p5) ? p5 : "both";
+  }
+  function readModelsFromUrl(allModels) {
+    const param = readSearchParam("models");
+    if (!param) return new Set(allModels);
+    const fromUrl = new Set(param.split(",").map((s4) => s4.trim()).filter(Boolean));
+    return new Set(allModels.filter((model) => fromUrl.has(model)));
+  }
+  function readSessionsTablePagination() {
+    return {
+      pageIndex: Math.max((readPositiveIntParam(SESSIONS_PAGE_PARAM) ?? 1) - 1, 0),
+      pageSize: SESSIONS_PAGE_SIZE
+    };
+  }
+  function readSessionsTableColumnVisibility() {
+    const hiddenColumns = readSearchParam(SESSIONS_HIDDEN_COLUMNS_PARAM);
+    if (!hiddenColumns) return {};
+    const visibility = {};
+    for (const columnId of hiddenColumns.split(",").map((value) => value.trim()).filter(Boolean)) {
+      visibility[columnId] = false;
+    }
+    return visibility;
+  }
+  function isDefaultModelSelection(allModels) {
+    if (selectedModels.value.size !== allModels.length) return false;
+    return allModels.every((model) => selectedModels.value.has(model));
+  }
   var loadState = y3("idle");
   function readVersionMetric() {
     const p5 = new URLSearchParams(window.location.search).get("version_metric");
@@ -1137,10 +1181,45 @@
   }
   var versionDonutMetric = y3(readVersionMetric());
   function readAgentStatusExpanded() {
-    const p5 = new URLSearchParams(window.location.search).get("agent_status_expanded");
+    const p5 = readSearchParam("agent_status_expanded");
     return p5 === "1" || p5 === "true";
   }
   var agent_status_expanded = y3(readAgentStatusExpanded());
+  var sessionsTablePagination = y3(readSessionsTablePagination());
+  var sessionsTableColumnVisibility = y3(readSessionsTableColumnVisibility());
+  function restoreDashboardStateFromUrl(allModels) {
+    selectedRange.value = readRangeFromUrl();
+    selectedProvider.value = readProviderFromUrl();
+    selectedModels.value = readModelsFromUrl(allModels);
+    projectSearchQuery.value = readSearchParam("project") ?? "";
+    selectedBucket.value = readBucket();
+    versionDonutMetric.value = readVersionMetric();
+    agent_status_expanded.value = readAgentStatusExpanded();
+    sessionsTablePagination.value = readSessionsTablePagination();
+    sessionsTableColumnVisibility.value = readSessionsTableColumnVisibility();
+  }
+  function syncDashboardUrl() {
+    const allModels = rawData.value?.all_models ?? [];
+    const params = new URLSearchParams();
+    if (selectedRange.value !== "30d") params.set("range", selectedRange.value);
+    if (selectedProvider.value !== "both") params.set("provider", selectedProvider.value);
+    if (!isDefaultModelSelection(allModels)) {
+      params.set("models", Array.from(selectedModels.value).join(","));
+    }
+    if (projectSearchQuery.value) params.set("project", projectSearchQuery.value);
+    if (versionDonutMetric.value !== "cost") params.set("version_metric", versionDonutMetric.value);
+    if (selectedBucket.value !== "day") params.set("bucket", selectedBucket.value);
+    if (agent_status_expanded.value) params.set("agent_status_expanded", "1");
+    const pageNumber = sessionsTablePagination.value.pageIndex + 1;
+    if (pageNumber > 1) params.set(SESSIONS_PAGE_PARAM, String(pageNumber));
+    const hiddenColumns = Object.entries(sessionsTableColumnVisibility.value).filter(([, isVisible]) => isVisible === false).map(([columnId]) => columnId).sort();
+    if (hiddenColumns.length) {
+      params.set(SESSIONS_HIDDEN_COLUMNS_PARAM, hiddenColumns.join(","));
+    }
+    const search = params.toString();
+    const nextUrl = search ? `${window.location.pathname}?${search}` : window.location.pathname;
+    history.replaceState(null, "", nextUrl);
+  }
 
   // src/ui/lib/status.ts
   var timers = {};
@@ -1227,6 +1306,11 @@
     const btnRef = A2(null);
     const triggerRef = A2(null);
     y2(() => {
+      const themeColorMeta = document.querySelector('meta[name="theme-color"]');
+      if (!themeColorMeta) return;
+      themeColorMeta.setAttribute("content", themeMode.value === "light" ? "#F5F5F5" : "#000000");
+    }, [themeMode.value]);
+    y2(() => {
       if (!btnRef.current) return;
       const proxy = {
         get disabled() {
@@ -1252,7 +1336,7 @@
       });
     }, [onDataReload]);
     const mode = themeMode.value;
-    const icon = mode === "dark" ? /* @__PURE__ */ u2("svg", { width: "14", height: "14", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", "stroke-width": "2", children: /* @__PURE__ */ u2("path", { d: "M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" }) }) : /* @__PURE__ */ u2("svg", { width: "14", height: "14", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", "stroke-width": "2", children: [
+    const icon = mode === "dark" ? /* @__PURE__ */ u2("svg", { "aria-hidden": "true", focusable: "false", width: "14", height: "14", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", "stroke-width": "2", children: /* @__PURE__ */ u2("path", { d: "M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" }) }) : /* @__PURE__ */ u2("svg", { "aria-hidden": "true", focusable: "false", width: "14", height: "14", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", "stroke-width": "2", children: [
       /* @__PURE__ */ u2("circle", { cx: "12", cy: "12", r: "5" }),
       /* @__PURE__ */ u2("line", { x1: "12", y1: "1", x2: "12", y2: "3" }),
       /* @__PURE__ */ u2("line", { x1: "12", y1: "21", x2: "12", y2: "23" }),
@@ -1402,7 +1486,7 @@
               "aria-label": model
             }
           ),
-          model
+          /* @__PURE__ */ u2("span", { class: "model-cb-text", children: model })
         ] }, model);
       }) }),
       /* @__PURE__ */ u2("button", { class: "filter-btn", type: "button", onClick: selectAll, children: "All" }),
@@ -1455,22 +1539,15 @@
         {
           type: "text",
           id: "project-search",
-          placeholder: "Search...",
-          "aria-label": "Filter by project",
+          name: "project-search",
+          placeholder: "Search projects\u2026",
+          "aria-label": "Filter by project name",
+          autoComplete: "off",
+          spellcheck: false,
+          enterKeyHint: "search",
           value: projectSearchQuery.value,
           onInput: onSearchInput,
-          style: {
-            background: "transparent",
-            border: "1px solid var(--border-visible)",
-            color: "var(--text-primary)",
-            padding: "3px 10px",
-            borderRadius: "4px",
-            fontFamily: "var(--font-mono)",
-            fontSize: "11px",
-            letterSpacing: "0.04em",
-            width: "160px",
-            outline: "none"
-          }
+          class: "project-search-input"
         }
       ),
       projectSearchQuery.value && /* @__PURE__ */ u2("button", { class: "filter-btn", id: "project-clear-btn", type: "button", onClick: clearSearch, children: "Clear" })
@@ -1799,6 +1876,7 @@
               {
                 onClick: () => {
                   agent_status_expanded.value = !expanded;
+                  syncDashboardUrl();
                 },
                 style: {
                   background: "none",
@@ -5312,36 +5390,67 @@
     pageSize,
     defaultSort: defaultSort4,
     enableColumnVisibility,
-    costRows
+    costRows,
+    paginationState,
+    onPaginationChange,
+    columnVisibilityState,
+    onColumnVisibilityChange
   }) {
     const [sorting, setSorting] = d2(defaultSort4 || []);
-    const [pagination, setPagination] = d2({
+    const [localPagination, setLocalPagination] = d2({
       pageIndex: 0,
       pageSize: pageSize || data.length || 100
     });
-    const [columnVisibility, setColumnVisibility] = d2({});
+    const [localColumnVisibility, setLocalColumnVisibility] = d2({});
     const [, rerender] = d2(0);
+    const pagination = paginationState ?? localPagination;
+    const columnVisibility = columnVisibilityState ?? localColumnVisibility;
     y2(() => {
-      setPagination((prev) => ({ ...prev, pageIndex: 0 }));
-    }, [data]);
+      if (!pageSize) return;
+      const rowsPerPage = pagination.pageSize || pageSize;
+      const maxPageIndex = Math.max(Math.ceil(data.length / rowsPerPage) - 1, 0);
+      if (pagination.pageIndex <= maxPageIndex) return;
+      const nextPagination = { ...pagination, pageIndex: maxPageIndex };
+      if (paginationState) {
+        onPaginationChange?.(nextPagination);
+      } else {
+        setLocalPagination(nextPagination);
+      }
+    }, [data.length, pageSize, pagination, paginationState, onPaginationChange]);
     const tableRef = A2(null);
     const stateRef = A2({ sorting, pagination, columnVisibility });
     stateRef.current = { sorting, pagination, columnVisibility };
+    const handlePaginationChange = (updater) => {
+      const nextPagination = resolveUpdater(updater, stateRef.current.pagination);
+      if (paginationState) {
+        onPaginationChange?.(nextPagination);
+      } else {
+        setLocalPagination(nextPagination);
+      }
+      rerender((n3) => n3 + 1);
+    };
+    const handleColumnVisibilityChange = (updater) => {
+      const nextVisibility = resolveUpdater(updater, stateRef.current.columnVisibility);
+      if (columnVisibilityState) {
+        onColumnVisibilityChange?.(nextVisibility);
+      } else {
+        setLocalColumnVisibility(nextVisibility);
+      }
+      rerender((n3) => n3 + 1);
+    };
     if (!tableRef.current) {
       tableRef.current = createTable({
         columns: columns4,
         data,
         state: { sorting, pagination, columnVisibility, columnPinning: { left: [], right: [] } },
-        onStateChange: (updater) => {
-          const newState = resolveUpdater(updater, tableRef.current.getState());
-          if (newState.sorting !== stateRef.current.sorting) setSorting(newState.sorting);
-          if (newState.pagination !== stateRef.current.pagination) setPagination(newState.pagination);
-          if (newState.columnVisibility !== stateRef.current.columnVisibility) setColumnVisibility(newState.columnVisibility);
+        onStateChange: () => {
+        },
+        onSortingChange: (updater) => {
+          setSorting((prev) => resolveUpdater(updater, prev));
           rerender((n3) => n3 + 1);
         },
-        onSortingChange: (updater) => setSorting((prev) => resolveUpdater(updater, prev)),
-        onPaginationChange: (updater) => setPagination((prev) => resolveUpdater(updater, prev)),
-        onColumnVisibilityChange: (updater) => setColumnVisibility((prev) => resolveUpdater(updater, prev)),
+        onPaginationChange: handlePaginationChange,
+        onColumnVisibilityChange: handleColumnVisibilityChange,
         getCoreRowModel: getCoreRowModel(),
         getSortedRowModel: getSortedRowModel(),
         ...pageSize ? { getPaginationRowModel: getPaginationRowModel() } : {},
@@ -5357,9 +5466,10 @@
     const table = tableRef.current;
     const headerGroups = table.getHeaderGroups();
     const rows = table.getRowModel().rows;
+    const headingId = title ? `table-heading-${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}` : void 0;
     return /* @__PURE__ */ u2("div", { class: "table-card", children: [
       (title || exportFn) && /* @__PURE__ */ u2("div", { class: "section-header", children: [
-        title && /* @__PURE__ */ u2("div", { class: "section-title", children: title }),
+        title && /* @__PURE__ */ u2("h2", { id: headingId, class: "section-title", style: { margin: 0 }, children: title }),
         exportFn && /* @__PURE__ */ u2("button", { class: "export-btn", onClick: exportFn, title: "Export to CSV", children: "\u2913 CSV" })
       ] }),
       enableColumnVisibility && /* @__PURE__ */ u2("div", { class: "column-toggle", children: table.getAllLeafColumns().map((column) => /* @__PURE__ */ u2("label", { children: [
@@ -5373,7 +5483,7 @@
         ),
         typeof column.columnDef.header === "string" ? column.columnDef.header : column.id
       ] }, column.id)) }),
-      /* @__PURE__ */ u2("table", { children: [
+      /* @__PURE__ */ u2("table", { "aria-labelledby": headingId, children: [
         /* @__PURE__ */ u2("thead", { children: headerGroups.map((headerGroup) => /* @__PURE__ */ u2("tr", { children: headerGroup.headers.map((header) => {
           const canSort = header.column.getCanSort();
           const sorted = header.column.getIsSorted();
@@ -6060,6 +6170,24 @@
 
   // src/ui/components/SessionsTable.tsx
   var defaultSort = [{ id: "last", desc: true }];
+  var primaryOverflowStyle = {
+    display: "block",
+    minWidth: 0,
+    maxWidth: "clamp(14rem, 28vw, 24rem)",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap"
+  };
+  var secondaryOverflowStyle = {
+    ...primaryOverflowStyle,
+    marginTop: "2px",
+    fontSize: "10px",
+    fontFamily: "var(--font-mono)"
+  };
+  var projectOverflowStyle = {
+    ...primaryOverflowStyle,
+    maxWidth: "clamp(12rem, 24vw, 22rem)"
+  };
   function useSessionColumns(showCredits) {
     return T2(
       () => [
@@ -6070,11 +6198,14 @@
           enableSorting: false,
           cell: (info) => {
             const row = info.row.original;
-            const title = row.title;
-            return /* @__PURE__ */ u2("span", { class: "muted", style: { fontFamily: "monospace" }, title: title || void 0, children: title || /* @__PURE__ */ u2(S, { children: [
-              info.getValue(),
-              "\u2026"
-            ] }) });
+            const title = row.title?.trim();
+            const sessionId = String(info.getValue());
+            const tooltip = title ? `${title}
+${sessionId}` : sessionId;
+            return /* @__PURE__ */ u2("div", { style: { minWidth: 0, maxWidth: "clamp(14rem, 28vw, 24rem)" }, title: tooltip, children: [
+              /* @__PURE__ */ u2("span", { class: "muted", style: { ...primaryOverflowStyle, fontFamily: "var(--font-mono)" }, children: title || sessionId }),
+              title && /* @__PURE__ */ u2("span", { class: "muted", style: secondaryOverflowStyle, children: sessionId })
+            ] });
           }
         },
         {
@@ -6085,7 +6216,13 @@
           cell: (info) => {
             const row = info.row.original;
             const label = row.display_name || row.project;
-            return /* @__PURE__ */ u2("span", { title: row.project, children: label });
+            const showProjectPath = label !== row.project;
+            const tooltip = showProjectPath ? `${label}
+${row.project}` : row.project;
+            return /* @__PURE__ */ u2("div", { style: { minWidth: 0, maxWidth: "clamp(12rem, 24vw, 22rem)" }, title: tooltip, children: [
+              /* @__PURE__ */ u2("span", { style: projectOverflowStyle, children: label }),
+              showProjectPath && /* @__PURE__ */ u2("span", { class: "muted", style: secondaryOverflowStyle, children: row.project })
+            ] });
           }
         },
         {
@@ -6212,6 +6349,16 @@
     const data = lastFilteredSessions.value;
     const showCredits = anyHasCredits(data);
     const columns4 = useSessionColumns(showCredits);
+    const pagination = sessionsTablePagination.value;
+    const columnVisibility = sessionsTableColumnVisibility.value;
+    const handlePaginationChange = (nextPagination) => {
+      sessionsTablePagination.value = nextPagination;
+      syncDashboardUrl();
+    };
+    const handleColumnVisibilityChange = (nextColumnVisibility) => {
+      sessionsTableColumnVisibility.value = nextColumnVisibility;
+      syncDashboardUrl();
+    };
     return /* @__PURE__ */ u2(
       DataTable,
       {
@@ -6221,7 +6368,11 @@
         exportFn: onExportCSV,
         pageSize: SESSIONS_PAGE_SIZE,
         defaultSort,
-        enableColumnVisibility: true
+        enableColumnVisibility: true,
+        paginationState: pagination,
+        onPaginationChange: handlePaginationChange,
+        columnVisibilityState: columnVisibility,
+        onColumnVisibilityChange: handleColumnVisibilityChange
       }
     );
   }
@@ -6899,40 +7050,10 @@
     d5.setDate(d5.getDate() - days);
     return formatLocalDate(d5);
   }
-  function readURLRange() {
-    const p5 = new URLSearchParams(window.location.search).get("range");
-    return ["7d", "30d", "90d", "all"].includes(p5) ? p5 : "30d";
-  }
-  function readURLProvider() {
-    const p5 = new URLSearchParams(window.location.search).get("provider");
-    return ["claude", "codex", "both"].includes(p5) ? p5 : "both";
-  }
-  function readURLModels(allModels) {
-    const param = new URLSearchParams(window.location.search).get("models");
-    if (!param) return new Set(allModels);
-    const fromURL = new Set(param.split(",").map((s4) => s4.trim()).filter(Boolean));
-    return new Set(allModels.filter((m4) => fromURL.has(m4)));
-  }
   function matchesProvider(row) {
     const p5 = selectedProvider.value;
     if (p5 === "both") return true;
     return row.provider === p5;
-  }
-  function isDefaultModelSelection(allModels) {
-    if (selectedModels.value.size !== allModels.length) return false;
-    return allModels.every((m4) => selectedModels.value.has(m4));
-  }
-  function updateURL() {
-    const allModels = rawData.value?.all_models ?? [];
-    const params = new URLSearchParams();
-    if (selectedRange.value !== "30d") params.set("range", selectedRange.value);
-    if (selectedProvider.value !== "both") params.set("provider", selectedProvider.value);
-    if (!isDefaultModelSelection(allModels)) params.set("models", Array.from(selectedModels.value).join(","));
-    if (projectSearchQuery.value) params.set("project", projectSearchQuery.value);
-    if (versionDonutMetric.value !== "cost") params.set("version_metric", versionDonutMetric.value);
-    if (selectedBucket.value !== "day") params.set("bucket", selectedBucket.value);
-    const search = params.toString() ? "?" + params.toString() : "";
-    history.replaceState(null, "", window.location.pathname + search);
   }
   function matchesProjectSearch(project, displayName) {
     if (!projectSearchQuery.value) return true;
@@ -7354,7 +7475,7 @@
     container.style.display = "";
     const handleMetricChange = (next) => {
       versionDonutMetric.value = next;
-      updateURL();
+      syncDashboardUrl();
       renderVersionSummary(data);
     };
     R(
@@ -7553,11 +7674,7 @@
       const isFirstLoad = rawData.value === null;
       rawData.value = d5;
       if (isFirstLoad) {
-        selectedRange.value = readURLRange();
-        selectedProvider.value = readURLProvider();
-        selectedModels.value = readURLModels(d5.all_models);
-        const urlProject = new URLSearchParams(window.location.search).get("project");
-        if (urlProject) projectSearchQuery.value = urlProject;
+        restoreDashboardStateFromUrl(d5.all_models);
       }
       applyFilter();
     } catch (e4) {
@@ -7574,7 +7691,7 @@
   }
   var filterBarMount = document.getElementById("filter-bar-mount");
   if (filterBarMount) {
-    R(/* @__PURE__ */ u2(FilterBar, { onFilterChange: applyFilter, onURLUpdate: updateURL }), filterBarMount);
+    R(/* @__PURE__ */ u2(FilterBar, { onFilterChange: applyFilter, onURLUpdate: syncDashboardUrl }), filterBarMount);
   }
   var footerEl = document.querySelector("footer");
   if (footerEl && footerEl.parentElement) {
@@ -7585,8 +7702,9 @@
     R(/* @__PURE__ */ u2(InlineStatus, { placement: "global" }), globalStatusMount);
   }
   window.addEventListener("popstate", () => {
-    selectedBucket.value = readBucket();
-    if (rawData.value) applyFilter();
+    if (!rawData.value) return;
+    restoreDashboardStateFromUrl(rawData.value.all_models);
+    applyFilter();
   });
   loadData();
   setInterval(loadData, 3e4);

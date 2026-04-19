@@ -1,4 +1,5 @@
 import { signal } from '@preact/signals';
+import type { PaginationState, VisibilityState } from '@tanstack/table-core';
 import type { DashboardData, RangeKey, BucketKey, SessionRow, ProjectAgg, BillingBlocksResponse, ContextWindowResponse, CostReconciliationResponse } from './types';
 
 // ── Core data ────────────────────────────────────────────────────────
@@ -9,6 +10,8 @@ export const costReconciliationData = signal<CostReconciliationResponse | null>(
 
 // ── Filter state ─────────────────────────────────────────────────────
 export type ProviderFilter = 'claude' | 'codex' | 'both';
+const SESSIONS_PAGE_PARAM = 'sessions_page';
+const SESSIONS_HIDDEN_COLUMNS_PARAM = 'sessions_hidden';
 
 export const selectedModels = signal<Set<string>>(new Set());
 export const selectedRange = signal<RangeKey>('30d');
@@ -54,6 +57,59 @@ export const statusByPlacement = signal<Record<StatusPlacement, StatusEntry | nu
 // ── Pagination page size (used by SessionsTable via DataTable) ───────
 export const SESSIONS_PAGE_SIZE = 25;
 
+function readSearchParam(name: string): string | null {
+  return new URLSearchParams(window.location.search).get(name);
+}
+
+function readPositiveIntParam(name: string): number | null {
+  const raw = readSearchParam(name);
+  if (!raw) return null;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function readRangeFromUrl(): RangeKey {
+  const p = readSearchParam('range');
+  return (['7d', '30d', '90d', 'all'] as RangeKey[]).includes(p as RangeKey) ? (p as RangeKey) : '30d';
+}
+
+function readProviderFromUrl(): ProviderFilter {
+  const p = readSearchParam('provider');
+  return (['claude', 'codex', 'both'] as ProviderFilter[]).includes(p as ProviderFilter)
+    ? (p as ProviderFilter)
+    : 'both';
+}
+
+function readModelsFromUrl(allModels: string[]): Set<string> {
+  const param = readSearchParam('models');
+  if (!param) return new Set(allModels);
+  const fromUrl = new Set(param.split(',').map(s => s.trim()).filter(Boolean));
+  return new Set(allModels.filter(model => fromUrl.has(model)));
+}
+
+function readSessionsTablePagination(): PaginationState {
+  return {
+    pageIndex: Math.max((readPositiveIntParam(SESSIONS_PAGE_PARAM) ?? 1) - 1, 0),
+    pageSize: SESSIONS_PAGE_SIZE,
+  };
+}
+
+function readSessionsTableColumnVisibility(): VisibilityState {
+  const hiddenColumns = readSearchParam(SESSIONS_HIDDEN_COLUMNS_PARAM);
+  if (!hiddenColumns) return {};
+
+  const visibility: VisibilityState = {};
+  for (const columnId of hiddenColumns.split(',').map(value => value.trim()).filter(Boolean)) {
+    visibility[columnId] = false;
+  }
+  return visibility;
+}
+
+function isDefaultModelSelection(allModels: string[]): boolean {
+  if (selectedModels.value.size !== allModels.length) return false;
+  return allModels.every(model => selectedModels.value.has(model));
+}
+
 // ── Phase 18: data-load state ─────────────────────────────────────────
 // 'idle'       — no fetch in progress; data (if any) is current.
 // 'refreshing' — a subsequent fetch is in progress; old data remains
@@ -75,8 +131,52 @@ export const versionDonutMetric = signal<VersionMetric>(readVersionMetric());
 
 // ── Agent status expand/collapse (URL-persistent) ────────────────────
 function readAgentStatusExpanded(): boolean {
-  const p = new URLSearchParams(window.location.search).get('agent_status_expanded');
+  const p = readSearchParam('agent_status_expanded');
   return p === '1' || p === 'true';
 }
 
 export const agent_status_expanded = signal<boolean>(readAgentStatusExpanded());
+export const sessionsTablePagination = signal<PaginationState>(readSessionsTablePagination());
+export const sessionsTableColumnVisibility = signal<VisibilityState>(readSessionsTableColumnVisibility());
+
+export function restoreDashboardStateFromUrl(allModels: string[]): void {
+  selectedRange.value = readRangeFromUrl();
+  selectedProvider.value = readProviderFromUrl();
+  selectedModels.value = readModelsFromUrl(allModels);
+  projectSearchQuery.value = readSearchParam('project') ?? '';
+  selectedBucket.value = readBucket();
+  versionDonutMetric.value = readVersionMetric();
+  agent_status_expanded.value = readAgentStatusExpanded();
+  sessionsTablePagination.value = readSessionsTablePagination();
+  sessionsTableColumnVisibility.value = readSessionsTableColumnVisibility();
+}
+
+export function syncDashboardUrl(): void {
+  const allModels = rawData.value?.all_models ?? [];
+  const params = new URLSearchParams();
+
+  if (selectedRange.value !== '30d') params.set('range', selectedRange.value);
+  if (selectedProvider.value !== 'both') params.set('provider', selectedProvider.value);
+  if (!isDefaultModelSelection(allModels)) {
+    params.set('models', Array.from(selectedModels.value).join(','));
+  }
+  if (projectSearchQuery.value) params.set('project', projectSearchQuery.value);
+  if (versionDonutMetric.value !== 'cost') params.set('version_metric', versionDonutMetric.value);
+  if (selectedBucket.value !== 'day') params.set('bucket', selectedBucket.value);
+  if (agent_status_expanded.value) params.set('agent_status_expanded', '1');
+
+  const pageNumber = sessionsTablePagination.value.pageIndex + 1;
+  if (pageNumber > 1) params.set(SESSIONS_PAGE_PARAM, String(pageNumber));
+
+  const hiddenColumns = Object.entries(sessionsTableColumnVisibility.value)
+    .filter(([, isVisible]) => isVisible === false)
+    .map(([columnId]) => columnId)
+    .sort();
+  if (hiddenColumns.length) {
+    params.set(SESSIONS_HIDDEN_COLUMNS_PARAM, hiddenColumns.join(','));
+  }
+
+  const search = params.toString();
+  const nextUrl = search ? `${window.location.pathname}?${search}` : window.location.pathname;
+  history.replaceState(null, '', nextUrl);
+}

@@ -29,7 +29,7 @@ export function createTriggerRescan({
 }: TriggerRescanDeps): () => Promise<void> {
   return async function triggerRescan(): Promise<void> {
     button.disabled = true;
-    button.textContent = '\u21bb Scanning...';
+    button.textContent = '\u21bb Scanning…';
 
     try {
       const resp = await fetchImpl('/api/rescan', { method: 'POST' });

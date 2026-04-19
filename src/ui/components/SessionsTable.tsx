@@ -1,11 +1,35 @@
 import { useMemo } from 'preact/hooks';
-import { type ColumnDef, type SortingState } from '@tanstack/table-core';
+import { type ColumnDef, type SortingState, type PaginationState, type VisibilityState } from '@tanstack/table-core';
 import { fmt, fmtCost, anyHasCredits, fmtCredits } from '../lib/format';
-import { lastFilteredSessions, SESSIONS_PAGE_SIZE } from '../state/store';
+import {
+  lastFilteredSessions,
+  SESSIONS_PAGE_SIZE,
+  sessionsTablePagination,
+  sessionsTableColumnVisibility,
+  syncDashboardUrl,
+} from '../state/store';
 import type { SessionRow } from '../state/types';
 import { DataTable } from './DataTable';
 
 const defaultSort: SortingState = [{ id: 'last', desc: true }];
+const primaryOverflowStyle = {
+  display: 'block',
+  minWidth: 0,
+  maxWidth: 'clamp(14rem, 28vw, 24rem)',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+};
+const secondaryOverflowStyle = {
+  ...primaryOverflowStyle,
+  marginTop: '2px',
+  fontSize: '10px',
+  fontFamily: 'var(--font-mono)',
+};
+const projectOverflowStyle = {
+  ...primaryOverflowStyle,
+  maxWidth: 'clamp(12rem, 24vw, 22rem)',
+};
 
 function useSessionColumns(showCredits: boolean): ColumnDef<SessionRow, any>[] {
   return useMemo(
@@ -17,11 +41,20 @@ function useSessionColumns(showCredits: boolean): ColumnDef<SessionRow, any>[] {
         enableSorting: false,
         cell: (info: any) => {
           const row = info.row.original as SessionRow;
-          const title = row.title;
+          const title = row.title?.trim();
+          const sessionId = String(info.getValue());
+          const tooltip = title ? `${title}\n${sessionId}` : sessionId;
           return (
-            <span class="muted" style={{ fontFamily: 'monospace' }} title={title || undefined}>
-              {title || <>{info.getValue()}&hellip;</>}
-            </span>
+            <div style={{ minWidth: 0, maxWidth: 'clamp(14rem, 28vw, 24rem)' }} title={tooltip}>
+              <span class="muted" style={{ ...primaryOverflowStyle, fontFamily: 'var(--font-mono)' }}>
+                {title || sessionId}
+              </span>
+              {title && (
+                <span class="muted" style={secondaryOverflowStyle}>
+                  {sessionId}
+                </span>
+              )}
+            </div>
           );
         },
       },
@@ -33,7 +66,18 @@ function useSessionColumns(showCredits: boolean): ColumnDef<SessionRow, any>[] {
         cell: (info: any) => {
           const row = info.row.original as SessionRow;
           const label = row.display_name || row.project;
-          return <span title={row.project}>{label}</span>;
+          const showProjectPath = label !== row.project;
+          const tooltip = showProjectPath ? `${label}\n${row.project}` : row.project;
+          return (
+            <div style={{ minWidth: 0, maxWidth: 'clamp(12rem, 24vw, 22rem)' }} title={tooltip}>
+              <span style={projectOverflowStyle}>{label}</span>
+              {showProjectPath && (
+                <span class="muted" style={secondaryOverflowStyle}>
+                  {row.project}
+                </span>
+              )}
+            </div>
+          );
         },
       },
       {
@@ -161,6 +205,18 @@ export function SessionsTable({ onExportCSV }: { onExportCSV: () => void }) {
   const data = lastFilteredSessions.value;
   const showCredits = anyHasCredits(data);
   const columns = useSessionColumns(showCredits);
+  const pagination = sessionsTablePagination.value;
+  const columnVisibility = sessionsTableColumnVisibility.value;
+
+  const handlePaginationChange = (nextPagination: PaginationState) => {
+    sessionsTablePagination.value = nextPagination;
+    syncDashboardUrl();
+  };
+
+  const handleColumnVisibilityChange = (nextColumnVisibility: VisibilityState) => {
+    sessionsTableColumnVisibility.value = nextColumnVisibility;
+    syncDashboardUrl();
+  };
 
   return (
     <DataTable
@@ -171,6 +227,10 @@ export function SessionsTable({ onExportCSV }: { onExportCSV: () => void }) {
       pageSize={SESSIONS_PAGE_SIZE}
       defaultSort={defaultSort}
       enableColumnVisibility
+      paginationState={pagination}
+      onPaginationChange={handlePaginationChange}
+      columnVisibilityState={columnVisibility}
+      onColumnVisibilityChange={handleColumnVisibilityChange}
     />
   );
 }

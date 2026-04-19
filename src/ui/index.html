@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#000000" id="theme-color-meta">
 <title>Usage</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -13,11 +14,12 @@
 </style>
 </head>
 <body>
+<a class="skip-link" href="#main-content">Skip to main content</a>
 <div id="header-mount"></div>
 <div id="filter-bar-mount"></div>
 <div id="inline-status-global" style="max-width:1400px;margin:12px auto 0;padding:0 24px"></div>
 
-<div class="bento" role="main">
+<main id="main-content" class="bento" tabindex="-1">
   <!-- Rate windows (conditional) -->
   <div id="usage-windows" class="bento-full" style="display:none;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px"></div>
   <!-- Agent status (upstream provider health) -->
@@ -62,7 +64,7 @@
   <div class="bento-full" id="project-cost-mount"></div>
 
   <!-- Codex is now expressed via the Provider segmented filter in the top filter bar. -->
-</div>
+</main>
 
 <footer role="contentinfo">
   <div class="footer-content">

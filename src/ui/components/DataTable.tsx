@@ -12,7 +12,6 @@ import {
   type Cell,
   type VisibilityState,
   type Updater,
-  type TableState,
 } from '@tanstack/table-core';
 
 interface DataTableProps<T> {
@@ -24,6 +23,10 @@ interface DataTableProps<T> {
   defaultSort?: SortingState;
   enableColumnVisibility?: boolean;
   costRows?: boolean;
+  paginationState?: PaginationState;
+  onPaginationChange?: (pagination: PaginationState) => void;
+  columnVisibilityState?: VisibilityState;
+  onColumnVisibilityChange?: (columnVisibility: VisibilityState) => void;
 }
 
 function renderCell<T>(cell: Cell<T, unknown>): any {
@@ -55,40 +58,73 @@ export function DataTable<T>({
   defaultSort,
   enableColumnVisibility,
   costRows,
+  paginationState,
+  onPaginationChange,
+  columnVisibilityState,
+  onColumnVisibilityChange,
 }: DataTableProps<T>) {
   const [sorting, setSorting] = useState<SortingState>(defaultSort || []);
-  const [pagination, setPagination] = useState<PaginationState>({
+  const [localPagination, setLocalPagination] = useState<PaginationState>({
     pageIndex: 0,
     pageSize: pageSize || data.length || 100,
   });
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+  const [localColumnVisibility, setLocalColumnVisibility] = useState<VisibilityState>({});
   const [, rerender] = useState(0);
+  const pagination = paginationState ?? localPagination;
+  const columnVisibility = columnVisibilityState ?? localColumnVisibility;
 
-  // Reset pagination to page 0 when data changes
   useEffect(() => {
-    setPagination(prev => ({ ...prev, pageIndex: 0 }));
-  }, [data]);
+    if (!pageSize) return;
+
+    const rowsPerPage = pagination.pageSize || pageSize;
+    const maxPageIndex = Math.max(Math.ceil(data.length / rowsPerPage) - 1, 0);
+    if (pagination.pageIndex <= maxPageIndex) return;
+
+    const nextPagination = { ...pagination, pageIndex: maxPageIndex };
+    if (paginationState) {
+      onPaginationChange?.(nextPagination);
+    } else {
+      setLocalPagination(nextPagination);
+    }
+  }, [data.length, pageSize, pagination, paginationState, onPaginationChange]);
 
   const tableRef = useRef<Table<T> | null>(null);
 
   const stateRef = useRef({ sorting, pagination, columnVisibility });
   stateRef.current = { sorting, pagination, columnVisibility };
 
+  const handlePaginationChange = (updater: Updater<PaginationState>) => {
+    const nextPagination = resolveUpdater(updater, stateRef.current.pagination);
+    if (paginationState) {
+      onPaginationChange?.(nextPagination);
+    } else {
+      setLocalPagination(nextPagination);
+    }
+    rerender(n => n + 1);
+  };
+
+  const handleColumnVisibilityChange = (updater: Updater<VisibilityState>) => {
+    const nextVisibility = resolveUpdater(updater, stateRef.current.columnVisibility);
+    if (columnVisibilityState) {
+      onColumnVisibilityChange?.(nextVisibility);
+    } else {
+      setLocalColumnVisibility(nextVisibility);
+    }
+    rerender(n => n + 1);
+  };
+
   if (!tableRef.current) {
     tableRef.current = createTable<T>({
       columns,
       data,
       state: { sorting, pagination, columnVisibility, columnPinning: { left: [], right: [] } } as any,
-      onStateChange: (updater: Updater<TableState>) => {
-        const newState = resolveUpdater(updater, tableRef.current!.getState());
-        if (newState.sorting !== stateRef.current.sorting) setSorting(newState.sorting);
-        if (newState.pagination !== stateRef.current.pagination) setPagination(newState.pagination);
-        if (newState.columnVisibility !== stateRef.current.columnVisibility) setColumnVisibility(newState.columnVisibility);
+      onStateChange: () => {},
+      onSortingChange: (updater) => {
+        setSorting(prev => resolveUpdater(updater, prev));
         rerender(n => n + 1);
       },
-      onSortingChange: (updater) => setSorting(prev => resolveUpdater(updater, prev)),
-      onPaginationChange: (updater) => setPagination(prev => resolveUpdater(updater, prev)),
-      onColumnVisibilityChange: (updater) => setColumnVisibility(prev => resolveUpdater(updater, prev)),
+      onPaginationChange: handlePaginationChange,
+      onColumnVisibilityChange: handleColumnVisibilityChange,
       getCoreRowModel: getCoreRowModel(),
       getSortedRowModel: getSortedRowModel(),
       ...(pageSize ? { getPaginationRowModel: getPaginationRowModel() } : {}),
@@ -108,12 +144,17 @@ export function DataTable<T>({
 
   const headerGroups = table.getHeaderGroups();
   const rows = table.getRowModel().rows;
+  const headingId = title ? `table-heading-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}` : undefined;
 
   return (
     <div class="table-card">
       {(title || exportFn) && (
         <div class="section-header">
-          {title && <div class="section-title">{title}</div>}
+          {title && (
+            <h2 id={headingId} class="section-title" style={{ margin: 0 }}>
+              {title}
+            </h2>
+          )}
           {exportFn && (
             <button class="export-btn" onClick={exportFn} title="Export to CSV">
               &#x2913; CSV
@@ -139,7 +180,7 @@ export function DataTable<T>({
         </div>
       )}
 
-      <table>
+      <table aria-labelledby={headingId}>
         <thead>
           {headerGroups.map(headerGroup => (
             <tr key={headerGroup.id}>

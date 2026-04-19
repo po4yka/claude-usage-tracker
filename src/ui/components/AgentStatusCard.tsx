@@ -1,5 +1,5 @@
 import type { AgentStatusSnapshot, ProviderStatus, StatusIndicator, CommunitySignal, ServiceSignal, SignalLevel } from '../state/types';
-import { agent_status_expanded } from '../state/store';
+import { agent_status_expanded, syncDashboardUrl } from '../state/store';
 
 interface AgentStatusCardProps {
   snapshot: AgentStatusSnapshot;
@@ -227,7 +227,10 @@ export function AgentStatusCard({ snapshot, communitySignal }: AgentStatusCardPr
           <div class="stat-label">Agent Status</div>
           {hasData && (
             <button
-              onClick={() => { agent_status_expanded.value = !expanded; }}
+              onClick={() => {
+                agent_status_expanded.value = !expanded;
+                syncDashboardUrl();
+              }}
               style={{
                 background: 'none',
                 border: 'none',

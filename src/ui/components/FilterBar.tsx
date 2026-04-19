@@ -109,7 +109,7 @@ export function FilterBar({ onFilterChange, onURLUpdate }: FilterBarProps) {
                 onChange={(e) => toggleModel(model, (e.currentTarget as HTMLInputElement).checked)}
                 aria-label={model}
               />
-              {model}
+              <span class="model-cb-text">{model}</span>
             </label>
           );
         })}
@@ -170,22 +170,15 @@ export function FilterBar({ onFilterChange, onURLUpdate }: FilterBarProps) {
       <input
         type="text"
         id="project-search"
-        placeholder="Search..."
-        aria-label="Filter by project"
+        name="project-search"
+        placeholder="Search projects…"
+        aria-label="Filter by project name"
+        autoComplete="off"
+        spellcheck={false}
+        enterKeyHint="search"
         value={projectSearchQuery.value}
         onInput={onSearchInput}
-        style={{
-          background: 'transparent',
-          border: '1px solid var(--border-visible)',
-          color: 'var(--text-primary)',
-          padding: '3px 10px',
-          borderRadius: '4px',
-          fontFamily: 'var(--font-mono)',
-          fontSize: '11px',
-          letterSpacing: '0.04em',
-          width: '160px',
-          outline: 'none',
-        }}
+        class="project-search-input"
       />
       {projectSearchQuery.value && (
         <button class="filter-btn" id="project-clear-btn" type="button" onClick={clearSearch}>

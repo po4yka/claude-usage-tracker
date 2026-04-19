@@ -62,7 +62,6 @@ import {
   selectedRange,
   selectedProvider,
   selectedBucket,
-  readBucket,
   projectSearchQuery,
   lastFilteredSessions,
   lastByProject,
@@ -70,7 +69,8 @@ import {
   planBadge,
   versionDonutMetric,
   loadState,
-  type ProviderFilter,
+  restoreDashboardStateFromUrl,
+  syncDashboardUrl,
 } from './state/store';
 import { $ } from './lib/format';
 import { downloadCSV } from './lib/csv';
@@ -116,47 +116,10 @@ function getRangeCutoff(range: RangeKey): string | null {
   return formatLocalDate(d);
 }
 
-function readURLRange(): RangeKey {
-  const p = new URLSearchParams(window.location.search).get('range');
-  return (['7d', '30d', '90d', 'all'] as RangeKey[]).includes(p as RangeKey) ? (p as RangeKey) : '30d';
-}
-
-function readURLProvider(): ProviderFilter {
-  const p = new URLSearchParams(window.location.search).get('provider');
-  return (['claude', 'codex', 'both'] as ProviderFilter[]).includes(p as ProviderFilter)
-    ? (p as ProviderFilter)
-    : 'both';
-}
-
-function readURLModels(allModels: string[]): Set<string> {
-  const param = new URLSearchParams(window.location.search).get('models');
-  if (!param) return new Set(allModels);
-  const fromURL = new Set(param.split(',').map(s => s.trim()).filter(Boolean));
-  return new Set(allModels.filter(m => fromURL.has(m)));
-}
-
 function matchesProvider<T extends { provider?: string }>(row: T): boolean {
   const p = selectedProvider.value;
   if (p === 'both') return true;
   return row.provider === p;
-}
-
-function isDefaultModelSelection(allModels: string[]): boolean {
-  if (selectedModels.value.size !== allModels.length) return false;
-  return allModels.every(m => selectedModels.value.has(m));
-}
-
-function updateURL(): void {
-  const allModels = rawData.value?.all_models ?? [];
-  const params = new URLSearchParams();
-  if (selectedRange.value !== '30d') params.set('range', selectedRange.value);
-  if (selectedProvider.value !== 'both') params.set('provider', selectedProvider.value);
-  if (!isDefaultModelSelection(allModels)) params.set('models', Array.from(selectedModels.value).join(','));
-  if (projectSearchQuery.value) params.set('project', projectSearchQuery.value);
-  if (versionDonutMetric.value !== 'cost') params.set('version_metric', versionDonutMetric.value);
-  if (selectedBucket.value !== 'day') params.set('bucket', selectedBucket.value);
-  const search = params.toString() ? '?' + params.toString() : '';
-  history.replaceState(null, '', window.location.pathname + search);
 }
 
 function matchesProjectSearch(project: string, displayName?: string): boolean {
@@ -647,7 +610,7 @@ function renderVersionSummary(data: VersionSummary[]): void {
 
   const handleMetricChange = (next: import('./state/store').VersionMetric) => {
     versionDonutMetric.value = next;
-    updateURL();
+    syncDashboardUrl();
     renderVersionSummary(data);
   };
 
@@ -894,11 +857,7 @@ async function loadData(force = false): Promise<void> {
     rawData.value = d;
 
     if (isFirstLoad) {
-      selectedRange.value = readURLRange();
-      selectedProvider.value = readURLProvider();
-      selectedModels.value = readURLModels(d.all_models);
-      const urlProject = new URLSearchParams(window.location.search).get('project');
-      if (urlProject) projectSearchQuery.value = urlProject;
+      restoreDashboardStateFromUrl(d.all_models);
     }
 
     applyFilter();
@@ -921,7 +880,7 @@ if (headerMount) {
 
 const filterBarMount = document.getElementById('filter-bar-mount');
 if (filterBarMount) {
-  render(<FilterBar onFilterChange={applyFilter} onURLUpdate={updateURL} />, filterBarMount);
+  render(<FilterBar onFilterChange={applyFilter} onURLUpdate={syncDashboardUrl} />, filterBarMount);
 }
 
 const footerEl = document.querySelector('footer');
@@ -937,8 +896,9 @@ if (globalStatusMount) {
 // ── Boot ─────────────────────────────────────────────────────────────
 // Restore URL-persisted signals on browser Back/Forward navigation.
 window.addEventListener('popstate', () => {
-  selectedBucket.value = readBucket();
-  if (rawData.value) applyFilter();
+  if (!rawData.value) return;
+  restoreDashboardStateFromUrl(rawData.value.all_models);
+  applyFilter();
 });
 
 loadData();
