@@ -10,6 +10,7 @@ interface HeaderProps {
 }
 
 export function Header({ onDataReload, onThemeToggle }: HeaderProps) {
+  const headerRef = useRef<HTMLElement | null>(null);
   const btnRef = useRef<HTMLButtonElement | null>(null);
   const triggerRef = useRef<(() => Promise<void>) | null>(null);
 
@@ -18,6 +19,25 @@ export function Header({ onDataReload, onThemeToggle }: HeaderProps) {
     if (!themeColorMeta) return;
     themeColorMeta.setAttribute('content', themeMode.value === 'light' ? '#F5F5F5' : '#000000');
   }, [themeMode.value]);
+
+  useEffect(() => {
+    if (!headerRef.current) return;
+    const root = document.documentElement;
+    const updateOffset = () => {
+      if (!headerRef.current) return;
+      root.style.setProperty('--header-offset', `${Math.ceil(headerRef.current.getBoundingClientRect().height)}px`);
+    };
+
+    updateOffset();
+    const observer = new ResizeObserver(() => updateOffset());
+    observer.observe(headerRef.current);
+    window.addEventListener('resize', updateOffset);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', updateOffset);
+    };
+  }, []);
 
   useEffect(() => {
     if (!btnRef.current) return;
@@ -55,7 +75,7 @@ export function Header({ onDataReload, onThemeToggle }: HeaderProps) {
       </svg>;
 
   return (
-    <header>
+    <header ref={headerRef}>
       <h1>
         <span class="accent">Code</span>{' '}Usage
         {planBadge.value && (

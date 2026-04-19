@@ -45,7 +45,7 @@ afterEach(() => {
 describe('store url state', () => {
   it('restores filter and table state from the URL', async () => {
     const { store } = await loadStore(
-      'http://localhost/dashboard?range=90d&provider=codex&models=zeta,alpha,ignored&project=heimdall&bucket=week&version_metric=tokens&agent_status_expanded=true&official_sync_expanded=true&sessions_page=3&sessions_hidden=cost,project',
+      'http://localhost/dashboard?range=90d&provider=codex&models=zeta,alpha,ignored&project=heimdall&bucket=week&version_metric=tokens&agent_status_expanded=true&official_sync_expanded=true&filters_expanded=1&sessions_page=3&sessions_hidden=cost,project',
     );
 
     store.restoreDashboardStateFromUrl(['alpha', 'beta', 'zeta']);
@@ -58,6 +58,7 @@ describe('store url state', () => {
     expect(store.versionDonutMetric.value).toBe('tokens');
     expect(store.agent_status_expanded.value).toBe(true);
     expect(store.official_sync_expanded.value).toBe(true);
+    expect(store.mobile_filters_expanded.value).toBe(true);
     expect(store.sessionsTablePagination.value).toEqual({
       pageIndex: 2,
       pageSize: store.SESSIONS_PAGE_SIZE,
@@ -82,6 +83,7 @@ describe('store url state', () => {
     expect(store.versionDonutMetric.value).toBe('cost');
     expect(store.agent_status_expanded.value).toBe(false);
     expect(store.official_sync_expanded.value).toBe(false);
+    expect(store.mobile_filters_expanded.value).toBe(false);
     expect(store.sessionsTablePagination.value).toEqual({
       pageIndex: 0,
       pageSize: store.SESSIONS_PAGE_SIZE,
@@ -101,6 +103,7 @@ describe('store url state', () => {
     store.selectedBucket.value = 'week';
     store.agent_status_expanded.value = true;
     store.official_sync_expanded.value = true;
+    store.mobile_filters_expanded.value = true;
     store.sessionsTablePagination.value = {
       pageIndex: 2,
       pageSize: store.SESSIONS_PAGE_SIZE,
@@ -116,10 +119,10 @@ describe('store url state', () => {
     expect(replaceState).toHaveBeenCalledWith(
       null,
       '',
-      '/dashboard?range=90d&provider=codex&models=gamma%2Calpha&project=heimdall&version_metric=tokens&bucket=week&agent_status_expanded=1&official_sync_expanded=1&sessions_page=3&sessions_hidden=alpha%2Czeta',
+      '/dashboard?range=90d&provider=codex&models=gamma%2Calpha&project=heimdall&version_metric=tokens&bucket=week&agent_status_expanded=1&official_sync_expanded=1&filters_expanded=1&sessions_page=3&sessions_hidden=alpha%2Czeta',
     );
     expect(location.search).toBe(
-      '?range=90d&provider=codex&models=gamma%2Calpha&project=heimdall&version_metric=tokens&bucket=week&agent_status_expanded=1&official_sync_expanded=1&sessions_page=3&sessions_hidden=alpha%2Czeta',
+      '?range=90d&provider=codex&models=gamma%2Calpha&project=heimdall&version_metric=tokens&bucket=week&agent_status_expanded=1&official_sync_expanded=1&filters_expanded=1&sessions_page=3&sessions_hidden=alpha%2Czeta',
     );
   });
 
@@ -135,6 +138,7 @@ describe('store url state', () => {
     store.selectedBucket.value = 'day';
     store.agent_status_expanded.value = false;
     store.official_sync_expanded.value = false;
+    store.mobile_filters_expanded.value = false;
     store.sessionsTablePagination.value = {
       pageIndex: 0,
       pageSize: store.SESSIONS_PAGE_SIZE,

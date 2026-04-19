@@ -64,7 +64,7 @@ function QuotaSection({ block }: QuotaSectionProps) {
     return (
       <div
         class="stat-sub"
-        style={{ marginTop: '8px', fontStyle: 'italic', opacity: 0.6 }}
+        style={{ marginTop: '8px', fontStyle: 'italic' }}
       >
         Token quota not configured — set [blocks.token_limit] in config.
       </div>

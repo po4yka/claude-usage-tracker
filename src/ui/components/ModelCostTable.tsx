@@ -17,6 +17,7 @@ function CostShareBar({ value, max, label }: { value: number; max: number; label
         {fmtCost(value)}
       </span>
       <div
+        role="img"
         style={{
           flex: 1,
           height: '4px',

@@ -5,6 +5,7 @@ import {
   selectedProvider,
   selectedBucket,
   projectSearchQuery,
+  mobile_filters_expanded,
   type ProviderFilter,
 } from '../state/store';
 import type { RangeKey, BucketKey } from '../state/types';
@@ -94,97 +95,138 @@ export function FilterBar({ onFilterChange, onURLUpdate }: FilterBarProps) {
     onFilterChange();
   };
 
+  const toggleMobileFilters = () => {
+    mobile_filters_expanded.value = !mobile_filters_expanded.value;
+    onURLUpdate();
+  };
+
+  const selectedModelCount = selectedModels.value.size;
+  const providerSummary = hasCodexData ? PROVIDER_LABEL[selectedProvider.value] : null;
+  const modelSummary = selectedModelCount === sortedModels.length
+    ? 'All Models'
+    : `${selectedModelCount}/${sortedModels.length} Models`;
+  const projectSummary = projectSearchQuery.value ? `Project ${projectSearchQuery.value}` : 'All Projects';
+  const filterSummary = [
+    selectedRange.value.toUpperCase(),
+    BUCKET_LABEL[selectedBucket.value],
+    providerSummary,
+    modelSummary,
+    projectSummary,
+  ].filter(Boolean).join(' · ');
+
   return (
-    <div id="filter-bar" role="toolbar" aria-label="Filters">
-      <div class="filter-label">Models</div>
-      <div id="model-checkboxes" role="group" aria-label="Model filters">
-        {sortedModels.map(model => {
-          const checked = selectedModels.value.has(model);
-          return (
-            <label key={model} class={`model-cb-label${checked ? ' checked' : ''}`} data-model={model}>
-              <input
-                type="checkbox"
-                value={model}
-                checked={checked}
-                onChange={(e) => toggleModel(model, (e.currentTarget as HTMLInputElement).checked)}
-                aria-label={model}
-              />
-              <span class="model-cb-text">{model}</span>
-            </label>
-          );
-        })}
-      </div>
-      <button class="filter-btn" type="button" onClick={selectAll}>All</button>
-      <button class="filter-btn" type="button" onClick={clearAll}>None</button>
-      <div class="filter-sep"></div>
-      <div class="filter-label">Range</div>
-      <div class="range-group" role="group" aria-label="Date range">
-        {RANGES.map(range => (
-          <button
-            key={range}
-            class={`range-btn${selectedRange.value === range ? ' active' : ''}`}
-            type="button"
-            data-range={range}
-            onClick={() => setRange(range)}
-          >
-            {range}
-          </button>
-        ))}
-      </div>
-      <div class="filter-sep"></div>
-      <div class="filter-label">Bucket</div>
-      <div class="range-group" role="group" aria-label="Chart bucket">
-        {BUCKETS.map(bucket => (
-          <button
-            key={bucket}
-            class={`range-btn${selectedBucket.value === bucket ? ' active' : ''}`}
-            type="button"
-            data-bucket={bucket}
-            onClick={() => setBucket(bucket)}
-          >
-            {BUCKET_LABEL[bucket]}
-          </button>
-        ))}
-      </div>
-      {hasCodexData && (
-        <>
-          <div class="filter-sep"></div>
-          <div class="filter-label">Provider</div>
-          <div class="range-group" role="group" aria-label="Provider">
-            {PROVIDERS.map(provider => (
-              <button
-                key={provider}
-                class={`range-btn${selectedProvider.value === provider ? ' active' : ''}`}
-                type="button"
-                data-provider={provider}
-                onClick={() => setProvider(provider)}
-              >
-                {PROVIDER_LABEL[provider]}
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-      <div class="filter-sep"></div>
-      <label for="project-search" class="filter-label">Project</label>
-      <input
-        type="text"
-        id="project-search"
-        name="project-search"
-        placeholder="Search projects…"
-        aria-label="Filter by project name"
-        autoComplete="off"
-        spellcheck={false}
-        enterKeyHint="search"
-        value={projectSearchQuery.value}
-        onInput={onSearchInput}
-        class="project-search-input"
-      />
-      {projectSearchQuery.value && (
-        <button class="filter-btn" id="project-clear-btn" type="button" onClick={clearSearch}>
-          Clear
+    <div
+      id="filter-bar"
+      role="toolbar"
+      aria-label="Filters"
+      class={mobile_filters_expanded.value ? 'expanded' : 'collapsed'}
+    >
+      <div class="mobile-filter-header">
+        <div class="mobile-filter-summary" aria-live="polite">
+          <span class="mobile-filter-summary-label">Filters</span>
+          <span class="mobile-filter-summary-text">{filterSummary}</span>
+        </div>
+        <button
+          class="mobile-filter-toggle"
+          type="button"
+          aria-expanded={mobile_filters_expanded.value}
+          aria-controls="filter-sections"
+          onClick={toggleMobileFilters}
+        >
+          {mobile_filters_expanded.value ? 'Hide' : 'Show'}
         </button>
-      )}
+      </div>
+      <div id="filter-sections" class="filter-sections">
+        <div class="filter-label">Models</div>
+        <div id="model-checkboxes" role="group" aria-label="Model filters">
+          {sortedModels.map(model => {
+            const checked = selectedModels.value.has(model);
+            return (
+              <label key={model} class={`model-cb-label${checked ? ' checked' : ''}`} data-model={model}>
+                <input
+                  type="checkbox"
+                  value={model}
+                  checked={checked}
+                  onChange={(e) => toggleModel(model, (e.currentTarget as HTMLInputElement).checked)}
+                  aria-label={model}
+                />
+                <span class="model-cb-text">{model}</span>
+              </label>
+            );
+          })}
+        </div>
+        <button class="filter-btn" type="button" onClick={selectAll}>All</button>
+        <button class="filter-btn" type="button" onClick={clearAll}>None</button>
+        <div class="filter-sep"></div>
+        <div class="filter-label">Range</div>
+        <div class="range-group" role="group" aria-label="Date range">
+          {RANGES.map(range => (
+            <button
+              key={range}
+              class={`range-btn${selectedRange.value === range ? ' active' : ''}`}
+              type="button"
+              data-range={range}
+              onClick={() => setRange(range)}
+            >
+              {range}
+            </button>
+          ))}
+        </div>
+        <div class="filter-sep"></div>
+        <div class="filter-label">Bucket</div>
+        <div class="range-group" role="group" aria-label="Chart bucket">
+          {BUCKETS.map(bucket => (
+            <button
+              key={bucket}
+              class={`range-btn${selectedBucket.value === bucket ? ' active' : ''}`}
+              type="button"
+              data-bucket={bucket}
+              onClick={() => setBucket(bucket)}
+            >
+              {BUCKET_LABEL[bucket]}
+            </button>
+          ))}
+        </div>
+        {hasCodexData && (
+          <>
+            <div class="filter-sep"></div>
+            <div class="filter-label">Provider</div>
+            <div class="range-group" role="group" aria-label="Provider">
+              {PROVIDERS.map(provider => (
+                <button
+                  key={provider}
+                  class={`range-btn${selectedProvider.value === provider ? ' active' : ''}`}
+                  type="button"
+                  data-provider={provider}
+                  onClick={() => setProvider(provider)}
+                >
+                  {PROVIDER_LABEL[provider]}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+        <div class="filter-sep"></div>
+        <label for="project-search" class="filter-label">Project</label>
+        <input
+          type="text"
+          id="project-search"
+          name="project-search"
+          placeholder="Search projects…"
+          aria-label="Filter by project name"
+          autoComplete="off"
+          spellcheck={false}
+          enterKeyHint="search"
+          value={projectSearchQuery.value}
+          onInput={onSearchInput}
+          class="project-search-input"
+        />
+        {projectSearchQuery.value && (
+          <button class="filter-btn" id="project-clear-btn" type="button" onClick={clearSearch}>
+            Clear
+          </button>
+        )}
+      </div>
     </div>
   );
 }

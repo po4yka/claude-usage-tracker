@@ -12,6 +12,7 @@ export const costReconciliationData = signal<CostReconciliationResponse | null>(
 export type ProviderFilter = 'claude' | 'codex' | 'both';
 const SESSIONS_PAGE_PARAM = 'sessions_page';
 const SESSIONS_HIDDEN_COLUMNS_PARAM = 'sessions_hidden';
+const FILTERS_EXPANDED_PARAM = 'filters_expanded';
 
 export const selectedModels = signal<Set<string>>(new Set());
 export const selectedRange = signal<RangeKey>('30d');
@@ -140,8 +141,14 @@ function readOfficialSyncExpanded(): boolean {
   return p === '1' || p === 'true';
 }
 
+function readFiltersExpanded(): boolean {
+  const p = readSearchParam(FILTERS_EXPANDED_PARAM);
+  return p === '1' || p === 'true';
+}
+
 export const agent_status_expanded = signal<boolean>(readAgentStatusExpanded());
 export const official_sync_expanded = signal<boolean>(readOfficialSyncExpanded());
+export const mobile_filters_expanded = signal<boolean>(readFiltersExpanded());
 export const sessionsTablePagination = signal<PaginationState>(readSessionsTablePagination());
 export const sessionsTableColumnVisibility = signal<VisibilityState>(readSessionsTableColumnVisibility());
 
@@ -154,6 +161,7 @@ export function restoreDashboardStateFromUrl(allModels: string[]): void {
   versionDonutMetric.value = readVersionMetric();
   agent_status_expanded.value = readAgentStatusExpanded();
   official_sync_expanded.value = readOfficialSyncExpanded();
+  mobile_filters_expanded.value = readFiltersExpanded();
   sessionsTablePagination.value = readSessionsTablePagination();
   sessionsTableColumnVisibility.value = readSessionsTableColumnVisibility();
 }
@@ -172,6 +180,7 @@ export function syncDashboardUrl(): void {
   if (selectedBucket.value !== 'day') params.set('bucket', selectedBucket.value);
   if (agent_status_expanded.value) params.set('agent_status_expanded', '1');
   if (official_sync_expanded.value) params.set('official_sync_expanded', '1');
+  if (mobile_filters_expanded.value) params.set(FILTERS_EXPANDED_PARAM, '1');
 
   const pageNumber = sessionsTablePagination.value.pageIndex + 1;
   if (pageNumber > 1) params.set(SESSIONS_PAGE_PARAM, String(pageNumber));

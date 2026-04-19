@@ -70,6 +70,7 @@ export function CacheEfficiencyCard({
       </div>
       {/* Monochrome horizontal progress bar */}
       <div
+        role="img"
         style={{
           marginTop: '10px',
           height: '4px',

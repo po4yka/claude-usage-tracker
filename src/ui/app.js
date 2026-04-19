@@ -1107,6 +1107,7 @@
   var costReconciliationData = y3(null);
   var SESSIONS_PAGE_PARAM = "sessions_page";
   var SESSIONS_HIDDEN_COLUMNS_PARAM = "sessions_hidden";
+  var FILTERS_EXPANDED_PARAM = "filters_expanded";
   var selectedModels = y3(/* @__PURE__ */ new Set());
   var selectedRange = y3("30d");
   var selectedProvider = y3("both");
@@ -1188,8 +1189,13 @@
     const p5 = readSearchParam("official_sync_expanded");
     return p5 === "1" || p5 === "true";
   }
+  function readFiltersExpanded() {
+    const p5 = readSearchParam(FILTERS_EXPANDED_PARAM);
+    return p5 === "1" || p5 === "true";
+  }
   var agent_status_expanded = y3(readAgentStatusExpanded());
   var official_sync_expanded = y3(readOfficialSyncExpanded());
+  var mobile_filters_expanded = y3(readFiltersExpanded());
   var sessionsTablePagination = y3(readSessionsTablePagination());
   var sessionsTableColumnVisibility = y3(readSessionsTableColumnVisibility());
   function restoreDashboardStateFromUrl(allModels) {
@@ -1201,6 +1207,7 @@
     versionDonutMetric.value = readVersionMetric();
     agent_status_expanded.value = readAgentStatusExpanded();
     official_sync_expanded.value = readOfficialSyncExpanded();
+    mobile_filters_expanded.value = readFiltersExpanded();
     sessionsTablePagination.value = readSessionsTablePagination();
     sessionsTableColumnVisibility.value = readSessionsTableColumnVisibility();
   }
@@ -1217,6 +1224,7 @@
     if (selectedBucket.value !== "day") params.set("bucket", selectedBucket.value);
     if (agent_status_expanded.value) params.set("agent_status_expanded", "1");
     if (official_sync_expanded.value) params.set("official_sync_expanded", "1");
+    if (mobile_filters_expanded.value) params.set(FILTERS_EXPANDED_PARAM, "1");
     const pageNumber = sessionsTablePagination.value.pageIndex + 1;
     if (pageNumber > 1) params.set(SESSIONS_PAGE_PARAM, String(pageNumber));
     const hiddenColumns = Object.entries(sessionsTableColumnVisibility.value).filter(([, isVisible]) => isVisible === false).map(([columnId]) => columnId).sort();
@@ -1310,6 +1318,7 @@
 
   // src/ui/components/Header.tsx
   function Header({ onDataReload, onThemeToggle }) {
+    const headerRef = A2(null);
     const btnRef = A2(null);
     const triggerRef = A2(null);
     y2(() => {
@@ -1317,6 +1326,22 @@
       if (!themeColorMeta) return;
       themeColorMeta.setAttribute("content", themeMode.value === "light" ? "#F5F5F5" : "#000000");
     }, [themeMode.value]);
+    y2(() => {
+      if (!headerRef.current) return;
+      const root = document.documentElement;
+      const updateOffset = () => {
+        if (!headerRef.current) return;
+        root.style.setProperty("--header-offset", `${Math.ceil(headerRef.current.getBoundingClientRect().height)}px`);
+      };
+      updateOffset();
+      const observer = new ResizeObserver(() => updateOffset());
+      observer.observe(headerRef.current);
+      window.addEventListener("resize", updateOffset);
+      return () => {
+        observer.disconnect();
+        window.removeEventListener("resize", updateOffset);
+      };
+    }, []);
     y2(() => {
       if (!btnRef.current) return;
       const proxy = {
@@ -1354,7 +1379,7 @@
       /* @__PURE__ */ u2("line", { x1: "4.22", y1: "19.78", x2: "5.64", y2: "18.36" }),
       /* @__PURE__ */ u2("line", { x1: "18.36", y1: "5.64", x2: "19.78", y2: "4.22" })
     ] });
-    return /* @__PURE__ */ u2("header", { children: [
+    return /* @__PURE__ */ u2("header", { ref: headerRef, children: [
       /* @__PURE__ */ u2("h1", { children: [
         /* @__PURE__ */ u2("span", { class: "accent", children: "Code" }),
         " ",
@@ -1478,87 +1503,130 @@
       onURLUpdate();
       onFilterChange();
     };
-    return /* @__PURE__ */ u2("div", { id: "filter-bar", role: "toolbar", "aria-label": "Filters", children: [
-      /* @__PURE__ */ u2("div", { class: "filter-label", children: "Models" }),
-      /* @__PURE__ */ u2("div", { id: "model-checkboxes", role: "group", "aria-label": "Model filters", children: sortedModels.map((model) => {
-        const checked = selectedModels.value.has(model);
-        return /* @__PURE__ */ u2("label", { class: `model-cb-label${checked ? " checked" : ""}`, "data-model": model, children: [
-          /* @__PURE__ */ u2(
-            "input",
-            {
-              type: "checkbox",
-              value: model,
-              checked,
-              onChange: (e4) => toggleModel(model, e4.currentTarget.checked),
-              "aria-label": model
-            }
-          ),
-          /* @__PURE__ */ u2("span", { class: "model-cb-text", children: model })
-        ] }, model);
-      }) }),
-      /* @__PURE__ */ u2("button", { class: "filter-btn", type: "button", onClick: selectAll, children: "All" }),
-      /* @__PURE__ */ u2("button", { class: "filter-btn", type: "button", onClick: clearAll, children: "None" }),
-      /* @__PURE__ */ u2("div", { class: "filter-sep" }),
-      /* @__PURE__ */ u2("div", { class: "filter-label", children: "Range" }),
-      /* @__PURE__ */ u2("div", { class: "range-group", role: "group", "aria-label": "Date range", children: RANGES.map((range) => /* @__PURE__ */ u2(
-        "button",
-        {
-          class: `range-btn${selectedRange.value === range ? " active" : ""}`,
-          type: "button",
-          "data-range": range,
-          onClick: () => setRange(range),
-          children: range
-        },
-        range
-      )) }),
-      /* @__PURE__ */ u2("div", { class: "filter-sep" }),
-      /* @__PURE__ */ u2("div", { class: "filter-label", children: "Bucket" }),
-      /* @__PURE__ */ u2("div", { class: "range-group", role: "group", "aria-label": "Chart bucket", children: BUCKETS.map((bucket) => /* @__PURE__ */ u2(
-        "button",
-        {
-          class: `range-btn${selectedBucket.value === bucket ? " active" : ""}`,
-          type: "button",
-          "data-bucket": bucket,
-          onClick: () => setBucket(bucket),
-          children: BUCKET_LABEL[bucket]
-        },
-        bucket
-      )) }),
-      hasCodexData && /* @__PURE__ */ u2(S, { children: [
-        /* @__PURE__ */ u2("div", { class: "filter-sep" }),
-        /* @__PURE__ */ u2("div", { class: "filter-label", children: "Provider" }),
-        /* @__PURE__ */ u2("div", { class: "range-group", role: "group", "aria-label": "Provider", children: PROVIDERS.map((provider) => /* @__PURE__ */ u2(
-          "button",
-          {
-            class: `range-btn${selectedProvider.value === provider ? " active" : ""}`,
-            type: "button",
-            "data-provider": provider,
-            onClick: () => setProvider(provider),
-            children: PROVIDER_LABEL[provider]
-          },
-          provider
-        )) })
-      ] }),
-      /* @__PURE__ */ u2("div", { class: "filter-sep" }),
-      /* @__PURE__ */ u2("label", { for: "project-search", class: "filter-label", children: "Project" }),
-      /* @__PURE__ */ u2(
-        "input",
-        {
-          type: "text",
-          id: "project-search",
-          name: "project-search",
-          placeholder: "Search projects\u2026",
-          "aria-label": "Filter by project name",
-          autoComplete: "off",
-          spellcheck: false,
-          enterKeyHint: "search",
-          value: projectSearchQuery.value,
-          onInput: onSearchInput,
-          class: "project-search-input"
-        }
-      ),
-      projectSearchQuery.value && /* @__PURE__ */ u2("button", { class: "filter-btn", id: "project-clear-btn", type: "button", onClick: clearSearch, children: "Clear" })
-    ] });
+    const toggleMobileFilters = () => {
+      mobile_filters_expanded.value = !mobile_filters_expanded.value;
+      onURLUpdate();
+    };
+    const selectedModelCount = selectedModels.value.size;
+    const providerSummary = hasCodexData ? PROVIDER_LABEL[selectedProvider.value] : null;
+    const modelSummary = selectedModelCount === sortedModels.length ? "All Models" : `${selectedModelCount}/${sortedModels.length} Models`;
+    const projectSummary = projectSearchQuery.value ? `Project ${projectSearchQuery.value}` : "All Projects";
+    const filterSummary = [
+      selectedRange.value.toUpperCase(),
+      BUCKET_LABEL[selectedBucket.value],
+      providerSummary,
+      modelSummary,
+      projectSummary
+    ].filter(Boolean).join(" \xB7 ");
+    return /* @__PURE__ */ u2(
+      "div",
+      {
+        id: "filter-bar",
+        role: "toolbar",
+        "aria-label": "Filters",
+        class: mobile_filters_expanded.value ? "expanded" : "collapsed",
+        children: [
+          /* @__PURE__ */ u2("div", { class: "mobile-filter-header", children: [
+            /* @__PURE__ */ u2("div", { class: "mobile-filter-summary", "aria-live": "polite", children: [
+              /* @__PURE__ */ u2("span", { class: "mobile-filter-summary-label", children: "Filters" }),
+              /* @__PURE__ */ u2("span", { class: "mobile-filter-summary-text", children: filterSummary })
+            ] }),
+            /* @__PURE__ */ u2(
+              "button",
+              {
+                class: "mobile-filter-toggle",
+                type: "button",
+                "aria-expanded": mobile_filters_expanded.value,
+                "aria-controls": "filter-sections",
+                onClick: toggleMobileFilters,
+                children: mobile_filters_expanded.value ? "Hide" : "Show"
+              }
+            )
+          ] }),
+          /* @__PURE__ */ u2("div", { id: "filter-sections", class: "filter-sections", children: [
+            /* @__PURE__ */ u2("div", { class: "filter-label", children: "Models" }),
+            /* @__PURE__ */ u2("div", { id: "model-checkboxes", role: "group", "aria-label": "Model filters", children: sortedModels.map((model) => {
+              const checked = selectedModels.value.has(model);
+              return /* @__PURE__ */ u2("label", { class: `model-cb-label${checked ? " checked" : ""}`, "data-model": model, children: [
+                /* @__PURE__ */ u2(
+                  "input",
+                  {
+                    type: "checkbox",
+                    value: model,
+                    checked,
+                    onChange: (e4) => toggleModel(model, e4.currentTarget.checked),
+                    "aria-label": model
+                  }
+                ),
+                /* @__PURE__ */ u2("span", { class: "model-cb-text", children: model })
+              ] }, model);
+            }) }),
+            /* @__PURE__ */ u2("button", { class: "filter-btn", type: "button", onClick: selectAll, children: "All" }),
+            /* @__PURE__ */ u2("button", { class: "filter-btn", type: "button", onClick: clearAll, children: "None" }),
+            /* @__PURE__ */ u2("div", { class: "filter-sep" }),
+            /* @__PURE__ */ u2("div", { class: "filter-label", children: "Range" }),
+            /* @__PURE__ */ u2("div", { class: "range-group", role: "group", "aria-label": "Date range", children: RANGES.map((range) => /* @__PURE__ */ u2(
+              "button",
+              {
+                class: `range-btn${selectedRange.value === range ? " active" : ""}`,
+                type: "button",
+                "data-range": range,
+                onClick: () => setRange(range),
+                children: range
+              },
+              range
+            )) }),
+            /* @__PURE__ */ u2("div", { class: "filter-sep" }),
+            /* @__PURE__ */ u2("div", { class: "filter-label", children: "Bucket" }),
+            /* @__PURE__ */ u2("div", { class: "range-group", role: "group", "aria-label": "Chart bucket", children: BUCKETS.map((bucket) => /* @__PURE__ */ u2(
+              "button",
+              {
+                class: `range-btn${selectedBucket.value === bucket ? " active" : ""}`,
+                type: "button",
+                "data-bucket": bucket,
+                onClick: () => setBucket(bucket),
+                children: BUCKET_LABEL[bucket]
+              },
+              bucket
+            )) }),
+            hasCodexData && /* @__PURE__ */ u2(S, { children: [
+              /* @__PURE__ */ u2("div", { class: "filter-sep" }),
+              /* @__PURE__ */ u2("div", { class: "filter-label", children: "Provider" }),
+              /* @__PURE__ */ u2("div", { class: "range-group", role: "group", "aria-label": "Provider", children: PROVIDERS.map((provider) => /* @__PURE__ */ u2(
+                "button",
+                {
+                  class: `range-btn${selectedProvider.value === provider ? " active" : ""}`,
+                  type: "button",
+                  "data-provider": provider,
+                  onClick: () => setProvider(provider),
+                  children: PROVIDER_LABEL[provider]
+                },
+                provider
+              )) })
+            ] }),
+            /* @__PURE__ */ u2("div", { class: "filter-sep" }),
+            /* @__PURE__ */ u2("label", { for: "project-search", class: "filter-label", children: "Project" }),
+            /* @__PURE__ */ u2(
+              "input",
+              {
+                type: "text",
+                id: "project-search",
+                name: "project-search",
+                placeholder: "Search projects\u2026",
+                "aria-label": "Filter by project name",
+                autoComplete: "off",
+                spellcheck: false,
+                enterKeyHint: "search",
+                value: projectSearchQuery.value,
+                onInput: onSearchInput,
+                class: "project-search-input"
+              }
+            ),
+            projectSearchQuery.value && /* @__PURE__ */ u2("button", { class: "filter-btn", id: "project-clear-btn", type: "button", onClick: clearSearch, children: "Clear" })
+          ] })
+        ]
+      }
+    );
   }
 
   // src/ui/lib/format.ts
@@ -1721,7 +1789,7 @@
     return /* @__PURE__ */ u2(
       "span",
       {
-        "aria-label": `Status: ${indicator}`,
+        "aria-hidden": "true",
         style: {
           display: "inline-block",
           width: "10px",
@@ -1771,7 +1839,16 @@
             href: status.page_url,
             target: "_blank",
             rel: "noopener noreferrer",
-            style: { color: "var(--text-secondary)", fontSize: "11px", marginLeft: "4px" },
+            style: {
+              color: "var(--text-secondary)",
+              fontSize: "11px",
+              marginLeft: "4px",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              minWidth: "24px",
+              minHeight: "24px"
+            },
             "aria-label": `${name} status page`,
             children: "\u2197"
           }
@@ -1895,22 +1972,30 @@
             hasData && /* @__PURE__ */ u2(
               "button",
               {
+                type: "button",
                 onClick: () => {
                   agent_status_expanded.value = !expanded;
                   syncDashboardUrl();
                 },
                 style: {
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "4px",
                   background: "none",
                   border: "none",
                   cursor: "pointer",
                   color: "var(--text-secondary)",
                   fontSize: "11px",
                   fontFamily: "var(--font-mono)",
-                  padding: "2px 4px"
+                  minHeight: "32px",
+                  padding: "6px 8px"
                 },
                 "aria-expanded": expanded,
-                "aria-label": "Toggle agent status details",
-                children: expanded ? "\u25B2 collapse" : "\u25BC expand"
+                children: [
+                  /* @__PURE__ */ u2("span", { "aria-hidden": "true", children: expanded ? "\u25B2" : "\u25BC" }),
+                  /* @__PURE__ */ u2("span", { children: expanded ? "Collapse" : "Expand" })
+                ]
               }
             )
           ]
@@ -2532,6 +2617,7 @@
       /* @__PURE__ */ u2(
         "div",
         {
+          role: "img",
           style: {
             marginTop: "10px",
             height: "4px",
@@ -2605,7 +2691,7 @@
         "div",
         {
           class: "stat-sub",
-          style: { marginTop: "8px", fontStyle: "italic", opacity: 0.6 },
+          style: { marginTop: "8px", fontStyle: "italic" },
           children: "Token quota not configured \u2014 set [blocks.token_limit] in config."
         }
       );
@@ -2730,7 +2816,7 @@
         ] })
       ] }) });
     }
-    const totalTokens = activeBlock.tokens.input + activeBlock.tokens.output + activeBlock.tokens.cache_read + activeBlock.tokens.cache_creation + activeBlock.tokens.reasoning_output;
+    const totalTokens2 = activeBlock.tokens.input + activeBlock.tokens.output + activeBlock.tokens.cache_read + activeBlock.tokens.cache_creation + activeBlock.tokens.reasoning_output;
     const elapsed = formatDuration(activeBlock.first_timestamp, activeBlock.last_timestamp);
     const blockEnd = fmtUtcTime(activeBlock.end);
     return /* @__PURE__ */ u2("div", { class: "card stat-card", children: [
@@ -2741,7 +2827,7 @@
           {
             class: "stat-value",
             style: { fontFamily: "var(--font-mono)", letterSpacing: "-0.02em" },
-            children: fmtTokens(totalTokens)
+            children: fmtTokens(totalTokens2)
           }
         ),
         /* @__PURE__ */ u2("div", { class: "stat-sub", children: [
@@ -6714,6 +6800,7 @@ ${row.project}` : row.project;
       /* @__PURE__ */ u2(
         "div",
         {
+          role: "img",
           style: {
             flex: 1,
             height: "4px",
@@ -7048,86 +7135,149 @@ ${row.project}` : row.project;
   }
 
   // src/ui/components/ModelChart.tsx
+  var METRIC_LABELS2 = {
+    cost: "Cost",
+    tokens: "Tokens",
+    calls: "Calls"
+  };
+  var SLICE_OPACITY_LADDER = [1, 0.64, 0.46, 0.34, 0.24, 0.16];
+  function totalTokens(row) {
+    return row.input + row.output + row.cache_read + row.cache_creation + row.reasoning_output;
+  }
+  function metricValue2(row, metric) {
+    switch (metric) {
+      case "cost":
+        return row.cost;
+      case "tokens":
+        return totalTokens(row);
+      case "calls":
+        return row.turns;
+    }
+  }
+  function formatMetricValue(value, metric, large = false) {
+    switch (metric) {
+      case "cost":
+        return large ? value < 1 ? fmtCost(value) : fmtCostBig(value) : fmtCost(value);
+      case "tokens":
+      case "calls":
+        return fmt(value);
+    }
+  }
+  function formatShare(share) {
+    if (share >= 99.5) return "100%";
+    if (share >= 10) return `${share.toFixed(0)}%`;
+    return `${share.toFixed(1)}%`;
+  }
   function ModelChart({ byModel }) {
     if (!byModel.length) return null;
-    const sorted = [...byModel].sort((a4, b4) => b4.input + b4.output - (a4.input + a4.output));
-    const TOP_N = 4;
+    const [selectedMetric, setSelectedMetric] = d2("cost");
+    const totals = {
+      cost: byModel.reduce((sum2, row) => sum2 + row.cost, 0),
+      tokens: byModel.reduce((sum2, row) => sum2 + totalTokens(row), 0),
+      calls: byModel.reduce((sum2, row) => sum2 + row.turns, 0)
+    };
+    const enabledMetrics = Object.keys(METRIC_LABELS2).filter((metric2) => totals[metric2] > 0);
+    const metric = enabledMetrics.includes(selectedMetric) ? selectedMetric : enabledMetrics[0] ?? "cost";
+    const sorted = [...byModel].map((row) => ({
+      row,
+      value: metricValue2(row, metric),
+      tokens: totalTokens(row)
+    })).filter((entry) => entry.value > 0).sort((a4, b4) => b4.value - a4.value);
+    if (!sorted.length) return null;
+    const TOP_N = 5;
     const top = sorted.slice(0, TOP_N);
     const rest = sorted.slice(TOP_N);
-    const series = top.map((m4) => m4.input + m4.output);
-    const labels = top.map((m4) => m4.model);
-    if (rest.length > 0) {
-      const otherTotal = rest.reduce((s4, m4) => s4 + m4.input + m4.output, 0);
-      if (otherTotal > 0) {
-        series.push(otherTotal);
-        labels.push(`Other (${rest.length})`);
-      }
+    const total = sorted.reduce((sum2, entry) => sum2 + entry.value, 0);
+    const rows = top.map((entry, index) => ({
+      label: entry.row.model,
+      value: entry.value,
+      share: total > 0 ? entry.value / total * 100 : 0,
+      cost: entry.row.cost,
+      calls: entry.row.turns,
+      tokens: entry.tokens,
+      color: withAlpha("--text-display", SLICE_OPACITY_LADDER[Math.min(index, SLICE_OPACITY_LADDER.length - 1)] ?? 0.16),
+      isOther: false
+    }));
+    const otherValue = rest.reduce((sum2, entry) => sum2 + entry.value, 0);
+    const hasOther = otherValue > 0;
+    if (hasOther) {
+      rows.push({
+        label: `Other (${rest.length})`,
+        value: otherValue,
+        share: total > 0 ? otherValue / total * 100 : 0,
+        cost: rest.reduce((sum2, entry) => sum2 + entry.row.cost, 0),
+        calls: rest.reduce((sum2, entry) => sum2 + entry.row.turns, 0),
+        tokens: rest.reduce((sum2, entry) => sum2 + entry.tokens, 0),
+        color: withAlpha("--text-display", SLICE_OPACITY_LADDER[Math.min(rows.length, SLICE_OPACITY_LADDER.length - 1)] ?? 0.16),
+        isOther: true
+      });
     }
-    const OPACITY_LADDER = [1, 0.55, 0.4, 0.28, 0.18];
-    const sliceColors = labels.map(
-      (_4, i4) => withAlpha("--text-display", OPACITY_LADDER[Math.min(i4, OPACITY_LADDER.length - 1)] ?? 0.18)
-    );
     const base = industrialChartOptions("donut");
     const options = {
       ...base,
       chart: { ...base.chart, type: "donut" },
-      series,
-      labels,
-      colors: sliceColors,
+      series: rows.map((row) => row.value),
+      labels: rows.map((row) => row.label),
+      colors: rows.map((row) => row.color),
       stroke: { width: 2, colors: [cssVar("--surface")] },
-      // Filter-based hover cue preserves the donut's colour palette. Without
-      // this, ApexCharts swaps the total label's colour to the hovered slice
-      // (see apexcharts/apexcharts.js#3264). The filter is deliberately
-      // gentle — on dark themes the low-opacity tail slices are near-black
-      // and a stronger lighten produces distracting white flashes.
-      states: { hover: { filter: { type: "lighten", value: 0.06 } } },
-      legend: {
-        ...base.legend,
-        itemMargin: { horizontal: 10, vertical: 2 },
-        onItemHover: { highlightDataSeries: false },
-        formatter: (label) => truncateMid(label, 18, 6)
+      legend: { ...base.legend, show: false },
+      states: {
+        hover: { filter: { type: "none", value: 0 } },
+        active: { filter: { type: "none", value: 0 } }
       },
-      // Anchor the tooltip below the ring via bottomLeft so it never covers
-      // the card's "BY MODEL" title. bottomRight would push the tooltip past
-      // the card's right edge where overflow:hidden would clip it.
       tooltip: {
         ...base.tooltip,
-        fixed: { enabled: true, position: "bottomLeft", offsetX: 0, offsetY: 0 },
-        y: { formatter: (v4) => fmt(v4) + " tokens" }
+        custom: ({ seriesIndex }) => {
+          const row = rows[seriesIndex];
+          if (!row) return "";
+          return `<div style="padding:8px 12px;font-family:var(--font-mono,'Space Mono',monospace);font-size:11px;line-height:1.6"><strong>${esc(row.label)}</strong><br/>${esc(METRIC_LABELS2[metric])}: ${esc(formatMetricValue(row.value, metric))} (${esc(formatShare(row.share))} share)<br/>Cost: ${esc(formatMetricValue(row.cost, "cost"))} &nbsp;&bull;&nbsp; Calls: ${esc(formatMetricValue(row.calls, "calls"))} &nbsp;&bull;&nbsp; Tokens: ${esc(formatMetricValue(row.tokens, "tokens"))}</div>`;
+        }
       },
       plotOptions: {
         pie: {
+          expandOnClick: false,
           donut: {
-            size: "64%",
-            labels: {
-              show: true,
-              total: {
-                show: true,
-                // Keep the resting TOTAL visible while a slice is hovered.
-                showAlways: true,
-                label: "TOTAL",
-                fontFamily: 'var(--font-mono), "Space Mono", monospace',
-                fontSize: "11px",
-                color: cssVar("--text-secondary"),
-                formatter: (w5) => fmt(w5.globals.seriesTotals.reduce((a4, b4) => a4 + b4, 0))
-              },
-              value: {
-                fontFamily: 'var(--font-mono), "Space Mono", monospace',
-                fontSize: "20px",
-                color: cssVar("--text-display"),
-                formatter: (val) => fmt(Number(val))
-              },
-              name: {
-                fontFamily: 'var(--font-mono), "Space Mono", monospace',
-                fontSize: "11px",
-                color: cssVar("--text-display")
-              }
-            }
+            size: "72%",
+            labels: { show: false }
           }
         }
       }
     };
-    return /* @__PURE__ */ u2(ApexChart, { options, id: "chart-model" });
+    return /* @__PURE__ */ u2("div", { class: "model-chart-panel", children: [
+      /* @__PURE__ */ u2("div", { class: "range-group", "aria-label": "Model metric", children: Object.keys(METRIC_LABELS2).map((nextMetric) => /* @__PURE__ */ u2(
+        "button",
+        {
+          type: "button",
+          class: `range-btn${metric === nextMetric ? " active" : ""}`,
+          disabled: totals[nextMetric] <= 0,
+          "aria-pressed": metric === nextMetric,
+          onClick: () => setSelectedMetric(nextMetric),
+          children: METRIC_LABELS2[nextMetric]
+        },
+        nextMetric
+      )) }),
+      /* @__PURE__ */ u2("div", { class: "model-chart-ring", children: [
+        /* @__PURE__ */ u2(ApexChart, { options, id: "chart-model-apex" }),
+        /* @__PURE__ */ u2("div", { class: "model-chart-center", "aria-hidden": "true", children: /* @__PURE__ */ u2("div", { class: "model-chart-center-inner", children: [
+          /* @__PURE__ */ u2("div", { class: "model-chart-center-kicker", children: METRIC_LABELS2[metric] }),
+          /* @__PURE__ */ u2("div", { class: "model-chart-center-total", children: formatMetricValue(total, metric, true) }),
+          hasOther ? /* @__PURE__ */ u2("div", { class: "model-chart-center-meta", children: "Top 5 + Other" }) : null
+        ] }) })
+      ] }),
+      /* @__PURE__ */ u2("div", { class: "model-share-list", children: rows.map((row) => /* @__PURE__ */ u2("div", { class: "model-share-row", children: [
+        /* @__PURE__ */ u2("div", { class: "model-share-row-head", children: [
+          /* @__PURE__ */ u2("div", { class: "model-share-label", children: [
+            /* @__PURE__ */ u2("span", { class: "model-share-swatch", style: { background: row.color }, "aria-hidden": "true" }),
+            /* @__PURE__ */ u2("span", { title: row.label, children: truncateMid(row.label, row.isOther ? 18 : 24, 8) })
+          ] }),
+          /* @__PURE__ */ u2("div", { class: "model-share-value", children: formatMetricValue(row.value, metric) })
+        ] }),
+        /* @__PURE__ */ u2("div", { class: "model-share-row-meta", children: [
+          /* @__PURE__ */ u2("div", { class: "model-share-bar", "aria-label": `${row.label} ${METRIC_LABELS2[metric]} share`, children: /* @__PURE__ */ u2("div", { class: "model-share-bar-fill", style: { width: `${Math.min(100, row.share)}%`, background: row.color } }) }),
+          /* @__PURE__ */ u2("div", { class: "model-share-percent", children: formatShare(row.share) })
+        ] })
+      ] }, row.label)) })
+    ] });
   }
 
   // src/ui/components/ProjectChart.tsx

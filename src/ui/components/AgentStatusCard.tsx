@@ -19,7 +19,7 @@ function IndicatorDot({ indicator }: { indicator: StatusIndicator }) {
 
   return (
     <span
-      aria-label={`Status: ${indicator}`}
+      aria-hidden="true"
       style={{
         display: 'inline-block',
         width: '10px',
@@ -77,7 +77,16 @@ function ProviderRow({ name, status, expanded }: ProviderRowProps) {
           href={status.page_url}
           target="_blank"
           rel="noopener noreferrer"
-          style={{ color: 'var(--text-secondary)', fontSize: '11px', marginLeft: '4px' }}
+          style={{
+            color: 'var(--text-secondary)',
+            fontSize: '11px',
+            marginLeft: '4px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            minWidth: '24px',
+            minHeight: '24px',
+          }}
           aria-label={`${name} status page`}
         >
           ↗
@@ -227,23 +236,29 @@ export function AgentStatusCard({ snapshot, communitySignal }: AgentStatusCardPr
           <div class="stat-label">Agent Status</div>
           {hasData && (
             <button
+              type="button"
               onClick={() => {
                 agent_status_expanded.value = !expanded;
                 syncDashboardUrl();
               }}
               style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '4px',
                 background: 'none',
                 border: 'none',
                 cursor: 'pointer',
                 color: 'var(--text-secondary)',
                 fontSize: '11px',
                 fontFamily: 'var(--font-mono)',
-                padding: '2px 4px',
+                minHeight: '32px',
+                padding: '6px 8px',
               }}
               aria-expanded={expanded}
-              aria-label="Toggle agent status details"
             >
-              {expanded ? '▲ collapse' : '▼ expand'}
+              <span aria-hidden="true">{expanded ? '▲' : '▼'}</span>
+              <span>{expanded ? 'Collapse' : 'Expand'}</span>
             </button>
           )}
         </div>
