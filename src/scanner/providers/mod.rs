@@ -1,3 +1,4 @@
+pub mod amp;
 pub mod claude;
 pub mod codex;
 pub mod copilot;
@@ -7,6 +8,7 @@ pub mod opencode;
 pub mod pi;
 pub mod xcode;
 
+pub use amp::AmpProvider;
 pub use claude::ClaudeProvider;
 pub use codex::CodexProvider;
 pub use copilot::CopilotProvider;
@@ -48,6 +50,7 @@ pub fn all() -> Vec<Box<dyn Provider>> {
         Box::new(OpenCodeProvider::new()),
         Box::new(PiProvider::new()),
         Box::new(CopilotProvider::new()),
+        Box::new(AmpProvider::new()),
     ];
     #[cfg(target_os = "macos")]
     providers.push(Box::new(XcodeProvider::new(vec![home.join(
@@ -101,6 +104,16 @@ mod tests {
     }
 
     #[test]
+    fn all_contains_amp_provider() {
+        let providers = all();
+        let names: Vec<&str> = providers.iter().map(|p| p.name()).collect();
+        assert!(
+            names.contains(&"amp"),
+            "providers::all() must include 'amp', got: {names:?}"
+        );
+    }
+
+    #[test]
     fn all_registry_order() {
         let providers = all();
         let names: Vec<&str> = providers.iter().map(|p| p.name()).collect();
@@ -111,10 +124,12 @@ mod tests {
         let opencode_pos = names.iter().position(|&n| n == "opencode").unwrap();
         let pi_pos = names.iter().position(|&n| n == "pi").unwrap();
         let copilot_pos = names.iter().position(|&n| n == "copilot").unwrap();
+        let amp_pos = names.iter().position(|&n| n == "amp").unwrap();
         assert!(claude_pos < codex_pos);
         assert!(codex_pos < cursor_pos);
         assert!(cursor_pos < opencode_pos);
         assert!(opencode_pos < pi_pos);
         assert!(pi_pos < copilot_pos);
+        assert!(copilot_pos < amp_pos);
     }
 }

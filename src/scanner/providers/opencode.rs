@@ -421,6 +421,7 @@ fn extract_turns_from_table(
             all_tools: Vec::new(),
             tool_use_ids: Vec::new(),
             tool_inputs: Vec::new(),
+            credits: None,
         });
     }
 

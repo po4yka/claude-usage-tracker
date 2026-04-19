@@ -70,6 +70,8 @@ export interface DailyModelRow {
   output_cost: number;
   cache_read_cost: number;
   cache_write_cost: number;
+  /** Phase 12: Amp credits consumed; null for non-Amp rows */
+  credits?: number | null;
 }
 
 export interface SessionRow {
@@ -98,6 +100,8 @@ export interface SessionRow {
   title: string | null;
   cache_hit_ratio: number;
   tokens_per_min: number;
+  /** Phase 12: Amp credits consumed; null for non-Amp sessions */
+  credits?: number | null;
 }
 
 export interface ToolSummary {
@@ -158,6 +162,8 @@ export interface DailyProjectRow {
   output: number;
   reasoning_output: number;
   cost: number;
+  /** Phase 12: Amp credits consumed; null for non-Amp rows */
+  credits?: number | null;
 }
 
 export interface ProviderSummary {
@@ -249,6 +255,8 @@ export interface ModelAgg {
   output_cost?: number;
   cache_read_cost?: number;
   cache_write_cost?: number;
+  /** Phase 12: Amp credits consumed; null for non-Amp rows */
+  credits?: number | null;
 }
 
 export interface ProjectAgg {
@@ -264,6 +272,8 @@ export interface ProjectAgg {
   turns: number;
   sessions: number;
   cost: number;
+  /** Phase 12: Amp credits consumed; null for non-Amp projects */
+  credits?: number | null;
 }
 
 export interface Totals {

@@ -1,13 +1,13 @@
 import { useMemo } from 'preact/hooks';
 import { type ColumnDef, type SortingState } from '@tanstack/table-core';
-import { fmt, fmtCost } from '../lib/format';
+import { fmt, fmtCost, anyHasCredits, fmtCredits } from '../lib/format';
 import type { ProjectAgg } from '../state/types';
 
 import { DataTable } from './DataTable';
 
 const defaultSort: SortingState = [{ id: 'cost', desc: true }];
 
-function useProjectColumns(): ColumnDef<ProjectAgg, any>[] {
+function useProjectColumns(showCredits: boolean): ColumnDef<ProjectAgg, any>[] {
   return useMemo(
     () => [
       {
@@ -51,8 +51,18 @@ function useProjectColumns(): ColumnDef<ProjectAgg, any>[] {
         header: 'Est. Cost',
         cell: (info: any) => <span class="cost">{fmtCost(info.getValue())}</span>,
       },
+      ...(showCredits ? [{
+        id: 'credits',
+        accessorFn: (row: ProjectAgg) => row.credits ?? null,
+        header: 'Credits',
+        sortUndefined: 'last' as const,
+        cell: (info: any) => {
+          const v = info.getValue() as number | null;
+          return <span class="num">{fmtCredits(v)}</span>;
+        },
+      }] : []),
     ],
-    []
+    [showCredits]
   );
 }
 
@@ -63,7 +73,8 @@ export function ProjectCostTable({
   byProject: ProjectAgg[];
   onExportCSV: () => void;
 }) {
-  const columns = useProjectColumns();
+  const showCredits = anyHasCredits(byProject);
+  const columns = useProjectColumns(showCredits);
 
   return (
     <DataTable

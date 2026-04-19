@@ -1,13 +1,13 @@
 import { useMemo } from 'preact/hooks';
 import { type ColumnDef, type SortingState } from '@tanstack/table-core';
-import { fmt, fmtCost } from '../lib/format';
+import { fmt, fmtCost, anyHasCredits, fmtCredits } from '../lib/format';
 import { lastFilteredSessions, SESSIONS_PAGE_SIZE } from '../state/store';
 import type { SessionRow } from '../state/types';
 import { DataTable } from './DataTable';
 
 const defaultSort: SortingState = [{ id: 'last', desc: true }];
 
-function useSessionColumns(): ColumnDef<SessionRow, any>[] {
+function useSessionColumns(showCredits: boolean): ColumnDef<SessionRow, any>[] {
   return useMemo(
     () => [
       {
@@ -108,6 +108,16 @@ function useSessionColumns(): ColumnDef<SessionRow, any>[] {
           );
         },
       },
+      ...(showCredits ? [{
+        id: 'credits',
+        accessorFn: (row: SessionRow) => row.credits ?? null,
+        header: 'Credits',
+        sortUndefined: 'last' as const,
+        cell: (info: any) => {
+          const v = info.getValue() as number | null;
+          return <span class="num">{fmtCredits(v)}</span>;
+        },
+      }] : []),
       {
         id: 'cost_meta',
         accessorKey: 'cost_confidence',
@@ -142,13 +152,14 @@ function useSessionColumns(): ColumnDef<SessionRow, any>[] {
         },
       },
     ],
-    []
+    [showCredits]
   );
 }
 
 export function SessionsTable({ onExportCSV }: { onExportCSV: () => void }) {
-  const columns = useSessionColumns();
   const data = lastFilteredSessions.value;
+  const showCredits = anyHasCredits(data);
+  const columns = useSessionColumns(showCredits);
 
   return (
     <DataTable

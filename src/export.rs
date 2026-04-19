@@ -115,6 +115,8 @@ pub struct ExportRow {
     pub cost_usd_nanos: i64,
     /// Display-only float. Never used for math.
     pub cost_usd_display: f64,
+    /// Abstract credits consumed (Amp only).  `None` for non-Amp rows.
+    pub credits: Option<f64>,
 }
 
 pub struct ExportOptions {
@@ -224,7 +226,8 @@ fn query_rows(
                 COALESCE(SUM(t.output_tokens), 0), \
                 COALESCE(SUM(t.cache_read_tokens), 0), \
                 COALESCE(SUM(t.cache_creation_tokens), 0), \
-                COALESCE(SUM(t.estimated_cost_nanos), 0) \
+                COALESCE(SUM(t.estimated_cost_nanos), 0), \
+                SUM(t.credits) \
          FROM turns t \
          LEFT JOIN sessions s ON s.session_id = t.session_id \
          WHERE 1=1 ",
@@ -252,9 +255,11 @@ fn query_rows(
         .query_map(rusqlite::params_from_iter(params.iter()), |row| {
             let cost_nanos: i64 = row.get(8)?;
             let project: String = row.get(2)?;
+            let credits: Option<f64> = row.get(9)?;
             Ok((
                 project,
                 cost_nanos,
+                credits,
                 row.get::<_, String>(0)?,
                 row.get::<_, String>(1)?,
                 row.get::<_, String>(3)?,
@@ -272,6 +277,7 @@ fn query_rows(
             |(
                 project,
                 cost_nanos,
+                credits,
                 date,
                 provider,
                 model,
@@ -296,6 +302,7 @@ fn query_rows(
                     cache_write,
                     cost_usd_nanos: cost_nanos,
                     cost_usd_display: cost_nanos as f64 / 1_000_000_000.0,
+                    credits,
                 }
             },
         )
@@ -355,6 +362,7 @@ mod tests {
             cache_write: 0,
             cost_usd_nanos: nanos,
             cost_usd_display: nanos as f64 / 1_000_000_000.0,
+            credits: None,
         }
     }
 
@@ -415,6 +423,24 @@ mod tests {
             "csv should encode nanos as integer: {text}"
         );
         assert!(text.contains("5678000000"));
+    }
+
+    #[test]
+    fn csv_round_trip_preserves_credits() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("credits.csv");
+        let mut row = sample_row("2026-04-18", "amp", 0);
+        row.credits = Some(5.5);
+        let rows = vec![row];
+        write_csv(&rows, &path).unwrap();
+
+        let mut rdr = csv::Reader::from_path(&path).unwrap();
+        let parsed: Vec<ExportRow> = rdr.deserialize().map(|r| r.unwrap()).collect();
+        assert_eq!(parsed, rows);
+        let credits = parsed[0].credits;
+        assert!(credits.is_some(), "credits should survive CSV round-trip");
+        let diff = (credits.unwrap() - 5.5).abs();
+        assert!(diff < 1e-9, "expected 5.5 credits, got {:?}", credits);
     }
 
     #[test]

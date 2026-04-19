@@ -253,6 +253,7 @@ function buildAggregations(filteredDaily: DailyModelRow[], filteredSessions: typ
       output_cost: 0,
       cache_read_cost: 0,
       cache_write_cost: 0,
+      credits: null,
     });
     m.input += r.input;
     m.output += r.output;
@@ -267,6 +268,9 @@ function buildAggregations(filteredDaily: DailyModelRow[], filteredSessions: typ
     m.output_cost = (m.output_cost ?? 0) + (r.output_cost ?? 0);
     m.cache_read_cost = (m.cache_read_cost ?? 0) + (r.cache_read_cost ?? 0);
     m.cache_write_cost = (m.cache_write_cost ?? 0) + (r.cache_write_cost ?? 0);
+    if (r.credits != null) {
+      m.credits = (m.credits ?? 0) + r.credits;
+    }
   }
 
   for (const s of filteredSessions) {
@@ -288,6 +292,7 @@ function buildAggregations(filteredDaily: DailyModelRow[], filteredSessions: typ
       turns: 0,
       sessions: 0,
       cost: 0,
+      credits: null,
     });
     p.input += s.input;
     p.output += s.output;
@@ -297,6 +302,9 @@ function buildAggregations(filteredDaily: DailyModelRow[], filteredSessions: typ
     p.turns += s.turns;
     p.sessions++;
     p.cost += s.cost;
+    if (s.credits != null) {
+      p.credits = (p.credits ?? 0) + s.credits;
+    }
   }
   const byProject = Object.values(projMap).sort((a, b) => (b.input + b.output) - (a.input + a.output));
 

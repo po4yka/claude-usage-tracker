@@ -335,6 +335,7 @@ pub(crate) fn parse_codex_jsonl_file(filepath: &Path, skip_lines: i64) -> ParseR
                             all_tools,
                             tool_use_ids,
                             tool_inputs: Vec::new(),
+                            credits: None,
                         };
                         let estimate = pricing::estimate_cost(
                             &turn.model,

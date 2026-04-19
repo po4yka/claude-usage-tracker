@@ -305,7 +305,10 @@ When porting, prefer reading the source file directly over reimplementing from m
 
 ### TODO
 
-1. **Amp provider.** `src/scanner/providers/amp.rs` implementing the `Provider` trait. Discovery: `~/.amp/sessions/*.jsonl` (verify path against the Amp CLI).
+1. **Amp provider.** `src/scanner/providers/amp.rs` implementing the `Provider` trait. Discovery:
+   `~/.local/share/amp/threads/*.json` (confirmed against ccusage's `_consts.ts`
+   DEFAULT_AMP_PATH + AMP_THREADS_DIR_NAME + AMP_THREAD_GLOB). Note: Amp writes one
+   `.json` file per thread (not `.jsonl`). Override with `AMP_DATA_DIR` env var.
 2. **Schema.** Add `credits REAL` column to `turns` + `sessions` tables (nullable; only populated for Amp).
 3. **Dashboard column.** New "Credits" column in `ProjectCostTable.tsx` / `SessionsTable.tsx` shown only when the filtered range has non-null credits.
 4. **Export.** `export --provider=amp` emits `credits` column in CSV.
@@ -313,7 +316,7 @@ When porting, prefer reading the source file directly over reimplementing from m
 
 ### Acceptance
 
-- Amp session JSONL parses without errors; credits sum correctly across the day.
+- Amp session `.json` files parse without errors; credits sum correctly across the day.
 - Non-Amp providers never display a Credits column.
 
 ### Effort: M (2 days)

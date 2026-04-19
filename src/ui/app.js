@@ -1499,6 +1499,13 @@
     if (minutes >= 60) return Math.floor(minutes / 60) + "h " + minutes % 60 + "m";
     return minutes + "m";
   }
+  function anyHasCredits(rows) {
+    return rows.some((r4) => r4.credits != null);
+  }
+  function fmtCredits(n3) {
+    if (n3 == null) return "\u2014";
+    return n3.toFixed(2);
+  }
 
   // src/ui/components/SegmentedProgressBar.tsx
   function resolveStatus(pct, status) {
@@ -6049,7 +6056,7 @@
 
   // src/ui/components/SessionsTable.tsx
   var defaultSort = [{ id: "last", desc: true }];
-  function useSessionColumns() {
+  function useSessionColumns(showCredits) {
     return T2(
       () => [
         {
@@ -6144,6 +6151,16 @@
             return row.is_billable ? /* @__PURE__ */ u2("span", { class: "cost", children: fmtCost(info.getValue()) }) : /* @__PURE__ */ u2("span", { class: "cost-na", children: "n/a" });
           }
         },
+        ...showCredits ? [{
+          id: "credits",
+          accessorFn: (row) => row.credits ?? null,
+          header: "Credits",
+          sortUndefined: "last",
+          cell: (info) => {
+            const v4 = info.getValue();
+            return /* @__PURE__ */ u2("span", { class: "num", children: fmtCredits(v4) });
+          }
+        }] : [],
         {
           id: "cost_meta",
           accessorKey: "cost_confidence",
@@ -6183,12 +6200,13 @@
           }
         }
       ],
-      []
+      [showCredits]
     );
   }
   function SessionsTable({ onExportCSV }) {
-    const columns4 = useSessionColumns();
     const data = lastFilteredSessions.value;
+    const showCredits = anyHasCredits(data);
+    const columns4 = useSessionColumns(showCredits);
     return /* @__PURE__ */ u2(
       DataTable,
       {
@@ -6236,7 +6254,7 @@
       )
     ] });
   }
-  function useModelColumns(totalCost, totalCacheReadCost, totalCacheWriteCost) {
+  function useModelColumns(totalCost, totalCacheReadCost, totalCacheWriteCost, showCredits) {
     return T2(
       () => [
         {
@@ -6350,9 +6368,20 @@
               }
             );
           }
-        }
+        },
+        // Phase 12: credits column (hidden when no Amp rows in view)
+        ...showCredits ? [{
+          id: "credits",
+          accessorFn: (row) => row.credits ?? null,
+          header: "Credits",
+          sortUndefined: "last",
+          cell: (info) => {
+            const v4 = info.getValue();
+            return /* @__PURE__ */ u2("span", { class: "num", children: fmtCredits(v4) });
+          }
+        }] : []
       ],
-      [totalCost, totalCacheReadCost, totalCacheWriteCost]
+      [totalCost, totalCacheReadCost, totalCacheWriteCost, showCredits]
     );
   }
   function ModelCostTable({ byModel }) {
@@ -6368,7 +6397,8 @@
       () => byModel.reduce((s4, m4) => s4 + (m4.cache_write_cost ?? 0), 0),
       [byModel]
     );
-    const columns4 = useModelColumns(totalCost, totalCacheReadCost, totalCacheWriteCost);
+    const showCredits = anyHasCredits(byModel);
+    const columns4 = useModelColumns(totalCost, totalCacheReadCost, totalCacheWriteCost, showCredits);
     return /* @__PURE__ */ u2(
       DataTable,
       {
@@ -6383,7 +6413,7 @@
 
   // src/ui/components/ProjectCostTable.tsx
   var defaultSort3 = [{ id: "cost", desc: true }];
-  function useProjectColumns() {
+  function useProjectColumns(showCredits) {
     return T2(
       () => [
         {
@@ -6426,16 +6456,27 @@
           accessorKey: "cost",
           header: "Est. Cost",
           cell: (info) => /* @__PURE__ */ u2("span", { class: "cost", children: fmtCost(info.getValue()) })
-        }
+        },
+        ...showCredits ? [{
+          id: "credits",
+          accessorFn: (row) => row.credits ?? null,
+          header: "Credits",
+          sortUndefined: "last",
+          cell: (info) => {
+            const v4 = info.getValue();
+            return /* @__PURE__ */ u2("span", { class: "num", children: fmtCredits(v4) });
+          }
+        }] : []
       ],
-      []
+      [showCredits]
     );
   }
   function ProjectCostTable({
     byProject,
     onExportCSV
   }) {
-    const columns4 = useProjectColumns();
+    const showCredits = anyHasCredits(byProject);
+    const columns4 = useProjectColumns(showCredits);
     return /* @__PURE__ */ u2(
       DataTable,
       {
@@ -6912,7 +6953,8 @@
         input_cost: 0,
         output_cost: 0,
         cache_read_cost: 0,
-        cache_write_cost: 0
+        cache_write_cost: 0,
+        credits: null
       });
       m4.input += r4.input;
       m4.output += r4.output;
@@ -6926,6 +6968,9 @@
       m4.output_cost = (m4.output_cost ?? 0) + (r4.output_cost ?? 0);
       m4.cache_read_cost = (m4.cache_read_cost ?? 0) + (r4.cache_read_cost ?? 0);
       m4.cache_write_cost = (m4.cache_write_cost ?? 0) + (r4.cache_write_cost ?? 0);
+      if (r4.credits != null) {
+        m4.credits = (m4.credits ?? 0) + r4.credits;
+      }
     }
     for (const s4 of filteredSessions) {
       const m4 = modelMap[s4.model];
@@ -6944,7 +6989,8 @@
         reasoning_output: 0,
         turns: 0,
         sessions: 0,
-        cost: 0
+        cost: 0,
+        credits: null
       });
       p5.input += s4.input;
       p5.output += s4.output;
@@ -6954,6 +7000,9 @@
       p5.turns += s4.turns;
       p5.sessions++;
       p5.cost += s4.cost;
+      if (s4.credits != null) {
+        p5.credits = (p5.credits ?? 0) + s4.credits;
+      }
     }
     const byProject = Object.values(projMap).sort((a4, b4) => b4.input + b4.output - (a4.input + a4.output));
     const totals = {

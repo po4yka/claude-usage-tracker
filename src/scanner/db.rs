@@ -242,6 +242,16 @@ pub fn init_db(conn: &Connection) -> Result<()> {
          UPDATE turns    SET provider = 'claude' WHERE provider IS NULL OR provider = '';",
     )?;
 
+    // Phase 12 (Amp): credits column on turns and sessions.
+    // Must be added BEFORE recompute_session_totals which references turns.credits.
+    // NULL for all non-Amp providers; f64 (REAL) for Amp turns.
+    if !has_column(conn, "turns", "credits") {
+        conn.execute_batch("ALTER TABLE turns ADD COLUMN credits REAL;")?;
+    }
+    if !has_column(conn, "sessions", "total_credits") {
+        conn.execute_batch("ALTER TABLE sessions ADD COLUMN total_credits REAL;")?;
+    }
+
     prefix_existing_session_ids(conn)?;
     backfill_turn_pricing(conn)?;
     recompute_session_totals(conn)?;
@@ -742,8 +752,8 @@ pub fn insert_turns(conn: &Connection, turns: &[Turn]) -> Result<()> {
              cache_read_tokens, cache_creation_tokens, reasoning_output_tokens,
              estimated_cost_nanos, tool_name, cwd, message_id, service_tier, inference_geo,
              is_subagent, agent_id, source_path, version, pricing_version, pricing_model,
-             billing_mode, cost_confidence, category)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24)",
+             billing_mode, cost_confidence, category, credits)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25)",
     )?;
     for t in turns {
         let msg_id: Option<&str> = if t.message_id.is_empty() {
@@ -815,6 +825,7 @@ pub fn insert_turns(conn: &Connection, turns: &[Turn]) -> Result<()> {
             billing_mode,
             cost_confidence,
             category,
+            t.credits,
         ])?;
     }
     Ok(())
@@ -952,6 +963,7 @@ pub fn recompute_session_totals(conn: &Connection) -> Result<()> {
             total_reasoning_output = COALESCE((SELECT SUM(reasoning_output_tokens) FROM turns WHERE turns.session_id = sessions.session_id), 0),
             total_estimated_cost_nanos = COALESCE((SELECT SUM(estimated_cost_nanos) FROM turns WHERE turns.session_id = sessions.session_id), 0),
             turn_count = COALESCE((SELECT COUNT(*) FROM turns WHERE turns.session_id = sessions.session_id), 0),
+            total_credits = (SELECT SUM(credits) FROM turns WHERE turns.session_id = sessions.session_id),
             provider = COALESCE((
                 SELECT provider FROM turns
                 WHERE turns.session_id = sessions.session_id
@@ -1189,7 +1201,8 @@ pub fn get_dashboard_data(conn: &Connection, tz: TzParams) -> Result<DashboardDa
                     SUM(cache_read_tokens) as cache_read, SUM(cache_creation_tokens) as cache_creation,
                     SUM(reasoning_output_tokens) as reasoning_output,
                     COUNT(*) as turns,
-                    COALESCE(SUM(estimated_cost_nanos), 0) as cost_nanos
+                    COALESCE(SUM(estimated_cost_nanos), 0) as cost_nanos,
+                    SUM(credits) as credits_sum
              FROM turns
              GROUP BY day, provider, model
              ORDER BY day, provider, model"
@@ -1226,6 +1239,7 @@ pub fn get_dashboard_data(conn: &Connection, tz: TzParams) -> Result<DashboardDa
                 output_cost: bd.output_cost_nanos as f64 / 1_000_000_000.0,
                 cache_read_cost: bd.cache_read_cost_nanos as f64 / 1_000_000_000.0,
                 cache_write_cost: bd.cache_write_cost_nanos as f64 / 1_000_000_000.0,
+                credits: row.get::<_, Option<f64>>(10)?,
             })
         };
         let collect_rows = |mapped: rusqlite::MappedRows<'_, _>| -> Vec<DailyModelRow> {
@@ -1256,7 +1270,7 @@ pub fn get_dashboard_data(conn: &Connection, tz: TzParams) -> Result<DashboardDa
                     s.pricing_version, s.billing_mode, s.cost_confidence,
                     COALESCE((SELECT COUNT(DISTINCT t.agent_id) FROM turns t WHERE t.session_id = s.session_id AND t.is_subagent = 1), 0) as subagent_count,
                     COALESCE((SELECT COUNT(*) FROM turns t WHERE t.session_id = s.session_id AND t.is_subagent = 1), 0) as subagent_turns,
-                    s.title
+                    s.title, s.total_credits
              FROM sessions s ORDER BY s.last_timestamp DESC",
         )?;
         stmt.query_map([], |row| {
@@ -1324,6 +1338,7 @@ pub fn get_dashboard_data(conn: &Connection, tz: TzParams) -> Result<DashboardDa
                 title: row.get(18)?,
                 cache_hit_ratio,
                 tokens_per_min,
+                credits: row.get::<_, Option<f64>>(19)?,
             })
         })?
         .filter_map(|r| match r {
@@ -1592,7 +1607,8 @@ pub fn get_dashboard_data(conn: &Connection, tz: TzParams) -> Result<DashboardDa
             "SELECT substr(t.timestamp, 1, 10) as day, s.provider, s.project_name,
                     SUM(t.input_tokens) as input, SUM(t.output_tokens) as output,
                     SUM(t.reasoning_output_tokens) as reasoning_output,
-                    COALESCE(SUM(t.estimated_cost_nanos), 0) as cost_nanos
+                    COALESCE(SUM(t.estimated_cost_nanos), 0) as cost_nanos,
+                    SUM(t.credits) as credits_sum
              FROM turns t JOIN sessions s ON t.session_id = s.session_id
              GROUP BY day, s.provider, s.project_name
              ORDER BY day, s.provider, s.project_name",
@@ -1611,6 +1627,7 @@ pub fn get_dashboard_data(conn: &Connection, tz: TzParams) -> Result<DashboardDa
                 output: row.get(4)?,
                 reasoning_output: row.get(5)?,
                 cost: row.get::<_, i64>(6)? as f64 / 1_000_000_000.0,
+                credits: row.get::<_, Option<f64>>(7)?,
             })
         })?
         .filter_map(|r| match r {
@@ -3533,5 +3550,173 @@ mod tests {
 
         let rows = load_turns_since(&conn, "2026-01-01T00:00:00Z").unwrap();
         assert!(rows.is_empty(), "should return nothing for a future cutoff");
+    }
+
+    // ── Phase 12 (Amp) credits tests ─────────────────────────────────────────
+
+    /// Credits are persisted to turns.credits and recovered via SELECT SUM(credits).
+    #[test]
+    fn test_insert_turns_persists_credits() {
+        let conn = test_conn();
+        let turns = vec![
+            Turn {
+                session_id: "amp:T-abc".into(),
+                provider: "amp".into(),
+                message_id: "amp:T-abc:ev-1".into(),
+                timestamp: "2026-04-18T09:00:00Z".into(),
+                model: "claude-haiku-4-5-20251001".into(),
+                credits: Some(12.5),
+                billing_mode: "credits".into(),
+                ..Default::default()
+            },
+            Turn {
+                session_id: "amp:T-abc".into(),
+                provider: "amp".into(),
+                message_id: "amp:T-abc:ev-2".into(),
+                timestamp: "2026-04-18T09:05:00Z".into(),
+                model: "claude-haiku-4-5-20251001".into(),
+                credits: Some(3.2),
+                billing_mode: "credits".into(),
+                ..Default::default()
+            },
+        ];
+        insert_turns(&conn, &turns).unwrap();
+
+        let sum: Option<f64> = conn
+            .query_row(
+                "SELECT SUM(credits) FROM turns WHERE provider = 'amp'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let total = sum.expect("credits sum must be non-null for Amp turns");
+        assert!((total - 15.7).abs() < 1e-9, "expected 15.7, got {total}");
+    }
+
+    /// Non-Amp turns have credits = NULL, not 0.
+    #[test]
+    fn test_insert_turns_non_amp_credits_null() {
+        let conn = test_conn();
+        let turns = vec![Turn {
+            session_id: "claude:s1".into(),
+            provider: "claude".into(),
+            message_id: "msg-claude-1".into(),
+            timestamp: "2026-04-18T10:00:00Z".into(),
+            model: "claude-sonnet-4-6".into(),
+            input_tokens: 100,
+            output_tokens: 50,
+            credits: None, // non-Amp: no credits
+            ..Default::default()
+        }];
+        insert_turns(&conn, &turns).unwrap();
+
+        let credits: Option<f64> = conn
+            .query_row(
+                "SELECT credits FROM turns WHERE provider = 'claude'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(
+            credits.is_none(),
+            "non-Amp turns must have NULL credits, got: {credits:?}"
+        );
+    }
+
+    /// recompute_session_totals aggregates credits into sessions.total_credits.
+    #[test]
+    fn test_recompute_session_totals_aggregates_credits() {
+        let conn = test_conn();
+        // Seed an Amp session with two turns.
+        conn.execute(
+            "INSERT INTO sessions (session_id, provider) VALUES ('amp:T-test', 'amp')",
+            [],
+        )
+        .unwrap();
+        let turns = vec![
+            Turn {
+                session_id: "amp:T-test".into(),
+                provider: "amp".into(),
+                message_id: "amp:T-test:ev-1".into(),
+                timestamp: "2026-04-18T09:00:00Z".into(),
+                model: "amp".into(),
+                credits: Some(5.0),
+                billing_mode: "credits".into(),
+                ..Default::default()
+            },
+            Turn {
+                session_id: "amp:T-test".into(),
+                provider: "amp".into(),
+                message_id: "amp:T-test:ev-2".into(),
+                timestamp: "2026-04-18T09:01:00Z".into(),
+                model: "amp".into(),
+                credits: Some(7.3),
+                billing_mode: "credits".into(),
+                ..Default::default()
+            },
+        ];
+        insert_turns(&conn, &turns).unwrap();
+        recompute_session_totals(&conn).unwrap();
+
+        let total_credits: Option<f64> = conn
+            .query_row(
+                "SELECT total_credits FROM sessions WHERE session_id = 'amp:T-test'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let total = total_credits.expect("total_credits must be non-null after recompute");
+        assert!((total - 12.3).abs() < 1e-9, "expected 12.3, got {total}");
+    }
+
+    /// Schema migration for credits is idempotent (safe on existing DBs).
+    #[test]
+    fn test_credits_migration_idempotent() {
+        let conn = test_conn();
+        // init_db was already called by test_conn(); calling again must not fail.
+        // This exercises the `has_column` guard on turns.credits and sessions.total_credits.
+        super::init_db(&conn).expect("second init_db call must succeed (idempotent migration)");
+        assert!(
+            has_column(&conn, "turns", "credits"),
+            "turns.credits must exist after migration"
+        );
+        assert!(
+            has_column(&conn, "sessions", "total_credits"),
+            "sessions.total_credits must exist after migration"
+        );
+    }
+
+    /// get_dashboard_data returns credits in daily_by_project for Amp rows.
+    #[test]
+    fn test_get_dashboard_data_credits_in_daily_by_project() {
+        let conn = test_conn();
+        conn.execute(
+            "INSERT INTO sessions (session_id, provider, project_name) VALUES ('amp:T-dash', 'amp', 'test-project')",
+            [],
+        )
+        .unwrap();
+        let turns = vec![Turn {
+            session_id: "amp:T-dash".into(),
+            provider: "amp".into(),
+            message_id: "amp:T-dash:ev-1".into(),
+            timestamp: "2026-04-18T10:00:00Z".into(),
+            model: "claude-haiku-4-5-20251001".into(),
+            credits: Some(8.8),
+            billing_mode: "credits".into(),
+            ..Default::default()
+        }];
+        insert_turns(&conn, &turns).unwrap();
+        recompute_session_totals(&conn).unwrap();
+
+        let data = get_dashboard_data(&conn, TzParams::default()).unwrap();
+        let proj_row = data
+            .daily_by_project
+            .iter()
+            .find(|r| r.provider == "amp")
+            .expect("must have an amp daily_by_project row");
+        let credits = proj_row
+            .credits
+            .expect("credits must be non-null for Amp project row");
+        assert!((credits - 8.8).abs() < 1e-9, "expected 8.8, got {credits}");
     }
 }

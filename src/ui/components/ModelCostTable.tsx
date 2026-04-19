@@ -1,6 +1,6 @@
 import { useMemo } from 'preact/hooks';
 import { type ColumnDef, type SortingState } from '@tanstack/table-core';
-import { fmt, fmtCost } from '../lib/format';
+import { fmt, fmtCost, anyHasCredits, fmtCredits } from '../lib/format';
 import type { ModelAgg } from '../state/types';
 import { DataTable } from './DataTable';
 import { SegmentedProgressBar } from './SegmentedProgressBar';
@@ -43,6 +43,7 @@ function useModelColumns(
   totalCost: number,
   totalCacheReadCost: number,
   totalCacheWriteCost: number,
+  showCredits: boolean,
 ): ColumnDef<ModelAgg, any>[] {
   return useMemo(
     () => [
@@ -160,8 +161,19 @@ function useModelColumns(
           );
         },
       },
+      // Phase 12: credits column (hidden when no Amp rows in view)
+      ...(showCredits ? [{
+        id: 'credits',
+        accessorFn: (row: ModelAgg) => row.credits ?? null,
+        header: 'Credits',
+        sortUndefined: 'last' as const,
+        cell: (info: any) => {
+          const v = info.getValue() as number | null;
+          return <span class="num">{fmtCredits(v)}</span>;
+        },
+      }] : []),
     ],
-    [totalCost, totalCacheReadCost, totalCacheWriteCost]
+    [totalCost, totalCacheReadCost, totalCacheWriteCost, showCredits]
   );
 }
 
@@ -178,7 +190,8 @@ export function ModelCostTable({ byModel }: { byModel: ModelAgg[] }) {
     () => byModel.reduce((s, m) => s + (m.cache_write_cost ?? 0), 0),
     [byModel]
   );
-  const columns = useModelColumns(totalCost, totalCacheReadCost, totalCacheWriteCost);
+  const showCredits = anyHasCredits(byModel);
+  const columns = useModelColumns(totalCost, totalCacheReadCost, totalCacheWriteCost, showCredits);
 
   return (
     <DataTable

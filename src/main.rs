@@ -1651,10 +1651,19 @@ pub(crate) fn cmd_stats(
         |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
     )?;
 
-    let (inp, out, cr, cc, ro, turns): (i64, i64, i64, i64, i64, i64) = conn.query_row(
+    let (inp, out, cr, cc, ro, turns, total_credits_opt): (
+        i64,
+        i64,
+        i64,
+        i64,
+        i64,
+        i64,
+        Option<f64>,
+    ) = conn.query_row(
         "SELECT COALESCE(SUM(input_tokens),0), COALESCE(SUM(output_tokens),0),
                 COALESCE(SUM(cache_read_tokens),0), COALESCE(SUM(cache_creation_tokens),0),
-                COALESCE(SUM(reasoning_output_tokens),0), COUNT(*) FROM turns",
+                COALESCE(SUM(reasoning_output_tokens),0), COUNT(*),
+                SUM(credits) FROM turns",
         [],
         |row| {
             Ok((
@@ -1664,6 +1673,7 @@ pub(crate) fn cmd_stats(
                 row.get(3)?,
                 row.get(4)?,
                 row.get(5)?,
+                row.get(6)?,
             ))
         },
     )?;
@@ -1852,6 +1862,7 @@ pub(crate) fn cmd_stats(
             "total_cache_creation_tokens": cc,
             "total_reasoning_output_tokens": ro,
             "total_estimated_cost": (total_cost * 10000.0).round() / 10000.0,
+            "total_credits": total_credits_opt,
             "one_shot_rate": one_shot_rate,
             "by_provider": by_provider,
             "confidence_breakdown": confidence_breakdown,

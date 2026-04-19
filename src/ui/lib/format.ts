@@ -29,3 +29,14 @@ export function progressColor(percent: number): string {
   if (percent >= 70) return 'var(--warning)';
   return 'var(--success)';
 }
+
+/** Phase 12: returns true when at least one row has a non-null credits value. */
+export function anyHasCredits(rows: Array<{ credits?: number | null }>): boolean {
+  return rows.some(r => r.credits != null);
+}
+
+/** Phase 12: formats an Amp credits value; returns em-dash for null/undefined. */
+export function fmtCredits(n: number | null | undefined): string {
+  if (n == null) return '\u2014';
+  return n.toFixed(2);
+}

@@ -233,6 +233,7 @@ pub(crate) fn parse_pi_jsonl_file(path: &Path) -> Vec<Turn> {
             all_tools: Vec::new(),
             tool_use_ids: Vec::new(),
             tool_inputs: Vec::new(),
+            credits: None,
         };
 
         // Last-wins: overwrite any previous record with the same responseId.

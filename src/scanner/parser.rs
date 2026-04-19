@@ -21,6 +21,8 @@ pub const PROVIDER_OPENCODE: &str = "opencode";
 /// Provider trait `parse()` directly. `parse_jsonl_file` is not used for
 /// copilot — this constant exists for consistent naming.
 pub const PROVIDER_COPILOT: &str = "copilot";
+/// Amp is JSON-backed (one file per thread); its parser is called via `parse_jsonl_file`.
+pub use crate::scanner::providers::amp::PROVIDER_AMP;
 
 /// Classify a tool name into (category, mcp_server, mcp_tool).
 /// MCP tools follow the pattern: `mcp__<server>__<tool>`.
@@ -97,6 +99,10 @@ pub fn parse_jsonl_file(provider: &str, filepath: &Path, skip_lines: i64) -> Par
             crate::scanner::providers::pi::parse_pi_jsonl_file(filepath),
             filepath,
         ),
+        PROVIDER_AMP => parse_amp_result(
+            crate::scanner::providers::amp::parse_amp_thread_file(filepath),
+            filepath,
+        ),
         PROVIDER_OPENCODE | PROVIDER_COPILOT => {
             // These providers are SQLite-backed or mixed-format and must be
             // parsed via their Provider trait `parse()`. The JSONL dispatcher
@@ -157,6 +163,57 @@ fn parse_pi_result(turns: Vec<crate::models::Turn>, filepath: &Path) -> ParseRes
         })
         .unwrap_or(0);
 
+    ParseResult {
+        session_metas: metas.into_values().collect(),
+        turns,
+        line_count,
+        session_titles: HashMap::new(),
+        tool_results: HashMap::new(),
+    }
+}
+
+/// Wrap a `Vec<Turn>` from the Amp provider into a `ParseResult`.
+///
+/// Each Amp thread file (`.json`) maps to one session.  Session metas are
+/// built from the turns in the same way as Pi.
+fn parse_amp_result(turns: Vec<crate::models::Turn>, _filepath: &Path) -> ParseResult {
+    use crate::models::SessionMeta;
+    use std::collections::HashMap;
+
+    let mut metas: HashMap<String, SessionMeta> = HashMap::new();
+    for t in &turns {
+        metas
+            .entry(t.session_id.clone())
+            .and_modify(|m| {
+                if !t.timestamp.is_empty() {
+                    if m.first_timestamp.is_empty() || t.timestamp < m.first_timestamp {
+                        m.first_timestamp.clone_from(&t.timestamp);
+                    }
+                    if m.last_timestamp.is_empty() || t.timestamp > m.last_timestamp {
+                        m.last_timestamp.clone_from(&t.timestamp);
+                    }
+                }
+            })
+            .or_insert_with(|| SessionMeta {
+                session_id: t.session_id.clone(),
+                provider: PROVIDER_AMP.into(),
+                project_name: "unknown".into(),
+                project_slug: String::new(),
+                first_timestamp: t.timestamp.clone(),
+                last_timestamp: t.timestamp.clone(),
+                git_branch: String::new(),
+                model: if t.model.is_empty() {
+                    None
+                } else {
+                    Some(t.model.clone())
+                },
+                entrypoint: String::new(),
+            });
+    }
+
+    // Use turns.len() as the incremental-scan guard: if events are added to the
+    // thread file, the count grows and triggers reprocessing on the next scan.
+    let line_count = turns.len() as i64;
     ParseResult {
         session_metas: metas.into_values().collect(),
         turns,
@@ -481,6 +538,7 @@ pub(crate) fn parse_claude_jsonl_file(filepath: &Path, skip_lines: i64) -> Parse
                 all_tools,
                 tool_use_ids,
                 tool_inputs,
+                credits: None,
             };
             let estimate = pricing::estimate_cost(
                 &turn.model,
@@ -679,6 +737,8 @@ pub fn aggregate_sessions(metas: &[SessionMeta], turns: &[Turn]) -> Vec<Session>
         pricing_version: String,
         billing_mode: String,
         cost_confidence: String,
+        /// Accumulated credits (Amp only); `None` when no turn in the session has credits.
+        total_credits: Option<f64>,
         /// Turns belonging to this session in chronological order,
         /// used for one-shot classification after all turns are collected.
         session_turns: Vec<Turn>,
@@ -698,6 +758,7 @@ pub fn aggregate_sessions(metas: &[SessionMeta], turns: &[Turn]) -> Vec<Session>
             pricing_version: String::new(),
             billing_mode: String::new(),
             cost_confidence: String::new(),
+            total_credits: None,
             session_turns: Vec::new(),
         });
         entry.total_input += t.input_tokens;
@@ -714,6 +775,9 @@ pub fn aggregate_sessions(metas: &[SessionMeta], turns: &[Turn]) -> Vec<Session>
         entry.billing_mode = merge_billing_mode(&entry.billing_mode, &t.billing_mode);
         entry.cost_confidence =
             merge_cost_confidence(&entry.cost_confidence, &t.cost_confidence).to_string();
+        if let Some(c) = t.credits {
+            *entry.total_credits.get_or_insert(0.0) += c;
+        }
         entry.session_turns.push(t.clone());
     }
 
@@ -733,6 +797,7 @@ pub fn aggregate_sessions(metas: &[SessionMeta], turns: &[Turn]) -> Vec<Session>
                 pricing_version: String::new(),
                 billing_mode: "estimated_local".into(),
                 cost_confidence: pricing::COST_CONFIDENCE_LOW.into(),
+                total_credits: None,
                 session_turns: Vec::new(),
             };
             let s = stats_map.get(meta.session_id.as_str()).unwrap_or(&empty);
@@ -764,6 +829,7 @@ pub fn aggregate_sessions(metas: &[SessionMeta], turns: &[Turn]) -> Vec<Session>
                 cost_confidence: s.cost_confidence.clone(),
                 title: None,
                 one_shot,
+                total_credits: s.total_credits,
             }
         })
         .collect()
@@ -1208,5 +1274,126 @@ mod tests {
         let result = parse_claude_jsonl_file(&path, 0);
         // tool_inputs entry for WebSearch should be empty string.
         assert_eq!(result.turns[0].tool_inputs[0].1, "");
+    }
+
+    // -----------------------------------------------------------------------
+    // aggregate_sessions: credits accumulation (FIX 3)
+    // -----------------------------------------------------------------------
+
+    fn make_amp_turn(session_id: &str, credits: Option<f64>) -> Turn {
+        Turn {
+            session_id: session_id.to_string(),
+            provider: crate::scanner::providers::amp::PROVIDER_AMP.to_string(),
+            timestamp: "2026-04-18T10:00:00Z".to_string(),
+            model: "claude-sonnet-4-6".to_string(),
+            input_tokens: 100,
+            output_tokens: 50,
+            cache_read_tokens: 0,
+            cache_creation_tokens: 0,
+            reasoning_output_tokens: 0,
+            estimated_cost_nanos: 0,
+            tool_name: None,
+            cwd: String::new(),
+            message_id: format!("amp:{}:{}", session_id, credits.unwrap_or(0.0)),
+            service_tier: None,
+            inference_geo: None,
+            is_subagent: false,
+            agent_id: None,
+            source_path: String::new(),
+            version: None,
+            pricing_version: String::new(),
+            pricing_model: String::new(),
+            billing_mode: "credits".to_string(),
+            cost_confidence: "low".to_string(),
+            category: String::new(),
+            all_tools: Vec::new(),
+            tool_use_ids: Vec::new(),
+            tool_inputs: Vec::new(),
+            credits,
+        }
+    }
+
+    fn make_amp_session_meta(session_id: &str) -> SessionMeta {
+        SessionMeta {
+            session_id: session_id.to_string(),
+            provider: crate::scanner::providers::amp::PROVIDER_AMP.to_string(),
+            project_name: "test/proj".to_string(),
+            project_slug: String::new(),
+            first_timestamp: "2026-04-18T10:00:00Z".to_string(),
+            last_timestamp: "2026-04-18T10:00:00Z".to_string(),
+            git_branch: String::new(),
+            model: None,
+            entrypoint: String::new(),
+        }
+    }
+
+    #[test]
+    fn aggregate_sessions_sums_amp_credits() {
+        let meta = make_amp_session_meta("amp:T-sum");
+        let turns = vec![
+            make_amp_turn("amp:T-sum", Some(5.0)),
+            make_amp_turn("amp:T-sum", Some(3.5)),
+        ];
+        let sessions = aggregate_sessions(&[meta], &turns);
+        assert_eq!(sessions.len(), 1);
+        let credits = sessions[0].total_credits;
+        assert!(
+            credits.is_some(),
+            "total_credits should be Some for Amp sessions"
+        );
+        let diff = (credits.unwrap() - 8.5).abs();
+        assert!(diff < 1e-9, "expected 8.5 credits, got {:?}", credits);
+    }
+
+    #[test]
+    fn aggregate_sessions_no_credits_for_non_amp_turns() {
+        let meta = SessionMeta {
+            session_id: "claude:s-nocredits".to_string(),
+            provider: PROVIDER_CLAUDE.to_string(),
+            project_name: "user/proj".to_string(),
+            project_slug: String::new(),
+            first_timestamp: "2026-04-18T10:00:00Z".to_string(),
+            last_timestamp: "2026-04-18T10:00:00Z".to_string(),
+            git_branch: String::new(),
+            model: None,
+            entrypoint: String::new(),
+        };
+        // Non-Amp turns have credits: None
+        let turn = Turn {
+            session_id: "claude:s-nocredits".to_string(),
+            provider: PROVIDER_CLAUDE.to_string(),
+            timestamp: "2026-04-18T10:00:00Z".to_string(),
+            model: "claude-sonnet-4-6".to_string(),
+            input_tokens: 200,
+            output_tokens: 80,
+            cache_read_tokens: 0,
+            cache_creation_tokens: 0,
+            reasoning_output_tokens: 0,
+            estimated_cost_nanos: 1_000_000,
+            tool_name: None,
+            cwd: String::new(),
+            message_id: "msg-nc-1".to_string(),
+            service_tier: None,
+            inference_geo: None,
+            is_subagent: false,
+            agent_id: None,
+            source_path: String::new(),
+            version: None,
+            pricing_version: String::new(),
+            pricing_model: String::new(),
+            billing_mode: "estimated_local".to_string(),
+            cost_confidence: "high".to_string(),
+            category: String::new(),
+            all_tools: Vec::new(),
+            tool_use_ids: Vec::new(),
+            tool_inputs: Vec::new(),
+            credits: None,
+        };
+        let sessions = aggregate_sessions(&[meta], &[turn]);
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(
+            sessions[0].total_credits, None,
+            "non-Amp sessions must have total_credits = None"
+        );
     }
 }

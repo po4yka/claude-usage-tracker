@@ -26,6 +26,9 @@ pub struct Session {
     /// (unclassifiable), `Some(true)` if no rework cycle detected,
     /// `Some(false)` if an Edit→Bash→Edit pattern was found.
     pub one_shot: Option<bool>,
+    /// Total credits consumed across all turns in this session (Amp only).
+    /// `None` for non-Amp sessions.
+    pub total_credits: Option<f64>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -68,6 +71,9 @@ pub struct Turn {
     /// Transient — not persisted to the DB turns table.
     #[allow(dead_code)]
     pub tool_inputs: Vec<(String, String)>,
+    /// Abstract credits consumed by this turn (Amp provider only).
+    /// `None` for all non-Amp providers.  Persisted to `turns.credits`.
+    pub credits: Option<f64>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -216,6 +222,9 @@ pub struct DailyModelRow {
     pub output_cost: f64,
     pub cache_read_cost: f64,
     pub cache_write_cost: f64,
+    /// Aggregated credits for this day/model bucket (Amp only).  `None` when no Amp rows.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub credits: Option<f64>,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -302,6 +311,9 @@ pub struct DailyProjectRow {
     pub output: i64,
     pub reasoning_output: i64,
     pub cost: f64,
+    /// Aggregated credits for this day/project (Amp only).  `None` when no Amp rows.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub credits: Option<f64>,
 }
 
 /// A single tool invocation with its share of the parent turn's cost.
@@ -382,4 +394,7 @@ pub struct SessionRow {
     pub title: Option<String>,
     pub cache_hit_ratio: f64,
     pub tokens_per_min: f64,
+    /// Total credits for this session (Amp only).  `None` when no Amp data.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub credits: Option<f64>,
 }
