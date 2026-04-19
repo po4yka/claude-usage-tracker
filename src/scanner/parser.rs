@@ -474,10 +474,16 @@ pub(crate) fn parse_claude_jsonl_file(filepath: &Path, skip_lines: i64) -> Parse
                                         .and_then(|inp| inp.get("command"))
                                         .and_then(|v| v.as_str())
                                         .unwrap_or("");
-                                    // Truncate to 120 chars; append ellipsis if truncated.
+                                    // Truncate to 120 bytes at a valid char boundary; append
+                                    // ellipsis if truncated. Raw byte slicing would panic on
+                                    // multi-byte UTF-8 characters that straddle the boundary.
                                     const MAX_CMD: usize = 120;
                                     if cmd.len() > MAX_CMD {
-                                        let truncated = &cmd[..MAX_CMD];
+                                        let mut end = MAX_CMD;
+                                        while end > 0 && !cmd.is_char_boundary(end) {
+                                            end -= 1;
+                                        }
+                                        let truncated = &cmd[..end];
                                         format!("{truncated}\u{2026}")
                                     } else {
                                         cmd.to_string()
