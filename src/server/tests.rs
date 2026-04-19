@@ -15,10 +15,12 @@ mod tests {
     use tower::ServiceExt;
 
     use crate::config::{AgentStatusConfig, AggregatorConfig, WebhookConfig};
+    use crate::models::OpenAiReconciliation;
+    use crate::oauth::models::{BudgetInfo, Identity, Plan, UsageWindowsResponse, WindowInfo};
     use crate::scanner;
     use crate::server::api::{AppState, api_agent_status, api_community_signal};
-    use crate::server::{ServeOptions, build_router, build_state, start_background_pollers_with};
     use crate::server::assets;
+    use crate::server::{ServeOptions, build_router, build_state, start_background_pollers_with};
     use crate::webhooks::WebhookState;
 
     fn make_assistant(session_id: &str, input: i64, output: i64, msg_id: &str) -> String {
@@ -117,6 +119,86 @@ mod tests {
         ))
     }
 
+    fn base_state(db_path: std::path::PathBuf, projects_dir: std::path::PathBuf) -> AppState {
+        AppState {
+            db_path,
+            projects_dirs: Some(vec![projects_dir]),
+            oauth_enabled: false,
+            oauth_refresh_interval: 60,
+            oauth_cache: tokio::sync::RwLock::new(None),
+            oauth_refresh_lock: tokio::sync::Mutex::new(()),
+            openai_enabled: false,
+            openai_admin_key_env: "OPENAI_ADMIN_KEY".into(),
+            openai_refresh_interval: 300,
+            openai_lookback_days: 30,
+            openai_cache: tokio::sync::RwLock::new(None),
+            openai_refresh_lock: tokio::sync::Mutex::new(()),
+            db_lock: tokio::sync::Mutex::new(()),
+            webhook_state: tokio::sync::Mutex::new(WebhookState::default()),
+            webhook_config: WebhookConfig::default(),
+            scan_event_tx: tokio::sync::broadcast::channel::<String>(16).0,
+            agent_status_config: AgentStatusConfig::default(),
+            agent_status_cache: tokio::sync::RwLock::new(None),
+            agent_status_refresh_lock: tokio::sync::Mutex::new(()),
+            aggregator_config: AggregatorConfig::default(),
+            aggregator_cache: tokio::sync::RwLock::new(None),
+            aggregator_refresh_lock: tokio::sync::Mutex::new(()),
+            blocks_token_limit: None,
+            session_length_hours: 5.0,
+            project_aliases: std::collections::HashMap::new(),
+        }
+    }
+
+    fn available_usage_response(
+        used_percent: f64,
+        resets_in_minutes: i64,
+        tier: &str,
+    ) -> UsageWindowsResponse {
+        UsageWindowsResponse {
+            available: true,
+            session: Some(WindowInfo {
+                used_percent,
+                resets_at: Some("2099-01-01T00:00:00Z".into()),
+                resets_in_minutes: Some(resets_in_minutes),
+            }),
+            weekly: None,
+            weekly_opus: None,
+            weekly_sonnet: None,
+            budget: Some(BudgetInfo {
+                used: 12.5,
+                limit: 50.0,
+                currency: "USD".into(),
+                utilization: 25.0,
+            }),
+            identity: Some(Identity {
+                plan: Some(Plan::Pro),
+                rate_limit_tier: Some(tier.into()),
+            }),
+            error: None,
+        }
+    }
+
+    fn available_openai_reconciliation(
+        estimated_local_cost: f64,
+        api_usage_cost: f64,
+        api_requests: i64,
+    ) -> OpenAiReconciliation {
+        OpenAiReconciliation {
+            available: true,
+            lookback_days: 7,
+            start_date: "2026-04-13".into(),
+            end_date: "2026-04-19".into(),
+            estimated_local_cost,
+            api_usage_cost,
+            api_input_tokens: 1_000,
+            api_output_tokens: 500,
+            api_cached_input_tokens: 250,
+            api_requests,
+            delta_cost: api_usage_cost - estimated_local_cost,
+            error: None,
+        }
+    }
+
     #[tokio::test]
     async fn test_index_returns_html() {
         let tmp = TempDir::new().unwrap();
@@ -163,7 +245,10 @@ mod tests {
             .unwrap();
         assert_eq!(index.status(), StatusCode::OK);
         let index_body = index.into_body().collect().await.unwrap().to_bytes();
-        assert_eq!(root_body, index_body, "/ and /index.html should share the same asset");
+        assert_eq!(
+            root_body, index_body,
+            "/ and /index.html should share the same asset"
+        );
 
         let favicon = app
             .oneshot(
@@ -213,7 +298,11 @@ mod tests {
                 )
                 .await
                 .unwrap();
-            assert_eq!(response.status(), expected, "route {method} {path} should be wired");
+            assert_eq!(
+                response.status(),
+                expected,
+                "route {method} {path} should be wired"
+            );
         }
 
         let wrong_method = app
@@ -499,6 +588,177 @@ mod tests {
         let body = resp.into_body().collect().await.unwrap().to_bytes();
         let data: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(data["available"], false);
+    }
+
+    #[tokio::test]
+    async fn test_refresh_usage_windows_uses_fresh_cache_without_fetch() {
+        let tmp = TempDir::new().unwrap();
+        let (db_path, projects) = setup_test_db(&tmp);
+
+        let cached = available_usage_response(42.0, 75, "cached-tier");
+        let mut state = base_state(db_path, projects);
+        state.oauth_enabled = true;
+        state.oauth_refresh_interval = 3600;
+        state.oauth_cache =
+            tokio::sync::RwLock::new(Some((std::time::Instant::now(), cached.clone())));
+        let state = Arc::new(state);
+
+        let fetch_count = Arc::new(AtomicUsize::new(0));
+        let returned = crate::server::api::refresh_usage_windows_with(&state, {
+            let fetch_count = fetch_count.clone();
+            move || async move {
+                fetch_count.fetch_add(1, Ordering::SeqCst);
+                UsageWindowsResponse::with_error("should not fetch".into())
+            }
+        })
+        .await;
+
+        assert_eq!(fetch_count.load(Ordering::SeqCst), 0);
+        assert_eq!(
+            serde_json::to_value(&returned).unwrap(),
+            serde_json::to_value(&cached).unwrap()
+        );
+    }
+
+    #[tokio::test]
+    async fn test_refresh_usage_windows_replaces_stale_cache_with_fresh_response() {
+        let tmp = TempDir::new().unwrap();
+        let (db_path, projects) = setup_test_db(&tmp);
+
+        let cached = available_usage_response(42.0, 75, "cached-tier");
+        let fresh = available_usage_response(88.0, 12, "fresh-tier");
+
+        let mut state = base_state(db_path, projects);
+        state.oauth_enabled = true;
+        state.oauth_refresh_interval = 1;
+        state.oauth_cache = tokio::sync::RwLock::new(Some((
+            std::time::Instant::now() - Duration::from_secs(5),
+            cached,
+        )));
+        let state = Arc::new(state);
+
+        let fetch_count = Arc::new(AtomicUsize::new(0));
+        let returned = crate::server::api::refresh_usage_windows_with(&state, {
+            let fetch_count = fetch_count.clone();
+            let fresh = fresh.clone();
+            move || async move {
+                fetch_count.fetch_add(1, Ordering::SeqCst);
+                fresh
+            }
+        })
+        .await;
+
+        assert_eq!(fetch_count.load(Ordering::SeqCst), 1);
+        assert_eq!(
+            serde_json::to_value(&returned).unwrap(),
+            serde_json::to_value(&fresh).unwrap()
+        );
+
+        let stored = state.oauth_cache.read().await;
+        let (_, stored_resp) = stored.as_ref().expect("cache should be populated");
+        assert_eq!(
+            serde_json::to_value(stored_resp).unwrap(),
+            serde_json::to_value(&fresh).unwrap()
+        );
+    }
+
+    #[tokio::test]
+    async fn test_refresh_usage_windows_falls_back_to_stale_cache_when_fetch_unavailable() {
+        let tmp = TempDir::new().unwrap();
+        let (db_path, projects) = setup_test_db(&tmp);
+
+        let cached = available_usage_response(64.0, 33, "cached-tier");
+
+        let mut state = base_state(db_path, projects);
+        state.oauth_enabled = true;
+        state.oauth_refresh_interval = 1;
+        state.oauth_cache = tokio::sync::RwLock::new(Some((
+            std::time::Instant::now() - Duration::from_secs(5),
+            cached.clone(),
+        )));
+        let state = Arc::new(state);
+
+        let fetch_count = Arc::new(AtomicUsize::new(0));
+        let returned = crate::server::api::refresh_usage_windows_with(&state, {
+            let fetch_count = fetch_count.clone();
+            move || async move {
+                fetch_count.fetch_add(1, Ordering::SeqCst);
+                UsageWindowsResponse::with_error("upstream unavailable".into())
+            }
+        })
+        .await;
+
+        assert_eq!(fetch_count.load(Ordering::SeqCst), 1);
+        assert_eq!(
+            serde_json::to_value(&returned).unwrap(),
+            serde_json::to_value(&cached).unwrap()
+        );
+
+        let stored = state.oauth_cache.read().await;
+        let (_, stored_resp) = stored.as_ref().expect("cache should retain stale value");
+        assert_eq!(
+            serde_json::to_value(stored_resp).unwrap(),
+            serde_json::to_value(&cached).unwrap()
+        );
+    }
+
+    #[tokio::test]
+    async fn test_refresh_usage_windows_stores_unavailable_response_without_cache() {
+        let tmp = TempDir::new().unwrap();
+        let (db_path, projects) = setup_test_db(&tmp);
+
+        let mut state = base_state(db_path, projects);
+        state.oauth_enabled = true;
+        let state = Arc::new(state);
+
+        let returned = crate::server::api::refresh_usage_windows_with(&state, || async {
+            UsageWindowsResponse::with_error("token expired".into())
+        })
+        .await;
+
+        assert!(!returned.available);
+        assert_eq!(returned.error.as_deref(), Some("token expired"));
+
+        let stored = state.oauth_cache.read().await;
+        let (_, stored_resp) = stored
+            .as_ref()
+            .expect("unavailable response should be cached");
+        assert_eq!(stored_resp.error.as_deref(), Some("token expired"));
+    }
+
+    #[tokio::test]
+    async fn test_api_usage_windows_returns_cached_payload_when_enabled() {
+        let tmp = TempDir::new().unwrap();
+        let (db_path, projects) = setup_test_db(&tmp);
+
+        let cached = available_usage_response(73.0, 18, "cached-tier");
+        let mut state = base_state(db_path, projects);
+        state.oauth_enabled = true;
+        state.oauth_refresh_interval = 3600;
+        state.oauth_cache = tokio::sync::RwLock::new(Some((std::time::Instant::now(), cached)));
+        let app = Router::new()
+            .route(
+                "/api/usage-windows",
+                get(crate::server::api::api_usage_windows),
+            )
+            .with_state(Arc::new(state));
+
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/usage-windows")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = resp.into_body().collect().await.unwrap().to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["available"], true);
+        assert_eq!(json["session"]["used_percent"], serde_json::json!(73.0));
+        assert_eq!(json["identity"]["rate_limit_tier"], "cached-tier");
     }
 
     #[tokio::test]
@@ -1693,7 +1953,10 @@ mod tests {
             spawned.push((name, interval_secs));
         });
 
-        assert!(spawned.is_empty(), "disabled features should not register background pollers");
+        assert!(
+            spawned.is_empty(),
+            "disabled features should not register background pollers"
+        );
     }
 
     // -----------------------------------------------------------------------
@@ -2387,5 +2650,218 @@ mod tests {
         assert!(first["day"].is_string(), "day missing");
         assert!(first["hook_nanos"].is_number(), "hook_nanos missing");
         assert!(first["local_nanos"].is_number(), "local_nanos missing");
+    }
+
+    #[tokio::test]
+    async fn test_refresh_openai_reconciliation_uses_fresh_cache_without_fetch() {
+        let tmp = TempDir::new().unwrap();
+        let (db_path, projects) = setup_test_db(&tmp);
+
+        let cached = available_openai_reconciliation(0.12, 0.25, 7);
+        let mut state = base_state(db_path, projects);
+        state.openai_refresh_interval = 3600;
+        state.openai_cache =
+            tokio::sync::RwLock::new(Some((std::time::Instant::now(), cached.clone())));
+        let state = Arc::new(state);
+
+        let fetch_count = Arc::new(AtomicUsize::new(0));
+        let returned = crate::server::api::refresh_openai_reconciliation_with(
+            &state,
+            Some(120_000_000),
+            Some("test-key".into()),
+            {
+                let fetch_count = fetch_count.clone();
+                move |_, _, _| async move {
+                    fetch_count.fetch_add(1, Ordering::SeqCst);
+                    OpenAiReconciliation::default()
+                }
+            },
+        )
+        .await;
+
+        assert_eq!(fetch_count.load(Ordering::SeqCst), 0);
+        assert_eq!(
+            serde_json::to_value(&returned).unwrap(),
+            serde_json::to_value(&cached).unwrap()
+        );
+    }
+
+    #[tokio::test]
+    async fn test_refresh_openai_reconciliation_replaces_stale_cache_with_fresh_response() {
+        let tmp = TempDir::new().unwrap();
+        let (db_path, projects) = setup_test_db(&tmp);
+
+        let cached = available_openai_reconciliation(0.12, 0.25, 7);
+        let fresh = available_openai_reconciliation(0.45, 0.99, 19);
+
+        let mut state = base_state(db_path, projects);
+        state.openai_refresh_interval = 1;
+        state.openai_lookback_days = 14;
+        state.openai_cache = tokio::sync::RwLock::new(Some((
+            std::time::Instant::now() - Duration::from_secs(5),
+            cached,
+        )));
+        let state = Arc::new(state);
+
+        let fetch_count = Arc::new(AtomicUsize::new(0));
+        let returned = crate::server::api::refresh_openai_reconciliation_with(
+            &state,
+            Some(450_000_000),
+            Some("test-key".into()),
+            {
+                let fetch_count = fetch_count.clone();
+                let fresh = fresh.clone();
+                move |key, days, estimated_local_cost| async move {
+                    fetch_count.fetch_add(1, Ordering::SeqCst);
+                    assert_eq!(key, "test-key");
+                    assert_eq!(days, 14);
+                    assert!((estimated_local_cost - 0.45).abs() < f64::EPSILON);
+                    fresh
+                }
+            },
+        )
+        .await;
+
+        assert_eq!(fetch_count.load(Ordering::SeqCst), 1);
+        assert_eq!(
+            serde_json::to_value(&returned).unwrap(),
+            serde_json::to_value(&fresh).unwrap()
+        );
+
+        let stored = state.openai_cache.read().await;
+        let (_, stored_resp) = stored.as_ref().expect("cache should be updated");
+        assert_eq!(
+            serde_json::to_value(stored_resp).unwrap(),
+            serde_json::to_value(&fresh).unwrap()
+        );
+    }
+
+    #[tokio::test]
+    async fn test_refresh_openai_reconciliation_falls_back_to_stale_cache_when_fetch_unavailable() {
+        let tmp = TempDir::new().unwrap();
+        let (db_path, projects) = setup_test_db(&tmp);
+
+        let cached = available_openai_reconciliation(0.12, 0.25, 7);
+
+        let mut state = base_state(db_path, projects);
+        state.openai_refresh_interval = 1;
+        state.openai_cache = tokio::sync::RwLock::new(Some((
+            std::time::Instant::now() - Duration::from_secs(5),
+            cached.clone(),
+        )));
+        let state = Arc::new(state);
+
+        let fetch_count = Arc::new(AtomicUsize::new(0));
+        let returned = crate::server::api::refresh_openai_reconciliation_with(
+            &state,
+            Some(120_000_000),
+            Some("test-key".into()),
+            {
+                let fetch_count = fetch_count.clone();
+                move |_, _, _| async move {
+                    fetch_count.fetch_add(1, Ordering::SeqCst);
+                    OpenAiReconciliation {
+                        available: false,
+                        lookback_days: 7,
+                        start_date: "2026-04-13".into(),
+                        end_date: "2026-04-19".into(),
+                        estimated_local_cost: 0.12,
+                        api_usage_cost: 0.0,
+                        api_input_tokens: 0,
+                        api_output_tokens: 0,
+                        api_cached_input_tokens: 0,
+                        api_requests: 0,
+                        delta_cost: 0.0,
+                        error: Some("upstream unavailable".into()),
+                    }
+                }
+            },
+        )
+        .await;
+
+        assert_eq!(fetch_count.load(Ordering::SeqCst), 1);
+        assert_eq!(
+            serde_json::to_value(&returned).unwrap(),
+            serde_json::to_value(&cached).unwrap()
+        );
+
+        let stored = state.openai_cache.read().await;
+        let (_, stored_resp) = stored.as_ref().expect("cache should retain stale value");
+        assert_eq!(
+            serde_json::to_value(stored_resp).unwrap(),
+            serde_json::to_value(&cached).unwrap()
+        );
+    }
+
+    #[tokio::test]
+    async fn test_refresh_openai_reconciliation_without_admin_key_returns_setup_error() {
+        let tmp = TempDir::new().unwrap();
+        let (db_path, projects) = setup_test_db(&tmp);
+
+        let mut state = base_state(db_path, projects);
+        state.openai_admin_key_env = "MISSING_OPENAI_ADMIN_KEY".into();
+        state.openai_lookback_days = 21;
+        let state = Arc::new(state);
+
+        let fetch_count = Arc::new(AtomicUsize::new(0));
+        let returned = crate::server::api::refresh_openai_reconciliation_with(
+            &state,
+            Some(330_000_000),
+            None,
+            {
+                let fetch_count = fetch_count.clone();
+                move |_, _, _| async move {
+                    fetch_count.fetch_add(1, Ordering::SeqCst);
+                    OpenAiReconciliation::default()
+                }
+            },
+        )
+        .await;
+
+        assert_eq!(fetch_count.load(Ordering::SeqCst), 0);
+        assert!(!returned.available);
+        assert!((returned.estimated_local_cost - 0.33).abs() < f64::EPSILON);
+        assert_eq!(returned.lookback_days, 21);
+        assert_eq!(
+            returned.error.as_deref(),
+            Some(
+                "Set MISSING_OPENAI_ADMIN_KEY to enable OpenAI organization usage reconciliation."
+            )
+        );
+    }
+
+    #[tokio::test]
+    async fn test_api_data_includes_cached_openai_reconciliation_when_enabled() {
+        let tmp = TempDir::new().unwrap();
+        let (db_path, projects) = setup_test_db(&tmp);
+
+        let cached = available_openai_reconciliation(0.12, 0.25, 7);
+        let mut state = base_state(db_path, projects);
+        state.openai_enabled = true;
+        state.openai_refresh_interval = 3600;
+        state.openai_cache = tokio::sync::RwLock::new(Some((std::time::Instant::now(), cached)));
+        let app = Router::new()
+            .route("/api/data", get(crate::server::api::api_data))
+            .with_state(Arc::new(state));
+
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/data")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = resp.into_body().collect().await.unwrap().to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["openai_reconciliation"]["available"], true);
+        assert_eq!(json["openai_reconciliation"]["api_requests"], 7);
+        assert_eq!(
+            json["openai_reconciliation"]["api_usage_cost"],
+            serde_json::json!(0.25)
+        );
     }
 }

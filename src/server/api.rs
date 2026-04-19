@@ -120,6 +120,28 @@ pub(crate) async fn refresh_openai_reconciliation(
     state: &Arc<AppState>,
     local_cost_nanos: Option<i64>,
 ) -> OpenAiReconciliation {
+    let admin_key = std::env::var(&state.openai_admin_key_env).ok();
+    refresh_openai_reconciliation_with(
+        state,
+        local_cost_nanos,
+        admin_key,
+        |key, days, cost| async move {
+            openai::fetch_org_usage_reconciliation(key.trim(), days, cost).await
+        },
+    )
+    .await
+}
+
+pub(crate) async fn refresh_openai_reconciliation_with<F, Fut>(
+    state: &Arc<AppState>,
+    local_cost_nanos: Option<i64>,
+    admin_key: Option<String>,
+    fetcher: F,
+) -> OpenAiReconciliation
+where
+    F: FnOnce(String, i64, f64) -> Fut,
+    Fut: std::future::Future<Output = OpenAiReconciliation>,
+{
     {
         let cache = state.openai_cache.read().await;
         if let Some((fetched_at, ref data)) = *cache
@@ -144,14 +166,9 @@ pub(crate) async fn refresh_openai_reconciliation(
         None => fetch_openai_local_cost_nanos(state).await.unwrap_or(0),
     };
     let estimated_local_cost = local_cost_nanos as f64 / 1_000_000_000.0;
-    let reconciliation = match std::env::var(&state.openai_admin_key_env) {
-        Ok(admin_key) if !admin_key.trim().is_empty() => {
-            openai::fetch_org_usage_reconciliation(
-                admin_key.trim(),
-                state.openai_lookback_days,
-                estimated_local_cost,
-            )
-            .await
+    let reconciliation = match admin_key {
+        Some(admin_key) if !admin_key.trim().is_empty() => {
+            fetcher(admin_key, state.openai_lookback_days, estimated_local_cost).await
         }
         _ => OpenAiReconciliation {
             available: false,
@@ -243,6 +260,17 @@ pub async fn api_usage_windows(
 }
 
 pub(crate) async fn refresh_usage_windows(state: &Arc<AppState>) -> UsageWindowsResponse {
+    refresh_usage_windows_with(state, || async { oauth::poll_usage().await }).await
+}
+
+pub(crate) async fn refresh_usage_windows_with<F, Fut>(
+    state: &Arc<AppState>,
+    fetcher: F,
+) -> UsageWindowsResponse
+where
+    F: FnOnce() -> Fut,
+    Fut: std::future::Future<Output = UsageWindowsResponse>,
+{
     if !state.oauth_enabled {
         return UsageWindowsResponse::unavailable();
     }
@@ -266,7 +294,7 @@ pub(crate) async fn refresh_usage_windows(state: &Arc<AppState>) -> UsageWindows
         }
     }
 
-    let resp = oauth::poll_usage().await;
+    let resp = fetcher().await;
     if let Some(session) = resp.session.as_ref() {
         maybe_send_session_webhook(state, session.used_percent, session.resets_in_minutes).await;
     }
