@@ -59,6 +59,79 @@ mod mcp_tests {
         (dir, db_path)
     }
 
+    fn insert_session(
+        conn: &rusqlite::Connection,
+        session_id: &str,
+        project_name: Option<&str>,
+        first_timestamp: &str,
+        last_timestamp: &str,
+        total_input_tokens: i64,
+        total_output_tokens: i64,
+        total_estimated_cost_nanos: i64,
+        turn_count: i64,
+    ) {
+        conn.execute(
+            "INSERT INTO sessions
+             (session_id, provider, project_name, first_timestamp, last_timestamp,
+              total_input_tokens, total_output_tokens, total_estimated_cost_nanos, turn_count)
+             VALUES (?1, 'claude', ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            rusqlite::params![
+                session_id,
+                project_name,
+                first_timestamp,
+                last_timestamp,
+                total_input_tokens,
+                total_output_tokens,
+                total_estimated_cost_nanos,
+                turn_count
+            ],
+        )
+        .unwrap();
+    }
+
+    fn insert_turn(
+        conn: &rusqlite::Connection,
+        session_id: &str,
+        timestamp: &str,
+        model: &str,
+        input_tokens: i64,
+        output_tokens: i64,
+        estimated_cost_nanos: i64,
+    ) {
+        conn.execute(
+            "INSERT INTO turns
+             (session_id, provider, timestamp, model, input_tokens, output_tokens,
+              estimated_cost_nanos, billing_mode, cost_confidence, message_id, source_path)
+             VALUES (?1, 'claude', ?2, ?3, ?4, ?5, ?6, 'estimated_local', 'high', ?7, '')",
+            rusqlite::params![
+                session_id,
+                timestamp,
+                model,
+                input_tokens,
+                output_tokens,
+                estimated_cost_nanos,
+                format!("{session_id}-{timestamp}-{model}")
+            ],
+        )
+        .unwrap();
+    }
+
+    fn insert_live_event_with_hook_cost(
+        conn: &rusqlite::Connection,
+        dedup_key: &str,
+        received_at: &str,
+        session_id: &str,
+        hook_reported_cost_nanos: i64,
+    ) {
+        conn.execute(
+            "INSERT INTO live_events
+             (dedup_key, received_at, session_id, tool_name, raw_json, hook_reported_cost_nanos)
+             VALUES (?1, ?2, ?3, 'Bash', '{}', ?4)",
+            rusqlite::params![dedup_key, received_at, session_id, hook_reported_cost_nanos],
+        )
+        .unwrap();
+    }
+
     /// Spin up a server on an in-memory duplex transport.
     ///
     /// Returns a write handle to send JSON-RPC messages and a read handle to
@@ -299,7 +372,9 @@ mod mcp_tests {
         assert!(payload["id"].is_null());
         assert_eq!(payload["error"]["code"], -32000);
         assert!(
-            payload["error"]["message"].as_str().is_some_and(|msg| !msg.is_empty()),
+            payload["error"]["message"]
+                .as_str()
+                .is_some_and(|msg| !msg.is_empty()),
             "internal error should include a message"
         );
     }
@@ -517,6 +592,130 @@ mod mcp_tests {
         assert!(data["sessions"].is_array(), "missing sessions");
     }
 
+    #[tokio::test]
+    async fn heimdall_sessions_defaults_to_limit_50_and_clamps_large_limits() {
+        let (_dir, db_path) = seed_db_with_data();
+        let (mut w, mut r) = connect_server(db_path).await;
+        do_initialize(&mut w, &mut r).await;
+
+        let default_resp = call_tool(
+            &mut w,
+            &mut r,
+            61,
+            "heimdall_sessions",
+            serde_json::json!({}),
+        )
+        .await;
+        assert!(
+            default_resp["error"].is_null(),
+            "tool error: {:?}",
+            default_resp["error"]
+        );
+        let default_text = default_resp["result"]["content"][0]["text"]
+            .as_str()
+            .unwrap();
+        let default_data: serde_json::Value = serde_json::from_str(default_text).unwrap();
+        assert_eq!(default_data["limit"], 50);
+        assert_eq!(default_data["offset"], 0);
+
+        let clamped_resp = call_tool(
+            &mut w,
+            &mut r,
+            62,
+            "heimdall_sessions",
+            serde_json::json!({ "limit": 999, "offset": 7 }),
+        )
+        .await;
+        assert!(
+            clamped_resp["error"].is_null(),
+            "tool error: {:?}",
+            clamped_resp["error"]
+        );
+        let clamped_text = clamped_resp["result"]["content"][0]["text"]
+            .as_str()
+            .unwrap();
+        let clamped_data: serde_json::Value = serde_json::from_str(clamped_text).unwrap();
+        assert_eq!(clamped_data["limit"], 500);
+        assert_eq!(clamped_data["offset"], 7);
+    }
+
+    #[tokio::test]
+    async fn heimdall_sessions_project_filter_matches_substrings_and_handles_empty_results() {
+        let (dir, db_path) = seed_db();
+        {
+            let conn = open_db(&db_path).unwrap();
+            insert_session(
+                &conn,
+                "claude:alpha-1",
+                Some("alpha-app"),
+                "2026-04-17T09:00:00Z",
+                "2026-04-17T10:00:00Z",
+                1200,
+                300,
+                12_500_000,
+                3,
+            );
+            insert_session(
+                &conn,
+                "claude:beta-1",
+                Some("beta-service"),
+                "2026-04-18T09:00:00Z",
+                "2026-04-18T10:00:00Z",
+                2200,
+                500,
+                18_500_000,
+                4,
+            );
+        }
+        let _ = dir;
+
+        let (mut w, mut r) = connect_server(db_path).await;
+        do_initialize(&mut w, &mut r).await;
+
+        let filtered_resp = call_tool(
+            &mut w,
+            &mut r,
+            63,
+            "heimdall_sessions",
+            serde_json::json!({ "project": "beta" }),
+        )
+        .await;
+        assert!(
+            filtered_resp["error"].is_null(),
+            "tool error: {:?}",
+            filtered_resp["error"]
+        );
+        let filtered_text = filtered_resp["result"]["content"][0]["text"]
+            .as_str()
+            .unwrap();
+        let filtered_data: serde_json::Value = serde_json::from_str(filtered_text).unwrap();
+        assert_eq!(filtered_data["total"], 1);
+        let sessions = filtered_data["sessions"].as_array().unwrap();
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0]["project_name"], "beta-service");
+        assert_eq!(sessions[0]["session_id"], "claude:beta-1");
+
+        let missing_resp = call_tool(
+            &mut w,
+            &mut r,
+            64,
+            "heimdall_sessions",
+            serde_json::json!({ "project": "missing" }),
+        )
+        .await;
+        assert!(
+            missing_resp["error"].is_null(),
+            "tool error: {:?}",
+            missing_resp["error"]
+        );
+        let missing_text = missing_resp["result"]["content"][0]["text"]
+            .as_str()
+            .unwrap();
+        let missing_data: serde_json::Value = serde_json::from_str(missing_text).unwrap();
+        assert_eq!(missing_data["total"], 0);
+        assert_eq!(missing_data["sessions"], serde_json::json!([]));
+    }
+
     // ── heimdall_rate_windows ─────────────────────────────────────────────────
 
     #[tokio::test]
@@ -588,6 +787,119 @@ mod mcp_tests {
         let data: serde_json::Value = serde_json::from_str(text).unwrap();
         assert!(data["weeks"].is_array(), "missing weeks");
         assert_eq!(data["start_of_week"], "monday");
+    }
+
+    #[tokio::test]
+    async fn heimdall_weekly_unknown_weekday_uses_monday_grouping() {
+        let (dir, db_path) = seed_db();
+        {
+            let conn = open_db(&db_path).unwrap();
+            insert_turn(
+                &conn,
+                "claude:weekly-boundary",
+                "2027-01-10T10:00:00Z",
+                "claude-sonnet-4-5",
+                100,
+                25,
+                1_000,
+            );
+            insert_turn(
+                &conn,
+                "claude:weekly-boundary",
+                "2027-01-11T10:00:00Z",
+                "claude-sonnet-4-5",
+                200,
+                50,
+                2_000,
+            );
+        }
+        let _ = dir;
+
+        let (mut w, mut r) = connect_server(db_path).await;
+        do_initialize(&mut w, &mut r).await;
+
+        let monday_resp = call_tool(
+            &mut w,
+            &mut r,
+            91,
+            "heimdall_weekly",
+            serde_json::json!({ "start_of_week": "monday" }),
+        )
+        .await;
+        let monday_text = monday_resp["result"]["content"][0]["text"]
+            .as_str()
+            .unwrap();
+        let monday_data: serde_json::Value = serde_json::from_str(monday_text).unwrap();
+
+        let invalid_resp = call_tool(
+            &mut w,
+            &mut r,
+            92,
+            "heimdall_weekly",
+            serde_json::json!({ "start_of_week": "noday" }),
+        )
+        .await;
+        assert!(
+            invalid_resp["error"].is_null(),
+            "tool error: {:?}",
+            invalid_resp["error"]
+        );
+        let invalid_text = invalid_resp["result"]["content"][0]["text"]
+            .as_str()
+            .unwrap();
+        let invalid_data: serde_json::Value = serde_json::from_str(invalid_text).unwrap();
+
+        assert_eq!(invalid_data["start_of_week"], "noday");
+        assert_eq!(invalid_data["weeks"], monday_data["weeks"]);
+        assert_eq!(invalid_data["weeks"].as_array().unwrap().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn heimdall_weekly_accepts_weekday_abbreviations() {
+        let (dir, db_path) = seed_db();
+        {
+            let conn = open_db(&db_path).unwrap();
+            insert_turn(
+                &conn,
+                "claude:weekly-sun",
+                "2027-01-10T10:00:00Z",
+                "claude-sonnet-4-5",
+                100,
+                25,
+                1_000,
+            );
+            insert_turn(
+                &conn,
+                "claude:weekly-sun",
+                "2027-01-11T10:00:00Z",
+                "claude-sonnet-4-5",
+                200,
+                50,
+                2_000,
+            );
+        }
+        let _ = dir;
+
+        let (mut w, mut r) = connect_server(db_path).await;
+        do_initialize(&mut w, &mut r).await;
+
+        let resp = call_tool(
+            &mut w,
+            &mut r,
+            93,
+            "heimdall_weekly",
+            serde_json::json!({ "start_of_week": "sun" }),
+        )
+        .await;
+        assert!(resp["error"].is_null(), "tool error: {:?}", resp["error"]);
+
+        let text = resp["result"]["content"][0]["text"].as_str().unwrap();
+        let data: serde_json::Value = serde_json::from_str(text).unwrap();
+        let weeks = data["weeks"].as_array().unwrap();
+        assert_eq!(data["start_of_week"], "sun");
+        assert_eq!(weeks.len(), 1);
+        assert_eq!(weeks[0]["total_input_tokens"], 300);
+        assert_eq!(weeks[0]["total_output_tokens"], 75);
     }
 
     // ── heimdall_quota ────────────────────────────────────────────────────────
@@ -688,5 +1000,81 @@ mod mcp_tests {
         );
         assert!(data["divergence_pct"].is_number(), "divergence_pct missing");
         assert!(data["breakdown"].is_array(), "breakdown must be array");
+    }
+
+    #[tokio::test]
+    async fn heimdall_cost_reconciliation_invalid_period_uses_month_window() {
+        let (dir, db_path) = seed_db();
+        let recent = (chrono::Utc::now() - chrono::Duration::days(3)).to_rfc3339();
+        let month_only = (chrono::Utc::now() - chrono::Duration::days(20)).to_rfc3339();
+        let too_old = (chrono::Utc::now() - chrono::Duration::days(40)).to_rfc3339();
+        {
+            let conn = open_db(&db_path).unwrap();
+
+            insert_turn(
+                &conn,
+                "claude:recon-recent",
+                &recent,
+                "claude-sonnet-4-5",
+                100,
+                50,
+                90,
+            );
+            insert_turn(
+                &conn,
+                "claude:recon-month",
+                &month_only,
+                "claude-sonnet-4-5",
+                100,
+                50,
+                120,
+            );
+            insert_turn(
+                &conn,
+                "claude:recon-old",
+                &too_old,
+                "claude-sonnet-4-5",
+                100,
+                50,
+                500,
+            );
+
+            insert_live_event_with_hook_cost(&conn, "recent", &recent, "claude:recon-recent", 100);
+            insert_live_event_with_hook_cost(
+                &conn,
+                "month-only",
+                &month_only,
+                "claude:recon-month",
+                150,
+            );
+            insert_live_event_with_hook_cost(&conn, "too-old", &too_old, "claude:recon-old", 700);
+        }
+        let _ = dir;
+
+        let (mut w, mut r) = connect_server(db_path).await;
+        do_initialize(&mut w, &mut r).await;
+
+        let resp = call_tool(
+            &mut w,
+            &mut r,
+            121,
+            "heimdall_cost_reconciliation",
+            serde_json::json!({ "period": "quarter" }),
+        )
+        .await;
+        assert!(resp["error"].is_null(), "tool error: {:?}", resp["error"]);
+
+        let text = resp["result"]["content"][0]["text"].as_str().unwrap();
+        let data: serde_json::Value = serde_json::from_str(text).unwrap();
+        let breakdown = data["breakdown"].as_array().unwrap();
+
+        assert_eq!(data["period"], "quarter");
+        assert_eq!(data["hook_total_nanos"], 250);
+        assert_eq!(data["local_total_nanos"], 210);
+        assert_eq!(breakdown.len(), 2);
+        assert!(
+            breakdown.iter().all(|row| row["day"] != too_old[..10]),
+            "rows outside the 30-day fallback window should be excluded"
+        );
     }
 }
