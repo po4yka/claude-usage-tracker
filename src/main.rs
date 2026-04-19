@@ -159,9 +159,14 @@ enum Commands {
         /// Path to SQLite DB file
         #[arg(long)]
         db_path: Option<PathBuf>,
-        /// Session block duration in hours (default: 5.0 — Claude's billing window)
-        #[arg(long, default_value_t = 5.0)]
-        session_length: f64,
+        /// Session block duration in hours (0 < h <= 168); overrides config default.
+        /// When absent, uses --provider lookup or [blocks.session_length_hours] from config.
+        #[arg(long, value_parser = parse_session_length)]
+        session_length: Option<f64>,
+        /// Provider hint for resolving the default session length when
+        /// --session-length is absent (looks up [blocks.session_length_by_provider]).
+        #[arg(long)]
+        provider: Option<String>,
         /// Only show the currently active block
         #[arg(long)]
         active: bool,
@@ -345,6 +350,19 @@ fn parse_token_limit(s: &str) -> Result<TokenLimit, String> {
     }
 }
 
+/// Parse a session-length value: must be a float in (0, 168].
+fn parse_session_length(s: &str) -> Result<f64, String> {
+    match s.parse::<f64>() {
+        Ok(h) if h > 0.0 && h <= 168.0 => Ok(h),
+        Ok(h) => Err(format!(
+            "session-length must be > 0 and <= 168 hours, got: {h}"
+        )),
+        Err(_) => Err(format!(
+            "invalid session-length '{s}': expected a number of hours"
+        )),
+    }
+}
+
 /// Parse a weekday name (case-insensitive) into a `chrono::Weekday`.
 fn parse_weekday(s: &str) -> Result<chrono::Weekday, String> {
     match s.to_ascii_lowercase().as_str() {
@@ -452,6 +470,8 @@ fn main() -> Result<()> {
     // Resolve merged configs (commands.* overrides flat defaults).
     let resolved_blocks = cfg.resolved_blocks();
     let resolved_statusline = cfg.resolved_statusline();
+    // Resolve session length before any partial moves of `cfg` fields below.
+    let cfg_blocks_session_length = cfg.resolved_session_length(None, None);
 
     // Extract config values before match (avoids partial move issues)
     let cfg_db = cfg.db_path;
@@ -469,6 +489,7 @@ fn main() -> Result<()> {
     let cfg_agent_status = cfg.agent_status;
     let cfg_aggregator = cfg.aggregator;
     let cfg_blocks_token_limit = resolved_blocks.token_limit;
+    let cfg_blocks_session_length_by_provider = resolved_blocks.session_length_by_provider.clone();
     let cfg_statusline_low = resolved_statusline.context_low_threshold;
     let cfg_statusline_medium = resolved_statusline.context_medium_threshold;
     let cfg_burn_rate_normal_max = resolved_statusline.burn_rate_normal_max;
@@ -570,6 +591,7 @@ fn main() -> Result<()> {
                 agent_status_config: cfg_agent_status,
                 aggregator_config: cfg_aggregator,
                 blocks_token_limit: cfg_blocks_token_limit,
+                session_length_hours: cfg_blocks_session_length,
                 project_aliases: cfg_project_aliases.clone(),
             }))?;
         }
@@ -649,20 +671,35 @@ fn main() -> Result<()> {
         Commands::Blocks {
             db_path,
             session_length,
+            provider,
             active,
             json,
             token_limit,
             jq,
         } => {
             let db = default_db(db_path);
-            cmd_blocks(
-                &db,
-                session_length,
-                active,
-                json,
-                token_limit,
-                jq.as_deref(),
-            )?;
+            // Resolution order: CLI flag > provider-specific config > flat config > 5.0.
+            // We replicate the same logic as `Config::resolved_session_length` using the
+            // pre-extracted snapshots (cfg is partially moved above the match).
+            let session_hours = if let Some(h) = session_length {
+                h
+            } else if let Some(p) = provider.as_deref() {
+                if let Some(&h) = cfg_blocks_session_length_by_provider.get(p) {
+                    if h > 0.0 && h <= 168.0 {
+                        h
+                    } else {
+                        tracing::warn!(
+                            "invalid session_length {h} for provider '{p}' from config, falling back to 5.0"
+                        );
+                        5.0
+                    }
+                } else {
+                    cfg_blocks_session_length
+                }
+            } else {
+                cfg_blocks_session_length
+            };
+            cmd_blocks(&db, session_hours, active, json, token_limit, jq.as_deref())?;
         }
         Commands::Weekly {
             db_path,

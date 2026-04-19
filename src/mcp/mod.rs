@@ -51,7 +51,11 @@ pub async fn run_stdio(db_path: PathBuf) -> Result<()> {
     use rmcp::ServiceExt;
     use tokio::io::{stdin, stdout};
 
-    let server = HeimdallMcpServer { db_path };
+    let server = HeimdallMcpServer {
+        db_path,
+        default_session_length_hours: crate::config::load_config_resolved()
+            .resolved_session_length(None, None),
+    };
     let svc = server.serve((stdin(), stdout())).await?;
     // Wait for client disconnect (EOF on stdin).
     if let Err(e) = svc.waiting().await {
@@ -137,6 +141,8 @@ async fn mcp_http_handler(
 
     let server = HeimdallMcpServer {
         db_path: (*db_path).clone(),
+        default_session_length_hours: crate::config::load_config_resolved()
+            .resolved_session_length(None, None),
     };
 
     use rmcp::ServiceExt;

@@ -94,6 +94,7 @@ mod tests {
             aggregator_config: AggregatorConfig::default(),
             aggregator_cache: tokio::sync::RwLock::new(None),
             blocks_token_limit: None,
+            session_length_hours: 5.0,
             project_aliases: std::collections::HashMap::new(),
         });
         let html = assets::render_dashboard();
@@ -1057,6 +1058,7 @@ mod tests {
             aggregator_config: AggregatorConfig::default(),
             aggregator_cache: tokio::sync::RwLock::new(None),
             blocks_token_limit: None,
+            session_length_hours: 5.0,
             project_aliases: std::collections::HashMap::new(),
         });
 
@@ -1248,6 +1250,7 @@ mod tests {
             aggregator_config: agg_cfg,
             aggregator_cache: tokio::sync::RwLock::new(None),
             blocks_token_limit: None,
+            session_length_hours: 5.0,
             project_aliases: std::collections::HashMap::new(),
         });
 
@@ -1343,6 +1346,7 @@ mod tests {
                 cached_signal,
             ))),
             blocks_token_limit: None,
+            session_length_hours: 5.0,
             project_aliases: std::collections::HashMap::new(),
         });
 
@@ -1404,6 +1408,7 @@ mod tests {
             aggregator_config: AggregatorConfig::default(),
             aggregator_cache: tokio::sync::RwLock::new(None),
             blocks_token_limit: token_limit,
+            session_length_hours: 5.0,
             project_aliases: std::collections::HashMap::new(),
         });
         let html = assets::render_dashboard();
@@ -1515,6 +1520,62 @@ mod tests {
         assert!(b.get("entry_count").is_some());
         // quota field must be absent when token_limit is not set.
         assert!(b.get("quota").is_none());
+    }
+
+    #[tokio::test]
+    async fn test_api_billing_blocks_returns_configured_session_length() {
+        // Verify that AppState.session_length_hours is echoed back in the response.
+        let tmp = TempDir::new().unwrap();
+        let (db_path, projects) = setup_test_db(&tmp);
+        // Build a custom AppState with session_length_hours = 2.5
+        let state = Arc::new(AppState {
+            db_path,
+            projects_dirs: Some(vec![projects]),
+            oauth_enabled: false,
+            oauth_refresh_interval: 60,
+            oauth_cache: tokio::sync::RwLock::new(None),
+            openai_enabled: false,
+            openai_admin_key_env: "OPENAI_ADMIN_KEY".into(),
+            openai_refresh_interval: 300,
+            openai_lookback_days: 30,
+            openai_cache: tokio::sync::RwLock::new(None),
+            db_lock: tokio::sync::Mutex::new(()),
+            webhook_state: tokio::sync::Mutex::new(WebhookState::default()),
+            webhook_config: WebhookConfig::default(),
+            scan_event_tx: tokio::sync::broadcast::channel::<String>(16).0,
+            agent_status_config: AgentStatusConfig::default(),
+            agent_status_cache: tokio::sync::RwLock::new(None),
+            aggregator_config: AggregatorConfig::default(),
+            aggregator_cache: tokio::sync::RwLock::new(None),
+            blocks_token_limit: None,
+            session_length_hours: 2.5,
+            project_aliases: std::collections::HashMap::new(),
+        });
+        let app = Router::new()
+            .route(
+                "/api/billing-blocks",
+                get(crate::server::api::api_billing_blocks),
+            )
+            .with_state(state);
+
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/billing-blocks")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = resp.into_body().collect().await.unwrap().to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        let returned = json["session_length_hours"].as_f64().unwrap();
+        assert!(
+            (returned - 2.5).abs() < 1e-9,
+            "expected session_length_hours=2.5, got {returned}"
+        );
     }
 
     // ── Phase 3: weekly_by_model in /api/data ─────────────────────────────────

@@ -5,12 +5,11 @@
   "type": "object",
   "properties": {
     "$schema": {
-      "description": "JSON Schema URL for IDE autocomplete.  Ignored at runtime.",
+      "description": "JSON Schema URL for IDE autocomplete.  Ignored at runtime.\nSkipped when `None` during serialisation so `config show --format=toml`\ndoes not emit a bare `\"$schema\"` quoted key.",
       "type": [
         "string",
         "null"
-      ],
-      "default": null
+      ]
     },
     "agent_status": {
       "description": "Upstream coding-agent status monitoring.",
@@ -27,6 +26,8 @@
       "description": "Billing-block quota settings.",
       "$ref": "#/$defs/BlocksConfig",
       "default": {
+        "session_length_by_provider": {},
+        "session_length_hours": null,
         "token_limit": null
       }
     },
@@ -109,6 +110,14 @@
         "refresh_hours": null,
         "source": null
       }
+    },
+    "project_aliases": {
+      "description": "Map of raw project slug (e.g., '-Users-foo-proj') to a human-readable display name",
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "default": {}
     },
     "projects_dirs": {
       "description": "Additional directories to scan for JSONL usage files.",
@@ -258,9 +267,27 @@
       ]
     },
     "BlocksConfig": {
-      "description": "Billing-block quota configuration.\n\nExample TOML:\n```toml\n[blocks]\ntoken_limit = 1000000  # optional; CLI --token-limit takes precedence\n```",
+      "description": "Billing-block quota configuration.\n\nExample TOML:\n```toml\n[blocks]\ntoken_limit = 1000000  # optional; CLI --token-limit takes precedence\nsession_length_hours = 5.0  # global default session window\n\n[blocks.session_length_by_provider]\nclaude = 5.0\ncodex = 1.0\namp = 24.0\n```",
       "type": "object",
       "properties": {
+        "session_length_by_provider": {
+          "description": "Per-provider session-length overrides. Map key = provider name\n(e.g., \"claude\", \"codex\", \"amp\"); value = duration in hours.\nCLI --session-length always wins over these.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "number",
+            "format": "double"
+          },
+          "default": {}
+        },
+        "session_length_hours": {
+          "description": "Default session block duration in hours. If absent, falls back to 5.0\n(Claude's actual billing window).",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double",
+          "default": null
+        },
         "token_limit": {
           "description": "Token quota for the active billing block used by the dashboard.\nThe CLI `--token-limit` flag takes precedence over this value.",
           "type": [

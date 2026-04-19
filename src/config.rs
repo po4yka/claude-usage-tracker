@@ -124,7 +124,57 @@ impl Config {
         };
         BlocksConfig {
             token_limit: override_cfg.token_limit.or(base.token_limit),
+            session_length_hours: override_cfg
+                .session_length_hours
+                .or(base.session_length_hours),
+            session_length_by_provider: if override_cfg.session_length_by_provider.is_empty() {
+                base.session_length_by_provider
+            } else {
+                let mut merged = base.session_length_by_provider;
+                merged.extend(override_cfg.session_length_by_provider.clone());
+                merged
+            },
         }
+    }
+
+    /// Resolve the effective session length in hours.
+    ///
+    /// Precedence: CLI flag (passed as `Some`) > provider-specific default >
+    /// flat default > 5.0 fallback.  Config-sourced values outside `(0, 168]`
+    /// are clamped to 5.0 with a `warn!` log.
+    pub fn resolved_session_length(
+        &self,
+        cli_override: Option<f64>,
+        provider: Option<&str>,
+    ) -> f64 {
+        if let Some(h) = cli_override {
+            return h;
+        }
+        let blocks = self.resolved_blocks();
+        if let Some(p) = provider
+            && let Some(&h) = blocks.session_length_by_provider.get(p)
+        {
+            if !(h > 0.0 && h <= 168.0) {
+                tracing::warn!(
+                    "invalid session_length {} for provider '{}' from config, falling back to 5.0",
+                    h,
+                    p
+                );
+                return 5.0;
+            }
+            return h;
+        }
+        if let Some(h) = blocks.session_length_hours {
+            if !(h > 0.0 && h <= 168.0) {
+                tracing::warn!(
+                    "invalid session_length {} from config, falling back to 5.0",
+                    h
+                );
+                return 5.0;
+            }
+            return h;
+        }
+        5.0
     }
 
     /// Return the effective `StatuslineConfig`, merging flat `statusline` with
@@ -192,6 +242,12 @@ pub struct StatuslineOverride {
 /// ```toml
 /// [blocks]
 /// token_limit = 1000000  # optional; CLI --token-limit takes precedence
+/// session_length_hours = 5.0  # global default session window
+///
+/// [blocks.session_length_by_provider]
+/// claude = 5.0
+/// codex = 1.0
+/// amp = 24.0
 /// ```
 #[derive(Debug, Clone, Default, Deserialize, Serialize, JsonSchema)]
 #[serde(default)]
@@ -199,6 +255,14 @@ pub struct BlocksConfig {
     /// Token quota for the active billing block used by the dashboard.
     /// The CLI `--token-limit` flag takes precedence over this value.
     pub token_limit: Option<i64>,
+    /// Default session block duration in hours. If absent, falls back to 5.0
+    /// (Claude's actual billing window).
+    pub session_length_hours: Option<f64>,
+    /// Per-provider session-length overrides. Map key = provider name
+    /// (e.g., "claude", "codex", "amp"); value = duration in hours.
+    /// CLI --session-length always wins over these.
+    #[serde(default)]
+    pub session_length_by_provider: std::collections::HashMap<String, f64>,
 }
 
 /// Statusline display configuration.
@@ -1235,5 +1299,135 @@ spike_webhook = false
     fn test_display_name_for_empty_map() {
         let config = Config::default();
         assert_eq!(config.display_name_for("any-slug"), "any-slug");
+    }
+
+    // ── Phase 13: session_length_by_provider ────────────────────────────────
+
+    #[test]
+    fn test_blocks_session_length_by_provider_toml_parses() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("config.toml");
+        let mut f = std::fs::File::create(&path).unwrap();
+        write!(
+            f,
+            "[blocks]\nsession_length_hours = 5.0\n\n[blocks.session_length_by_provider]\ncodex = 1.0\n"
+        )
+        .unwrap();
+        let config = load_config_from(&path);
+        assert_eq!(config.blocks.session_length_hours, Some(5.0));
+        assert_eq!(
+            config
+                .blocks
+                .session_length_by_provider
+                .get("codex")
+                .copied(),
+            Some(1.0)
+        );
+    }
+
+    #[test]
+    fn test_resolved_session_length_cli_wins() {
+        let config = Config::default();
+        // CLI override always wins regardless of provider or config
+        assert!((config.resolved_session_length(Some(3.0), Some("codex")) - 3.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn test_resolved_session_length_provider_wins_over_flat() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("config.toml");
+        let mut f = std::fs::File::create(&path).unwrap();
+        write!(
+            f,
+            "[blocks]\nsession_length_hours = 5.0\n\n[blocks.session_length_by_provider]\ncodex = 1.0\n"
+        )
+        .unwrap();
+        let config = load_config_from(&path);
+        let h = config.resolved_session_length(None, Some("codex"));
+        assert!((h - 1.0).abs() < 1e-9, "expected 1.0, got {h}");
+    }
+
+    #[test]
+    fn test_resolved_session_length_flat_wins_over_fallback() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("config.toml");
+        let mut f = std::fs::File::create(&path).unwrap();
+        write!(f, "[blocks]\nsession_length_hours = 8.0\n").unwrap();
+        let config = load_config_from(&path);
+        let h = config.resolved_session_length(None, None);
+        assert!((h - 8.0).abs() < 1e-9, "expected 8.0, got {h}");
+    }
+
+    #[test]
+    fn test_resolved_session_length_fallback_when_no_config() {
+        let config = Config::default();
+        let h = config.resolved_session_length(None, None);
+        assert!((h - 5.0).abs() < 1e-9, "expected 5.0 fallback, got {h}");
+    }
+
+    #[test]
+    fn test_resolved_session_length_invalid_zero_clamps_to_5() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("config.toml");
+        let mut f = std::fs::File::create(&path).unwrap();
+        write!(f, "[blocks]\nsession_length_hours = 0.0\n").unwrap();
+        let config = load_config_from(&path);
+        let h = config.resolved_session_length(None, None);
+        assert!((h - 5.0).abs() < 1e-9, "0.0 should clamp to 5.0, got {h}");
+    }
+
+    #[test]
+    fn test_resolved_session_length_invalid_negative_clamps_to_5() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("config.toml");
+        let mut f = std::fs::File::create(&path).unwrap();
+        write!(f, "[blocks]\nsession_length_hours = -1.0\n").unwrap();
+        let config = load_config_from(&path);
+        let h = config.resolved_session_length(None, None);
+        assert!((h - 5.0).abs() < 1e-9, "-1.0 should clamp to 5.0, got {h}");
+    }
+
+    #[test]
+    fn test_resolved_session_length_invalid_over_168_clamps_to_5() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("config.toml");
+        let mut f = std::fs::File::create(&path).unwrap();
+        write!(f, "[blocks]\nsession_length_hours = 200.0\n").unwrap();
+        let config = load_config_from(&path);
+        let h = config.resolved_session_length(None, None);
+        assert!((h - 5.0).abs() < 1e-9, "200.0 should clamp to 5.0, got {h}");
+    }
+
+    #[test]
+    fn test_resolved_session_length_invalid_provider_value_clamps_to_5() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("config.toml");
+        let mut f = std::fs::File::create(&path).unwrap();
+        // codex = 0.0 is invalid (must be > 0); should warn and fall back to 5.0.
+        write!(
+            f,
+            "[blocks]\n\n[blocks.session_length_by_provider]\ncodex = 0.0\n"
+        )
+        .unwrap();
+        let config = load_config_from(&path);
+        let h = config.resolved_session_length(None, Some("codex"));
+        assert!(
+            (h - 5.0).abs() < f64::EPSILON,
+            "0.0 for codex should clamp to 5.0, got {h}"
+        );
+    }
+
+    #[test]
+    fn test_schema_contains_session_length_by_provider() {
+        let schema = schemars::schema_for!(Config);
+        let json = serde_json::to_string_pretty(&schema).expect("schema serializes");
+        assert!(
+            json.contains("session_length_by_provider"),
+            "schema must contain 'session_length_by_provider'"
+        );
+        assert!(
+            json.contains("session_length_hours"),
+            "schema must contain 'session_length_hours'"
+        );
     }
 }

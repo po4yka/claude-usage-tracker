@@ -52,6 +52,8 @@ pub struct AppState {
     pub aggregator_cache: RwLock<Option<(Instant, CommunitySignal)>>,
     /// Token quota for the /api/billing-blocks endpoint (from config [blocks.token_limit]).
     pub blocks_token_limit: Option<i64>,
+    /// Effective session length in hours for /api/billing-blocks (from config, Phase 13).
+    pub session_length_hours: f64,
     /// Phase 11: project slug -> display name map, populated once at startup.
     pub project_aliases: std::collections::HashMap<String, String>,
 }
@@ -487,14 +489,14 @@ pub async fn api_billing_blocks(
 
     let db_path = state.db_path.clone();
     let token_limit = state.blocks_token_limit;
-    const SESSION_HOURS: f64 = 5.0;
+    let session_hours = state.session_length_hours;
 
     let value = tokio::task::spawn_blocking(move || -> anyhow::Result<Value> {
         let conn = db::open_db(&db_path)?;
         db::init_db(&conn)?;
 
         let turns = db::load_all_turns(&conn)?;
-        let blocks = identify_blocks(&turns, SESSION_HOURS);
+        let blocks = identify_blocks(&turns, session_hours);
         // Compute historical max directly from the already-loaded blocks vec —
         // avoids a redundant full-table scan via historical_max_block_tokens.
         let historical_max_tokens = blocks.iter().map(|b| b.tokens.total()).max().unwrap_or(0);
@@ -553,7 +555,7 @@ pub async fn api_billing_blocks(
             .collect();
 
         Ok(serde_json::json!({
-            "session_length_hours": SESSION_HOURS,
+            "session_length_hours": session_hours,
             "token_limit": token_limit,
             "historical_max_tokens": historical_max_tokens,
             "blocks": json_blocks,

@@ -36,6 +36,8 @@ pub struct ServeOptions {
     pub aggregator_config: AggregatorConfig,
     /// Token quota for the billing-blocks dashboard endpoint (from config [blocks.token_limit]).
     pub blocks_token_limit: Option<i64>,
+    /// Effective session length in hours for /api/billing-blocks (Phase 13).
+    pub session_length_hours: f64,
     /// Phase 11: project slug -> display name map, populated once from config at startup.
     pub project_aliases: std::collections::HashMap<String, String>,
 }
@@ -65,6 +67,7 @@ pub async fn serve(options: ServeOptions) -> anyhow::Result<()> {
         aggregator_config: options.aggregator_config,
         aggregator_cache: RwLock::new(None),
         blocks_token_limit: options.blocks_token_limit,
+        session_length_hours: options.session_length_hours,
         project_aliases: options.project_aliases,
     });
 

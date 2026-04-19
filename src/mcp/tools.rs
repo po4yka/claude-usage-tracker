@@ -19,6 +19,8 @@ use crate::scanner::db as sdb;
 
 pub struct HeimdallMcpServer {
     pub db_path: PathBuf,
+    /// Resolved session length (hours) computed once at server startup.
+    pub default_session_length_hours: f64,
 }
 
 // ── Input types ───────────────────────────────────────────────────────────────
@@ -166,7 +168,10 @@ impl HeimdallMcpServer {
     )]
     async fn heimdall_blocks_active(&self, params: Parameters<BlocksInput>) -> String {
         let db = self.db_path.clone();
-        let hours = params.0.session_length_hours.unwrap_or(5.0);
+        let hours = params
+            .0
+            .session_length_hours
+            .unwrap_or(self.default_session_length_hours);
         match tokio::task::spawn_blocking(move || query_active_block(&db, hours)).await {
             Ok(Ok(v)) => json_ok(v),
             Ok(Err(e)) => json_err(e),

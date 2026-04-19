@@ -282,6 +282,27 @@ Per-command overrides nest under `commands.<name>` and win over flat defaults:
 
 The `commands.blocks.token_limit` wins.
 
+### Per-provider session block duration
+
+Claude's billing window is 5 hours but other providers differ. Configure defaults:
+
+```toml
+[blocks]
+session_length_hours = 5.0  # global default
+
+[blocks.session_length_by_provider]
+claude = 5.0
+codex = 1.0
+amp = 24.0
+```
+
+CLI precedence: `--session-length` flag > `--provider` lookup > flat default > 5.0.
+
+```
+heimdall blocks --provider=codex        # uses codex's 1.0h window
+heimdall blocks --session-length=3      # forces 3h, ignores provider
+```
+
 Generate/refresh the schema locally:
 
 ```bash

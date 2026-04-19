@@ -67,7 +67,10 @@ mod mcp_tests {
         let (client_write, server_read) = tokio::io::duplex(128 * 1024);
         let (server_write, client_read) = tokio::io::duplex(128 * 1024);
 
-        let server = HeimdallMcpServer { db_path };
+        let server = HeimdallMcpServer {
+            db_path,
+            default_session_length_hours: 5.0,
+        };
         // Spawn the server in the background; it runs until EOF on server_read.
         tokio::spawn(async move {
             if let Ok(svc) = server.serve((server_read, server_write)).await {
