@@ -1510,9 +1510,11 @@
     return s4.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
   function truncateMid(s4, max2, tailChars = 8) {
-    if (s4.length <= max2) return s4;
-    const head = Math.max(0, max2 - tailChars - 1);
-    return s4.slice(0, head) + "\u2026" + s4.slice(-tailChars);
+    const codepoints = Array.from(s4);
+    if (codepoints.length <= max2) return s4;
+    const safeTail = Math.min(tailChars, Math.max(0, max2 - 2));
+    const head = Math.max(0, max2 - safeTail - 1);
+    return codepoints.slice(0, head).join("") + "\u2026" + codepoints.slice(-safeTail).join("");
   }
 
   // src/ui/components/SegmentedProgressBar.tsx
@@ -6597,19 +6599,22 @@
       stroke: { width: 2, colors: [cssVar("--surface")] },
       // Filter-based hover cue preserves the donut's colour palette. Without
       // this, ApexCharts swaps the total label's colour to the hovered slice
-      // (see apexcharts/apexcharts.js#3264).
-      states: { hover: { filter: { type: "lighten", value: 0.12 } } },
+      // (see apexcharts/apexcharts.js#3264). The filter is deliberately
+      // gentle — on dark themes the low-opacity tail slices are near-black
+      // and a stronger lighten produces distracting white flashes.
+      states: { hover: { filter: { type: "lighten", value: 0.06 } } },
       legend: {
         ...base.legend,
         itemMargin: { horizontal: 10, vertical: 2 },
         onItemHover: { highlightDataSeries: false },
         formatter: (label) => truncateMid(label, 18, 6)
       },
-      // Anchor the tooltip to the bottom-right of the plot so it never
-      // covers the card's "BY MODEL" title on hover.
+      // Anchor the tooltip below the ring via bottomLeft so it never covers
+      // the card's "BY MODEL" title. bottomRight would push the tooltip past
+      // the card's right edge where overflow:hidden would clip it.
       tooltip: {
         ...base.tooltip,
-        fixed: { enabled: true, position: "bottomRight", offsetX: 0, offsetY: 0 },
+        fixed: { enabled: true, position: "bottomLeft", offsetX: 0, offsetY: 0 },
         y: { formatter: (v4) => fmt(v4) + " tokens" }
       },
       plotOptions: {
@@ -6654,35 +6659,43 @@
     const base = industrialChartOptions("bar");
     const colors = tokenSeriesColors();
     const totals = top.map((p5) => p5.input + p5.output);
-    const hasValidLog = totals.every((v4) => v4 > 0);
+    const maxTotal = totals.reduce((m4, v4) => v4 > m4 ? v4 : m4, 0);
+    const shares = totals.map((v4) => maxTotal > 0 ? v4 / maxTotal * 100 : 0);
     const options = {
       ...base,
       chart: { ...base.chart, type: "bar" },
-      series: [{ name: "Total tokens", data: totals }],
+      series: [{ name: "Share of top", data: shares }],
       colors: [colors[0]],
       fill: { type: "solid" },
       plotOptions: { bar: { horizontal: true, barHeight: "60%", borderRadius: 0 } },
       xaxis: {
         ...base.xaxis,
         categories: top.map((p5) => truncateMid(p5.display_name || p5.project, 18, 8)),
+        min: 0,
+        max: 100,
+        tickAmount: 4,
         labels: {
           ...base.xaxis.labels,
-          formatter: (v4) => fmt(v4),
+          formatter: (v4) => `${Math.round(v4)}%`,
           hideOverlappingLabels: true
-        },
-        tickAmount: 4
+        }
       },
       yaxis: {
         ...base.yaxis,
-        labels: { ...base.yaxis.labels, maxWidth: 120 },
-        ...hasValidLog ? { logarithmic: true, logBase: 10, forceNiceScale: false } : {}
+        labels: { ...base.yaxis.labels, maxWidth: 120 }
       },
-      // Anchor the tooltip to the plot's top-left with negative offset so it
-      // cannot cover the card's "TOP PROJECTS" title on hover.
+      // Anchor the tooltip to the plot's bottom-left so it cannot cover the
+      // card's "TOP PROJECTS" title during hover.
       tooltip: {
         ...base.tooltip,
-        fixed: { enabled: true, position: "topLeft", offsetX: 0, offsetY: -8 },
-        y: { formatter: (v4) => fmt(v4) + " tokens" }
+        fixed: { enabled: true, position: "bottomLeft", offsetX: 0, offsetY: 0 },
+        y: {
+          // Display the raw token count per project regardless of bar scale.
+          formatter: (_v, opts) => {
+            const raw = totals[opts?.dataPointIndex ?? 0] ?? 0;
+            return fmt(raw) + " tokens";
+          }
+        }
       }
     };
     return /* @__PURE__ */ u2(ApexChart, { options, id: "chart-project" });
