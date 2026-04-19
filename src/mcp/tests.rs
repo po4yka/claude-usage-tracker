@@ -6,10 +6,15 @@
 #[cfg(test)]
 mod mcp_tests {
     use std::path::PathBuf;
+    use std::sync::Arc;
 
+    use axum::body::Body;
+    use axum::http::{Request, StatusCode, header};
+    use http_body_util::BodyExt;
     use rmcp::ServiceExt;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
+    use super::super::{McpTransport, mcp_http_handler};
     use crate::mcp::tools::HeimdallMcpServer;
     use crate::scanner::db::{init_db, open_db};
 
@@ -157,6 +162,176 @@ mod mcp_tests {
         )
         .await;
         read_line(r).await
+    }
+
+    fn build_http_request(body: impl Into<Body>) -> Request<Body> {
+        Request::builder()
+            .method("POST")
+            .uri("/mcp")
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(body.into())
+            .unwrap()
+    }
+
+    async fn response_body_text(resp: axum::response::Response) -> String {
+        let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+        String::from_utf8(bytes.to_vec()).unwrap()
+    }
+
+    fn parse_sse_message(body: &str) -> serde_json::Value {
+        let data_line = body
+            .lines()
+            .find(|line| line.starts_with("data: "))
+            .expect("SSE data line");
+        serde_json::from_str(data_line.trim_start_matches("data: ")).expect("valid JSON-RPC body")
+    }
+
+    // ── Transport parsing ─────────────────────────────────────────────────────
+
+    #[test]
+    fn mcp_transport_from_str_is_case_insensitive_and_rejects_unknown_values() {
+        assert_eq!(
+            "stdio".parse::<McpTransport>().unwrap(),
+            McpTransport::Stdio
+        );
+        assert_eq!("HTTP".parse::<McpTransport>().unwrap(), McpTransport::Http);
+
+        let err = "socket".parse::<McpTransport>().unwrap_err();
+        assert_eq!(err, "unknown transport 'socket': expected stdio | http");
+    }
+
+    // ── HTTP transport ────────────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn mcp_http_handler_invalid_json_returns_parse_error_document() {
+        let (_dir, db_path) = seed_db();
+        let req = build_http_request("{ invalid json");
+
+        let resp = mcp_http_handler(req, Arc::new(db_path)).await;
+
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            "application/json"
+        );
+
+        let body = response_body_text(resp).await;
+        let payload: serde_json::Value = serde_json::from_str(&body).unwrap();
+        assert_eq!(payload["jsonrpc"], "2.0");
+        assert!(payload["id"].is_null());
+        assert_eq!(payload["error"]["code"], -32700);
+        assert_eq!(payload["error"]["message"], "Parse error: invalid JSON");
+    }
+
+    #[tokio::test]
+    async fn mcp_http_handler_rejects_bodies_over_limit() {
+        let (_dir, db_path) = seed_db();
+        let oversized = vec![b'x'; 4 * 1024 * 1024 + 1];
+        let req = build_http_request(oversized);
+
+        let resp = mcp_http_handler(req, Arc::new(db_path)).await;
+
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        let body = response_body_text(resp).await;
+        assert_eq!(body, "body read error");
+    }
+
+    #[tokio::test]
+    async fn mcp_http_handler_initialize_returns_sse_message_frame() {
+        let (_dir, db_path) = seed_db();
+        let req = build_http_request(
+            serde_json::to_vec(&serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 41,
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": "2024-11-05",
+                    "capabilities": {},
+                    "clientInfo": { "name": "http-test", "version": "1" }
+                }
+            }))
+            .unwrap(),
+        );
+
+        let resp = mcp_http_handler(req, Arc::new(db_path)).await;
+
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            "text/event-stream"
+        );
+
+        let body = response_body_text(resp).await;
+        assert!(body.starts_with("event: message\n"));
+        assert!(body.ends_with("\n\n"));
+
+        let payload = parse_sse_message(&body);
+        assert_eq!(payload["jsonrpc"], "2.0");
+        assert_eq!(payload["id"], 41);
+        assert!(
+            payload["result"].is_object(),
+            "initialize should return a result"
+        );
+    }
+
+    #[tokio::test]
+    async fn mcp_http_handler_notification_without_initialize_returns_internal_error() {
+        let (_dir, db_path) = seed_db();
+        let req = build_http_request(
+            serde_json::to_vec(&serde_json::json!({
+                "jsonrpc": "2.0",
+                "method": "notifications/initialized"
+            }))
+            .unwrap(),
+        );
+
+        let resp = mcp_http_handler(req, Arc::new(db_path)).await;
+
+        assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            "application/json"
+        );
+
+        let body = response_body_text(resp).await;
+        let payload: serde_json::Value = serde_json::from_str(&body).unwrap();
+        assert_eq!(payload["jsonrpc"], "2.0");
+        assert!(payload["id"].is_null());
+        assert_eq!(payload["error"]["code"], -32000);
+        assert!(
+            payload["error"]["message"].as_str().is_some_and(|msg| !msg.is_empty()),
+            "internal error should include a message"
+        );
+    }
+
+    #[tokio::test]
+    async fn mcp_http_handler_non_initialize_request_returns_internal_error() {
+        let (_dir, db_path) = seed_db();
+        let req = build_http_request(
+            serde_json::to_vec(&serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 77,
+                "method": "heimdall/does-not-exist"
+            }))
+            .unwrap(),
+        );
+
+        let resp = mcp_http_handler(req, Arc::new(db_path)).await;
+
+        assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            "application/json"
+        );
+
+        let body = response_body_text(resp).await;
+        let payload: serde_json::Value = serde_json::from_str(&body).unwrap();
+        assert_eq!(payload["jsonrpc"], "2.0");
+        assert!(payload["id"].is_null());
+        assert!(
+            payload["error"].is_object(),
+            "non-initialize requests should surface a JSON-RPC transport error"
+        );
     }
 
     // ── Tool list test ────────────────────────────────────────────────────────
