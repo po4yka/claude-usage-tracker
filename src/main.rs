@@ -1853,7 +1853,7 @@ fn cmd_weekly(
                 }
                 let by_provider: Vec<serde_json::Value> = {
                     let mut pv: Vec<_> = prov_map.into_iter().collect();
-                    pv.sort_by(|a, b| b.1.0.cmp(&a.1.0));
+                    pv.sort_by_key(|b| std::cmp::Reverse(b.1.0));
                     pv.iter()
                         .map(|(prov, (tokens, turns, cost))| {
                             serde_json::json!({
