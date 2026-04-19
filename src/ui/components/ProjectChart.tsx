@@ -21,12 +21,12 @@ export function ProjectChart({ byProject }: { byProject: ProjectAgg[] }) {
     plotOptions: { bar: { horizontal: true, barHeight: '60%', borderRadius: 0 } },
     xaxis: {
       ...base.xaxis,
-      categories: top.map(p => { const n = p.display_name || p.project; return n.length > 22 ? '\u2026' + n.slice(-20) : n; }),
+      categories: top.map(p => { const n = p.display_name || p.project; return n.length > 16 ? '\u2026' + n.slice(-14) : n; }),
       labels: { ...base.xaxis.labels, formatter: (v: number) => fmt(v) },
     },
     yaxis: {
       ...base.yaxis,
-      labels: { ...base.yaxis.labels, maxWidth: 160 },
+      labels: { ...base.yaxis.labels, maxWidth: 110 },
     },
     tooltip: { ...base.tooltip, y: { formatter: (v: number) => fmt(v) + ' tokens' } },
   };
