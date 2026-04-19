@@ -55,6 +55,7 @@
       "description": "Display settings (currency, formatting).",
       "$ref": "#/$defs/Display",
       "default": {
+        "compact": null,
         "currency": "USD",
         "locale": null
       }
@@ -334,6 +335,14 @@
       "description": "Display settings — controls how costs are rendered to the user.",
       "type": "object",
       "properties": {
+        "compact": {
+          "description": "Narrow-table mode for CLI output.\nWhen true, cache columns are dropped and model lists are condensed.\nEquivalent to passing `--compact` on the command line.",
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "default": null
+        },
         "currency": {
           "description": "ISO 4217 currency code for cost display (default: USD, no conversion).",
           "type": [

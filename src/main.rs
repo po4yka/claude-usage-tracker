@@ -64,6 +64,10 @@ enum Commands {
         /// Defaults to $LANG or "en-US".
         #[arg(long)]
         locale: Option<String>,
+        /// Narrow layout: drop cache columns and condense model lists.
+        /// Useful for screenshots and <100 column terminals.
+        #[arg(long)]
+        compact: bool,
     },
     /// Show all-time statistics
     Stats {
@@ -86,6 +90,10 @@ enum Commands {
         /// Defaults to $LANG or "en-US".
         #[arg(long)]
         locale: Option<String>,
+        /// Narrow layout: drop cache columns and condense model lists.
+        /// Useful for screenshots and <100 column terminals.
+        #[arg(long)]
+        compact: bool,
     },
     /// Scan + start web dashboard
     Dashboard {
@@ -175,6 +183,10 @@ enum Commands {
     },
     /// Show Claude 5-hour billing blocks with burn rate and end-of-block projection
     Blocks {
+        /// Narrow layout: drop cache columns and condense model lists.
+        /// Useful for screenshots and <100 column terminals.
+        #[arg(long)]
+        compact: bool,
         /// Path to SQLite DB file
         #[arg(long)]
         db_path: Option<PathBuf>,
@@ -208,6 +220,10 @@ enum Commands {
     },
     /// Aggregated usage by ISO calendar week
     Weekly {
+        /// Narrow layout: drop cache columns and condense model lists.
+        /// Useful for screenshots and <100 column terminals.
+        #[arg(long)]
+        compact: bool,
         /// Path to SQLite DB file
         #[arg(long)]
         db_path: Option<PathBuf>,
@@ -517,6 +533,7 @@ fn main() -> Result<()> {
     let cfg_openai_lookback_days = cfg.openai.lookback_days;
     let cfg_display_currency = cfg.display.currency.unwrap_or_else(|| "USD".into());
     let cfg_display_locale = cfg.display.locale;
+    let cfg_display_compact = cfg.display.compact.unwrap_or(false);
     let cfg_agent_status = cfg.agent_status;
     let cfg_aggregator = cfg.aggregator;
     let cfg_blocks_token_limit = resolved_blocks.token_limit;
@@ -560,6 +577,7 @@ fn main() -> Result<()> {
             project_aliases,
             breakdown,
             locale,
+            compact,
         } => {
             let db = default_db(db_path);
             let mut aliases = cfg_project_aliases.clone();
@@ -567,7 +585,16 @@ fn main() -> Result<()> {
                 aliases.insert(k, v);
             }
             let loc = locale::resolve_locale(locale.as_deref(), cfg_display_locale.as_deref());
-            cmd_today(&db, json, breakdown, jq.as_deref(), &aliases, loc)?;
+            let effective_compact = compact || cfg_display_compact;
+            cmd_today(
+                &db,
+                json,
+                breakdown,
+                jq.as_deref(),
+                &aliases,
+                loc,
+                effective_compact,
+            )?;
         }
         Commands::Stats {
             db_path,
@@ -576,6 +603,7 @@ fn main() -> Result<()> {
             project_aliases,
             breakdown,
             locale,
+            compact,
         } => {
             let db = default_db(db_path);
             let mut aliases = cfg_project_aliases.clone();
@@ -583,6 +611,7 @@ fn main() -> Result<()> {
                 aliases.insert(k, v);
             }
             let loc = locale::resolve_locale(locale.as_deref(), cfg_display_locale.as_deref());
+            let effective_compact = compact || cfg_display_compact;
             cmd_stats(
                 &db,
                 json,
@@ -591,6 +620,7 @@ fn main() -> Result<()> {
                 jq.as_deref(),
                 &aliases,
                 loc,
+                effective_compact,
             )?;
         }
         Commands::Dashboard {
@@ -724,6 +754,7 @@ fn main() -> Result<()> {
             jq,
             no_gaps,
             locale,
+            compact: _,
         } => {
             let db = default_db(db_path);
             // Resolution order: CLI flag > provider-specific config > flat config > 5.0.
@@ -767,6 +798,7 @@ fn main() -> Result<()> {
             jq,
             project_aliases,
             locale,
+            compact,
         } => {
             let db = default_db(db_path);
             let mut aliases = cfg_project_aliases.clone();
@@ -774,6 +806,7 @@ fn main() -> Result<()> {
                 aliases.insert(k, v);
             }
             let loc = locale::resolve_locale(locale.as_deref(), cfg_display_locale.as_deref());
+            let effective_compact = compact || cfg_display_compact;
             cmd_weekly(
                 &db,
                 start_of_week,
@@ -782,6 +815,7 @@ fn main() -> Result<()> {
                 jq.as_deref(),
                 &aliases,
                 loc,
+                effective_compact,
             )?;
         }
         Commands::Statusline {
@@ -1329,6 +1363,7 @@ pub(crate) fn cmd_today(
     jq: Option<&str>,
     _aliases: &HashMap<String, String>,
     display_locale: chrono::Locale,
+    compact: bool,
 ) -> Result<()> {
     if !db_path.exists() {
         anyhow::bail!("Database not found. Run: claude-usage-tracker scan");
@@ -1498,6 +1533,16 @@ pub(crate) fn cmd_today(
         return Ok(());
     }
 
+    if !compact
+        && std::io::IsTerminal::is_terminal(&std::io::stdout())
+        && std::env::var("COLUMNS")
+            .ok()
+            .and_then(|s| s.parse::<u16>().ok())
+            .is_some_and(|c| c < 100)
+    {
+        eprintln!("(narrow terminal detected; try --compact)");
+    }
+
     let today_display =
         locale::format_naive_date(chrono::Local::now().date_naive(), display_locale);
     println!();
@@ -1562,6 +1607,20 @@ pub(crate) fn cmd_today(
             .push(row);
     }
 
+    /// Truncate a string to at most `max_chars` characters at a char boundary.
+    fn truncate_model(s: &str, max_chars: usize) -> &str {
+        if s.len() <= max_chars {
+            s
+        } else {
+            let end = s
+                .char_indices()
+                .nth(max_chars)
+                .map(|(i, _)| i)
+                .unwrap_or(s.len());
+            &s[..end]
+        }
+    }
+
     if breakdown {
         for (provider, prov_rows) in &rows_by_provider {
             let (p_turns, p_inp, p_out, _p_cr, _p_cc, p_cost) = provider_totals
@@ -1583,17 +1642,29 @@ pub(crate) fn cmd_today(
                     billing_mode,
                 ) = prov_rows[0];
                 let cost = *cost_nanos as f64 / 1_000_000_000.0;
-                println!(
-                    "  {:<8}  {:<30}  turns={:<4}  in={:<8}  out={:<8}  cost={}  conf={}  mode={}",
-                    provider,
-                    model,
-                    turns,
-                    pricing::fmt_tokens(*inp),
-                    pricing::fmt_tokens(*out),
-                    pricing::fmt_cost(cost),
-                    cost_confidence,
-                    billing_mode,
-                );
+                if compact {
+                    println!(
+                        "  {:<8}  {:<20}  turns={:<4}  in={:<8}  out={:<8}  cost={}",
+                        provider,
+                        truncate_model(model, 20),
+                        turns,
+                        pricing::fmt_tokens(*inp),
+                        pricing::fmt_tokens(*out),
+                        pricing::fmt_cost(cost),
+                    );
+                } else {
+                    println!(
+                        "  {:<8}  {:<30}  turns={:<4}  in={:<8}  out={:<8}  cost={}  conf={}  mode={}",
+                        provider,
+                        model,
+                        turns,
+                        pricing::fmt_tokens(*inp),
+                        pricing::fmt_tokens(*out),
+                        pricing::fmt_cost(cost),
+                        cost_confidence,
+                        billing_mode,
+                    );
+                }
             } else {
                 println!(
                     "  {:<8}  ({} models){:<21}  turns={:<4}  in={:<8}  out={:<8}  cost={}",
@@ -1620,16 +1691,27 @@ pub(crate) fn cmd_today(
                 ) in prov_rows
                 {
                     let cost = *cost_nanos as f64 / 1_000_000_000.0;
-                    println!(
-                        "  \u{2514}\u{2500} {:<28}  turns={:<4}  in={:<8}  out={:<8}  cost={}  conf={}  mode={}",
-                        model,
-                        turns,
-                        pricing::fmt_tokens(*inp),
-                        pricing::fmt_tokens(*out),
-                        pricing::fmt_cost(cost),
-                        cost_confidence,
-                        billing_mode,
-                    );
+                    if compact {
+                        println!(
+                            "  \u{2514}\u{2500} {:<20}  turns={:<4}  in={:<8}  out={:<8}  cost={}",
+                            truncate_model(model, 20),
+                            turns,
+                            pricing::fmt_tokens(*inp),
+                            pricing::fmt_tokens(*out),
+                            pricing::fmt_cost(cost),
+                        );
+                    } else {
+                        println!(
+                            "  \u{2514}\u{2500} {:<28}  turns={:<4}  in={:<8}  out={:<8}  cost={}  conf={}  mode={}",
+                            model,
+                            turns,
+                            pricing::fmt_tokens(*inp),
+                            pricing::fmt_tokens(*out),
+                            pricing::fmt_cost(cost),
+                            cost_confidence,
+                            billing_mode,
+                        );
+                    }
                 }
             }
         }
@@ -1649,57 +1731,73 @@ pub(crate) fn cmd_today(
         ) in &rows
         {
             let cost = *cost_nanos as f64 / 1_000_000_000.0;
-            println!(
-                "  {:<8}  {:<30}  turns={:<4}  in={:<8}  out={:<8}  cost={}  conf={}  mode={}",
-                provider,
-                model,
-                turns,
-                pricing::fmt_tokens(*inp),
-                pricing::fmt_tokens(*out),
-                pricing::fmt_cost(cost),
-                cost_confidence,
-                billing_mode,
-            );
+            if compact {
+                println!(
+                    "  {:<8}  {:<20}  turns={:<4}  in={:<8}  out={:<8}  cost={}",
+                    provider,
+                    truncate_model(model, 20),
+                    turns,
+                    pricing::fmt_tokens(*inp),
+                    pricing::fmt_tokens(*out),
+                    pricing::fmt_cost(cost),
+                );
+            } else {
+                println!(
+                    "  {:<8}  {:<30}  turns={:<4}  in={:<8}  out={:<8}  cost={}  conf={}  mode={}",
+                    provider,
+                    model,
+                    turns,
+                    pricing::fmt_tokens(*inp),
+                    pricing::fmt_tokens(*out),
+                    pricing::fmt_cost(cost),
+                    cost_confidence,
+                    billing_mode,
+                );
+            }
         }
     }
 
     println!("{}", "-".repeat(70));
     println!("  Est. total cost: {}", pricing::fmt_cost(total_cost));
-    println!("  By Provider:");
-    for (provider, (turns, input, output, cache_read, cache_creation, cost)) in provider_totals {
-        println!(
-            "    {:<8}  turns={:<6}  in={:<8}  out={:<8}  cached={:<8}  cache_write={:<8}  cost={}",
-            provider,
-            pricing::fmt_tokens(turns),
-            pricing::fmt_tokens(input),
-            pricing::fmt_tokens(output),
-            pricing::fmt_tokens(cache_read),
-            pricing::fmt_tokens(cache_creation),
-            pricing::fmt_cost(cost)
-        );
-    }
-    println!("  By Confidence:");
-    for (confidence, (turns, cost)) in confidence_totals {
-        println!(
-            "    {:<8}  turns={:<6}  cost={}",
-            confidence,
-            pricing::fmt_tokens(turns),
-            pricing::fmt_cost(cost)
-        );
-    }
-    println!("  By Billing Mode:");
-    for (billing_mode, (turns, cost)) in billing_mode_totals {
-        println!(
-            "    {:<18}  turns={:<6}  cost={}",
-            billing_mode,
-            pricing::fmt_tokens(turns),
-            pricing::fmt_cost(cost)
-        );
+    if !compact {
+        println!("  By Provider:");
+        for (provider, (turns, input, output, cache_read, cache_creation, cost)) in provider_totals
+        {
+            println!(
+                "    {:<8}  turns={:<6}  in={:<8}  out={:<8}  cached={:<8}  cache_write={:<8}  cost={}",
+                provider,
+                pricing::fmt_tokens(turns),
+                pricing::fmt_tokens(input),
+                pricing::fmt_tokens(output),
+                pricing::fmt_tokens(cache_read),
+                pricing::fmt_tokens(cache_creation),
+                pricing::fmt_cost(cost)
+            );
+        }
+        println!("  By Confidence:");
+        for (confidence, (turns, cost)) in confidence_totals {
+            println!(
+                "    {:<8}  turns={:<6}  cost={}",
+                confidence,
+                pricing::fmt_tokens(turns),
+                pricing::fmt_cost(cost)
+            );
+        }
+        println!("  By Billing Mode:");
+        for (billing_mode, (turns, cost)) in billing_mode_totals {
+            println!(
+                "    {:<18}  turns={:<6}  cost={}",
+                billing_mode,
+                pricing::fmt_tokens(turns),
+                pricing::fmt_cost(cost)
+            );
+        }
     }
     println!();
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn cmd_weekly(
     db_path: &std::path::Path,
     start_of_week: chrono::Weekday,
@@ -1708,6 +1806,7 @@ fn cmd_weekly(
     jq: Option<&str>,
     _aliases: &HashMap<String, String>,
     display_locale: chrono::Locale,
+    compact: bool,
 ) -> Result<()> {
     if !db_path.exists() {
         anyhow::bail!("Database not found. Run: claude-usage-tracker scan");
@@ -1825,13 +1924,34 @@ fn cmd_weekly(
 
             if breakdown {
                 for r in &week_rows {
-                    println!(
-                        "  \u{2514}\u{2500} {:<40}  in={}  out={}  cost={}",
-                        r.model,
-                        pricing::fmt_tokens(r.input_tokens),
-                        pricing::fmt_tokens(r.output_tokens),
-                        pricing::fmt_cost(r.cost_nanos as f64 / 1_000_000_000.0)
-                    );
+                    if compact {
+                        let model_trunc = if r.model.len() <= 20 {
+                            r.model.as_str()
+                        } else {
+                            let end = r
+                                .model
+                                .char_indices()
+                                .nth(20)
+                                .map(|(i, _)| i)
+                                .unwrap_or(r.model.len());
+                            &r.model[..end]
+                        };
+                        println!(
+                            "  \u{2514}\u{2500} {:<20}  in={}  out={}  cost={}",
+                            model_trunc,
+                            pricing::fmt_tokens(r.input_tokens),
+                            pricing::fmt_tokens(r.output_tokens),
+                            pricing::fmt_cost(r.cost_nanos as f64 / 1_000_000_000.0)
+                        );
+                    } else {
+                        println!(
+                            "  \u{2514}\u{2500} {:<40}  in={}  out={}  cost={}",
+                            r.model,
+                            pricing::fmt_tokens(r.input_tokens),
+                            pricing::fmt_tokens(r.output_tokens),
+                            pricing::fmt_cost(r.cost_nanos as f64 / 1_000_000_000.0)
+                        );
+                    }
                 }
             }
         }
@@ -1841,6 +1961,7 @@ fn cmd_weekly(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn cmd_stats(
     db_path: &std::path::Path,
     json_output: bool,
@@ -1849,6 +1970,7 @@ pub(crate) fn cmd_stats(
     jq: Option<&str>,
     _aliases: &HashMap<String, String>,
     display_locale: chrono::Locale,
+    compact: bool,
 ) -> Result<()> {
     if !db_path.exists() {
         anyhow::bail!("Database not found. Run: claude-usage-tracker scan");
@@ -2090,6 +2212,16 @@ pub(crate) fn cmd_stats(
         return Ok(());
     }
 
+    if !compact
+        && std::io::IsTerminal::is_terminal(&std::io::stdout())
+        && std::env::var("COLUMNS")
+            .ok()
+            .and_then(|s| s.parse::<u16>().ok())
+            .is_some_and(|c| c < 100)
+    {
+        eprintln!("(narrow terminal detected; try --compact)");
+    }
+
     println!();
     println!("{}", "=".repeat(70));
     println!("  Usage - All-Time Statistics");
@@ -2227,6 +2359,20 @@ pub(crate) fn cmd_stats(
     println!("{}", "-".repeat(70));
     println!("  By Model:");
 
+    /// Truncate a string to at most `max_chars` characters at a char boundary.
+    fn truncate_model_stats(s: &str, max_chars: usize) -> &str {
+        if s.len() <= max_chars {
+            s
+        } else {
+            let end = s
+                .char_indices()
+                .nth(max_chars)
+                .map(|(i, _)| i)
+                .unwrap_or(s.len());
+            &s[..end]
+        }
+    }
+
     if breakdown {
         // Group by provider for breakdown rendering.
         let mut rows_by_provider: std::collections::BTreeMap<String, Vec<&StatsModelRow>> =
@@ -2250,18 +2396,30 @@ pub(crate) fn cmd_stats(
                     cost_confidence,
                     billing_mode,
                 ) = prov_rows[0];
-                println!(
-                    "    {:<8}  {:<30}  sessions={:<4}  turns={:<6}  in={:<8}  out={:<8}  cost={}  conf={}  mode={}",
-                    provider,
-                    model,
-                    ms,
-                    pricing::fmt_tokens(*mt),
-                    pricing::fmt_tokens(*mi),
-                    pricing::fmt_tokens(*mo),
-                    pricing::fmt_cost(*cost_nanos as f64 / 1_000_000_000.0),
-                    cost_confidence,
-                    billing_mode
-                );
+                if compact {
+                    println!(
+                        "    {:<8}  {:<20}  turns={:<6}  in={:<8}  out={:<8}  cost={}",
+                        provider,
+                        truncate_model_stats(model, 20),
+                        pricing::fmt_tokens(*mt),
+                        pricing::fmt_tokens(*mi),
+                        pricing::fmt_tokens(*mo),
+                        pricing::fmt_cost(*cost_nanos as f64 / 1_000_000_000.0),
+                    );
+                } else {
+                    println!(
+                        "    {:<8}  {:<30}  sessions={:<4}  turns={:<6}  in={:<8}  out={:<8}  cost={}  conf={}  mode={}",
+                        provider,
+                        model,
+                        ms,
+                        pricing::fmt_tokens(*mt),
+                        pricing::fmt_tokens(*mi),
+                        pricing::fmt_tokens(*mo),
+                        pricing::fmt_cost(*cost_nanos as f64 / 1_000_000_000.0),
+                        cost_confidence,
+                        billing_mode
+                    );
+                }
             } else {
                 let p_turns: i64 = prov_rows.iter().map(|r| r.7).sum();
                 let p_inp: i64 = prov_rows.iter().map(|r| r.2).sum();
@@ -2294,17 +2452,28 @@ pub(crate) fn cmd_stats(
                     billing_mode,
                 ) in prov_rows
                 {
-                    println!(
-                        "    \u{2514}\u{2500} {:<28}  sessions={:<4}  turns={:<6}  in={:<8}  out={:<8}  cost={}  conf={}  mode={}",
-                        model,
-                        ms,
-                        pricing::fmt_tokens(*mt),
-                        pricing::fmt_tokens(*mi),
-                        pricing::fmt_tokens(*mo),
-                        pricing::fmt_cost(*cost_nanos as f64 / 1_000_000_000.0),
-                        cost_confidence,
-                        billing_mode
-                    );
+                    if compact {
+                        println!(
+                            "    \u{2514}\u{2500} {:<20}  turns={:<6}  in={:<8}  out={:<8}  cost={}",
+                            truncate_model_stats(model, 20),
+                            pricing::fmt_tokens(*mt),
+                            pricing::fmt_tokens(*mi),
+                            pricing::fmt_tokens(*mo),
+                            pricing::fmt_cost(*cost_nanos as f64 / 1_000_000_000.0),
+                        );
+                    } else {
+                        println!(
+                            "    \u{2514}\u{2500} {:<28}  sessions={:<4}  turns={:<6}  in={:<8}  out={:<8}  cost={}  conf={}  mode={}",
+                            model,
+                            ms,
+                            pricing::fmt_tokens(*mt),
+                            pricing::fmt_tokens(*mi),
+                            pricing::fmt_tokens(*mo),
+                            pricing::fmt_cost(*cost_nanos as f64 / 1_000_000_000.0),
+                            cost_confidence,
+                            billing_mode
+                        );
+                    }
                 }
             }
         }
@@ -2324,18 +2493,30 @@ pub(crate) fn cmd_stats(
             billing_mode,
         ) in &by_model
         {
-            println!(
-                "    {:<8}  {:<30}  sessions={:<4}  turns={:<6}  in={:<8}  out={:<8}  cost={}  conf={}  mode={}",
-                provider,
-                model,
-                ms,
-                pricing::fmt_tokens(*mt),
-                pricing::fmt_tokens(*mi),
-                pricing::fmt_tokens(*mo),
-                pricing::fmt_cost(*cost_nanos as f64 / 1_000_000_000.0),
-                cost_confidence,
-                billing_mode
-            );
+            if compact {
+                println!(
+                    "    {:<8}  {:<20}  turns={:<6}  in={:<8}  out={:<8}  cost={}",
+                    provider,
+                    truncate_model_stats(model, 20),
+                    pricing::fmt_tokens(*mt),
+                    pricing::fmt_tokens(*mi),
+                    pricing::fmt_tokens(*mo),
+                    pricing::fmt_cost(*cost_nanos as f64 / 1_000_000_000.0),
+                );
+            } else {
+                println!(
+                    "    {:<8}  {:<30}  sessions={:<4}  turns={:<6}  in={:<8}  out={:<8}  cost={}  conf={}  mode={}",
+                    provider,
+                    model,
+                    ms,
+                    pricing::fmt_tokens(*mt),
+                    pricing::fmt_tokens(*mi),
+                    pricing::fmt_tokens(*mo),
+                    pricing::fmt_cost(*cost_nanos as f64 / 1_000_000_000.0),
+                    cost_confidence,
+                    billing_mode
+                );
+            }
         }
     }
 

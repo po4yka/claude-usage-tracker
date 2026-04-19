@@ -491,6 +491,11 @@ pub struct Display {
     /// BCP-47 locale for date formatting ("en-US", "ja-JP", "de-DE", ...).
     /// Resolved from CLI flag > config > $LANG > "en-US".
     pub locale: Option<String>,
+    /// Narrow-table mode for CLI output.
+    /// When true, cache columns are dropped and model lists are condensed.
+    /// Equivalent to passing `--compact` on the command line.
+    #[serde(default)]
+    pub compact: Option<bool>,
 }
 
 impl Default for Display {
@@ -498,6 +503,7 @@ impl Default for Display {
         Self {
             currency: Some("USD".into()),
             locale: None,
+            compact: None,
         }
     }
 }
