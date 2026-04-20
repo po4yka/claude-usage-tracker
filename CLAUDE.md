@@ -153,7 +153,7 @@ src/
 
   ui/
     index.html         -- Dashboard HTML shell (embeds compiled CSS + JS)
-    input.css          -- Tailwind v4 entry with industrial monochrome tokens
+    input.css          -- Tailwind v4 entry with Apple-Swiss refined tokens
     style.css          -- Generated CSS (committed)
     app.tsx            -- Entry point, data loading, filter logic, heatmap wiring
     app.js             -- Compiled JS (committed, do not edit directly)
@@ -234,15 +234,18 @@ See [AGENTS.md](AGENTS.md) for the full "Adding X" playbook covering: new models
 
 ## Dashboard UI
 
-When editing dashboard files (`src/ui/`), follow the design skill at `.claude/skills/industrial-design/SKILL.md`. Key rules:
+When editing dashboard files (`src/ui/`), follow the design skill at `.claude/skills/industrial-design/SKILL.md` (directory keeps its legacy name; contents are now the Apple-Swiss refined system). Key rules:
 
-- Monochrome canvas; single red accent (`#D71921`) per screen for urgent/destructive only.
-- Numbers in Space Mono (tabular numerals); body in Space Grotesk; Doto for hero display.
-- No gradients, no shadows, no toast popups — use inline `[SAVED]` / `[ERROR: ...]` status.
-- Dark (OLED `#000`) and light (warm off-white `#F5F5F5`) both first-class via CSS variables.
-- XSS protection: all dynamic text through `esc()` in `src/ui/lib/format.ts`.
-- Recompile after changes: `npm run build:ui`. Commit `app.js` + `style.css` alongside the source.
-- Heatmap and card intensity use opacity on `--color-text-primary`, never a color ramp.
+- **Typography:** Inter for UI, headings, body. Geist Mono for numbers, code, tabular columns. No Space Grotesk, no Space Mono, no Doto.
+- **Canvas:** dark `#0A0A0A`, light `#F5F5F5` (warm off-white). Both first-class via CSS variables; never hardcode hex values.
+- **Accents:** `--accent-interactive` blue-gray `#4A7FA5` is the primary interactive affordance (links, selected states, primary buttons). `--accent` red `#D71921` is reserved for semantic error / destructive / over-limit only. Status colors (`--success`, `--warning`) unchanged.
+- **Hierarchy:** sentence-case throughout. ALL-CAPS monospace is reserved for `<th>` table column headers only — stat card labels, section titles, filter labels, chart titles use 11–12px sentence-case in `--text-secondary`.
+- **Concentric radii:** nested shapes share a center point (`inner_radius = outer_radius - padding`). Card-within-card means inner radius follows from outer radius + padding; don't pick independent values.
+- **Structure:** no gradients. No shadows on content surfaces — Liquid Glass translucency is acceptable only on the sticky header (navigation-layer chrome). Content surfaces stay flat with 1px border separation. No toast popups — use inline `[SAVED]` / `[ERROR: ...]` bracket status text near the trigger.
+- **Data-viz:** smooth progress bars with 2px rounded ends, color-encoded by threshold (not segmented LED-meter geometry). Category differentiation via opacity (100/60/30) or pattern before color. Tabular numerals via `font-feature-settings: "tnum"`.
+- **XSS protection:** all dynamic text through `esc()` in `src/ui/lib/format.ts`.
+- **Rebuild after changes:** `npm run build:ui`. Commit `app.js` + `style.css` alongside source.
+- **Heatmap / card intensity:** opacity on `--color-text-primary`, never a color ramp.
 
 ## Release
 

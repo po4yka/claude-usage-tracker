@@ -4,6 +4,7 @@ export type SegmentedBarStatus = 'auto' | 'neutral' | 'success' | 'warning' | 'a
 interface SegmentedProgressBarProps {
   value: number;
   max: number;
+  /** Retained for API compatibility; the bar is now smooth and ignores segmentation. */
   segments?: number;
   size?: SegmentedBarSize;
   status?: SegmentedBarStatus;
@@ -11,20 +12,29 @@ interface SegmentedProgressBarProps {
 }
 
 function resolveStatus(pct: number, status: SegmentedBarStatus): string {
-  if (status === 'neutral') return 'var(--text-display)';
+  if (status === 'neutral') return 'var(--accent-interactive)';
   if (status === 'success') return 'var(--success)';
   if (status === 'warning') return 'var(--warning)';
   if (status === 'accent') return 'var(--accent)';
-  // auto
+  // auto — threshold-encoded
   if (pct >= 90) return 'var(--accent)';
   if (pct >= 70) return 'var(--warning)';
   return 'var(--success)';
 }
 
+/**
+ * Smooth single-fill pill progress bar. Color encodes threshold status.
+ *
+ * Migrated from the prior segmented-LED geometry to a continuous rounded
+ * fill. Threshold semantics (<70% success / 70-90% warning / >=90% accent)
+ * and the overflow-reads-red rule are preserved; only the visual form
+ * changed. The `segments` prop is retained for call-site compatibility
+ * during the design migration but no longer influences rendering.
+ */
 export function SegmentedProgressBar({
   value,
   max,
-  segments = 20,
+  segments: _segments,
   size = 'standard',
   status = 'auto',
   'aria-label': ariaLabel,
@@ -33,9 +43,7 @@ export function SegmentedProgressBar({
   const ratio = value / safeMax;
   const pct = Math.min(100, Math.max(0, ratio * 100));
   const overflow = ratio > 1;
-  const filled = Math.round((pct / 100) * segments);
   const fillColor = overflow ? 'var(--accent)' : resolveStatus(pct, status);
-  const emptyColor = 'var(--border)';
 
   return (
     <div
@@ -46,13 +54,10 @@ export function SegmentedProgressBar({
       aria-valuemin={0}
       aria-valuemax={100}
     >
-      {Array.from({ length: segments }).map((_, i) => (
-        <div
-          key={i}
-          class="segmented-bar__segment"
-          style={{ background: i < filled ? fillColor : emptyColor }}
-        />
-      ))}
+      <div
+        class="segmented-bar__fill"
+        style={{ width: `${pct}%`, background: fillColor }}
+      />
     </div>
   );
 }

@@ -15,7 +15,7 @@ Invoke by describing what you need — e.g. "design a heimdall sentinel-eye mark
 
 | Upstream (blog) | Here (heimdall) | Why |
 | --- | --- | --- |
-| Swiss / Geist typography | Space Grotesk + Space Mono + Doto | Matches DESIGN.md and `.claude/skills/industrial-design/`. |
+| Swiss / Geist typography | Inter + Geist Mono | Matches DESIGN.md and `.claude/skills/industrial-design/` (Apple-Swiss refined). |
 | No chromatic accent | One optional `#D71921` pip | Heimdall's "one red accent per screen" rule permits a single signal pip; everything else stays monochrome. |
 | 2px radii on all presentation containers | Same 2px default | Kept — aligns with industrial-design surfaces. |
 | Outputs: 1024×1024 PNG + favicon | **Full platform icon set** via `render_icon_set.py` | Heimdall ships a macOS menu-bar app (`HeimdallBar`) and Linux/Windows binaries; needs `.icns`, `.ico`, hicolor tree, and menu-bar template. |

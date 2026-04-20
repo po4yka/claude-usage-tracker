@@ -1,6 +1,6 @@
 # DESIGN.md – Claude Usage Tracker
 
-A data-dense analytics dashboard for Claude Code usage tracking. Monochromatic industrial design: OLED dark + warm-off-white light, type-driven hierarchy, one surgical red accent reserved for urgent/destructive states. Every pixel earns its place by showing data. The canonical source of truth is `.claude/skills/industrial-design/SKILL.md`; this file mirrors the product-specific decisions that layer on top of the skill.
+A data-dense analytics dashboard for Claude Code usage tracking. Apple-Swiss refined design: refined-dark + warm-off-white-light canvases, type-driven hierarchy via size/weight/space, semantic color with blue-gray interactive accent, red reserved for error/destructive. Calm enough for multi-hour sessions. The canonical source of truth is `.claude/skills/industrial-design/SKILL.md` (directory name is legacy; contents are current); this file mirrors the product-specific decisions that layer on top of the skill.
 
 ---
 
@@ -8,26 +8,27 @@ A data-dense analytics dashboard for Claude Code usage tracking. Monochromatic i
 
 | Attribute | Value |
 |-----------|-------|
-| Mood | Instrument panel in a dark room / printed technical manual in light mode |
+| Mood | Calm precision. Refined tool, not instrument panel. Dark = designed charcoal surface, not OLED-off. Light = printed technical manual on warm paper. |
 | Density | 7/10 – data dashboard, not marketing page |
 | Motion | 2/10 – hover transitions only (150-250ms `cubic-bezier(0.25,0.1,0.25,1)`), no scroll or entrance animations, no spring/bounce |
-| Variance | 3/10 – uniform card grid, left-aligned tables, predictable layout; break pattern in exactly one place per screen |
-| Philosophy | Subtract, don't add. Structure is ornament. Monochrome is the canvas; color is an event. Type does the heavy lifting. Both dark and light modes are first-class. |
+| Variance | 3/10 – left-aligned tables, concentric-radii card grid, predictable layout; break the pattern once per screen for emphasis |
+| Philosophy | Structure through space, not decoration. Type-weight and whitespace create hierarchy. Monochrome surface; semantic color for meaning (blue-gray = interactive, red = error, green = healthy, amber = caution). Both dark and light modes first-class. |
 
 **Anti-patterns (never use):**
 - Emojis anywhere in rendered output
 - Gradients on surfaces or UI chrome
-- Shadows for elevation (flat surfaces, border separation only)
-- Toast popups (use inline `[SAVED]` / `[ERROR: ...]` status text)
-- Skeleton loading screens (use `[LOADING...]` bracket text or segmented spinner)
+- Shadows on content surfaces (cards, tables, panels). Liquid Glass translucency acceptable only on the sticky top header (navigation-layer chrome).
+- Toast popups (use inline `[SAVED]` / `[ERROR: ...]` bracket status text)
+- Skeleton loading screens (use `[LOADING...]` bracket text or minimal thin progress bar)
 - Zebra striping in tables
 - Filled icons, multi-color icons, or emoji as UI
 - Centered hero sections or marketing-style layouts
 - AI copywriting cliches ("Elevate", "Seamless", "Next-Gen")
-- `border-radius` > 16px on cards; buttons are pill (999px) or technical (4-8px)
+- `border-radius` > 16px on cards; respect concentric radii (`inner_radius = outer_radius - padding`)
 - Pure-black text on light backgrounds when the card is `#FFFFFF` (use `--text-primary` `#1A1A1A`)
 - Parallax, scroll-jacking, spring/bounce easing
 - More than one "break the pattern" moment per screen
+- **Dot-matrix display type (Doto or similar). Space Grotesk / Space Mono outside legacy references. LED-meter segmented progress bars. Dot-grid backgrounds. Pure `#000000` canvas (use `#0A0A0A`). ALL-CAPS monospace outside `<th>` column headers. Red as a primary interactive/"important" color — red is reserved for error/destructive semantics.**
 
 ---
 
@@ -39,7 +40,7 @@ All colors must be declared as CSS variables. Never hardcode hex. The full table
 
 | Token | Hex | Role |
 |-------|-----|------|
-| `--black` | `#000000` | Page canvas (OLED background) |
+| `--black` | `#0A0A0A` | Page canvas (refined dark; not OLED black) |
 | `--surface` | `#111111` | Elevated surfaces, cards |
 | `--surface-raised` | `#1A1A1A` | Secondary elevation, hover, active-row highlight |
 | `--border` | `#222222` | Subtle dividers (decorative only) |
@@ -48,36 +49,36 @@ All colors must be declared as CSS variables. Never hardcode hex. The full table
 | `--text-secondary` | `#999999` | Labels, captions, metadata, chart axis labels |
 | `--text-primary` | `#E8E8E8` | Body text, table cells |
 | `--text-display` | `#FFFFFF` | Hero numbers, headlines, primary chart series |
-| `--accent` | `#D71921` | Signal red: active destructive, over-limit, urgent state. One per screen. |
-| `--accent-subtle` | `rgba(215,25,33,0.15)` | Accent tint backgrounds (sparingly) |
+| `--accent-interactive` | `#4A7FA5` | Primary interactive affordance: links, selected states, primary buttons, active filter chips. Same value light + dark. |
+| `--accent` | `#D71921` | Error / destructive / over-limit only. Not a decorative accent. |
+| `--accent-subtle` | `rgba(215,25,33,0.15)` | Tint for error/destructive states only |
 | `--success` | `#4A9E5C` | Confirmed, completed, cost/usage within healthy range |
 | `--warning` | `#D4A843` | Caution, moderate-usage, cache-creation tokens |
-| `--error` | `#D71921` | Shares accent red – errors ARE the accent moment |
-| `--interactive` | `#5B9BF6` | Tappable text: links, picker values. Not for buttons. |
+| `--error` | `#D71921` | Alias of `--accent` – errors ARE the red signal |
 
 ### Light Theme
 
 | Token | Hex | Role |
 |-------|-----|------|
-| `--black` | `#F5F5F5` | Page canvas (warm off-white) |
+| `--black` | `#F5F5F5` | Page canvas (warm off-white, paper-like) |
 | `--surface` | `#FFFFFF` | Cards |
 | `--surface-raised` | `#F0F0F0` | Secondary elevation |
 | `--border` | `#E8E8E8` | Subtle dividers |
 | `--border-visible` | `#CCCCCC` | Intentional borders |
-| `--text-disabled` | `#999999` | Disabled / meta |
-| `--text-secondary` | `#666666` | Labels, captions |
+| `--text-disabled` | `#707070` | Disabled / meta |
+| `--text-secondary` | `#4F4F4F` | Labels, captions |
 | `--text-primary` | `#1A1A1A` | Body text |
-| `--text-display` | `#000000` | Headlines, hero numbers |
-| `--interactive` | `#007AFF` | Links |
+| `--text-display` | `#000000` | Headlines, hero numbers (pure black ink on paper — correct) |
 
-**Identical across modes:** accent red, status colors (`--success`, `--warning`, `--accent`/`--error`), ALL-CAPS labels, fonts, type scale, spacing, component shapes.
+**Identical across modes:** `--accent-interactive` (`#4A7FA5`), `--accent` (`#D71921`), status colors (`--success`, `--warning`), fonts, type scale, spacing, component shapes.
 
 ### Color Rules
 - Never hardcode hex – always `var(--token-name)`.
-- `--accent` is a signal, not decoration. Max **one** `--accent` element per screen as UI (the "break the pattern" moment), unless encoding data status on a value.
-- `--success` / `--warning` / `--accent` as status colors are exempt from the one-accent rule when encoding data values. Apply the color to the **value itself**, not labels or row backgrounds. Labels stay `--text-secondary`.
+- `--accent-interactive` (blue-gray) is the primary interactive signal — use for all tappable text, selected states, primary buttons, active filter chips. Users learn it fast because it's consistent.
+- `--accent` (red) is strictly semantic: error / destructive / over-limit. Never a decorative or "most important" signal.
+- `--success` / `--warning` / `--accent` as status colors apply to data values. Color the **value itself**, not labels or row backgrounds. Labels stay `--text-secondary`.
 - Trend arrows inherit value color.
-- Progress bars use semantic thresholds: `--success` (<70%), `--warning` (70-90%), `--accent` (>=90%).
+- Progress bars use semantic thresholds: `--success` (<70%), `--warning` (70-90%), `--accent` (≥90%). Smooth pill bars, color-encoded — no segmented LED-meter geometry.
 - Data-viz differentiation priority: opacity (100/60/30) → pattern (solid/striped/dotted) → line style → color (last resort).
 
 ### Border Hierarchy
@@ -93,9 +94,10 @@ Primary palette for multi-series charts, in application order:
 1. `--text-display` (white / black by mode) — the primary series
 2. `--text-display` at 60% opacity — secondary series
 3. `--text-display` at 30% opacity — tertiary series
-4. `--accent` — only if one series is semantically "over limit", "urgent", or the one highlighted moment
+4. `--accent-interactive` — a single emphasized / selected series
+5. `--accent` — only if one series is semantically "over limit" or "error"
 
-For model-distribution donuts or categorical series that genuinely need distinct colors, fall back to the status palette (`--success`, `--warning`, `--interactive`, `--accent`) in that order — never more than four colors on a single chart.
+For model-distribution donuts or categorical series that genuinely need distinct colors, fall back to the status palette (`--success`, `--warning`, `--accent-interactive`, `--accent`) in that order — never more than four colors on a single chart.
 
 ---
 
@@ -103,30 +105,29 @@ For model-distribution donuts or categorical series that genuinely need distinct
 
 | Element | Font | Size | Weight | Color | Extras |
 |---------|------|------|--------|-------|--------|
-| Page title | Space Grotesk | 24-36px (`--heading` / `--display-md`) | 500 | `--text-display` | letter-spacing -0.01em |
-| Section title | Space Mono | 11px (`--label`) | 400 | `--text-secondary` | ALL CAPS, letter-spacing 0.08em (instrument label) |
-| Hero / stat card value | Space Mono (Doto for single hero) | 36-48px (`--display-md` / `--display-lg`) | 400 | `--text-display`; status color when encoding data | letter-spacing -0.02em, line-height 1.05 |
-| Stat card label | Space Mono | 11px (`--label`) | 400 | `--text-secondary` | ALL CAPS, letter-spacing 0.08em |
-| Table header | Space Mono | 11px (`--label`) | 400 | `--text-secondary` | ALL CAPS, letter-spacing 0.08em, `--border-visible` bottom border |
-| Table cell (text) | Space Grotesk | 14px (`--body-sm`) | 400 | `--text-primary` | left-aligned |
-| Table cell (numbers) | Space Mono | 14px (`--body-sm`) | 400 | `--text-primary`; `--success` / `--warning` / `--accent` when status-encoded | right-aligned, `font-feature-settings: "tnum"` |
-| Body text | Space Grotesk | 16px (`--body`) | 400 | `--text-primary` | line-height 1.5 |
-| Caption | Space Mono | 12px (`--caption`) | 400 | `--text-secondary` | timestamps, footnotes |
-| Filter labels | Space Mono | 11px (`--label`) | 400 | `--text-secondary` | ALL CAPS, letter-spacing 0.08em |
-| Footer | Space Grotesk | 12px (`--caption`) | 400 | `--text-secondary` | |
-| Chart title | Space Mono | 11px (`--label`) | 400 | `--text-secondary` | ALL CAPS |
-| Inline status | Space Mono | 12px (`--caption`) | 400 | status color | `[SAVED]`, `[ERROR: ...]`, `[LOADING...]` |
+| Page title | Inter | 24-28px (`--display-md`) | 500 | `--text-display` | letter-spacing -0.01em, sentence-case |
+| Section title | Inter | 13-14px | 500 | `--text-primary` | sentence-case; 16px bottom margin |
+| Hero / stat card value | Inter | 36-48px (`--display-md` / `--display-lg`) | 600 | `--text-display`; status color when encoding data | letter-spacing -0.02em, line-height 1.05, `font-feature-settings: "tnum"` |
+| Stat card label | Inter | 12px (`--caption`) | 400 | `--text-secondary` | sentence-case |
+| Table column header (`<th>`) | Geist Mono | 11px (`--label-th`) | 400 | `--text-secondary` | **ALL CAPS (sole exception)**, letter-spacing 0.08em |
+| Table cell (text) | Inter | 14px (`--body-sm`) | 400 | `--text-primary` | left-aligned |
+| Table cell (numbers) | Geist Mono | 14px (`--body-sm`) | 400 | `--text-primary`; `--success` / `--warning` / `--accent` when status-encoded | right-aligned, `font-feature-settings: "tnum"` |
+| Body text | Inter | 15px (`--body`) | 400 | `--text-primary` | line-height 1.5 |
+| Caption | Inter | 12px (`--caption`) | 400 | `--text-secondary` | timestamps, footnotes, sentence-case |
+| Filter labels | Inter | 12px (`--caption`) | 500 | `--text-secondary` | sentence-case |
+| Footer | Inter | 12px (`--caption`) | 400 | `--text-secondary` | sentence-case |
+| Chart title | Inter | 13px | 500 | `--text-primary` | sentence-case |
+| Inline status | Inter | 12px (`--caption`) | 400 | status color | `[Saved]`, `[Error: ...]`, `[Loading...]` sentence-case |
 
 **Font stacks** (declare in `src/ui/input.css` under `@theme`):
-- Body / UI: `'Space Grotesk', 'DM Sans', system-ui, sans-serif`
-- Data / Labels: `'Space Mono', 'JetBrains Mono', 'SF Mono', monospace`
-- Display (hero only): `'Doto', 'Space Mono', monospace`
+- Body / UI / Headings: `'Inter', system-ui, sans-serif`
+- Data / Code / Numbers: `'Geist Mono', ui-monospace, 'SF Mono', monospace`
 
 **Rules:**
-- Max 2 font families on a screen (Space Grotesk + Space Mono). Doto reserved for hero moments only, at 36px+.
-- Max 3 font sizes per screen; max 2 weights.
-- All numbers, token counts, cost values, and progress percentages use Space Mono with `font-feature-settings: "tnum"` for tabular alignment during the auto-refresh cycle.
-- Labels (stat cards, table headers, filter labels, chart titles, section titles) are always Space Mono, ALL CAPS, 11px, `--text-secondary`, letter-spacing 0.08em. This creates the unified instrument-readout aesthetic.
+- Max 2 font families on a screen (Inter + Geist Mono).
+- Max 3 font sizes per screen; max 2 weights (typically 400 + 500, or 400 + 600 for a hero number).
+- All numbers, token counts, cost values, and progress percentages use Geist Mono with `font-feature-settings: "tnum"` for tabular alignment during the auto-refresh cycle.
+- **Sentence-case throughout.** The sole ALL-CAPS exception: `<th>` column headers, which use Geist Mono 11px ALL-CAPS at 0.08em tracking — justified by tabular convention.
 - Body text uses `-webkit-font-smoothing: antialiased`.
 - Before adding a new font size or weight, first try spacing or color to make the distinction.
 
@@ -137,56 +138,59 @@ For model-distribution donuts or categorical series that genuinely need distinct
 ### Stat Cards
 - Background: `var(--surface)`, 1px solid `var(--border)` (or none), radius: `12-16px`
 - Padding: `16-24px`
-- Layout: label above (Space Mono, ALL CAPS, `--label` size, `--text-secondary`), hero value below (Space Mono, `--display-md` or `--display-lg`, left-aligned), optional sub-text (`--caption`, `--text-disabled`)
+- Layout: label above (Inter 12px, sentence-case, `--text-secondary`), hero value below (Inter `--display-md` or `--display-lg`, weight 600, left-aligned), optional sub-text (`--caption`, `--text-disabled`)
 - Cost / status values: the value text takes the status color (`--success`, `--warning`, `--accent`) — label and background stay neutral
-- Optional sparkline slot: right-aligned, 80x32px, `--text-secondary` stroke
-- All numeric values: `font-feature-settings: "tnum"`
-- Hover: border brightens to `--border-visible`. No translate, no shadow, no accent wash.
+- Optional sparkline slot: right-aligned, 80×32px, `--text-secondary` stroke
+- All numeric values: Geist Mono with `font-feature-settings: "tnum"`
+- Hover: border brightens to `--border-visible`. No translate, no shadow, no wash.
 
 ### Cards (generic)
 - Background: `var(--surface)`, 1px solid `var(--border)`, radius: `12-16px`
 - Padding: `16-24px`
 - No shadows at rest, no shadows on hover. Depth = border + background step only.
+- Respect concentric radii: a button inside a 16px-radius card with 16px padding carries `border-radius: 0` (calc result); with 8px padding → 8px; with 4px padding → 12px.
 - Never box the most important element on a screen – let it float on `--black`.
 
 ### Data Tables
 - Full-width, collapsed borders
-- Header: `--label` style, bottom border `--border-visible`, sticky on scroll, `--surface` background
+- Column header (`<th>`): Geist Mono 11px **ALL-CAPS** (the sole ALL-CAPS instance in the system), letter-spacing 0.08em, `--text-secondary`, bottom border `--border-visible`, sticky on scroll, `--surface` background
 - Rows: `1px solid --border` bottom divider, 12-16px vertical padding
+- Cell text: Inter. Cell numbers: Geist Mono with `tnum`.
 - No zebra striping, no cell backgrounds.
 - Hover: row background → `--surface-raised`. No accent tint at rest.
-- Active sort column: header gets `border-bottom: 2px solid --text-display`. Sort indicator inline, Space Mono arrow.
-- Active row: `--surface-raised` background + left `2px solid --accent` bar (use sparingly — e.g., current selection only)
+- Active sort column: header gets `border-bottom: 2px solid --text-display`. Sort indicator inline, Geist Mono arrow.
+- Active row: `--surface-raised` background + left `2px solid --accent-interactive` bar (blue-gray selection indicator; use sparingly for current selection only)
 - Cell padding: `12px 16px`. Numbers right, text left.
 
 ### Filter Bar
 - Background: `var(--surface)`, `1px solid --border-visible` bottom
 - Horizontal flex with `16px` gap, wraps on small screens
-- Model checkboxes: pill chips, `1px solid --border-visible`, Space Mono `--caption` ALL CAPS, `4px 12px` padding
-- Active chip: `--text-display` border + text (inverted). No background fill at rest.
-- Range buttons: segmented control (§2.8 in components.md). Container `1px solid --border-visible`, active segment `--text-display` background + `--black` text, transition 200ms ease-out.
+- Model checkboxes: pill chips, `1px solid --border-visible`, Inter 12px sentence-case, `4px 12px` padding
+- Active chip: `--accent-interactive` border + text (blue-gray). Optional subtle bg fill at 10% opacity for stronger selection signal.
+- Range buttons: segmented control (§2.8 in components.md). Container `1px solid --border-visible`, active segment `--accent-interactive` background + `--text-display` text, transition 200ms ease-out.
 - Separators: 1px wide, 20px tall, `--border` color.
-- No inset shadows. Active state = inverted fill, nothing else.
+- No inset shadows.
 
 ### Buttons
-Per components.md §2. Four variants: Primary (white fill, black text, pill), Secondary (transparent, border, pill), Ghost (transparent, no border), Destructive (transparent, red border, red text, pill). All Space Mono 13px ALL CAPS, `0.06em` letter-spacing, `12px 24px` padding, min-height `44px`.
+Per components.md §2. Four variants: **Primary** (`--accent-interactive` fill, white text, 8px radius), **Secondary** (transparent, `1px solid --border-visible`, `--text-primary`, 8px radius), **Ghost** (transparent, no border, `--text-secondary`), **Destructive** (transparent, red border, red text, 8px radius). All Inter 13-14px, weight 500, sentence-case, `0` letter-spacing, `10px 16px` padding, min-height 40px.
 
 ### Progress Bars (Rate Windows)
-- Prefer **segmented progress bars** (§11 in components.md) – signature visualization. Discrete square-ended blocks with 2px gaps.
-- Label + value above in Space Mono. Bar below.
-- Empty segments: `--border`. Filled segments: `--text-display` (neutral), `--success` (<70%), `--warning` (70-90%), `--accent` (>=90% or overflow).
+- **Smooth pill bars.** Single-fill geometry with 2px border-radius at each end. No segments, no gaps.
+- Label + value above in Inter (labels) / Geist Mono (numbers). Bar below.
+- Track: `--border` (dark) / `#E0E0E0` (light). Fill: `--success` (<70%), `--warning` (70-90%), `--accent` (≥90% or overflow). Generic progress: `--accent-interactive`.
+- Overflow: fill continues past 100% in `--accent` red.
 - Heights: hero 16-20px, standard 8-12px, compact 4-6px.
 - Always pair with numeric readout – bar = proportion, number = precision.
 
 ### Inline Status (replaces toasts)
 - No toast popups. Status appears inline near the trigger.
-- Format: `[SAVED]`, `[ERROR: description]`, `[LOADING...]` in Space Mono `--caption` ALL CAPS.
+- Format: `[Saved]`, `[Error: description]`, `[Loading...]` in Inter `--caption` sentence-case (bracket notation preserved as semantic marker).
 - Error: `--accent` text color. Success: `--success`. Loading: `--text-secondary`.
 - Persist until next action or 4s, whichever is earlier. No animations beyond a 150ms opacity fade in/out.
 
 ### Pagination
 - Flex between page info (left) and prev/next buttons (right)
-- `--caption` size, `--text-secondary` color, Space Mono
+- `--caption` size, `--text-secondary` color, Inter sentence-case
 - Top border: `1px solid --border`
 - Disabled buttons: opacity 0.4, `cursor: not-allowed`
 
@@ -260,8 +264,8 @@ No frosted glass. No backdrop-filter. The palette already does the work; blur wo
 
 ### Do
 - Use CSS variables for every color value
-- Put numbers, costs, labels, and table cells in Space Mono with `font-feature-settings: "tnum"`
-- Use Space Mono ALL CAPS for all system labels (stat labels, table headers, filter labels, chart titles, section titles)
+- Put numbers, costs, labels, and table cells in Geist Mono with `font-feature-settings: "tnum"`
+- Use sentence-case throughout (stat labels, section titles, filter labels, chart titles). Reserve ALL-CAPS monospace for `<th>` table column headers only.
 - Use a plain `border: 1px solid var(--border)` on cards – clean and stable
 - Make tables sortable with `--text-display` border-bottom on the active sort column
 - Support both light and dark themes (toggle via `data-theme` attribute)
@@ -269,14 +273,15 @@ No frosted glass. No backdrop-filter. The palette already does the work; blur wo
 - Run all dynamic text through `esc()` before rendering
 - Use `auto-fit` / `minmax` for fluid grid layouts
 - Format large numbers with abbreviations (1.5M, 2.3K)
-- Reserve `--accent` for the one urgent moment per screen
+- Use `--accent-interactive` for primary tappable/selected affordances; `--accent` (red) for error/destructive only
 - Apply opacity (100/60/30) or pattern before reaching for a new chart color
+- Respect concentric corner radii when nesting shapes (`inner = outer - padding`)
 
 ### Don't
 - Add decorative elements that don't display data
-- Use more than 2 font families (Space Grotesk + Space Mono; Doto hero-only)
-- Add any shadow (neutral, tinted, or inset). Period.
-- Add `backdrop-filter: blur(...)` on any surface
+- Use more than 2 font families (Inter + Geist Mono)
+- Add any shadow on content surfaces (cards, tables, panels). Liquid Glass translucency is permitted only on the sticky top header.
+- Add `backdrop-filter: blur(...)` on content surfaces (sticky header only)
 - Use toast popups (use inline `[STATUS]` text)
 - Use skeleton loaders (use `[LOADING...]` bracket text)
 - Zebra-stripe tables
@@ -314,36 +319,38 @@ No frosted glass. No backdrop-filter. The palette already does the work; blur wo
 
 ### Quick Reference
 ```
-Background:    #000000 (dark) / #F5F5F5 (light)
+Background:    #0A0A0A (dark) / #F5F5F5 (light)
 Cards:         #111111 (dark) / #FFFFFF (light)
 Borders:       #222222 (dark) / #E8E8E8 (light) -- default
                #333333 (dark) / #CCCCCC (light) -- visible
 Primary text:  #E8E8E8 (dark) / #1A1A1A (light)
 Display text:  #FFFFFF (dark) / #000000 (light)
-Accent:        #D71921 -- signal red, one per screen
+Interactive:   #4A7FA5 -- blue-gray, primary interactive affordance (both modes)
+Error:         #D71921 -- red, error/destructive/over-limit ONLY
 Success:       #4A9E5C  |  Warning: #D4A843
-Fonts:         Space Grotesk (body), Space Mono (data/labels), Doto (hero display only)
-Card radius:   12-16px
-Grid gap:      16px
+Fonts:         Inter (body/UI/headings), Geist Mono (numbers/code/<th>)
+Case:          sentence-case everywhere except <th> (ALL-CAPS Geist Mono 11px 0.08em)
+Card radius:   12-16px (respect concentric: inner = outer - padding)
+Grid gap:      16px (4px modular base)
 Max width:     1400px
 ```
 
 ### Ready-to-Use Prompts
 
 **"Add a new stat card"**
-> Create a stat card matching the industrial pattern: card container with `background: var(--surface)` + `border: 1px solid var(--border)` + 16px radius + 20px padding. Label above (Space Mono 11px ALL CAPS `--text-secondary` letter-spacing 0.08em), hero value below (Space Mono 36-48px `--text-display`, or status color when encoding data), optional sub-text (`--caption` `--text-disabled`). Apply `font-feature-settings: "tnum"` to the value. Hover: border brightens to `--border-visible`.
+> Create a stat card: `background: var(--surface)` + `1px solid var(--border)` + 16px radius + 20px padding. Label above (Inter 12px sentence-case `--text-secondary`), hero value below (Inter 36-48px weight 600 `--text-display`, or status color when encoding data), optional sub-text (`--caption` `--text-disabled`). Apply `font-family: var(--font-mono)` + `font-feature-settings: "tnum"` to any numeric value. Hover: border brightens to `--border-visible`. No shadow.
 
 **"Add a new data table"**
-> Create a full-width table inside a card. Header: sticky, Space Mono 11px ALL CAPS `--text-secondary` labels, `1px solid --border-visible` bottom border. Rows: `1px solid --border` divider, 12-16px vertical padding. No zebra striping, no cell backgrounds. Hover: row bg → `--surface-raised`. Sortable columns: `cursor: pointer`, inline Space Mono arrow indicator, active sort column gets `border-bottom: 2px solid --text-display`. Numbers right-aligned Space Mono with `tnum`; text left-aligned Space Grotesk. Run all dynamic text through `esc()`.
+> Create a full-width table inside a card. Column header (`<th>`): sticky, Geist Mono 11px **ALL-CAPS** letter-spacing 0.08em `--text-secondary` (this is the sole ALL-CAPS exception), `1px solid --border-visible` bottom border. Rows: `1px solid --border` divider, 12-16px vertical padding. No zebra striping, no cell backgrounds. Hover: row bg → `--surface-raised`. Sortable columns: `cursor: pointer`, inline Geist Mono arrow, active sort column gets `border-bottom: 2px solid --text-display`. Numbers right-aligned Geist Mono with `tnum`; text left-aligned Inter. Run all dynamic text through `esc()`.
 
 **"Add a new chart"**
-> Wrap in a card with Space Mono 11px ALL CAPS `--text-secondary` title. Chart container: 240px height (standard) or 300px (hero/daily). ApexCharts options: `background: 'transparent'`, `toolbar: { show: false }`, `fontFamily: 'var(--font-mono)'`, `animations: { enabled: false }`, `legend: { show: false }`. Colors: `--text-display` primary, `--text-display` at 60/30% opacity for secondary series. Use `--accent` for a single over-limit / urgent series only. Grid: horizontal lines in `--border` color. Destroy and recreate (or `updateOptions`) on theme toggle.
+> Wrap in a card with Inter 13px sentence-case `--text-primary` title. Chart container: 240px (standard) or 300px (hero/daily). ApexCharts options: `background: 'transparent'`, `toolbar: { show: false }`, `fontFamily: 'var(--font-mono), "Geist Mono", ui-monospace, monospace'`, `animations: { enabled: false }`, `legend: { show: false }`. Colors: `--text-display` primary, `--text-display` at 60/30% opacity for secondary series. `--accent-interactive` for one selected/emphasized series. `--accent` (red) for a single error/over-limit series only. Grid: horizontal lines in `--border`. Destroy and recreate (or `updateOptions`) on theme toggle.
 
 **"Add a new filter control"**
-> Place inside the filter bar. Group label: Space Mono 11px ALL CAPS `--text-secondary`. Chips: `1px solid --border-visible`, transparent bg, Space Mono 12px ALL CAPS, `4px 12px` padding, pill radius. Active chip: invert – `--text-display` border + text (no fill change). Range buttons: segmented control with `1px solid --border-visible` container; active segment = `--text-display` background + `--black` text; transition 200ms ease-out. No inset shadows.
+> Place inside the filter bar. Group label: Inter 12px sentence-case `--text-secondary`. Chips: `1px solid --border-visible`, transparent bg, Inter 12px sentence-case, `4px 12px` padding, pill radius (999px). Active chip: `--accent-interactive` border + text (optionally subtle 10% bg fill). Range buttons: segmented control with `1px solid --border-visible` container; active segment = `--accent-interactive` background + `--text-display` text; transition 200ms ease-out. No inset shadows.
 
 **"Add an inline status message"**
-> Replace any toast with inline status text near the trigger: Space Mono `--caption` ALL CAPS, format `[SAVED]` (`--success`), `[ERROR: message]` (`--accent`), `[LOADING...]` (`--text-secondary`). 150ms opacity fade in/out. Auto-dismiss after 4 seconds or on next action.
+> Replace any toast with inline status text near the trigger: Inter `--caption` sentence-case, format `[Saved]` (`--success`), `[Error: message]` (`--accent`), `[Loading...]` (`--text-secondary`). 150ms opacity fade in/out. Auto-dismiss after 4 seconds or on next action.
 
 ---
 

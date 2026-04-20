@@ -211,7 +211,7 @@ Do not be lazy. Large refactors and small detailed fixes both count. Fix things 
 Use `desloppify plan` / `desloppify plan queue` to reorder priorities or cluster related issues. Rescan periodically.
 
 This frontend has repo-specific constraints:
-- Preserve the industrial monochrome UI language
+- Preserve the Apple-Swiss refined UI language (Inter + Geist Mono, sentence-case, `--accent-interactive` blue-gray as primary interactive, `--accent` red for error only, no Doto/Space Grotesk/Space Mono)
 - `src/ui/app.tsx` and TSX files are the source of truth
 - `src/ui/app.js` and `src/ui/style.css` are generated and committed; rebuild them after source changes
 - Avoid XSS regressions; dynamic text should remain safely escaped

@@ -1272,9 +1272,7 @@
       onURLUpdate();
       onFilterChange();
     };
-    const hasCodexData = rawData.value?.provider_breakdown?.some(
-      (p5) => p5.provider === "codex"
-    ) ?? false;
+    const hasCodexData = rawData.value?.provider_breakdown?.some((p5) => p5.provider === "codex") ?? false;
     const onSearchInput = (e4) => {
       const value = e4.currentTarget.value;
       projectSearchQuery.value = value.toLowerCase().trim();
@@ -1328,41 +1326,22 @@
           ] }),
           /* @__PURE__ */ u4("div", { id: "filter-sections", class: "filter-sections", children: [
             /* @__PURE__ */ u4("div", { class: "filter-label", children: "Models" }),
-            /* @__PURE__ */ u4(
-              "div",
-              {
-                id: "model-checkboxes",
-                role: "group",
-                "aria-label": "Model filters",
-                children: sortedModels.map((model) => {
-                  const checked = selectedModels.value.has(model);
-                  return /* @__PURE__ */ u4(
-                    "label",
-                    {
-                      class: `model-cb-label${checked ? " checked" : ""}`,
-                      "data-model": model,
-                      children: [
-                        /* @__PURE__ */ u4(
-                          "input",
-                          {
-                            type: "checkbox",
-                            value: model,
-                            checked,
-                            onChange: (e4) => toggleModel(
-                              model,
-                              e4.currentTarget.checked
-                            ),
-                            "aria-label": model
-                          }
-                        ),
-                        /* @__PURE__ */ u4("span", { class: "model-cb-text", children: model })
-                      ]
-                    },
-                    model
-                  );
-                })
-              }
-            ),
+            /* @__PURE__ */ u4("div", { id: "model-checkboxes", role: "group", "aria-label": "Model filters", children: sortedModels.map((model) => {
+              const checked = selectedModels.value.has(model);
+              return /* @__PURE__ */ u4("label", { class: `model-cb-label${checked ? " checked" : ""}`, "data-model": model, children: [
+                /* @__PURE__ */ u4(
+                  "input",
+                  {
+                    type: "checkbox",
+                    value: model,
+                    checked,
+                    onChange: (e4) => toggleModel(model, e4.currentTarget.checked),
+                    "aria-label": model
+                  }
+                ),
+                /* @__PURE__ */ u4("span", { class: "model-cb-text", children: model })
+              ] }, model);
+            }) }),
             /* @__PURE__ */ u4("button", { class: "filter-btn", type: "button", onClick: selectAll, children: "All" }),
             /* @__PURE__ */ u4("button", { class: "filter-btn", type: "button", onClick: clearAll, children: "None" }),
             /* @__PURE__ */ u4("div", { class: "filter-sep" }),
@@ -1394,25 +1373,17 @@
             hasCodexData && /* @__PURE__ */ u4(S, { children: [
               /* @__PURE__ */ u4("div", { class: "filter-sep" }),
               /* @__PURE__ */ u4("div", { class: "filter-label", children: "Provider" }),
-              /* @__PURE__ */ u4(
-                "div",
+              /* @__PURE__ */ u4("div", { class: "range-group", role: "group", "aria-label": "Provider", children: PROVIDERS.map((provider) => /* @__PURE__ */ u4(
+                "button",
                 {
-                  class: "range-group",
-                  role: "group",
-                  "aria-label": "Provider",
-                  children: PROVIDERS.map((provider) => /* @__PURE__ */ u4(
-                    "button",
-                    {
-                      class: `range-btn${selectedProvider.value === provider ? " active" : ""}`,
-                      type: "button",
-                      "data-provider": provider,
-                      onClick: () => setProvider(provider),
-                      children: PROVIDER_LABEL[provider]
-                    },
-                    provider
-                  ))
-                }
-              )
+                  class: `range-btn${selectedProvider.value === provider ? " active" : ""}`,
+                  type: "button",
+                  "data-provider": provider,
+                  onClick: () => setProvider(provider),
+                  children: PROVIDER_LABEL[provider]
+                },
+                provider
+              )) })
             ] }),
             /* @__PURE__ */ u4("div", { class: "filter-sep" }),
             /* @__PURE__ */ u4("label", { for: "project-search", class: "filter-label", children: "Project" }),
@@ -1432,16 +1403,7 @@
                 class: "project-search-input"
               }
             ),
-            projectSearchQuery.value && /* @__PURE__ */ u4(
-              "button",
-              {
-                class: "filter-btn",
-                id: "project-clear-btn",
-                type: "button",
-                onClick: clearSearch,
-                children: "Clear"
-              }
-            )
+            projectSearchQuery.value && /* @__PURE__ */ u4("button", { class: "filter-btn", id: "project-clear-btn", type: "button", onClick: clearSearch, children: "Clear" })
           ] })
         ]
       }
@@ -1788,10 +1750,11 @@
       withAlpha("--text-display", 0.15)
     ];
   }
-  function industrialChartOptions(type) {
+  function dashboardChartOptions(type) {
+    const monoStack = 'var(--font-mono), "Geist Mono", ui-monospace, monospace';
     const axisLabelStyle = {
       colors: cssVar("--text-secondary"),
-      fontFamily: 'var(--font-mono), "Space Mono", monospace',
+      fontFamily: monoStack,
       fontSize: "11px",
       letterSpacing: "0.04em"
     };
@@ -1801,14 +1764,14 @@
         height: "100%",
         background: "transparent",
         toolbar: { show: false },
-        fontFamily: 'var(--font-mono), "Space Mono", monospace',
+        fontFamily: monoStack,
         animations: { enabled: false }
       },
       theme: { mode: apexThemeMode() },
       legend: {
         show: true,
         position: type === "donut" ? "bottom" : "top",
-        fontFamily: 'var(--font-mono), "Space Mono", monospace',
+        fontFamily: monoStack,
         fontSize: "11px",
         labels: { colors: cssVar("--text-secondary") },
         markers: { width: 8, height: 8, radius: 0 },
@@ -1831,7 +1794,7 @@
       stroke: { width: type === "line" ? 1.5 : 0, curve: "straight" },
       tooltip: {
         theme: apexThemeMode(),
-        style: { fontFamily: 'var(--font-mono), "Space Mono", monospace', fontSize: "11px" }
+        style: { fontFamily: monoStack, fontSize: "11px" }
       },
       dataLabels: { enabled: false }
     };
@@ -1841,6 +1804,7 @@
     }
     return base;
   }
+  var industrialChartOptions = dashboardChartOptions;
 
   // src/ui/lib/format.ts
   function $2(id) {
@@ -5350,7 +5314,7 @@
 
   // src/ui/components/SegmentedProgressBar.tsx
   function resolveStatus(pct, status) {
-    if (status === "neutral") return "var(--text-display)";
+    if (status === "neutral") return "var(--accent-interactive)";
     if (status === "success") return "var(--success)";
     if (status === "warning") return "var(--warning)";
     if (status === "accent") return "var(--accent)";
@@ -5361,7 +5325,7 @@
   function SegmentedProgressBar({
     value,
     max: max2,
-    segments = 20,
+    segments: _segments,
     size = "standard",
     status = "auto",
     "aria-label": ariaLabel
@@ -5370,9 +5334,7 @@
     const ratio = value / safeMax;
     const pct = Math.min(100, Math.max(0, ratio * 100));
     const overflow = ratio > 1;
-    const filled = Math.round(pct / 100 * segments);
     const fillColor = overflow ? "var(--accent)" : resolveStatus(pct, status);
-    const emptyColor = "var(--border)";
     return /* @__PURE__ */ u4(
       "div",
       {
@@ -5382,14 +5344,13 @@
         "aria-valuenow": Math.round(pct),
         "aria-valuemin": 0,
         "aria-valuemax": 100,
-        children: Array.from({ length: segments }).map((_4, i4) => /* @__PURE__ */ u4(
+        children: /* @__PURE__ */ u4(
           "div",
           {
-            class: "segmented-bar__segment",
-            style: { background: i4 < filled ? fillColor : emptyColor }
-          },
-          i4
-        ))
+            class: "segmented-bar__fill",
+            style: { width: `${pct}%`, background: fillColor }
+          }
+        )
       }
     );
   }
@@ -5975,7 +5936,7 @@
         custom: ({ seriesIndex }) => {
           const row = rows[seriesIndex];
           if (!row) return "";
-          return `<div style="padding:8px 12px;font-family:var(--font-mono,'Space Mono',monospace);font-size:11px;line-height:1.6"><strong>${esc(row.label)}</strong><br/>${esc(METRIC_LABELS2[metric])}: ${esc(formatMetricValue(row.value, metric))} (${esc(formatShare(row.share))} share)<br/>Cost: ${esc(formatMetricValue(row.cost, "cost"))} &nbsp;&bull;&nbsp; Calls: ${esc(formatMetricValue(row.calls, "calls"))} &nbsp;&bull;&nbsp; Tokens: ${esc(formatMetricValue(row.tokens, "tokens"))}</div>`;
+          return `<div style="padding:8px 12px;font-family:var(--font-mono,'Geist Mono',ui-monospace,monospace);font-size:11px;line-height:1.6"><strong>${esc(row.label)}</strong><br/>${esc(METRIC_LABELS2[metric])}: ${esc(formatMetricValue(row.value, metric))} (${esc(formatShare(row.share))} share)<br/>Cost: ${esc(formatMetricValue(row.cost, "cost"))} &nbsp;&bull;&nbsp; Calls: ${esc(formatMetricValue(row.calls, "calls"))} &nbsp;&bull;&nbsp; Tokens: ${esc(formatMetricValue(row.tokens, "tokens"))}</div>`;
         }
       },
       plotOptions: {
@@ -7608,7 +7569,7 @@ ${row.project}` : row.project;
         custom: ({ seriesIndex }) => {
           const r4 = donutRows[seriesIndex];
           if (!r4) return "";
-          return `<div style="padding:8px 12px;font-family:var(--font-mono,'Space Mono',monospace);font-size:11px;line-height:1.6"><strong>${esc(r4.label)}</strong><br/>${esc(METRIC_LABELS3[metric])}: ${esc(formatMetricValue2(r4.value, metric))} (${esc(formatShare2(r4.share))} share)<br/>Cost: ${esc(fmtCost(r4.cost))} &nbsp;&bull;&nbsp; Calls: ${esc(fmt(r4.calls))} &nbsp;&bull;&nbsp; Tokens: ${esc(fmt(r4.tokens))}</div>`;
+          return `<div style="padding:8px 12px;font-family:var(--font-mono,'Geist Mono',ui-monospace,monospace);font-size:11px;line-height:1.6"><strong>${esc(r4.label)}</strong><br/>${esc(METRIC_LABELS3[metric])}: ${esc(formatMetricValue2(r4.value, metric))} (${esc(formatShare2(r4.share))} share)<br/>Cost: ${esc(fmtCost(r4.cost))} &nbsp;&bull;&nbsp; Calls: ${esc(fmt(r4.calls))} &nbsp;&bull;&nbsp; Tokens: ${esc(fmt(r4.tokens))}</div>`;
         }
       },
       plotOptions: {

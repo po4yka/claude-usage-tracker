@@ -12,13 +12,13 @@ interface CacheEfficiencyCardProps {
 /**
  * Phase 21 — Cache Hit Rate card.
  *
- * Shows the percentage as a large Space Mono display number and a horizontal
+ * Shows the percentage as a large Geist Mono display number and a horizontal
  * monochrome progress bar below it.
  *
  * Formula: cache_read / (cache_read + input_tokens)
  * Displays "--" when cache_hit_rate is null (no addressable token stream).
  *
- * Design: industrial-monochrome, no colour ramp, no gradients, no shadows.
+ * Design: Apple-Swiss refined monochrome, no colour ramp, no gradients, no shadows.
  * The bar uses --color-text-primary at 12% opacity for the track and 70%
  * opacity for the fill, matching the existing inline-bar pattern from Phase 18.
  */

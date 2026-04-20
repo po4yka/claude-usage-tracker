@@ -4,9 +4,9 @@ Six showcase backgrounds for Gemini's Nano Banana renderer, tuned for heimdall. 
 
 ## Dark styles
 
-### 1. THE VOID — key `void`  *(heimdall default — dark)*
+### 1. THE VOID — key `void`  *(secondary dark — use for high-contrast editorial moments; no longer the default)*
 
-**Concept**: Absolute minimalism and mystery. Matches DESIGN.md's "instrument panel in a dark room" mood exactly.
+**Concept**: Absolute minimalism. High-contrast editorial moment; not the everyday dark default (that role moved to `apple_chrome`).
 
 **Visual characteristics**:
 - Base: pure OLED black (`#000000`) — the same token as heimdall's `--black` dark canvas
@@ -74,7 +74,7 @@ Six showcase backgrounds for Gemini's Nano Banana renderer, tuned for heimdall. 
 
 ---
 
-### 5. CLINICAL STUDIO — key `clinical`  *(heimdall default — light)*
+### 5. CLINICAL STUDIO — key `clinical`  *(heimdall default — light; pairs with Apple Chrome for dark)*
 
 **Concept**: Spatial order with high contrast. Matches DESIGN.md's "printed technical manual" light-mode mood exactly.
 
@@ -91,7 +91,24 @@ Six showcase backgrounds for Gemini's Nano Banana renderer, tuned for heimdall. 
 
 ---
 
-### 6. SWISS FLAT — key `swiss_flat`
+### 6. APPLE CHROME — key `apple_chrome`  *(heimdall default — dark, replaces `void` as default)*
+
+**Concept**: Apple keynote render. Refined charcoal surface with subtle vibrancy and gentle directional light — the Liquid Glass navigation-chrome feel applied at the macro scale.
+
+**Visual characteristics**:
+- Base: refined dark charcoal (`#0A0A0A` range — heimdall's canonical dark canvas, not OLED black)
+- Subtle lensing / vibrancy gradient from one edge (simulates a softbox off-frame)
+- Fine-grained film dust texture, neutral saturation
+- Atmosphere: a very mild cool tint in the darker regions (≤ 5% saturation), suggestive of chrome / glass without being iridescent
+- Mood: Apple product-page hero render; restrained, expensive, native
+
+**Suitable for**: heimdall's canonical dark-mode hero renders. Product pages, release announcements, README hero images.
+
+**Saturation**: ≤ 5%, neutral-cool only.
+
+---
+
+### 7. SWISS FLAT — key `swiss_flat`
 
 **Concept**: Absolute flatness and timeless authority.
 
@@ -141,7 +158,7 @@ Six showcase backgrounds for Gemini's Nano Banana renderer, tuned for heimdall. 
 All six styles:
 1. **Strictly neutral.** Saturation ≤ 10%, no chromatic cast. No exceptions.
 2. **Fine noise where applicable** — adds physical quality without decoration.
-3. **Micro-typography.** Space Grotesk or Space Mono only. Never Inter, never JetBrains Mono. Tiny text (6–9pt) in corners.
+3. **Micro-typography.** Inter or Geist Mono only. Never decorative display faces. Tiny text (6–9pt) in corners.
 4. **Breathing space.** Generous negative space around the mark (40%+ of canvas unused).
 5. **Adaptive logo colour.** Dark backgrounds → white mark (`--text-display` / `#FFFFFF`); light backgrounds → black mark (`--text-display` / `#000000`). `swiss_flat` follows the luminance of the chosen token.
 

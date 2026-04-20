@@ -30,9 +30,13 @@ Fill and stroke attributes **MUST** be one of:
 - `currentColor` *(preferred — inherits from the consuming CSS)*
 - `#000` / `#000000` *(pure black)*
 - `#fff` / `#FFFFFF` *(pure white)*
+- `#0A0A0A` *(--black dark canvas, refined charcoal)*
 - `#E8E8E8` *(--text-primary dark)*
 - `#1A1A1A` *(--text-primary light)*
-- `#D71921` *(the accent pip — at most **one** element in the whole mark)*
+- `#D71921` *(red accent pip — semantic error/destructive signal)*
+- `#4A7FA5` *(blue-gray accent pip — primary interactive signal)*
+
+**Accent singleton rule:** The mark may use **either** `#D71921` **or** `#4A7FA5` (not both), and the chosen accent appears **at most once total**. A red pip says "this is an error/destructive moment"; a blue-gray pip says "this is the active/interactive moment." Pick one or neither.
 
 Forbidden:
 - Any other hex color (chromatic drift).
@@ -81,7 +85,12 @@ If the mark ships at 16×16 (favicon, menu-bar template), every `stroke-width` *
 
 ## 7. Accent pip (semantic)
 
-The single `#D71921` element must be a small signal element — typically a filled `<circle>` with `r` between 2 and 5 units, placed at a semantic anchor (bell mouth of a horn, terminus of an arc, etc.). Never as a stroke color, never as a fill on the primary silhouette. The validator counts occurrences; semantics are on the reviewer.
+Two accent options, picked per mark, never combined:
+
+- **`#D71921` (red) — "error/destructive" pip.** Use when the mark semantically encodes a fault, alert, or one-shot moment (e.g. Horn variant's "alert sounded").
+- **`#4A7FA5` (blue-gray) — "interactive/ready" pip.** Use when the mark semantically encodes readiness, signal lock, or interactive affordance (e.g. Signal Arc variant's emitter, Sentinel Eye's active pupil).
+
+The chosen pip must be a small signal element — typically a filled `<circle>` with `r` between 2 and 5 units, placed at a semantic anchor. Never as a stroke color, never as a fill on the primary silhouette. The validator counts occurrences (≤ 1 total); semantics are on the reviewer.
 
 ## 8. Metadata / decoration
 

@@ -154,7 +154,7 @@ export function ModelChart({
         const row = rows[seriesIndex];
         if (!row) return '';
         return (
-          `<div style="padding:8px 12px;font-family:var(--font-mono,'Space Mono',monospace);font-size:11px;line-height:1.6">` +
+          `<div style="padding:8px 12px;font-family:var(--font-mono,'Geist Mono',ui-monospace,monospace);font-size:11px;line-height:1.6">` +
           `<strong>${esc(row.label)}</strong><br/>` +
           `${esc(METRIC_LABELS[metric])}: ${esc(formatMetricValue(row.value, metric))} ` +
           `(${esc(formatShare(row.share))} share)<br/>` +

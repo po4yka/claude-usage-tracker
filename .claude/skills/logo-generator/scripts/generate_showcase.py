@@ -40,8 +40,8 @@ BACKGROUND_STYLES = {
 Absolute OLED black (#000000) background with extremely fine silver/white high-contrast
 micro noise. Cold, sharp electronic film grain texture. Minimal atmosphere light - only
 a faint icy white glow at one extreme corner, like distant starlight at the edge of the
-universe. No chromatic tint. Pure neutral greyscale only. This is heimdall's canonical
-"instrument panel in a dark room" framing.""",
+universe. No chromatic tint. Pure neutral greyscale only. High-contrast editorial
+framing; use for press moments rather than everyday renders.""",
 
     "frosted": """FROSTED HORIZON
 Deep titanium gray or midnight slate gray base, not pure black. Organic film-like dust
@@ -154,7 +154,7 @@ Use classic Swiss-style typography logic with extreme proportion contrast.
 - Main subject centered: Place the pure flat logo graphic at the absolute visual center
   with huge breathing space
 - Micro-typography: Remove any large, obtrusive titles. Use extremely small font size
-  (6pt to 9pt) and clean sans-serif fonts (Space Grotesk, Space Mono, Inter, Helvetica)
+  (6pt to 9pt) and clean sans-serif fonts (Inter, Geist Mono, Helvetica)
   in corners or bottom center
 - Text content suggestions (strictly aligned):
   Left corner: {logo_name.upper()}

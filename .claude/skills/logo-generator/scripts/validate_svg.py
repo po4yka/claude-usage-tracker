@@ -50,8 +50,14 @@ ALLOWED_COLOR_TOKENS = {
     # heimdall palette from DESIGN.md
     "#000", "#fff", "#000000", "#ffffff",
     "#e8e8e8", "#1a1a1a",
-    "#d71921",  # optional accent pip (one per mark)
+    "#0a0a0a",  # dark canvas (refined, not OLED)
+    "#d71921",  # accent pip — semantic error/destructive
+    "#4a7fa5",  # accent-interactive pip — primary interactive signal
 }
+
+# Chromatic accent colors — at most ONE total occurrence across the mark,
+# regardless of which hue is chosen.
+ACCENT_HEXES = ("#d71921", "#4a7fa5")
 
 HEX_RE = re.compile(r"^#[0-9a-f]{3,8}$", re.IGNORECASE)
 ARC_CMD_RE = re.compile(
@@ -138,19 +144,29 @@ def check_color_discipline(root: ET.Element, r: Report) -> None:
 
 
 def check_accent_singleton(root: ET.Element, r: Report) -> None:
-    """The #D71921 pip may appear at most once — enforces brief's 'one red pip' rule."""
-    count = 0
+    """At most one chromatic accent element across the whole mark.
+
+    The mark may use either #D71921 (red = error/destructive signal) OR
+    #4A7FA5 (blue-gray = primary interactive signal) — but not both, and
+    each hue may appear at most once. Total chromatic pip count <= 1.
+    """
+    counts = {h: 0 for h in ACCENT_HEXES}
     for el in root.iter():
         for attr in ("fill", "stroke"):
             v = el.attrib.get(attr, "").lower().strip()
-            if v == "#d71921":
-                count += 1
-    if count > 1:
+            if v in counts:
+                counts[v] += 1
+    total = sum(counts.values())
+    if total > 1:
+        breakdown = ", ".join(f"{h}×{n}" for h, n in counts.items() if n > 0)
         r.errors.append(
-            f"accent #D71921 appears {count} times — brief allows exactly one"
+            f"chromatic accent appears {total} times ({breakdown}) — "
+            "brief allows at most one pip across the mark"
         )
-    elif count == 1:
-        r.notes.append("accent #D71921 present (1 instance — within rule)")
+    elif total == 1:
+        h = next(h for h, n in counts.items() if n > 0)
+        semantic = "error/destructive" if h == "#d71921" else "interactive"
+        r.notes.append(f"accent {h.upper()} present (1 instance, {semantic} — within rule)")
 
 
 def check_filled_paths_closed(root: ET.Element, r: Report) -> None:

@@ -24,7 +24,7 @@ Minimum clear space around the mark equals the height of the mark itself. For th
 |---|---|---|
 | Favicon | 16 × 16 | Primary readability constraint. If the mark fragments at 16, redesign. |
 | Menu-bar template | 16 × 16 @1x | macOS draws at ~18pt. Keep silhouette simple. |
-| Dashboard header | 24 × 24 | Pair with `.label-meta` wordmark "HEIMDALL" in Space Mono. |
+| Dashboard header | 24 × 24 | Pair with wordmark "heimdall" in Inter Medium 14px sentence-case. |
 | App icon in dock | 128 × 128 | Smallest dock size on macOS Ventura+. |
 | Print / docs | 35 mm | Letterhead / business card baseline. |
 

@@ -1,11 +1,10 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Space Grotesk", "DM Sans", system-ui, sans-serif;
-  --font-mono: "Space Mono", "JetBrains Mono", "SF Mono", monospace;
-  --font-display: "Doto", "Space Mono", monospace;
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "SF Mono", monospace;
 
-  --color-black: #000000;
+  --color-black: #0A0A0A;
   --color-surface: #111111;
   --color-surface-raised: #1A1A1A;
   --color-border: #222222;
@@ -14,17 +13,17 @@
   --color-text-secondary: #999999;
   --color-text-primary: #E8E8E8;
   --color-text-display: #FFFFFF;
+  --color-accent-interactive: #4A7FA5;
   --color-accent: #D71921;
   --color-success: #4A9E5C;
   --color-warning: #D4A843;
-  --color-interactive: #5B9BF6;
 }
 
 @layer base {
-  /* ── Dark theme (default) ─────────────────────────────────────────── */
+  /* ── Dark theme (default) — Apple-Swiss refined ───────────────────── */
   :root {
-    /* Canonical industrial tokens */
-    --black: #000000;
+    /* Canonical tokens */
+    --black: #0A0A0A;
     --surface: #111111;
     --surface-raised: #1A1A1A;
     --border: #222222;
@@ -33,16 +32,15 @@
     --text-secondary: #999999;
     --text-primary: #E8E8E8;
     --text-display: #FFFFFF;
-    --accent: #D71921;
+    --accent-interactive: #4A7FA5;  /* blue-gray — primary interactive affordance */
+    --accent: #D71921;               /* red — error/destructive/over-limit only */
     --accent-subtle: rgba(215,25,33,0.15);
     --success: #4A9E5C;
     --warning: #D4A843;
-    --interactive: #5B9BF6;
 
     /* Font stacks */
-    --font-sans: "Space Grotesk", "DM Sans", system-ui, sans-serif;
-    --font-mono: "Space Mono", "JetBrains Mono", "SF Mono", monospace;
-    --font-display: "Doto", "Space Mono", monospace;
+    --font-sans: "Inter", system-ui, sans-serif;
+    --font-mono: "Geist Mono", ui-monospace, "SF Mono", monospace;
 
     color-scheme: dark;
   }
@@ -58,11 +56,11 @@
     --text-secondary: #4F4F4F;
     --text-primary: #1A1A1A;
     --text-display: #000000;
+    --accent-interactive: #4A7FA5;  /* same blue-gray in both modes */
     --accent: #D71921;
     --accent-subtle: rgba(215,25,33,0.12);
     --success: #4A9E5C;
     --warning: #D4A843;
-    --interactive: #005CB8;
 
     color-scheme: light;
   }
@@ -73,7 +71,7 @@
     background: var(--black);
     color: var(--text-primary);
     font-family: var(--font-sans);
-    font-size: 14px;
+    font-size: 15px;
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -112,7 +110,6 @@
     font-size: 11px;
     letter-spacing: 0.08em;
     text-decoration: none;
-    text-transform: uppercase;
     transform: translateY(-160%);
     transition: transform 0.15s ease;
   }
@@ -153,7 +150,6 @@
     font-family: var(--font-mono);
     font-size: 11px;
     letter-spacing: 0.08em;
-    text-transform: uppercase;
   }
 
   .header-actions {
@@ -176,7 +172,6 @@
     font-family: var(--font-mono);
     font-size: 11px;
     letter-spacing: 0.06em;
-    text-transform: uppercase;
     transition: border-color 0.15s, color 0.15s;
   }
   #rescan-btn:hover, .theme-toggle:hover {
@@ -217,7 +212,6 @@
   .mobile-filter-summary-label {
     font-size: 10px;
     letter-spacing: 0.08em;
-    text-transform: uppercase;
     color: var(--text-secondary);
     margin-bottom: 2px;
   }
@@ -233,7 +227,6 @@
     font-family: var(--font-mono);
     font-size: 11px;
     font-weight: 400;
-    text-transform: uppercase;
     letter-spacing: 0.08em;
     color: var(--text-secondary);
     white-space: nowrap;
@@ -254,7 +247,6 @@
     font-family: var(--font-mono);
     font-size: 11px;
     letter-spacing: 0.06em;
-    text-transform: uppercase;
     color: var(--text-secondary);
     transition: color 0.15s, border-color 0.15s;
     user-select: none;
@@ -300,7 +292,6 @@
     font-family: var(--font-mono);
     font-size: 11px;
     letter-spacing: 0.06em;
-    text-transform: uppercase;
     cursor: pointer;
     white-space: nowrap;
     transition: color 0.15s, border-color 0.15s;
@@ -327,7 +318,6 @@
     font-family: var(--font-mono);
     font-size: 11px;
     letter-spacing: 0.08em;
-    text-transform: uppercase;
     cursor: pointer;
     transition: color 0.15s, background 0.15s;
   }
@@ -390,7 +380,6 @@
     font-family: var(--font-mono);
     font-size: 11px;
     letter-spacing: 0.08em;
-    text-transform: uppercase;
     cursor: pointer;
     transition: color 0.15s, border-color 0.15s;
     margin-bottom: -1px;
@@ -454,7 +443,6 @@
     font-family: var(--font-mono);
     font-size: 11px;
     font-weight: 400;
-    text-transform: uppercase;
     letter-spacing: 0.08em;
     color: var(--text-secondary);
     margin-bottom: 12px;
@@ -482,7 +470,6 @@
     font-size: 11px;
     font-weight: 400;
     letter-spacing: 0.06em;
-    text-transform: uppercase;
     margin-top: 8px;
   }
   .stat-trend.positive { color: var(--success); }
@@ -506,7 +493,6 @@
     font-family: var(--font-mono);
     font-size: 11px;
     font-weight: 400;
-    text-transform: uppercase;
     letter-spacing: 0.08em;
     color: var(--text-secondary);
     margin-bottom: 16px;
@@ -536,7 +522,6 @@
     font-family: var(--font-mono);
     font-size: 11px;
     letter-spacing: 0.08em;
-    text-transform: uppercase;
     cursor: pointer;
     transition: border-color 0.15s, color 0.15s;
   }
@@ -551,7 +536,6 @@
     font-size: 11px;
     font-weight: 400;
     color: var(--text-secondary);
-    text-transform: uppercase;
     letter-spacing: 0.08em;
     margin-bottom: 16px;
   }
@@ -575,7 +559,6 @@
     font-size: 12px;
     font-weight: 400;
     letter-spacing: 0.08em;
-    text-transform: uppercase;
     color: var(--text-primary);
     padding: 0;
   }
@@ -678,7 +661,6 @@
     font-size: 11px;
     font-weight: 400;
     letter-spacing: 0.08em;
-    text-transform: uppercase;
     color: var(--text-secondary);
   }
   .model-chart-center-total {
@@ -784,14 +766,15 @@
   table { width: 100%; border-collapse: collapse; }
   /* Sticky header needs a background so scrolling rows don't show through. */
   thead { position: sticky; top: 0; z-index: 1; background: var(--surface); }
+  /* Table column headers — the sole ALL-CAPS instance in the system. */
   th {
     text-align: left;
     padding: 12px 16px;
     font-family: var(--font-mono);
     font-size: 11px;
     font-weight: 400;
-    text-transform: uppercase;
     letter-spacing: 0.08em;
+    text-transform: uppercase;
     color: var(--text-secondary);
     border-bottom: 1px solid var(--border-visible);
     background: var(--surface);
@@ -817,7 +800,6 @@
     font-size: 11px;
     font-weight: 400;
     letter-spacing: 0.06em;
-    text-transform: uppercase;
     border: 1px solid var(--border-visible);
     background: transparent;
     color: var(--text-secondary);
@@ -873,7 +855,6 @@
     font-family: var(--font-mono);
     font-size: 11px;
     letter-spacing: 0.06em;
-    text-transform: uppercase;
     transition: color 0.15s, border-color 0.15s;
   }
   .export-btn:hover { color: var(--text-display); border-color: var(--text-display); }
@@ -915,19 +896,27 @@
   }
   .pagination button:disabled { opacity: 0.3; cursor: not-allowed; }
 
-  /* ── Segmented Progress Bar ──────────────────────────────────────── */
+  /* ── Progress Bar (smooth pill) ──────────────────────────────────── */
   .segmented-bar {
-    display: flex;
-    gap: 2px;
+    position: relative;
     width: 100%;
+    background: var(--border);
+    border-radius: 999px;
+    overflow: hidden;
   }
-  .segmented-bar--hero { height: 20px; }
+  .segmented-bar--hero { height: 16px; }
   .segmented-bar--standard { height: 10px; }
   .segmented-bar--compact { height: 5px; }
+  .segmented-bar__fill {
+    height: 100%;
+    border-radius: 999px;
+    transition: width 0.25s cubic-bezier(0.25, 0.1, 0.25, 1), background 0.2s ease;
+  }
+  /* Legacy segmented class retained for compat during migration; renders as a
+     single fill at the block's full width. New code should use the fill+track
+     pair above. */
   .segmented-bar__segment {
-    flex: 1;
-    min-width: 2px;
-    transition: background 0.2s ease;
+    display: none;
   }
 
   /* ── Footer ──────────────────────────────────────────────────────── */
@@ -947,7 +936,7 @@
   }
   .footer-content p:last-child { margin-bottom: 0; }
   .footer-content a {
-    color: var(--interactive);
+    color: var(--accent-interactive);
     text-decoration: underline;
     text-underline-offset: 0.16em;
     text-decoration-thickness: 1px;
@@ -995,8 +984,7 @@
       font-family: var(--font-mono);
       font-size: 11px;
       letter-spacing: 0.08em;
-      text-transform: uppercase;
-      cursor: pointer;
+        cursor: pointer;
       white-space: nowrap;
     }
     .filter-sep { display: none; }

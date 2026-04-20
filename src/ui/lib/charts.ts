@@ -44,10 +44,10 @@ export function tokenSeriesColors(): string[] {
 }
 
 // Categorical palette for donuts / model distribution.
-// Base four: --text-display, --success, --warning, --interactive.
+// Base four: --text-display, --success, --warning, --accent-interactive.
 // Overflow cycles the base with decreasing opacity.
 export function modelSeriesColors(n: number): string[] {
-  const baseVars = ['--text-display', '--success', '--warning', '--interactive'] as const;
+  const baseVars = ['--text-display', '--success', '--warning', '--accent-interactive'] as const;
   const out: string[] = [];
   for (let i = 0; i < n; i++) {
     const slot = i % baseVars.length;
@@ -59,11 +59,12 @@ export function modelSeriesColors(n: number): string[] {
   return out;
 }
 
-// ── Industrial base ApexCharts options ────────────────────────────────
-export function industrialChartOptions(type: 'bar' | 'donut' | 'line'): ApexOptions {
+// ── Dashboard base ApexCharts options ─────────────────────────────────
+export function dashboardChartOptions(type: 'bar' | 'donut' | 'line'): ApexOptions {
+  const monoStack = 'var(--font-mono), "Geist Mono", ui-monospace, monospace';
   const axisLabelStyle = {
     colors: cssVar('--text-secondary'),
-    fontFamily: 'var(--font-mono), "Space Mono", monospace',
+    fontFamily: monoStack,
     fontSize: '11px',
     letterSpacing: '0.04em',
   };
@@ -74,14 +75,14 @@ export function industrialChartOptions(type: 'bar' | 'donut' | 'line'): ApexOpti
       height: '100%',
       background: 'transparent',
       toolbar: { show: false },
-      fontFamily: 'var(--font-mono), "Space Mono", monospace',
+      fontFamily: monoStack,
       animations: { enabled: false },
     },
     theme: { mode: apexThemeMode() },
     legend: {
       show: true,
       position: type === 'donut' ? 'bottom' : 'top',
-      fontFamily: 'var(--font-mono), "Space Mono", monospace',
+      fontFamily: monoStack,
       fontSize: '11px',
       labels: { colors: cssVar('--text-secondary') },
       markers: { width: 8, height: 8, radius: 0 },
@@ -104,7 +105,7 @@ export function industrialChartOptions(type: 'bar' | 'donut' | 'line'): ApexOpti
     stroke: { width: type === 'line' ? 1.5 : 0, curve: 'straight' },
     tooltip: {
       theme: apexThemeMode(),
-      style: { fontFamily: 'var(--font-mono), "Space Mono", monospace', fontSize: '11px' },
+      style: { fontFamily: monoStack, fontSize: '11px' },
     },
     dataLabels: { enabled: false },
   };
@@ -116,3 +117,7 @@ export function industrialChartOptions(type: 'bar' | 'donut' | 'line'): ApexOpti
 
   return base;
 }
+
+// Backward-compat alias for the previous export name. Remove once all
+// consumers have migrated to `dashboardChartOptions`.
+export const industrialChartOptions = dashboardChartOptions;
