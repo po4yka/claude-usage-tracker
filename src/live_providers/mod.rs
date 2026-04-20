@@ -1,12 +1,14 @@
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use anyhow::Result;
+use anyhow::{Result, anyhow, bail};
 
 use crate::agent_status::models::ProviderStatus;
 use crate::models::{
-    LiveProviderIdentity, LiveProviderSnapshot, LiveProviderStatus, LiveProvidersResponse,
-    ProviderCostSummary,
+    LiveProviderHistoryResponse, LiveProviderIdentity, LiveProviderSnapshot,
+    LiveProviderSourceAttempt, LiveProviderStatus, LiveProvidersResponse, ProviderCostSummary,
 };
 use crate::oauth::models::{BudgetInfo, Identity, Plan, UsageWindowsResponse, WindowInfo};
 use crate::scanner::db;
@@ -15,45 +17,89 @@ use crate::server::api::{AppState, refresh_agent_status, refresh_usage_windows};
 pub mod codex;
 
 const LIVE_PROVIDER_CACHE_SECS: u64 = 60;
+const ALL_PROVIDERS: [&str; 2] = ["claude", "codex"];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ResponseScope {
+    All,
+    ProviderOnly,
+}
+
+impl ResponseScope {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::All => "all",
+            Self::ProviderOnly => "provider",
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct CodexLiveResolution {
+    available: bool,
+    source_used: String,
+    last_attempted_source: Option<String>,
+    resolved_via_fallback: bool,
+    refresh_duration_ms: u64,
+    source_attempts: Vec<LiveProviderSourceAttempt>,
+    identity: Option<LiveProviderIdentity>,
+    primary: Option<crate::models::LiveRateWindow>,
+    secondary: Option<crate::models::LiveRateWindow>,
+    credits: Option<f64>,
+    error: Option<String>,
+}
 
 pub async fn load_snapshots(
     state: &Arc<AppState>,
-    force_provider: Option<&str>,
+    requested_provider: Option<&str>,
+    scope: ResponseScope,
+    force_refresh: bool,
 ) -> Result<LiveProvidersResponse> {
-    if force_provider.is_none() {
-        let cache = state.live_provider_cache.read().await;
-        if let Some((fetched_at, cached)) = &*cache
-            && fetched_at.elapsed() < Duration::from_secs(LIVE_PROVIDER_CACHE_SECS)
-        {
-            return Ok(cached.clone());
-        }
+    let requested_provider = normalize_provider(requested_provider)?.map(str::to_string);
+    load_snapshots_with_fetcher(
+        state,
+        requested_provider.clone(),
+        scope,
+        force_refresh,
+        |provider, scope, force_refresh| async move {
+            fetch_live_provider_response(state, provider.as_deref(), scope, force_refresh).await
+        },
+    )
+    .await
+}
+
+async fn load_snapshots_with_fetcher<F, Fut>(
+    state: &Arc<AppState>,
+    requested_provider: Option<String>,
+    scope: ResponseScope,
+    force_refresh: bool,
+    fetcher: F,
+) -> Result<LiveProvidersResponse>
+where
+    F: Fn(Option<String>, ResponseScope, bool) -> Fut,
+    Fut: Future<Output = Result<LiveProvidersResponse>>,
+{
+    if !force_refresh && let Some(cached) = cached_response(state).await {
+        return Ok(filter_response(
+            &cached,
+            requested_provider.as_deref(),
+            scope,
+            true,
+        ));
     }
 
     let _refresh_guard = state.live_provider_refresh_lock.lock().await;
-    if force_provider.is_none() {
-        let cache = state.live_provider_cache.read().await;
-        if let Some((fetched_at, cached)) = &*cache
-            && fetched_at.elapsed() < Duration::from_secs(LIVE_PROVIDER_CACHE_SECS)
-        {
-            return Ok(cached.clone());
-        }
+    if !force_refresh && let Some(cached) = cached_response(state).await {
+        return Ok(filter_response(
+            &cached,
+            requested_provider.as_deref(),
+            scope,
+            true,
+        ));
     }
 
-    let agent_status = refresh_agent_status(state).await.ok();
-    let claude_usage = refresh_usage_windows(state).await;
-
-    let claude = build_claude_snapshot(state, &claude_usage, agent_status.as_ref().and_then(|status| status.claude.as_ref())).await?;
-    let codex = build_codex_snapshot(state, agent_status.as_ref().and_then(|status| status.openai.as_ref())).await?;
-    let response = LiveProvidersResponse {
-        providers: vec![claude, codex],
-        fetched_at: chrono::Utc::now().to_rfc3339(),
-    };
-
-    if force_provider.is_none() {
-        let mut cache = state.live_provider_cache.write().await;
-        *cache = Some((Instant::now(), response.clone()));
-    }
-
+    let response = fetcher(requested_provider.clone(), scope, force_refresh).await?;
+    update_cache_after_fetch(state, requested_provider.as_deref(), scope, &response).await;
     Ok(response)
 }
 
@@ -61,8 +107,10 @@ pub async fn load_provider_cost_summary(
     state: &Arc<AppState>,
     provider: &str,
 ) -> Result<ProviderCostSummary> {
+    let provider = normalize_provider(Some(provider))?
+        .ok_or_else(|| anyhow!("missing provider"))?
+        .to_string();
     let db_path = state.db_path.clone();
-    let provider = provider.to_string();
     tokio::task::spawn_blocking(move || {
         let conn = db::open_db(&db_path)?;
         db::init_db(&conn)?;
@@ -72,11 +120,211 @@ pub async fn load_provider_cost_summary(
     .map_err(anyhow::Error::from)?
 }
 
+pub async fn load_provider_history(
+    state: &Arc<AppState>,
+    provider: &str,
+) -> Result<LiveProviderHistoryResponse> {
+    let provider =
+        normalize_provider(Some(provider))?.ok_or_else(|| anyhow!("missing provider"))?;
+    let summary = load_provider_cost_summary(state, provider).await?;
+    Ok(LiveProviderHistoryResponse {
+        provider: provider.to_string(),
+        summary,
+    })
+}
+
+async fn fetch_live_provider_response(
+    state: &Arc<AppState>,
+    requested_provider: Option<&str>,
+    scope: ResponseScope,
+    force_refresh: bool,
+) -> Result<LiveProvidersResponse> {
+    let providers_to_build: Vec<&str> = match (requested_provider, scope, force_refresh) {
+        (Some(provider), ResponseScope::ProviderOnly, _) => vec![provider],
+        _ => ALL_PROVIDERS.to_vec(),
+    };
+
+    let agent_status = if providers_to_build
+        .iter()
+        .any(|provider| *provider == "claude" || *provider == "codex")
+    {
+        refresh_agent_status(state).await.ok()
+    } else {
+        None
+    };
+    let claude_usage = if providers_to_build.contains(&"claude") {
+        Some(refresh_usage_windows(state).await)
+    } else {
+        None
+    };
+
+    let mut providers = Vec::with_capacity(providers_to_build.len());
+    for provider in providers_to_build.iter().copied() {
+        match provider {
+            "claude" => {
+                let snapshot = build_claude_snapshot(
+                    state,
+                    claude_usage
+                        .as_ref()
+                        .ok_or_else(|| anyhow!("missing Claude usage snapshot"))?,
+                    agent_status
+                        .as_ref()
+                        .and_then(|status| status.claude.as_ref()),
+                )
+                .await?;
+                providers.push(snapshot);
+            }
+            "codex" => {
+                let snapshot = build_codex_snapshot(
+                    state,
+                    agent_status
+                        .as_ref()
+                        .and_then(|status| status.openai.as_ref()),
+                )
+                .await?;
+                providers.push(snapshot);
+            }
+            other => bail!("unsupported live provider: {}", other),
+        }
+    }
+
+    Ok(LiveProvidersResponse {
+        providers,
+        fetched_at: chrono::Utc::now().to_rfc3339(),
+        requested_provider: requested_provider.map(ToOwned::to_owned),
+        response_scope: scope.as_str().to_string(),
+        cache_hit: false,
+        refreshed_providers: if force_refresh {
+            providers_to_build
+                .iter()
+                .map(|provider| (*provider).to_string())
+                .collect()
+        } else {
+            Vec::new()
+        },
+    })
+}
+
+async fn cached_response(state: &Arc<AppState>) -> Option<LiveProvidersResponse> {
+    let cache = state.live_provider_cache.read().await;
+    match &*cache {
+        Some((fetched_at, cached))
+            if fetched_at.elapsed() < Duration::from_secs(LIVE_PROVIDER_CACHE_SECS) =>
+        {
+            Some(cached.clone())
+        }
+        _ => None,
+    }
+}
+
+async fn update_cache_after_fetch(
+    state: &Arc<AppState>,
+    requested_provider: Option<&str>,
+    scope: ResponseScope,
+    response: &LiveProvidersResponse,
+) {
+    let mut cache = state.live_provider_cache.write().await;
+
+    if is_full_response(response) {
+        *cache = Some((Instant::now(), cacheable_response(response)));
+        return;
+    }
+
+    if requested_provider.is_some()
+        && scope == ResponseScope::ProviderOnly
+        && let Some((fetched_at, cached)) = &mut *cache
+    {
+        merge_provider_snapshot(cached, response);
+        *fetched_at = Instant::now();
+    }
+}
+
+fn is_full_response(response: &LiveProvidersResponse) -> bool {
+    response.providers.len() == ALL_PROVIDERS.len()
+        && response
+            .providers
+            .iter()
+            .all(|snapshot| ALL_PROVIDERS.contains(&snapshot.provider.as_str()))
+}
+
+fn cacheable_response(response: &LiveProvidersResponse) -> LiveProvidersResponse {
+    let mut cached = response.clone();
+    cached.requested_provider = None;
+    cached.response_scope = ResponseScope::All.as_str().to_string();
+    cached.cache_hit = false;
+    cached.refreshed_providers.clear();
+    cached
+}
+
+fn merge_provider_snapshot(base: &mut LiveProvidersResponse, update: &LiveProvidersResponse) {
+    for snapshot in &update.providers {
+        if let Some(existing) = base
+            .providers
+            .iter_mut()
+            .find(|candidate| candidate.provider == snapshot.provider)
+        {
+            *existing = snapshot.clone();
+        } else {
+            base.providers.push(snapshot.clone());
+        }
+    }
+    sort_snapshots(&mut base.providers);
+    base.fetched_at = chrono::Utc::now().to_rfc3339();
+}
+
+fn filter_response(
+    response: &LiveProvidersResponse,
+    requested_provider: Option<&str>,
+    scope: ResponseScope,
+    cache_hit: bool,
+) -> LiveProvidersResponse {
+    let providers = match (requested_provider, scope) {
+        (Some(provider), ResponseScope::ProviderOnly) => response
+            .providers
+            .iter()
+            .filter(|snapshot| snapshot.provider == provider)
+            .cloned()
+            .collect(),
+        _ => response.providers.clone(),
+    };
+
+    LiveProvidersResponse {
+        providers,
+        fetched_at: response.fetched_at.clone(),
+        requested_provider: requested_provider.map(ToOwned::to_owned),
+        response_scope: scope.as_str().to_string(),
+        cache_hit,
+        refreshed_providers: if cache_hit {
+            Vec::new()
+        } else {
+            response.refreshed_providers.clone()
+        },
+    }
+}
+
+fn sort_snapshots(snapshots: &mut [LiveProviderSnapshot]) {
+    snapshots.sort_by_key(|snapshot| match snapshot.provider.as_str() {
+        "claude" => 0,
+        "codex" => 1,
+        _ => 2,
+    });
+}
+
+fn normalize_provider(provider: Option<&str>) -> Result<Option<&'static str>> {
+    match provider {
+        None => Ok(None),
+        Some("claude") => Ok(Some("claude")),
+        Some("codex") => Ok(Some("codex")),
+        Some(other) => bail!("unsupported live provider: {}", other),
+    }
+}
+
 async fn build_claude_snapshot(
     state: &Arc<AppState>,
     usage: &UsageWindowsResponse,
     status: Option<&ProviderStatus>,
 ) -> Result<LiveProviderSnapshot> {
+    let started_at = Instant::now();
     let db_path = state.db_path.clone();
     let usage_clone = usage.clone();
     let status = status.cloned();
@@ -86,10 +334,50 @@ async fn build_claude_snapshot(
         let claude_usage = db::get_latest_claude_usage_response(&conn)?.latest_snapshot;
         let cost_summary = provider_cost_summary(&conn, "claude")?;
 
+        let mut source_attempts = Vec::new();
+        if usage_clone.available {
+            source_attempts.push(LiveProviderSourceAttempt {
+                source: "oauth".into(),
+                outcome: "success".into(),
+                message: None,
+            });
+        } else {
+            source_attempts.push(LiveProviderSourceAttempt {
+                source: "oauth".into(),
+                outcome: if usage_clone.error.is_some() {
+                    "error".into()
+                } else {
+                    "unavailable".into()
+                },
+                message: usage_clone.error.clone(),
+            });
+            if claude_usage.is_some() {
+                source_attempts.push(LiveProviderSourceAttempt {
+                    source: "local".into(),
+                    outcome: "success".into(),
+                    message: Some("using latest stored /usage factors".into()),
+                });
+            }
+        }
+
+        let source_used = if usage_clone.available {
+            "oauth"
+        } else if claude_usage.is_some() {
+            "local"
+        } else {
+            "unavailable"
+        };
+        let last_attempted_source = source_attempts.last().map(|attempt| attempt.source.clone());
+        let resolved_via_fallback = source_used == "local";
+
         Ok(LiveProviderSnapshot {
             provider: "claude".into(),
             available: usage_clone.available || claude_usage.is_some(),
-            source_used: if usage_clone.available { "oauth".into() } else { "local".into() },
+            source_used: source_used.into(),
+            last_attempted_source,
+            resolved_via_fallback,
+            refresh_duration_ms: started_at.elapsed().as_millis() as u64,
+            source_attempts,
             identity: usage_clone.identity.as_ref().map(identity_to_live),
             primary: usage_clone.session.as_ref().map(window_to_live),
             secondary: usage_clone.weekly.as_ref().map(window_to_live),
@@ -104,7 +392,11 @@ async fn build_claude_snapshot(
             claude_usage,
             last_refresh: chrono::Utc::now().to_rfc3339(),
             stale: !usage_clone.available,
-            error: usage_clone.error.clone(),
+            error: if source_used == "unavailable" {
+                usage_clone.error.clone()
+            } else {
+                None
+            },
         })
     })
     .await
@@ -116,6 +408,62 @@ async fn build_codex_snapshot(
     status: Option<&ProviderStatus>,
 ) -> Result<LiveProviderSnapshot> {
     let cost_summary = load_provider_cost_summary(state, "codex").await?;
+    let env = std::env::vars().collect::<Vec<_>>();
+    let resolution = resolve_codex_live_data_with(
+        &env,
+        codex::load_auth,
+        |auth| Box::pin(codex::fetch_oauth_usage(auth)),
+        codex::fetch_rpc_snapshot,
+        codex::fetch_cli_status,
+    )
+    .await;
+
+    Ok(LiveProviderSnapshot {
+        provider: "codex".into(),
+        available: resolution.available,
+        source_used: resolution.source_used,
+        last_attempted_source: resolution.last_attempted_source,
+        resolved_via_fallback: resolution.resolved_via_fallback,
+        refresh_duration_ms: resolution.refresh_duration_ms,
+        source_attempts: resolution.source_attempts,
+        identity: resolution.identity,
+        primary: resolution.primary,
+        secondary: resolution.secondary,
+        tertiary: None,
+        credits: resolution.credits,
+        status: status.map(status_to_live),
+        cost_summary,
+        claude_usage: None,
+        last_refresh: chrono::Utc::now().to_rfc3339(),
+        stale: !resolution.available,
+        error: resolution.error,
+    })
+}
+
+async fn resolve_codex_live_data_with<LoadAuth, FetchOauth, FetchRpc, FetchCli>(
+    env: &[(String, String)],
+    load_auth: LoadAuth,
+    fetch_oauth: FetchOauth,
+    fetch_rpc: FetchRpc,
+    fetch_cli: FetchCli,
+) -> CodexLiveResolution
+where
+    LoadAuth: Fn(&[(String, String)]) -> Result<codex::CodexAuth>,
+    FetchOauth: for<'a> Fn(
+        &'a codex::CodexAuth,
+    ) -> Pin<
+        Box<dyn Future<Output = Result<codex::CodexUsageResponse>> + Send + 'a>,
+    >,
+    FetchRpc: Fn(
+        Duration,
+    ) -> Result<(
+        Option<codex::RpcAccountResponse>,
+        codex::RpcRateLimitsResponse,
+    )>,
+    FetchCli: Fn(Duration) -> Result<codex::CliStatusSnapshot>,
+{
+    let started_at = Instant::now();
+    let mut attempts = Vec::new();
     let mut identity = None::<LiveProviderIdentity>;
     let mut primary = None;
     let mut secondary = None;
@@ -123,13 +471,19 @@ async fn build_codex_snapshot(
     let mut source_used = "unavailable".to_string();
     let mut error = None;
     let mut available = false;
+    let mut last_attempted_source = None;
 
-    let env = std::env::vars().collect::<Vec<_>>();
-    match codex::load_auth(&env) {
+    match load_auth(env) {
         Ok(auth) => {
             identity = codex::decode_identity(&auth);
-            match codex::fetch_oauth_usage(&auth).await {
+            last_attempted_source = Some("oauth".to_string());
+            match fetch_oauth(&auth).await {
                 Ok(response) => {
+                    attempts.push(LiveProviderSourceAttempt {
+                        source: "oauth".into(),
+                        outcome: "success".into(),
+                        message: None,
+                    });
                     available = true;
                     source_used = "oauth".into();
                     if let Some(plan_type) = response.plan_type {
@@ -144,27 +498,49 @@ async fn build_codex_snapshot(
                         }
                     }
                     if let Some(rate_limit) = response.rate_limit {
-                        primary = rate_limit.primary_window.as_ref().map(codex::oauth_window_to_live);
+                        primary = rate_limit
+                            .primary_window
+                            .as_ref()
+                            .map(codex::oauth_window_to_live);
                         secondary = rate_limit
                             .secondary_window
                             .as_ref()
                             .map(codex::oauth_window_to_live);
                     }
-                    credits = response.credits.as_ref().and_then(codex::oauth_credits_to_f64);
+                    credits = response
+                        .credits
+                        .as_ref()
+                        .and_then(codex::oauth_credits_to_f64);
                 }
                 Err(fetch_error) => {
+                    attempts.push(LiveProviderSourceAttempt {
+                        source: "oauth".into(),
+                        outcome: "error".into(),
+                        message: Some(fetch_error.to_string()),
+                    });
                     error = Some(fetch_error.to_string());
                 }
             }
         }
         Err(load_error) => {
+            attempts.push(LiveProviderSourceAttempt {
+                source: "oauth-auth".into(),
+                outcome: "error".into(),
+                message: Some(load_error.to_string()),
+            });
             error = Some(load_error.to_string());
         }
     }
 
     if !available {
-        match codex::fetch_rpc_snapshot(Duration::from_secs(8)) {
+        last_attempted_source = Some("cli-rpc".to_string());
+        match fetch_rpc(Duration::from_secs(8)) {
             Ok((account, limits)) => {
+                attempts.push(LiveProviderSourceAttempt {
+                    source: "cli-rpc".into(),
+                    outcome: "success".into(),
+                    message: None,
+                });
                 available = true;
                 source_used = "cli-rpc".into();
                 if identity.is_none() {
@@ -181,8 +557,16 @@ async fn build_codex_snapshot(
                         _ => None,
                     });
                 }
-                primary = limits.rate_limits.primary.as_ref().map(codex::rpc_window_to_live);
-                secondary = limits.rate_limits.secondary.as_ref().map(codex::rpc_window_to_live);
+                primary = limits
+                    .rate_limits
+                    .primary
+                    .as_ref()
+                    .map(codex::rpc_window_to_live);
+                secondary = limits
+                    .rate_limits
+                    .secondary
+                    .as_ref()
+                    .map(codex::rpc_window_to_live);
                 credits = limits
                     .rate_limits
                     .credits
@@ -191,6 +575,11 @@ async fn build_codex_snapshot(
                 error = None;
             }
             Err(rpc_error) => {
+                attempts.push(LiveProviderSourceAttempt {
+                    source: "cli-rpc".into(),
+                    outcome: "error".into(),
+                    message: Some(rpc_error.to_string()),
+                });
                 if error.is_none() {
                     error = Some(rpc_error.to_string());
                 }
@@ -199,8 +588,14 @@ async fn build_codex_snapshot(
     }
 
     if !available {
-        match codex::fetch_cli_status(Duration::from_secs(8)) {
+        last_attempted_source = Some("cli-pty".to_string());
+        match fetch_cli(Duration::from_secs(8)) {
             Ok(status_snapshot) => {
+                attempts.push(LiveProviderSourceAttempt {
+                    source: "cli-pty".into(),
+                    outcome: "success".into(),
+                    message: None,
+                });
                 available = true;
                 source_used = "cli-pty".into();
                 primary = status_snapshot.primary;
@@ -209,6 +604,11 @@ async fn build_codex_snapshot(
                 error = None;
             }
             Err(cli_error) => {
+                attempts.push(LiveProviderSourceAttempt {
+                    source: "cli-pty".into(),
+                    outcome: "error".into(),
+                    message: Some(cli_error.to_string()),
+                });
                 if error.is_none() {
                     error = Some(cli_error.to_string());
                 }
@@ -216,22 +616,21 @@ async fn build_codex_snapshot(
         }
     }
 
-    Ok(LiveProviderSnapshot {
-        provider: "codex".into(),
+    let resolved_via_fallback = available && source_used != "oauth";
+
+    CodexLiveResolution {
         available,
         source_used,
+        last_attempted_source,
+        resolved_via_fallback,
+        refresh_duration_ms: started_at.elapsed().as_millis() as u64,
+        source_attempts: attempts,
         identity,
         primary,
         secondary,
-        tertiary: None,
         credits,
-        status: status.map(status_to_live),
-        cost_summary,
-        claude_usage: None,
-        last_refresh: chrono::Utc::now().to_rfc3339(),
-        stale: !available,
         error,
-    })
+    }
 }
 
 fn window_to_live(window: &WindowInfo) -> crate::models::LiveRateWindow {
@@ -289,7 +688,8 @@ fn provider_cost_summary(
 ) -> Result<ProviderCostSummary> {
     let today = chrono::Utc::now().date_naive().to_string();
     let start_date = (chrono::Utc::now().date_naive() - chrono::Duration::days(29)).to_string();
-    let (today_cost_nanos, today_tokens) = db::get_provider_cost_summary_since(conn, provider, &today)?;
+    let (today_cost_nanos, today_tokens) =
+        db::get_provider_cost_summary_since(conn, provider, &today)?;
     let (last_30_cost_nanos, last_30_tokens) =
         db::get_provider_cost_summary_since(conn, provider, &start_date)?;
     let daily = db::get_provider_daily_cost_history_since(conn, provider, &start_date)?;
@@ -301,4 +701,248 @@ fn provider_cost_summary(
         last_30_days_cost_usd: last_30_cost_nanos as f64 / 1_000_000_000.0,
         daily,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    fn fixture_response(provider: &str) -> LiveProvidersResponse {
+        LiveProvidersResponse {
+            providers: vec![LiveProviderSnapshot {
+                provider: provider.to_string(),
+                available: true,
+                source_used: "oauth".into(),
+                last_attempted_source: Some("oauth".into()),
+                resolved_via_fallback: false,
+                refresh_duration_ms: 1,
+                source_attempts: vec![LiveProviderSourceAttempt {
+                    source: "oauth".into(),
+                    outcome: "success".into(),
+                    message: None,
+                }],
+                identity: None,
+                primary: None,
+                secondary: None,
+                tertiary: None,
+                credits: None,
+                status: None,
+                cost_summary: ProviderCostSummary::default(),
+                claude_usage: None,
+                last_refresh: "2026-01-01T00:00:00Z".into(),
+                stale: false,
+                error: None,
+            }],
+            fetched_at: "2026-01-01T00:00:00Z".into(),
+            requested_provider: Some(provider.to_string()),
+            response_scope: "provider".into(),
+            cache_hit: false,
+            refreshed_providers: vec![provider.to_string()],
+        }
+    }
+
+    fn test_state() -> Arc<AppState> {
+        Arc::new(AppState {
+            db_path: std::path::PathBuf::from("/tmp/heimdall-live-provider-tests.db"),
+            projects_dirs: None,
+            oauth_enabled: false,
+            oauth_refresh_interval: 60,
+            oauth_cache: tokio::sync::RwLock::new(None),
+            oauth_refresh_lock: tokio::sync::Mutex::new(()),
+            openai_enabled: false,
+            openai_admin_key_env: "OPENAI_ADMIN_KEY".into(),
+            openai_refresh_interval: 60,
+            openai_lookback_days: 30,
+            openai_cache: tokio::sync::RwLock::new(None),
+            openai_refresh_lock: tokio::sync::Mutex::new(()),
+            db_lock: tokio::sync::Mutex::new(()),
+            webhook_state: tokio::sync::Mutex::new(crate::webhooks::WebhookState::default()),
+            webhook_config: crate::config::WebhookConfig::default(),
+            scan_event_tx: tokio::sync::broadcast::channel::<String>(1).0,
+            agent_status_config: crate::config::AgentStatusConfig::default(),
+            agent_status_cache: tokio::sync::RwLock::new(None),
+            agent_status_refresh_lock: tokio::sync::Mutex::new(()),
+            aggregator_config: crate::config::AggregatorConfig::default(),
+            aggregator_cache: tokio::sync::RwLock::new(None),
+            aggregator_refresh_lock: tokio::sync::Mutex::new(()),
+            blocks_token_limit: None,
+            session_length_hours: 5.0,
+            project_aliases: std::collections::HashMap::new(),
+            live_provider_cache: tokio::sync::RwLock::new(None),
+            live_provider_refresh_lock: tokio::sync::Mutex::new(()),
+        })
+    }
+
+    #[tokio::test]
+    async fn refresh_invalidates_cached_response() {
+        let state = test_state();
+        let counter = Arc::new(AtomicUsize::new(0));
+
+        {
+            let mut cache = state.live_provider_cache.write().await;
+            *cache = Some((Instant::now(), {
+                let mut response = fixture_response("claude");
+                response.response_scope = "all".into();
+                response.requested_provider = None;
+                response
+            }));
+        }
+
+        let initial = load_snapshots_with_fetcher(
+            &state,
+            Some("claude".to_string()),
+            ResponseScope::ProviderOnly,
+            false,
+            {
+                let counter = counter.clone();
+                move |_, _, _| {
+                    let counter = counter.clone();
+                    async move {
+                        counter.fetch_add(1, Ordering::SeqCst);
+                        Ok(fixture_response("codex"))
+                    }
+                }
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(counter.load(Ordering::SeqCst), 0);
+        assert!(initial.cache_hit);
+        assert_eq!(initial.providers[0].provider, "claude");
+
+        let refreshed = load_snapshots_with_fetcher(
+            &state,
+            Some("codex".to_string()),
+            ResponseScope::ProviderOnly,
+            true,
+            {
+                let counter = counter.clone();
+                move |_, _, _| {
+                    let counter = counter.clone();
+                    async move {
+                        counter.fetch_add(1, Ordering::SeqCst);
+                        Ok(fixture_response("codex"))
+                    }
+                }
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(counter.load(Ordering::SeqCst), 1);
+        assert!(!refreshed.cache_hit);
+        assert_eq!(refreshed.providers[0].provider, "codex");
+        let cached = state.live_provider_cache.read().await;
+        let cached = cached.as_ref().unwrap().1.clone();
+        assert!(
+            cached
+                .providers
+                .iter()
+                .any(|snapshot| snapshot.provider == "claude")
+        );
+        assert!(
+            cached
+                .providers
+                .iter()
+                .any(|snapshot| snapshot.provider == "codex")
+        );
+    }
+
+    #[tokio::test]
+    async fn codex_oauth_failure_falls_back_to_rpc() {
+        let auth = codex::CodexAuth {
+            access_token: "token".into(),
+            refresh_token: None,
+            id_token: None,
+            account_id: None,
+        };
+
+        let resolution = resolve_codex_live_data_with(
+            &[],
+            |_| Ok(auth.clone()),
+            |_| Box::pin(async { Err(anyhow!("oauth failed")) }),
+            |_| {
+                Ok((
+                    Some(codex::RpcAccountResponse {
+                        account: Some(codex::RpcAccountDetails::ChatGpt {
+                            email: Some("rpc@example.com".into()),
+                            plan_type: Some("pro".into()),
+                        }),
+                    }),
+                    codex::RpcRateLimitsResponse {
+                        rate_limits: codex::RpcRateLimitSnapshot {
+                            primary: Some(codex::RpcRateLimitWindow {
+                                used_percent: 42.0,
+                                window_duration_mins: Some(300),
+                                resets_at: None,
+                            }),
+                            secondary: None,
+                            credits: None,
+                        },
+                    },
+                ))
+            },
+            |_| Err(anyhow!("cli should not run")),
+        )
+        .await;
+
+        assert!(resolution.available);
+        assert_eq!(resolution.source_used, "cli-rpc");
+        assert!(resolution.resolved_via_fallback);
+        assert!(
+            resolution
+                .source_attempts
+                .iter()
+                .any(|attempt| attempt.source == "oauth" && attempt.outcome == "error")
+        );
+        assert!(
+            resolution
+                .source_attempts
+                .iter()
+                .any(|attempt| attempt.source == "cli-rpc" && attempt.outcome == "success")
+        );
+    }
+
+    #[tokio::test]
+    async fn codex_rpc_failure_falls_back_to_cli_status() {
+        let resolution = resolve_codex_live_data_with(
+            &[],
+            |_| Err(anyhow!("auth missing")),
+            |_| Box::pin(async { Err(anyhow!("oauth should not run")) }),
+            |_| Err(anyhow!("rpc failed")),
+            |_| {
+                Ok(codex::CliStatusSnapshot {
+                    credits: Some(12.5),
+                    primary: Some(crate::models::LiveRateWindow {
+                        used_percent: 12.0,
+                        resets_at: None,
+                        resets_in_minutes: None,
+                        window_minutes: None,
+                        reset_label: Some("resets soon".into()),
+                    }),
+                    secondary: None,
+                })
+            },
+        )
+        .await;
+
+        assert!(resolution.available);
+        assert_eq!(resolution.source_used, "cli-pty");
+        assert!(resolution.resolved_via_fallback);
+        assert!(
+            resolution
+                .source_attempts
+                .iter()
+                .any(|attempt| attempt.source == "cli-rpc" && attempt.outcome == "error")
+        );
+        assert!(
+            resolution
+                .source_attempts
+                .iter()
+                .any(|attempt| attempt.source == "cli-pty" && attempt.outcome == "success")
+        );
+    }
 }

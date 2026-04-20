@@ -601,6 +601,88 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_api_live_providers_provider_scope_filters_cached_response() {
+        let tmp = TempDir::new().unwrap();
+        let (db_path, projects) = setup_test_db(&tmp);
+        let state = Arc::new(base_state(db_path, projects));
+        {
+            let mut cache = state.live_provider_cache.write().await;
+            *cache = Some((
+                std::time::Instant::now(),
+                crate::models::LiveProvidersResponse {
+                    providers: vec![
+                        crate::models::LiveProviderSnapshot {
+                            provider: "claude".into(),
+                            available: true,
+                            source_used: "oauth".into(),
+                            last_attempted_source: Some("oauth".into()),
+                            resolved_via_fallback: false,
+                            refresh_duration_ms: 1,
+                            source_attempts: vec![],
+                            identity: None,
+                            primary: None,
+                            secondary: None,
+                            tertiary: None,
+                            credits: None,
+                            status: None,
+                            cost_summary: crate::models::ProviderCostSummary::default(),
+                            claude_usage: None,
+                            last_refresh: "2026-01-01T00:00:00Z".into(),
+                            stale: false,
+                            error: None,
+                        },
+                        crate::models::LiveProviderSnapshot {
+                            provider: "codex".into(),
+                            available: true,
+                            source_used: "cli-rpc".into(),
+                            last_attempted_source: Some("cli-rpc".into()),
+                            resolved_via_fallback: true,
+                            refresh_duration_ms: 2,
+                            source_attempts: vec![],
+                            identity: None,
+                            primary: None,
+                            secondary: None,
+                            tertiary: None,
+                            credits: None,
+                            status: None,
+                            cost_summary: crate::models::ProviderCostSummary::default(),
+                            claude_usage: None,
+                            last_refresh: "2026-01-01T00:00:00Z".into(),
+                            stale: false,
+                            error: None,
+                        },
+                    ],
+                    fetched_at: "2026-01-01T00:00:00Z".into(),
+                    requested_provider: None,
+                    response_scope: "all".into(),
+                    cache_hit: false,
+                    refreshed_providers: vec![],
+                },
+            ));
+        }
+
+        let app = crate::server::build_router(state);
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/live-providers?provider=codex&scope=provider")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = resp.into_body().collect().await.unwrap().to_bytes();
+        let data: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(data["requested_provider"], "codex");
+        assert_eq!(data["response_scope"], "provider");
+        assert_eq!(data["cache_hit"], true);
+        assert_eq!(data["providers"].as_array().unwrap().len(), 1);
+        assert_eq!(data["providers"][0]["provider"], "codex");
+    }
+
+    #[tokio::test]
     async fn test_404_for_unknown_path() {
         let tmp = TempDir::new().unwrap();
         let (db_path, projects) = setup_test_db(&tmp);

@@ -19,6 +19,7 @@ use crate::agent_status::models::AgentStatusSnapshot;
 use crate::config::{AgentStatusConfig, AggregatorConfig, WebhookConfig};
 use crate::live_providers;
 use crate::models::ClaudeUsageResponse;
+use crate::models::LiveProviderHistoryResponse;
 use crate::models::LiveProvidersResponse;
 use crate::models::OpenAiReconciliation;
 use crate::oauth;
@@ -359,46 +360,54 @@ pub async fn api_health() -> &'static str {
 #[derive(Debug, serde::Deserialize)]
 pub struct LiveProviderQuery {
     pub provider: Option<String>,
+    pub scope: Option<String>,
 }
 
 pub async fn api_live_providers(
     State(state): State<Arc<AppState>>,
-) -> Result<Json<Value>, StatusCode> {
-    let response = live_providers::load_snapshots(&state, None)
+    Query(query): Query<LiveProviderQuery>,
+) -> Result<Json<LiveProvidersResponse>, StatusCode> {
+    let scope = parse_live_provider_scope(query.scope.as_deref())?;
+    let response = live_providers::load_snapshots(&state, query.provider.as_deref(), scope, false)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let value = serde_json::to_value(response).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    Ok(Json(value))
+    Ok(Json(response))
 }
 
 pub async fn api_live_provider_refresh(
     State(state): State<Arc<AppState>>,
     Query(query): Query<LiveProviderQuery>,
-) -> Result<Json<Value>, StatusCode> {
-    {
+) -> Result<Json<LiveProvidersResponse>, StatusCode> {
+    let scope = parse_live_provider_scope(query.scope.as_deref())?;
+    if query.provider.is_none() || scope == live_providers::ResponseScope::All {
         let mut cache = state.live_provider_cache.write().await;
         *cache = None;
     }
-    let response = live_providers::load_snapshots(&state, query.provider.as_deref())
+    let response = live_providers::load_snapshots(&state, query.provider.as_deref(), scope, true)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let value = serde_json::to_value(response).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    Ok(Json(value))
+    Ok(Json(response))
 }
 
 pub async fn api_live_provider_history(
     State(state): State<Arc<AppState>>,
     Query(query): Query<LiveProviderQuery>,
-) -> Result<Json<Value>, StatusCode> {
+) -> Result<Json<LiveProviderHistoryResponse>, StatusCode> {
     let provider = query.provider.unwrap_or_else(|| "claude".into());
-    let summary = live_providers::load_provider_cost_summary(&state, &provider)
+    let summary = live_providers::load_provider_history(&state, &provider)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let value = serde_json::json!({
-        "provider": provider,
-        "summary": summary,
-    });
-    Ok(Json(value))
+    Ok(Json(summary))
+}
+
+fn parse_live_provider_scope(
+    scope: Option<&str>,
+) -> Result<live_providers::ResponseScope, StatusCode> {
+    match scope.unwrap_or("all") {
+        "all" => Ok(live_providers::ResponseScope::All),
+        "provider" => Ok(live_providers::ResponseScope::ProviderOnly),
+        _ => Err(StatusCode::BAD_REQUEST),
+    }
 }
 
 /// `GET /api/agent-status` — returns the latest upstream provider health snapshot.

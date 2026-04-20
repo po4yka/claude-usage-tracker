@@ -2700,7 +2700,8 @@ pub fn get_provider_daily_cost_history_since(
         })
     })?;
 
-    rows.collect::<rusqlite::Result<Vec<_>>>().map_err(Into::into)
+    rows.collect::<rusqlite::Result<Vec<_>>>()
+        .map_err(Into::into)
 }
 
 fn compute_duration_min(first: &str, last: &str) -> f64 {

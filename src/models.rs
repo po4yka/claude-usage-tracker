@@ -322,10 +322,23 @@ pub struct ProviderCostSummary {
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
+pub struct LiveProviderSourceAttempt {
+    pub source: String,
+    pub outcome: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
 pub struct LiveProviderSnapshot {
     pub provider: String,
     pub available: bool,
     pub source_used: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_attempted_source: Option<String>,
+    pub resolved_via_fallback: bool,
+    pub refresh_duration_ms: u64,
+    pub source_attempts: Vec<LiveProviderSourceAttempt>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub identity: Option<LiveProviderIdentity>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -351,6 +364,17 @@ pub struct LiveProviderSnapshot {
 pub struct LiveProvidersResponse {
     pub providers: Vec<LiveProviderSnapshot>,
     pub fetched_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub requested_provider: Option<String>,
+    pub response_scope: String,
+    pub cache_hit: bool,
+    pub refreshed_providers: Vec<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct LiveProviderHistoryResponse {
+    pub provider: String,
+    pub summary: ProviderCostSummary,
 }
 
 #[derive(Debug, Clone, Serialize)]

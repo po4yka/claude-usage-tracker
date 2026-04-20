@@ -207,8 +207,7 @@ pub fn decode_identity(auth: &CodexAuth) -> Option<LiveProviderIdentity> {
 }
 
 pub fn oauth_window_to_live(window: &CodexWindow) -> LiveRateWindow {
-    let resets_at = chrono::DateTime::from_timestamp(window.reset_at, 0)
-        .map(|ts| ts.to_rfc3339());
+    let resets_at = chrono::DateTime::from_timestamp(window.reset_at, 0).map(|ts| ts.to_rfc3339());
     let resets_in_minutes = chrono::DateTime::from_timestamp(window.reset_at, 0).map(|ts| {
         ts.signed_duration_since(chrono::Utc::now())
             .num_minutes()
@@ -261,7 +260,9 @@ pub fn oauth_credits_to_f64(credits: &CodexCredits) -> Option<f64> {
     }
 }
 
-pub fn fetch_rpc_snapshot(timeout: Duration) -> Result<(Option<RpcAccountResponse>, RpcRateLimitsResponse)> {
+pub fn fetch_rpc_snapshot(
+    timeout: Duration,
+) -> Result<(Option<RpcAccountResponse>, RpcRateLimitsResponse)> {
     let mut child = Command::new("codex")
         .args(["-s", "read-only", "-a", "untrusted", "app-server"])
         .stdin(Stdio::piped())
@@ -341,7 +342,15 @@ pub fn fetch_rpc_snapshot(timeout: Duration) -> Result<(Option<RpcAccountRespons
 
 pub fn fetch_cli_status(timeout: Duration) -> Result<CliStatusSnapshot> {
     let mut child = Command::new("/usr/bin/script")
-        .args(["-q", "/dev/null", "codex", "-s", "read-only", "-a", "untrusted"])
+        .args([
+            "-q",
+            "/dev/null",
+            "codex",
+            "-s",
+            "read-only",
+            "-a",
+            "untrusted",
+        ])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
@@ -388,17 +397,17 @@ pub fn parse_cli_status(text: &str) -> Result<CliStatusSnapshot> {
         .and_then(|captures| captures.get(1))
         .and_then(|value| value.as_str().replace(',', "").parse::<f64>().ok());
 
-    let five_line = Regex::new(r"5h limit[^\n]*").unwrap().find(text).map(|m| m.as_str().to_string());
-    let week_line = Regex::new(r"Weekly limit[^\n]*").unwrap().find(text).map(|m| m.as_str().to_string());
+    let five_line = Regex::new(r"5h limit[^\n]*")
+        .unwrap()
+        .find(text)
+        .map(|m| m.as_str().to_string());
+    let week_line = Regex::new(r"Weekly limit[^\n]*")
+        .unwrap()
+        .find(text)
+        .map(|m| m.as_str().to_string());
 
-    let primary = five_line
-        .as_deref()
-        .map(parse_cli_window)
-        .transpose()?;
-    let secondary = week_line
-        .as_deref()
-        .map(parse_cli_window)
-        .transpose()?;
+    let primary = five_line.as_deref().map(parse_cli_window).transpose()?;
+    let secondary = week_line.as_deref().map(parse_cli_window).transpose()?;
 
     if credits.is_none() && primary.is_none() && secondary.is_none() {
         bail!("could not parse Codex CLI status output");
@@ -436,7 +445,10 @@ fn parse_cli_window(line: &str) -> Result<LiveRateWindow> {
 }
 
 fn auth_file_path(env: &[(String, String)]) -> PathBuf {
-    let env_map = env.iter().cloned().collect::<std::collections::HashMap<_, _>>();
+    let env_map = env
+        .iter()
+        .cloned()
+        .collect::<std::collections::HashMap<_, _>>();
     if let Some(codex_home) = env_map.get("CODEX_HOME").filter(|value| !value.is_empty()) {
         return PathBuf::from(codex_home).join("auth.json");
     }
@@ -563,6 +575,19 @@ mod tests {
         assert_eq!(auth.access_token, "access");
         assert_eq!(auth.refresh_token.as_deref(), Some("refresh"));
         assert_eq!(auth.account_id.as_deref(), Some("acct_123"));
+    }
+
+    #[test]
+    fn auth_file_path_prefers_codex_home() {
+        let env = vec![("CODEX_HOME".to_string(), "/tmp/codex-home".to_string())];
+        let path = auth_file_path(&env);
+        assert_eq!(path, PathBuf::from("/tmp/codex-home/auth.json"));
+    }
+
+    #[test]
+    fn auth_file_path_defaults_to_dot_codex() {
+        let path = auth_file_path(&[]);
+        assert!(path.ends_with(".codex/auth.json"));
     }
 
     #[test]
