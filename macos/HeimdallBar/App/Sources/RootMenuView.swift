@@ -45,7 +45,7 @@ struct RootMenuView: View {
             }
         }
         .padding(12)
-        .frame(width: 356)
+        .frame(width: 344)
     }
 
     private func attentionLabel(for overview: OverviewMenuProjection) -> String? {
@@ -88,7 +88,7 @@ struct ProviderMenuView: View {
             MenuActionRow(model: self.model, tab: self.provider == .claude ? .claude : .codex)
         }
         .padding(12)
-        .frame(width: 352)
+        .frame(width: 340)
     }
 
     private var providerAttentionLabel: String? {
@@ -202,9 +202,9 @@ struct ProviderMenuCard: View {
             return self.projection.costLabel
         }
         if let resetDetail = primaryLane.resetDetail, let paceLabel = primaryLane.paceLabel, primaryLane.remainingPercent != nil {
-            return "Session · \(paceLabel.lowercased()) · \(resetDetail)"
+            return "\(resetDetail) · \(paceLabel.lowercased()) pace"
         }
-        return primaryLane.summary
+        return "No live session window"
     }
 
     private var cardBackgroundOpacity: Double {
@@ -234,7 +234,12 @@ struct OverviewMenuCard: View {
                 OverviewProviderCard(item: item)
             }
             if !self.projection.historyFractions.isEmpty {
-                HistoryBarStrip(fractions: self.projection.historyFractions)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Last 7 days")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    HistoryBarStrip(fractions: self.projection.historyFractions)
+                }
             }
             VStack(alignment: .leading, spacing: 4) {
                 Text(self.projection.combinedCostLabel)
@@ -300,7 +305,7 @@ private struct MenuChromeHeader: View {
             }
             if let attentionLabel {
                 Text(attentionLabel)
-                    .font(.caption.weight(.medium))
+                    .font(.caption2.weight(.medium))
                     .foregroundStyle(self.attentionColor)
             }
         }
@@ -415,13 +420,13 @@ struct HistoryBarStrip: View {
             ForEach(Array(self.fractions.enumerated()), id: \.offset) { entry in
                 let fraction = entry.element
                 RoundedRectangle(cornerRadius: 1)
-                    .fill(Color.primary.opacity(0.18))
+                    .fill(Color.primary.opacity(0.08))
                     .overlay(alignment: .bottom) {
                         RoundedRectangle(cornerRadius: 1)
                             .fill(Color.primary)
-                            .frame(height: max(2, 24 * fraction))
+                            .frame(height: max(2, 18 * fraction))
                     }
-                    .frame(width: 10, height: 24)
+                    .frame(width: 7, height: 18)
             }
         }
     }
@@ -508,7 +513,7 @@ private struct SessionActionGroup: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             ForEach(self.providers, id: \.self) { provider in
-                Menu("\(provider.title) Web Session") {
+                Menu {
                     let candidates = self.model.importCandidates(for: provider)
                     if candidates.isEmpty {
                         Text("No browser stores found")
@@ -525,6 +530,11 @@ private struct SessionActionGroup: View {
                             Task { await self.model.resetBrowserSession(provider: provider) }
                         }
                     }
+                } label: {
+                    SessionDisclosureRow(
+                        title: "\(provider.title) Web Session",
+                        subtitle: self.model.importedSession(for: provider) == nil ? "Not connected" : "Connected"
+                    )
                 }
                 .menuStyle(.borderlessButton)
             }
@@ -561,28 +571,33 @@ private struct MergeTabSwitcher: View {
     @Binding var selection: MergeMenuTab
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 4) {
             ForEach(self.tabs) { tab in
                 Button {
                     self.selection = tab
                 } label: {
                     Text(tab.title)
-                        .font(.caption.weight(.medium))
+                        .font(.caption.weight(.semibold))
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 6)
+                        .padding(.vertical, 7)
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(self.selection == tab ? Color.primary : Color.secondary)
+                .foregroundStyle(self.selection == tab ? Color.white : Color.secondary)
                 .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(self.selection == tab ? Color.primary.opacity(0.1) : Color.clear)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(Color.primary.opacity(self.selection == tab ? 0.16 : 0.08), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .fill(self.selection == tab ? Color.accentColor.opacity(0.9) : Color.clear)
                 )
             }
         }
+        .padding(3)
+        .background(
+            RoundedRectangle(cornerRadius: 11, style: .continuous)
+                .fill(Color.primary.opacity(0.04))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 11, style: .continuous)
+                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+        )
     }
 }
 
@@ -631,7 +646,7 @@ private struct OverviewProviderCard: View {
         if let reset = lane.resetDetail, lane.remainingPercent != nil {
             return reset
         }
-        return lane.summary
+        return "Session unavailable"
     }
 }
 
@@ -671,6 +686,37 @@ private struct SecondaryActionLabel: View {
             Spacer()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct SessionDisclosureRow: View {
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(self.title)
+                    .font(.body)
+                Text(self.subtitle)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Image(systemName: "chevron.down")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color.primary.opacity(0.04))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+        )
     }
 }
 
