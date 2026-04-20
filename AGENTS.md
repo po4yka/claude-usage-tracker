@@ -239,6 +239,7 @@ src/
 - Log with `tracing`: `debug!` for per-file progress, `info!` for scan summaries, `warn!` for recoverable errors.
 - No `#[allow(dead_code)]` drive-bys — every allow must name the intent in a comment.
 - Rust edition 2024; MSRV matches CI matrix.
+- **Surgical Focus**: Never modify or revert changes in the repository that are unrelated to your work; maintain strict focus on the assigned task.
 
 ## Common Tasks
 
