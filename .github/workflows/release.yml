@@ -135,6 +135,72 @@ jobs:
           draft: false
           prerelease: ${{ contains(github.ref_name, '-') }}
 
+  macos-app:
+    name: Build HeimdallBar macOS app
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Determine version
+        id: version
+        shell: bash
+        run: echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Install XcodeGen
+        shell: bash
+        run: brew install xcodegen
+
+      - name: Generate HeimdallBar project
+        shell: bash
+        run: |
+          cd macos/HeimdallBar
+          xcodegen generate --use-cache
+
+      - name: Build HeimdallBar app
+        shell: bash
+        run: |
+          xcodebuild \
+            -project macos/HeimdallBar/HeimdallBar.xcodeproj \
+            -scheme HeimdallBarApp \
+            -configuration Release \
+            -derivedDataPath macos/HeimdallBar/.derived \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Build HeimdallBar CLI
+        shell: bash
+        run: |
+          xcodebuild \
+            -project macos/HeimdallBar/HeimdallBar.xcodeproj \
+            -scheme HeimdallBarCLI \
+            -configuration Release \
+            -derivedDataPath macos/HeimdallBar/.derived \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Package HeimdallBar app artifact
+        shell: bash
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          STAGING_DIR="heimdallbar-${VERSION}-macos-app"
+          ARCHIVE_NAME="${STAGING_DIR}.tar.gz"
+          mkdir -p "${STAGING_DIR}"
+
+          cp -R "macos/HeimdallBar/.derived/Build/Products/Release/HeimdallBar.app" "${STAGING_DIR}/"
+          cp "macos/HeimdallBar/.derived/Build/Products/Release/heimdallbar" "${STAGING_DIR}/"
+
+          tar czf "${ARCHIVE_NAME}" "${STAGING_DIR}"
+          shasum -a 256 "${ARCHIVE_NAME}" > "${ARCHIVE_NAME}.sha256"
+
+          echo "ARCHIVE_NAME=${ARCHIVE_NAME}" >> "$GITHUB_ENV"
+
+      - name: Upload HeimdallBar app artifact
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda  # v3.0.0
+        with:
+          files: |
+            ${{ env.ARCHIVE_NAME }}
+            ${{ env.ARCHIVE_NAME }}.sha256
+
   macos-universal:
     name: Build macOS universal binary
     needs: build
@@ -224,7 +290,7 @@ jobs:
 
   consolidate-checksums:
     name: Consolidate SHA256SUMS
-    needs: [build, macos-universal]
+    needs: [build, macos-app, macos-universal]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6

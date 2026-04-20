@@ -148,6 +148,8 @@ mod tests {
             blocks_token_limit: None,
             session_length_hours: 5.0,
             project_aliases: std::collections::HashMap::new(),
+            live_provider_cache: tokio::sync::RwLock::new(None),
+            live_provider_refresh_lock: tokio::sync::Mutex::new(()),
         }
     }
 
@@ -570,6 +572,32 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
         let body = resp.into_body().collect().await.unwrap().to_bytes();
         assert_eq!(body.as_ref(), b"ok");
+    }
+
+    #[tokio::test]
+    async fn test_api_live_provider_history_returns_cost_summary() {
+        let tmp = TempDir::new().unwrap();
+        let (db_path, projects) = setup_test_db(&tmp);
+        let app = test_app(db_path, projects);
+
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/live-providers/history?provider=claude")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = resp.into_body().collect().await.unwrap().to_bytes();
+        let data: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+        assert_eq!(data["provider"], "claude");
+        assert!(data["summary"]["last_30_days_tokens"].is_number());
+        assert!(data["summary"]["last_30_days_cost_usd"].is_number());
+        assert!(data["summary"]["daily"].is_array());
     }
 
     #[tokio::test]
@@ -1608,6 +1636,8 @@ mod tests {
             blocks_token_limit: None,
             session_length_hours: 5.0,
             project_aliases: std::collections::HashMap::new(),
+            live_provider_cache: tokio::sync::RwLock::new(None),
+            live_provider_refresh_lock: tokio::sync::Mutex::new(()),
         });
 
         let html = assets::render_dashboard();
@@ -1773,6 +1803,8 @@ mod tests {
             blocks_token_limit: None,
             session_length_hours: 5.0,
             project_aliases: std::collections::HashMap::new(),
+            live_provider_cache: tokio::sync::RwLock::new(None),
+            live_provider_refresh_lock: tokio::sync::Mutex::new(()),
         });
 
         let snapshot = AgentStatusSnapshot {
@@ -1858,6 +1890,8 @@ mod tests {
             blocks_token_limit: None,
             session_length_hours: 5.0,
             project_aliases: std::collections::HashMap::new(),
+            live_provider_cache: tokio::sync::RwLock::new(None),
+            live_provider_refresh_lock: tokio::sync::Mutex::new(()),
         });
 
         let fetch_count = Arc::new(AtomicUsize::new(0));
@@ -2052,6 +2086,8 @@ mod tests {
             blocks_token_limit: None,
             session_length_hours: 5.0,
             project_aliases: std::collections::HashMap::new(),
+            live_provider_cache: tokio::sync::RwLock::new(None),
+            live_provider_refresh_lock: tokio::sync::Mutex::new(()),
         });
 
         let html = crate::server::assets::render_dashboard();
@@ -2152,6 +2188,8 @@ mod tests {
             blocks_token_limit: None,
             session_length_hours: 5.0,
             project_aliases: std::collections::HashMap::new(),
+            live_provider_cache: tokio::sync::RwLock::new(None),
+            live_provider_refresh_lock: tokio::sync::Mutex::new(()),
         });
 
         let html = crate::server::assets::render_dashboard();
@@ -2218,6 +2256,8 @@ mod tests {
             blocks_token_limit: token_limit,
             session_length_hours: 5.0,
             project_aliases: std::collections::HashMap::new(),
+            live_provider_cache: tokio::sync::RwLock::new(None),
+            live_provider_refresh_lock: tokio::sync::Mutex::new(()),
         });
         let html = assets::render_dashboard();
         Router::new()
@@ -2362,6 +2402,8 @@ mod tests {
             blocks_token_limit: None,
             session_length_hours: 2.5,
             project_aliases: std::collections::HashMap::new(),
+            live_provider_cache: tokio::sync::RwLock::new(None),
+            live_provider_refresh_lock: tokio::sync::Mutex::new(()),
         });
         let app = Router::new()
             .route(

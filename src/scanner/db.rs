@@ -2658,6 +2658,51 @@ pub fn get_provider_estimated_cost_nanos_since(
     Ok(cost_nanos)
 }
 
+pub fn get_provider_cost_summary_since(
+    conn: &Connection,
+    provider: &str,
+    start_date: &str,
+) -> Result<(i64, i64)> {
+    let (cost_nanos, total_tokens): (i64, i64) = conn.query_row(
+        "SELECT
+            COALESCE(SUM(estimated_cost_nanos), 0),
+            COALESCE(SUM(input_tokens + output_tokens + cache_read_tokens + cache_creation_tokens + reasoning_output_tokens), 0)
+         FROM turns
+         WHERE provider = ?1 AND substr(timestamp, 1, 10) >= ?2",
+        rusqlite::params![provider, start_date],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    )?;
+    Ok((cost_nanos, total_tokens))
+}
+
+pub fn get_provider_daily_cost_history_since(
+    conn: &Connection,
+    provider: &str,
+    start_date: &str,
+) -> Result<Vec<crate::models::ProviderCostHistoryPoint>> {
+    let mut stmt = conn.prepare(
+        "SELECT
+            substr(timestamp, 1, 10) AS day,
+            COALESCE(SUM(input_tokens + output_tokens + cache_read_tokens + cache_creation_tokens + reasoning_output_tokens), 0) AS total_tokens,
+            COALESCE(SUM(estimated_cost_nanos), 0) AS cost_nanos
+         FROM turns
+         WHERE provider = ?1 AND substr(timestamp, 1, 10) >= ?2
+         GROUP BY substr(timestamp, 1, 10)
+         ORDER BY day ASC",
+    )?;
+
+    let rows = stmt.query_map(rusqlite::params![provider, start_date], |row| {
+        let cost_nanos: i64 = row.get(2)?;
+        Ok(crate::models::ProviderCostHistoryPoint {
+            day: row.get(0)?,
+            total_tokens: row.get(1)?,
+            cost_usd: cost_nanos as f64 / 1_000_000_000.0,
+        })
+    })?;
+
+    rows.collect::<rusqlite::Result<Vec<_>>>().map_err(Into::into)
+}
+
 fn compute_duration_min(first: &str, last: &str) -> f64 {
     let parse = |s: &str| -> Option<chrono::DateTime<chrono::FixedOffset>> {
         chrono::DateTime::parse_from_rfc3339(s).ok().or_else(|| {

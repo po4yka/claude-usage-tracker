@@ -272,6 +272,87 @@ pub struct ClaudeUsageResponse {
     pub latest_snapshot: Option<ClaudeUsageSnapshot>,
 }
 
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct LiveRateWindow {
+    pub used_percent: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resets_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resets_in_minutes: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub window_minutes: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reset_label: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct LiveProviderIdentity {
+    pub provider: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub account_email: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub account_organization: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub login_method: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plan: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct LiveProviderStatus {
+    pub indicator: String,
+    pub description: String,
+    pub page_url: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct ProviderCostHistoryPoint {
+    pub day: String,
+    pub total_tokens: i64,
+    pub cost_usd: f64,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct ProviderCostSummary {
+    pub today_tokens: i64,
+    pub today_cost_usd: f64,
+    pub last_30_days_tokens: i64,
+    pub last_30_days_cost_usd: f64,
+    pub daily: Vec<ProviderCostHistoryPoint>,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct LiveProviderSnapshot {
+    pub provider: String,
+    pub available: bool,
+    pub source_used: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub identity: Option<LiveProviderIdentity>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub primary: Option<LiveRateWindow>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub secondary: Option<LiveRateWindow>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tertiary: Option<LiveRateWindow>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub credits: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<LiveProviderStatus>,
+    pub cost_summary: ProviderCostSummary,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub claude_usage: Option<ClaudeUsageSnapshot>,
+    pub last_refresh: String,
+    pub stale: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct LiveProvidersResponse {
+    pub providers: Vec<LiveProviderSnapshot>,
+    pub fetched_at: String,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct DailyModelRow {
     pub day: String,

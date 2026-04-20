@@ -1,0 +1,67 @@
+name: HeimdallBar
+options:
+  minimumXcodeGenVersion: 2.38.0
+settings:
+  base:
+    SWIFT_VERSION: 6.0
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    CURRENT_PROJECT_VERSION: 1
+    MARKETING_VERSION: 0.1.0
+targets:
+  HeimdallBarShared:
+    type: framework
+    platform: macOS
+    info:
+      path: Shared/Info.plist
+    sources:
+      - path: Shared/Sources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.heimdall.HeimdallBarShared
+        PRODUCT_NAME: HeimdallBarShared
+  HeimdallBarApp:
+    type: application
+    platform: macOS
+    info:
+      path: App/Info.plist
+    entitlements:
+      path: App/HeimdallBar.entitlements
+    sources:
+      - path: App/Sources
+    dependencies:
+      - target: HeimdallBarShared
+      - target: HeimdallBarWidget
+        embed: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.heimdall.HeimdallBar
+        PRODUCT_NAME: HeimdallBar
+        INFOPLIST_KEY_LSUIElement: YES
+  HeimdallBarWidget:
+    type: app-extension
+    platform: macOS
+    info:
+      path: Widget/Info.plist
+    entitlements:
+      path: Widget/HeimdallBarWidget.entitlements
+    sources:
+      - path: Widget/Sources
+    dependencies:
+      - target: HeimdallBarShared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.heimdall.HeimdallBar.widget
+        PRODUCT_NAME: HeimdallBarWidget
+        APPLICATION_EXTENSION_API_ONLY: YES
+  HeimdallBarCLI:
+    type: tool
+    platform: macOS
+    sources:
+      - path: CLI/Sources
+    dependencies:
+      - target: HeimdallBarShared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.heimdall.HeimdallBar.cli
+        PRODUCT_NAME: heimdallbar
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path @loader_path @loader_path/../Frameworks"

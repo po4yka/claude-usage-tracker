@@ -72,8 +72,10 @@ gh run list --workflow=release.yml
 gh run watch   # live tail the most recent run
 ```
 
-The matrix builds five targets in parallel. The `consolidate-checksums` job
-runs after all matrix jobs complete and attaches the combined `SHA256SUMS.txt`.
+The matrix builds five Rust targets in parallel. The release workflow also
+builds a separate macOS app artifact for `HeimdallBar.app` plus the bundled
+`heimdallbar` CLI. The `consolidate-checksums` job runs after all matrix jobs
+complete and attaches the combined `SHA256SUMS.txt`.
 
 Expected total wall-clock time: **10--20 minutes** (Linux arm64 via `cross`
 takes the longest).
@@ -83,6 +85,9 @@ takes the longest).
 ## Post-release checklist
 
 - [ ] Confirm all five platform archives appear on the GitHub Releases page.
+- [ ] Confirm the `heimdallbar-<version>-macos-app.tar.gz` artifact appears on
+      the GitHub Releases page and contains `HeimdallBar.app` plus
+      `heimdallbar`.
 - [ ] Download `SHA256SUMS.txt` and verify at least one archive locally:
   ```bash
   sha256sum --check --ignore-missing SHA256SUMS.txt
@@ -96,6 +101,12 @@ takes the longest).
   (it reads stdin and exits 0 on empty input):
   ```bash
   echo '{}' | ./heimdall-hook
+  ```
+- [ ] Smoke-test the native app artifact on macOS:
+  ```bash
+  tar xzf heimdallbar-v0.x.y-macos-app.tar.gz
+  open heimdallbar-v0.x.y-macos-app/HeimdallBar.app
+  ./heimdallbar-v0.x.y-macos-app/heimdallbar config dump
   ```
 - [ ] Update the README install one-liner if the tarball naming changed.
 - [ ] If a pre-release tag (`v0.x.y-rc.1`, `v0.x.y-beta.1`) was used, verify

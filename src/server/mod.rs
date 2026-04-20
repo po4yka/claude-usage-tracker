@@ -82,6 +82,8 @@ pub(crate) fn build_state(
         blocks_token_limit: options.blocks_token_limit,
         session_length_hours: options.session_length_hours,
         project_aliases: options.project_aliases.clone(),
+        live_provider_cache: RwLock::new(None),
+        live_provider_refresh_lock: Mutex::new(()),
     })
 }
 
@@ -118,6 +120,15 @@ pub(crate) fn build_router(state: Arc<AppState>) -> Router {
         .route("/api/community-signal", get(api::api_community_signal))
         .route("/api/billing-blocks", get(api::api_billing_blocks))
         .route("/api/context-window", get(api::api_context_window))
+        .route("/api/live-providers", get(api::api_live_providers))
+        .route(
+            "/api/live-providers/refresh",
+            post(api::api_live_provider_refresh),
+        )
+        .route(
+            "/api/live-providers/history",
+            get(api::api_live_provider_history),
+        )
         .route(
             "/api/cost-reconciliation",
             get(api::api_cost_reconciliation),

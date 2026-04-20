@@ -17,6 +17,7 @@ pub mod install_json;
 pub mod jq;
 pub mod litellm;
 pub mod locale;
+pub mod live_providers;
 #[cfg(feature = "mcp")]
 pub mod mcp;
 pub mod menubar;
