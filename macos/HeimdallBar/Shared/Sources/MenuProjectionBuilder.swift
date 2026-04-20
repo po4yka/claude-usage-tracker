@@ -118,12 +118,18 @@ public enum MenuProjectionBuilder {
         } else {
             "Waiting for provider activity"
         }
-        let refreshStatusLabel: String = if isRefreshing {
-            "Refreshing all providers…"
+        let refreshStatusLabel: String
+        if isRefreshing {
+            let providerNames = items.map(\.title).joined(separator: " + ")
+            refreshStatusLabel = if providerNames.isEmpty {
+                "Refreshing providers…"
+            } else {
+                "Refreshing \(providerNames)…"
+            }
         } else if let lastGlobalError {
-            "Last refresh failed: \(lastGlobalError)"
+            refreshStatusLabel = "Last refresh failed: \(lastGlobalError)"
         } else {
-            refreshedLabel
+            refreshStatusLabel = refreshedLabel
         }
 
         return OverviewMenuProjection(

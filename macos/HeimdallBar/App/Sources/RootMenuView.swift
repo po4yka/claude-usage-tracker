@@ -454,6 +454,7 @@ private struct MenuActionRow: View {
             }
             .buttonStyle(PrimaryDashboardButtonStyle())
             .keyboardShortcut("r", modifiers: .command)
+            .disabled(self.model.isRefreshing)
 
             if self.tab.providerID != nil {
                 Button(action: {
@@ -462,6 +463,7 @@ private struct MenuActionRow: View {
                     SecondaryActionLabel(title: "Refresh All", systemImage: "arrow.clockwise")
                 }
                 .buttonStyle(SecondaryDashboardButtonStyle())
+                .disabled(self.model.isRefreshing)
             }
 
             Button(action: {
@@ -495,7 +497,14 @@ private struct MenuActionRow: View {
     }
 
     private var primaryRefreshTitle: String {
-        self.model.refreshActionLabel(for: self.tab)
+        if self.model.isRefreshing {
+            if let provider = self.primaryRefreshProvider {
+                return "Refreshing \(provider.title)…"
+            }
+            let names = self.model.visibleProviders.map(\.title).joined(separator: " + ")
+            return names.isEmpty ? "Refreshing…" : "Refreshing \(names)…"
+        }
+        return self.model.refreshActionLabel(for: self.tab)
     }
 
     private var primaryRefreshProvider: ProviderID? {
@@ -533,13 +542,26 @@ private struct SessionActionGroup: View {
                 } label: {
                     SessionDisclosureRow(
                         title: "\(provider.title) Web Session",
-                        subtitle: self.model.importedSession(for: provider) == nil ? "Not connected" : "Connected"
+                        subtitle: self.sessionHealthLabel(for: provider)
                     )
                 }
                 .menuStyle(.borderlessButton)
             }
         }
         .disabled(self.model.isImportingSession)
+    }
+
+    private func sessionHealthLabel(for provider: ProviderID) -> String {
+        guard let session = self.model.importedSession(for: provider) else {
+            return "Missing"
+        }
+        if session.expired {
+            return "Expired"
+        }
+        if session.loginRequired {
+            return "Login required"
+        }
+        return "Connected"
     }
 }
 
@@ -626,6 +648,10 @@ private struct OverviewProviderCard: View {
         }
         .padding(10)
         .menuCardBackground(opacity: 0.045)
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(self.highlightColor, lineWidth: self.highlightLineWidth)
+        )
     }
 
     private var metricTitle: String {
@@ -647,6 +673,26 @@ private struct OverviewProviderCard: View {
             return reset
         }
         return "Session unavailable"
+    }
+
+    private var highlightColor: Color {
+        switch self.item.visualState {
+        case .error:
+            return .red.opacity(0.45)
+        case .incident, .degraded, .stale:
+            return .orange.opacity(0.45)
+        default:
+            return .clear
+        }
+    }
+
+    private var highlightLineWidth: CGFloat {
+        switch self.item.visualState {
+        case .error, .incident, .degraded, .stale:
+            return 1.5
+        default:
+            return 0
+        }
     }
 }
 
