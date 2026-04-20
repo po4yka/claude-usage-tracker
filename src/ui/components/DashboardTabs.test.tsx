@@ -31,8 +31,8 @@ describe('DashboardTabs', () => {
     const overviewButton = buttons[0]!;
 
     expect(tablesButton.props['class']).toContain('active');
-    expect(tablesButton.props['aria-pressed']).toBe(true);
-    expect(overviewButton.props['aria-pressed']).toBe(false);
+    expect(tablesButton.props['aria-selected']).toBe(true);
+    expect(overviewButton.props['aria-selected']).toBe(false);
 
     (overviewButton.props['onClick'] as () => void)();
     expect(clicked).toEqual(['overview']);

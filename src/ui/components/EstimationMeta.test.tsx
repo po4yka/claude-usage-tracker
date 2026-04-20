@@ -19,9 +19,9 @@ describe('EstimationMeta', () => {
     const text = collectText(vnode).join(' ');
 
     expect(text).toContain('Cost Confidence');
-    expect(text).toContain('high 3');
+    expect(text).toContain('High: 3');
     expect(text).toContain('Billing Mode');
-    expect(text).toContain('estimated_local 2');
+    expect(text).toContain('Estimated Local: 2');
     expect(text).toContain('mixed (2)');
   });
 
