@@ -18,6 +18,13 @@ pub struct ResolvedClaudeAuth {
     pub credentials: Option<OAuthCredentials>,
     pub identity: Option<Identity>,
     pub health: LiveProviderAuth,
+    pub credential_store: Option<ClaudeCredentialStore>,
+}
+
+#[derive(Debug, Clone)]
+pub enum ClaudeCredentialStore {
+    File(PathBuf),
+    Keychain,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -120,10 +127,14 @@ pub fn resolve_auth(env: &[(String, String)]) -> ResolvedClaudeAuth {
                         "Explain env override conflict",
                         "claude-explain-env-override",
                         None,
-                        Some("Unset ANTHROPIC_API_KEY to restore subscription OAuth detection.".into()),
+                        Some(
+                            "Unset ANTHROPIC_API_KEY to restore subscription OAuth detection."
+                                .into(),
+                        ),
                     ),
                 ],
             ),
+            credential_store: None,
         };
     }
 
@@ -149,10 +160,14 @@ pub fn resolve_auth(env: &[(String, String)]) -> ResolvedClaudeAuth {
                         "Explain env override conflict",
                         "claude-explain-env-override",
                         None,
-                        Some("Unset ANTHROPIC_AUTH_TOKEN to restore subscription OAuth detection.".into()),
+                        Some(
+                            "Unset ANTHROPIC_AUTH_TOKEN to restore subscription OAuth detection."
+                                .into(),
+                        ),
                     ),
                 ],
             ),
+            credential_store: None,
         };
     }
 
@@ -178,10 +193,14 @@ pub fn resolve_auth(env: &[(String, String)]) -> ResolvedClaudeAuth {
                         "Explain env override conflict",
                         "claude-explain-env-override",
                         None,
-                        Some("Disable apiKeyHelper in Claude settings to use subscription OAuth.".into()),
+                        Some(
+                            "Disable apiKeyHelper in Claude settings to use subscription OAuth."
+                                .into(),
+                        ),
                     ),
                 ],
             ),
+            credential_store: None,
         };
     }
 
@@ -215,6 +234,7 @@ pub fn resolve_auth(env: &[(String, String)]) -> ResolvedClaudeAuth {
                     ),
                 ],
             ),
+            credential_store: None,
         };
     }
 
@@ -239,6 +259,7 @@ pub fn resolve_auth(env: &[(String, String)]) -> ResolvedClaudeAuth {
                     recovery_action("Run Claude login flow", "claude-login", Some("claude login"), None),
                 ],
             ),
+            credential_store: None,
         };
     }
 
@@ -248,6 +269,7 @@ pub fn resolve_auth(env: &[(String, String)]) -> ResolvedClaudeAuth {
             credentials: Some(creds.clone()),
             identity: Some(identity.clone()),
             health: oauth_health(&creds, "keychain", None, Some(validated_at)),
+            credential_store: Some(ClaudeCredentialStore::Keychain),
         };
     }
 
@@ -257,6 +279,7 @@ pub fn resolve_auth(env: &[(String, String)]) -> ResolvedClaudeAuth {
             credentials: Some(creds.clone()),
             identity: Some(identity.clone()),
             health: oauth_health(&creds, "file", None, Some(validated_at)),
+            credential_store: Some(ClaudeCredentialStore::File(file_path)),
         };
     }
 
@@ -280,8 +303,18 @@ pub fn resolve_auth(env: &[(String, String)]) -> ResolvedClaudeAuth {
 
     let mut recovery_actions = vec![
         recovery_action("Run Claude", "claude-run", Some("claude"), None),
-        recovery_action("Run Claude login flow", "claude-login", Some("claude login"), None),
-        recovery_action("Run Claude doctor", "claude-doctor", Some("claude doctor"), None),
+        recovery_action(
+            "Run Claude login flow",
+            "claude-login",
+            Some("claude login"),
+            None,
+        ),
+        recovery_action(
+            "Run Claude doctor",
+            "claude-doctor",
+            Some("claude doctor"),
+            None,
+        ),
     ];
     if cfg!(target_os = "macos") {
         recovery_actions.push(recovery_action(
@@ -312,6 +345,7 @@ pub fn resolve_auth(env: &[(String, String)]) -> ResolvedClaudeAuth {
             Some(validated_at),
             recovery_actions,
         ),
+        credential_store: None,
     }
 }
 
@@ -344,8 +378,18 @@ fn oauth_health(
     };
     let mut recovery_actions = vec![
         recovery_action("Run Claude", "claude-run", Some("claude"), None),
-        recovery_action("Run Claude login flow", "claude-login", Some("claude login"), None),
-        recovery_action("Run Claude doctor", "claude-doctor", Some("claude doctor"), None),
+        recovery_action(
+            "Run Claude login flow",
+            "claude-login",
+            Some("claude login"),
+            None,
+        ),
+        recovery_action(
+            "Run Claude doctor",
+            "claude-doctor",
+            Some("claude doctor"),
+            None,
+        ),
     ];
     if backend == "keychain" {
         recovery_actions.push(recovery_action(
@@ -533,13 +577,24 @@ pub fn get_identity(creds: &OAuthCredentials) -> Identity {
 }
 
 /// Refresh the OAuth access token using the refresh_token grant.
-/// On success, writes updated credentials to disk and returns the new access token.
-/// Returns None on any failure (network, invalid_grant, I/O).
-pub async fn refresh_token(creds: &OAuthCredentials) -> Option<String> {
-    refresh_token_to(creds, &credentials_path()).await
+/// On success, persists updated credentials only to the original secure store and
+/// returns the new access token. Returns None on any failure (network, invalid_grant, I/O).
+pub async fn refresh_token(
+    creds: &OAuthCredentials,
+    credential_store: Option<&ClaudeCredentialStore>,
+) -> Option<String> {
+    refresh_token_with_store(creds, credential_store).await
 }
 
 pub async fn refresh_token_to(creds: &OAuthCredentials, creds_path: &Path) -> Option<String> {
+    let credential_store = ClaudeCredentialStore::File(creds_path.to_path_buf());
+    refresh_token_with_store(creds, Some(&credential_store)).await
+}
+
+async fn refresh_token_with_store(
+    creds: &OAuthCredentials,
+    credential_store: Option<&ClaudeCredentialStore>,
+) -> Option<String> {
     let refresh_tok = creds.refresh_token.as_deref()?;
 
     let client = reqwest::Client::builder()
@@ -580,13 +635,13 @@ pub async fn refresh_token_to(creds: &OAuthCredentials, creds_path: &Path) -> Op
     let expires_in_secs = body["expires_in"].as_i64().unwrap_or(3600);
     let new_expires_at = chrono::Utc::now().timestamp_millis() + (expires_in_secs * 1000);
 
-    if let Err(e) = write_refreshed_credentials(
-        creds_path,
+    if let Err(e) = persist_refreshed_credentials(
+        credential_store,
         &new_access_token,
         new_refresh_token.as_deref(),
         new_expires_at,
     ) {
-        warn!("Failed to write refreshed credentials: {}", e);
+        warn!("Failed to persist refreshed credentials: {}", e);
         // Still return the token -- it's valid even if we couldn't persist it
     }
 
@@ -603,27 +658,69 @@ fn write_refreshed_credentials(
     expires_at: i64,
 ) -> std::io::Result<()> {
     let contents = std::fs::read_to_string(path).unwrap_or_else(|_| "{}".into());
-    let mut root: Value =
-        serde_json::from_str(&contents).unwrap_or_else(|_| Value::Object(Default::default()));
+    let serialized =
+        build_refreshed_credentials_json(Some(&contents), access_token, refresh_token, expires_at)?;
+    std::fs::write(path, serialized)
+}
 
-    let oauth = root
-        .as_object_mut()
-        .and_then(|m| m.get_mut("claudeAiOauth"))
-        .and_then(|v| v.as_object_mut());
+fn persist_refreshed_credentials(
+    credential_store: Option<&ClaudeCredentialStore>,
+    access_token: &str,
+    refresh_token: Option<&str>,
+    expires_at: i64,
+) -> std::io::Result<()> {
+    match credential_store {
+        Some(ClaudeCredentialStore::File(path)) => {
+            write_refreshed_credentials(path, access_token, refresh_token, expires_at)
+        }
+        Some(ClaudeCredentialStore::Keychain) => {
+            debug!(
+                "Skipping persisted refresh write for keychain-backed Claude credentials to avoid plaintext downgrade"
+            );
+            Ok(())
+        }
+        None => Ok(()),
+    }
+}
 
-    if let Some(oauth) = oauth {
-        oauth.insert(
+fn build_refreshed_credentials_json(
+    contents: Option<&str>,
+    access_token: &str,
+    refresh_token: Option<&str>,
+    expires_at: i64,
+) -> std::io::Result<String> {
+    let mut root: Value = contents
+        .and_then(|value| serde_json::from_str(value).ok())
+        .unwrap_or_else(|| Value::Object(Default::default()));
+
+    if root.get("claudeAiOauth").is_some() {
+        let oauth = root
+            .as_object_mut()
+            .and_then(|m| m.get_mut("claudeAiOauth"))
+            .and_then(|v| v.as_object_mut());
+
+        if let Some(oauth) = oauth {
+            oauth.insert(
+                "accessToken".into(),
+                Value::String(access_token.to_string()),
+            );
+            oauth.insert("expiresAt".into(), Value::Number(expires_at.into()));
+            if let Some(rt) = refresh_token {
+                oauth.insert("refreshToken".into(), Value::String(rt.to_string()));
+            }
+        }
+    } else if let Some(root_object) = root.as_object_mut() {
+        root_object.insert(
             "accessToken".into(),
             Value::String(access_token.to_string()),
         );
-        oauth.insert("expiresAt".into(), Value::Number(expires_at.into()));
+        root_object.insert("expiresAt".into(), Value::Number(expires_at.into()));
         if let Some(rt) = refresh_token {
-            oauth.insert("refreshToken".into(), Value::String(rt.to_string()));
+            root_object.insert("refreshToken".into(), Value::String(rt.to_string()));
         }
     }
 
-    let serialized = serde_json::to_string_pretty(&root).map_err(std::io::Error::other)?;
-    std::fs::write(path, serialized)
+    serde_json::to_string_pretty(&root).map_err(std::io::Error::other)
 }
 
 #[cfg(test)]
@@ -817,6 +914,42 @@ mod tests {
     }
 
     #[test]
+    fn test_build_refreshed_credentials_json_updates_flat_shape() {
+        let json = build_refreshed_credentials_json(
+            Some(
+                r#"{
+                    "accessToken": "old_tok",
+                    "refreshToken": "old_ref",
+                    "expiresAt": 100
+                }"#,
+            ),
+            "new_tok",
+            Some("new_ref"),
+            200,
+        )
+        .unwrap();
+
+        let creds = load_credentials_from_str(&json).unwrap();
+        assert_eq!(creds.access_token.as_deref(), Some("new_tok"));
+        assert_eq!(creds.refresh_token.as_deref(), Some("new_ref"));
+        assert_eq!(creds.expires_at, Some(200));
+    }
+
+    #[test]
+    fn test_persist_refreshed_credentials_skips_plaintext_for_keychain_backing() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("should-not-exist.json");
+        persist_refreshed_credentials(
+            Some(&ClaudeCredentialStore::Keychain),
+            "new_tok",
+            Some("new_ref"),
+            200,
+        )
+        .unwrap();
+        assert!(!path.exists());
+    }
+
+    #[test]
     fn resolve_auth_prefers_env_override_over_file_credentials() {
         let tmp = TempDir::new().unwrap();
         let config_dir = tmp.path().join(".claude");
@@ -839,7 +972,10 @@ mod tests {
         .unwrap();
 
         let env = vec![
-            ("CLAUDE_CONFIG_DIR".to_string(), config_dir.display().to_string()),
+            (
+                "CLAUDE_CONFIG_DIR".to_string(),
+                config_dir.display().to_string(),
+            ),
             ("ANTHROPIC_API_KEY".to_string(), "sk-test".to_string()),
         ];
         let resolved = resolve_auth(&env);
@@ -864,7 +1000,10 @@ mod tests {
         )
         .unwrap();
 
-        let env = vec![("CLAUDE_CONFIG_DIR".to_string(), config_dir.display().to_string())];
+        let env = vec![(
+            "CLAUDE_CONFIG_DIR".to_string(),
+            config_dir.display().to_string(),
+        )];
         let resolved = resolve_auth(&env);
 
         assert_eq!(

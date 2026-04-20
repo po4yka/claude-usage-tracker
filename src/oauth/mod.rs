@@ -29,7 +29,7 @@ pub async fn poll_usage() -> UsageWindowsResponse {
             // Token expired or missing -- try to refresh if we have a refresh_token
             if creds.refresh_token.is_some() {
                 debug!("OAuth token expired, attempting refresh");
-                match credentials::refresh_token(&creds).await {
+                match credentials::refresh_token(&creds, resolved.credential_store.as_ref()).await {
                     Some(new_token) => new_token,
                     None => {
                         return UsageWindowsResponse::with_error(

@@ -32,6 +32,7 @@ public struct KeychainStore: Sendable {
 
         let attributes: [CFString: Any] = [
             kSecValueData: data,
+            kSecAttrAccessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
         ]
 
         let updateStatus = SecItemUpdate(baseQuery as CFDictionary, attributes as CFDictionary)
@@ -41,6 +42,7 @@ public struct KeychainStore: Sendable {
 
         var createQuery = baseQuery
         createQuery[kSecValueData] = data
+        createQuery[kSecAttrAccessible] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         let createStatus = SecItemAdd(createQuery as CFDictionary, nil)
         guard createStatus == errSecSuccess else {
             throw NSError(domain: NSOSStatusErrorDomain, code: Int(createStatus))

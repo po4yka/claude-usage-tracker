@@ -374,7 +374,6 @@ public struct ImportedBrowserSession: Codable, Sendable {
     public var browserSource: BrowserSource
     public var profileName: String
     public var importedAt: String
-    public var sourcePath: String
     public var storageKind: String
     public var cookies: [ImportedSessionCookie]
     public var loginRequired: Bool

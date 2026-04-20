@@ -44,7 +44,7 @@ public actor DashboardAdjunctController {
 
         if let importedSession {
             detailLines.append("Imported from \(importedSession.browserSource.title) · \(importedSession.profileName).")
-            detailLines.append("Cookie matches: \(importedSession.cookies.count) from \(importedSession.storageKind).")
+            detailLines.append("Stored auth cookies: \(importedSession.cookies.count) from \(importedSession.storageKind).")
             detailLines.append("Imported at \(relativeLabel(importedSession.importedAt)).")
         }
         detailLines.append(contentsOf: scrapeResult.detailLines)

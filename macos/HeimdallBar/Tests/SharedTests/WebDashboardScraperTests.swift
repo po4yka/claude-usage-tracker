@@ -112,7 +112,6 @@ struct WebDashboardScraperTests {
             browserSource: .chrome,
             profileName: "Default",
             importedAt: ISO8601DateFormatter().string(from: Date()),
-            sourcePath: "/tmp/Cookies",
             storageKind: "chromium-sqlite",
             cookies: [
                 ImportedSessionCookie(

@@ -55,7 +55,8 @@ public struct BrowserSessionImporter {
                 }
                 return $0.domain < $1.domain
             }
-        let hasActiveAuthCookie = deduped.contains { cookie in
+        let minimizedCookies = self.minimizeImportedCookies(provider: provider, cookies: deduped)
+        let hasActiveAuthCookie = minimizedCookies.contains { cookie in
             !isExpired(cookie) && isLikelyAuthCookie(provider: provider, cookieName: cookie.name)
         }
         let importedAt = ISO8601DateFormatter().string(from: Date())
@@ -65,11 +66,10 @@ public struct BrowserSessionImporter {
             browserSource: candidate.browserSource,
             profileName: candidate.profileName,
             importedAt: importedAt,
-            sourcePath: candidate.storePath,
             storageKind: candidate.storageKind,
-            cookies: deduped,
-            loginRequired: deduped.isEmpty || !hasActiveAuthCookie,
-            expired: !deduped.isEmpty && !hasActiveAuthCookie,
+            cookies: minimizedCookies,
+            loginRequired: minimizedCookies.isEmpty || !hasActiveAuthCookie,
+            expired: !minimizedCookies.isEmpty && !hasActiveAuthCookie,
             lastValidatedAt: importedAt
         )
     }
@@ -307,6 +307,15 @@ public struct BrowserSessionImporter {
             providerSpecific = ["openai", "next-auth", "_puid", "oai"]
         }
         return (generic + providerSpecific).contains { normalized.contains($0) }
+    }
+
+    private func minimizeImportedCookies(
+        provider: ProviderID,
+        cookies: [ImportedSessionCookie]
+    ) -> [ImportedSessionCookie] {
+        cookies.filter { cookie in
+            self.isLikelyAuthCookie(provider: provider, cookieName: cookie.name)
+        }
     }
 
     private func isExpired(_ cookie: ImportedSessionCookie) -> Bool {
