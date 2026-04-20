@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>heimdall — Logo Variant Review</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #000;
+      --surface: #111;
+      --surface-raised: #1A1A1A;
+      --border: #222;
+      --border-visible: #333;
+      --text-disabled: #666;
+      --text-secondary: #999;
+      --text-primary: #E8E8E8;
+      --text-display: #FFF;
+      --accent: #D71921;
+      --font-sans: "Space Grotesk", system-ui, sans-serif;
+      --font-mono: "Space Mono", monospace;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: var(--font-sans);
+      -webkit-font-smoothing: antialiased;
+      background: var(--bg);
+      color: var(--text-primary);
+      font-size: 15px;
+      line-height: 1.5;
+      padding: 4rem clamp(1.5rem, 2vw + 0.5rem, 3rem);
+    }
+    .label-meta {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-secondary);
+    }
+    .identity {
+      margin-bottom: 4rem;
+      max-width: 48rem;
+    }
+    .identity h1 {
+      font-size: clamp(28px, 4vw, 40px);
+      font-weight: 500;
+      letter-spacing: -0.020em;
+      color: var(--text-display);
+      margin: 1rem 0;
+    }
+    .identity p {
+      color: var(--text-secondary);
+      max-width: 36rem;
+    }
+    .section-header {
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid var(--border-visible);
+      margin-bottom: 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+    }
+    .section-header h2 {
+      font-size: 20px; font-weight: 500;
+      letter-spacing: -0.010em;
+      color: var(--text-display);
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 1rem;
+      margin-bottom: 4rem;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      padding: 1.75rem;
+      display: flex;
+      flex-direction: column;
+      transition: border-color 0.2s ease;
+    }
+    .card:hover { border-color: var(--border-visible); }
+    .card-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding-bottom: 0.5rem;
+      margin-bottom: 1.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .card-index { color: var(--text-disabled); }
+    .card-family { color: var(--text-secondary); }
+    .canvas {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1.5rem 0.5rem;
+      gap: 1rem;
+    }
+    .canvas-main {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: var(--text-display);
+    }
+    .canvas-main img {
+      width: 128px; height: 128px;
+      image-rendering: crisp-edges;
+    }
+    .canvas-16 {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .canvas-16 img {
+      width: 16px; height: 16px;
+      image-rendering: pixelated;
+    }
+    .canvas-16-scaled {
+      width: 64px; height: 64px;
+      padding: 0;
+    }
+    .canvas-16-scaled img {
+      width: 64px; height: 64px;
+      image-rendering: pixelated;
+    }
+    .canvas-16 .lbl {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-disabled);
+    }
+    .card-body {
+      margin-top: auto;
+      padding-top: 1.25rem;
+      border-top: 1px solid var(--border);
+    }
+    .card-title {
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--text-display);
+      margin-bottom: 0.35rem;
+    }
+    .card-sub {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-disabled);
+      margin-bottom: 0.75rem;
+    }
+    .card-rationale {
+      color: var(--text-secondary);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .card-gate {
+      margin-top: 1rem;
+      padding-top: 0.75rem;
+      border-top: 1px dashed var(--border);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.04em;
+    }
+    .pass { color: #4A9E5C; }
+    .borderline { color: #D4A843; }
+    .fail { color: var(--accent); }
+    .footer {
+      padding-top: 2rem;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+    }
+    .footer span { color: var(--text-disabled); }
+    .accent { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <div class="identity">
+    <div class="label-meta">01 / IDENTITY · VARIANT REVIEW</div>
+    <h1>heimdall</h1>
+    <p>Local observability for AI coding sessions. Watchman at Bifröst. Six mark concepts across Horn / Horizon / Arc / Monogram directions, per <code>references/heimdall-logo-brief.md</code>.</p>
+  </div>
+
+  <div class="section-header">
+    <h2>Variants</h2>
+    <span class="label-meta">6 RECORDS · GENERATED</span>
+  </div>
+
+  <div class="grid">
+
+    <div class="card">
+      <div class="card-head">
+        <span class="label-meta card-index">01</span>
+        <span class="label-meta card-family">HORN · FILLED</span>
+      </div>
+      <div class="canvas">
+        <div class="canvas-main"><img src="v01-horn-filled-128.png" alt="v01 128px"></div>
+        <div class="canvas-16">
+          <div class="canvas-16-scaled"><img src="v01-horn-filled-16.png" alt="v01 16px scaled"></div>
+          <span class="lbl">16PX · ACTUAL</span>
+          <img src="v01-horn-filled-16.png" alt="v01 16px actual">
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="card-title">Gjallarhorn (filled)</div>
+        <div class="card-sub">HORN FAMILY</div>
+        <p class="card-rationale">Cleanest Gjallarhorn silhouette — a filled crescent, tip lower-left, bell opens upper-right. Red pip at bell mouth = "the horn has sounded." Primary candidate.</p>
+        <div class="card-gate pass">[16PX GATE] PASS · clear silhouette · single continuous form</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <span class="label-meta card-index">02</span>
+        <span class="label-meta card-family">HORN · OUTLINED</span>
+      </div>
+      <div class="canvas">
+        <div class="canvas-main"><img src="v02-horn-outlined-128.png" alt="v02 128px"></div>
+        <div class="canvas-16">
+          <div class="canvas-16-scaled"><img src="v02-horn-outlined-16.png" alt="v02 16px scaled"></div>
+          <span class="lbl">16PX · ACTUAL</span>
+          <img src="v02-horn-outlined-16.png" alt="v02 16px actual">
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="card-title">Gjallarhorn (outlined)</div>
+        <div class="card-sub">HORN FAMILY</div>
+        <p class="card-rationale">Outline stroke variant. Bell terminus renders as a solid disk with the accent pip centered — reads as "signal lamp." Slightly more industrial than v01.</p>
+        <div class="card-gate pass">[16PX GATE] PASS · outline survives · bell disk anchors the silhouette</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <span class="label-meta card-index">03</span>
+        <span class="label-meta card-family">HORN · SOUNDING</span>
+      </div>
+      <div class="canvas">
+        <div class="canvas-main"><img src="v03-horn-sounding-128.png" alt="v03 128px"></div>
+        <div class="canvas-16">
+          <div class="canvas-16-scaled"><img src="v03-horn-sounding-16.png" alt="v03 16px scaled"></div>
+          <span class="lbl">16PX · ACTUAL</span>
+          <img src="v03-horn-sounding-16.png" alt="v03 16px actual">
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="card-title">Gjallarhorn (sounding)</div>
+        <div class="card-sub">HORN FAMILY</div>
+        <p class="card-rationale">Horn with three emission rays. Most literal "alert fired" reading. At 16px the rays may merge with the bell — inspect actual-size preview carefully.</p>
+        <div class="card-gate borderline">[16PX GATE] BORDERLINE · rays may merge at actual 16px</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <span class="label-meta card-index">04</span>
+        <span class="label-meta card-family">HORIZON</span>
+      </div>
+      <div class="canvas">
+        <div class="canvas-main"><img src="v04-horizon-watcher-128.png" alt="v04 128px"></div>
+        <div class="canvas-16">
+          <div class="canvas-16-scaled"><img src="v04-horizon-watcher-16.png" alt="v04 16px scaled"></div>
+          <span class="lbl">16PX · ACTUAL</span>
+          <img src="v04-horizon-watcher-16.png" alt="v04 16px actual">
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="card-title">Horizon Watcher</div>
+        <div class="card-sub">HORIZON FAMILY</div>
+        <p class="card-rationale">Himinbjörg: hairline horizon + watchtower notch + watcher dot. Low distinctiveness risk (reads as generic UI at small scale), but echoes DESIGN.md's "instrument panel" mood directly.</p>
+        <div class="card-gate pass">[16PX GATE] PASS · three geometric primitives, generous spacing</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <span class="label-meta card-index">05</span>
+        <span class="label-meta card-family">ARC</span>
+      </div>
+      <div class="canvas">
+        <div class="canvas-main"><img src="v05-signal-arc-128.png" alt="v05 128px"></div>
+        <div class="canvas-16">
+          <div class="canvas-16-scaled"><img src="v05-signal-arc-16.png" alt="v05 16px scaled"></div>
+          <span class="lbl">16PX · ACTUAL</span>
+          <img src="v05-signal-arc-16.png" alt="v05 16px actual">
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="card-title">Signal Arc</div>
+        <div class="card-sub">ARC FAMILY</div>
+        <p class="card-rationale">Quarter-circle + origin dot + pip at tip. Reduced Bifröst / radar sweep. Competes with the observability "wave" cliché but distinguishes via geometric precision.</p>
+        <div class="card-gate pass">[16PX GATE] PASS · stroke 10u + solid anchor</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <span class="label-meta card-index">06</span>
+        <span class="label-meta card-family">MONOGRAM · CONTROL</span>
+      </div>
+      <div class="canvas">
+        <div class="canvas-main"><img src="v06-dotmatrix-h-128.png" alt="v06 128px"></div>
+        <div class="canvas-16">
+          <div class="canvas-16-scaled"><img src="v06-dotmatrix-h-16.png" alt="v06 16px scaled"></div>
+          <span class="lbl">16PX · ACTUAL</span>
+          <img src="v06-dotmatrix-h-16.png" alt="v06 16px actual">
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="card-title">Dot-matrix H (control)</div>
+        <div class="card-sub">MONOGRAM FAMILY</div>
+        <p class="card-rationale">Included per brief as the expected failure case. Dots merge into a blob at 16px — the H shape is lost. Verifies the brief's dot-matrix warning.</p>
+        <div class="card-gate fail">[16PX GATE] FAIL · dots merge · H unrecognizable at actual size</div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="footer">
+    <span class="label-meta">LOGO-GENERATOR / HEIMDALL</span>
+    <span class="label-meta">2026 · PHASE 2 GALLERY</span>
+  </div>
+</body>
+</html>

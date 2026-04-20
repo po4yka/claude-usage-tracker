@@ -1,0 +1,11 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <g fill="currentColor">
+    <title>heimdall-horizon-watcher</title>
+    <!-- horizon rule (Himinbjörg horizon) — bold enough to survive 16px -->
+    <rect x="10" y="66" width="80" height="8" rx="2"/>
+    <!-- watchtower (left-of-center, asymmetric per brief) -->
+    <rect x="26" y="30" width="10" height="36"/>
+    <!-- watcher dot above the tower -->
+    <circle cx="31" cy="22" r="7"/>
+  </g>
+</svg>

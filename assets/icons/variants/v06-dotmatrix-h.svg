@@ -1,0 +1,22 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <g fill="currentColor">
+    <title>heimdall-dotmatrix-h-control</title>
+    <!-- 5-row dot-matrix H monogram — control variant per brief -->
+    <!-- Expected to fail the 16x16 gate (dots merge into a blob). -->
+    <!-- left column -->
+    <circle cx="28" cy="20" r="6"/>
+    <circle cx="28" cy="36" r="6"/>
+    <circle cx="28" cy="52" r="6"/>
+    <circle cx="28" cy="68" r="6"/>
+    <circle cx="28" cy="84" r="6"/>
+    <!-- crossbar -->
+    <circle cx="44" cy="52" r="6"/>
+    <circle cx="60" cy="52" r="6"/>
+    <!-- right column -->
+    <circle cx="76" cy="20" r="6"/>
+    <circle cx="76" cy="36" r="6"/>
+    <circle cx="76" cy="52" r="6"/>
+    <circle cx="76" cy="68" r="6"/>
+    <circle cx="76" cy="84" r="6"/>
+  </g>
+</svg>

@@ -1,0 +1,11 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <g fill="none" stroke="currentColor" stroke-width="10" stroke-linejoin="round" stroke-linecap="round">
+    <title>heimdall-horn-outlined</title>
+    <path d="M 28 74
+             Q 22 50 34 34
+             Q 52 20 68 26
+             Q 78 32 78 46"/>
+  </g>
+  <circle cx="78" cy="46" r="6" fill="currentColor"/>
+  <circle cx="78" cy="46" r="2.5" fill="#D71921"/>
+</svg>

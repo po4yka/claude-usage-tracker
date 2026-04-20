@@ -1,0 +1,18 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <g>
+    <title>heimdall-horn-crescent-filled</title>
+    <!-- Gjallarhorn as a filled crescent: tip lower-left, bell opens upper-right -->
+    <path d="M 24 74
+             Q 18 50 30 32
+             Q 48 16 68 20
+             Q 84 24 84 42
+             L 84 50
+             Q 72 50 70 42
+             Q 66 32 54 32
+             Q 40 34 34 52
+             Q 30 66 38 72 Z"
+          fill="currentColor"/>
+    <!-- bell-mouth alert pip -->
+    <circle cx="79" cy="45" r="3" fill="#D71921"/>
+  </g>
+</svg>
