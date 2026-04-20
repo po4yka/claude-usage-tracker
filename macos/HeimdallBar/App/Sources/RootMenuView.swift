@@ -275,32 +275,7 @@ struct OverviewMenuCard: View {
             ForEach(self.sortedItems) { item in
                 OverviewProviderCard(model: self.model, item: item)
             }
-            if !self.projection.historyFractions.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Last 7 days")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                    HistoryBarStrip(fractions: self.projection.historyFractions)
-                }
-            }
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Overview")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                Text(self.projection.combinedCostLabel)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(.primary)
-                Text(self.projection.activitySummaryLabel)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                if !self.projection.warningLabels.isEmpty {
-                    Label("Source limits affect some provider data", systemImage: "exclamationmark.triangle.fill")
-                        .font(.caption2.weight(.medium))
-                        .foregroundStyle(.orange)
-                }
-            }
-            .padding(10)
-            .menuCardBackground(opacity: 0.02, cornerRadius: 12)
+            OverviewSummaryCard(projection: self.projection)
         }
         .padding(10)
         .menuCardBackground(opacity: 0.03, cornerRadius: 14)
@@ -326,6 +301,88 @@ struct OverviewMenuCard: View {
         case .refreshing: return 1
         case .healthy: return 0
         }
+    }
+}
+
+private struct OverviewSummaryCard: View {
+    let projection: OverviewMenuProjection
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Overview")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    Text(self.projection.combinedCostLabel)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(self.projection.activitySummaryLabel)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 8)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    if !self.projection.historyFractions.isEmpty {
+                        VStack(alignment: .leading, spacing: 5) {
+                            Text("Last 7 days")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                            HistoryBarStrip(fractions: self.projection.historyFractions)
+                        }
+                    }
+
+                    HStack(spacing: 6) {
+                        OverviewMetaBadge(
+                            title: "Providers",
+                            value: "\(self.projection.items.count)"
+                        )
+                        if !self.projection.warningLabels.isEmpty {
+                            OverviewMetaBadge(
+                                title: "Flags",
+                                value: "\(self.projection.warningLabels.count)"
+                            )
+                        }
+                    }
+                }
+                .frame(minWidth: 92, alignment: .leading)
+            }
+
+            if !self.projection.warningLabels.isEmpty {
+                Divider()
+                Label("Source limits affect some provider data", systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(.orange)
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .menuCardBackground(opacity: 0.02, cornerRadius: 12)
+    }
+}
+
+private struct OverviewMetaBadge: View {
+    let title: String
+    let value: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(self.title)
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+            Text(self.value)
+                .font(.caption.monospacedDigit().weight(.semibold))
+                .foregroundStyle(.primary)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .frame(minWidth: 40, alignment: .leading)
+        .menuCardBackground(opacity: 0.04, cornerRadius: 8)
     }
 }
 
