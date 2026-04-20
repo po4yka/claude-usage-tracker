@@ -1825,6 +1825,14 @@
   function fmtCostBig(c4) {
     return "$" + c4.toFixed(2);
   }
+  function fmtCostCompact(c4) {
+    const abs = Math.abs(c4);
+    if (abs >= 1e9) return "$" + (c4 / 1e9).toFixed(2) + "B";
+    if (abs >= 1e6) return "$" + (c4 / 1e6).toFixed(2) + "M";
+    if (abs >= 1e3) return "$" + (c4 / 1e3).toFixed(1) + "K";
+    if (abs >= 1) return "$" + c4.toFixed(2);
+    return "$" + c4.toFixed(4);
+  }
   function fmtResetTime(minutes) {
     if (minutes == null || minutes <= 0) return "now";
     if (minutes >= 1440) return Math.floor(minutes / 1440) + "d " + Math.floor(minutes % 1440 / 60) + "h";
@@ -5822,7 +5830,7 @@
   function formatMetricValue(value, metric, large = false) {
     switch (metric) {
       case "cost":
-        return large ? value < 1 ? fmtCost(value) : fmtCostBig(value) : fmtCost(value);
+        return large ? fmtCostCompact(value) : fmtCost(value);
       case "tokens":
       case "calls":
         return fmt(value);
@@ -5831,7 +5839,9 @@
   function formatShare(share) {
     if (share >= 99.5) return "100%";
     if (share >= 10) return `${share.toFixed(0)}%`;
-    return `${share.toFixed(1)}%`;
+    if (share >= 0.1) return `${share.toFixed(1)}%`;
+    if (share > 0) return "<0.1%";
+    return "0%";
   }
   function ModelChart({
     byModel,
@@ -5955,7 +5965,7 @@
             /* @__PURE__ */ u4("div", { class: "model-share-row-head", children: [
               /* @__PURE__ */ u4("div", { class: "model-share-label", children: [
                 /* @__PURE__ */ u4("span", { class: "model-share-swatch", style: { background: row.color }, "aria-hidden": "true" }),
-                /* @__PURE__ */ u4("span", { title: row.label, children: truncateMid(row.label, row.isOther ? 18 : 24, 8) })
+                /* @__PURE__ */ u4("span", { title: row.label, children: row.label })
               ] }),
               /* @__PURE__ */ u4("div", { class: "model-share-value", children: formatMetricValue(row.value, metric) })
             ] }),
@@ -6578,6 +6588,27 @@
   // src/ui/components/ReconciliationBlock.tsx
   function ReconciliationBlock({ reconciliation }) {
     const deltaMatch = Math.abs(reconciliation.delta_cost) < 0.01;
+    if (!reconciliation.available) {
+      return /* @__PURE__ */ u4("div", { class: "card card-flat bento-full", style: { padding: "12px 20px" }, children: /* @__PURE__ */ u4("div", { style: {
+        display: "flex",
+        alignItems: "center",
+        flexWrap: "wrap",
+        gap: "12px",
+        fontFamily: "var(--font-mono)",
+        fontSize: "12px",
+        letterSpacing: "0.04em",
+        color: "var(--text-secondary)"
+      }, children: [
+        /* @__PURE__ */ u4("span", { style: {
+          fontSize: "10px",
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+          color: "var(--text-disabled)"
+        }, children: "OpenAI Reconciliation" }),
+        /* @__PURE__ */ u4("span", { style: { color: "var(--text-disabled)" }, children: "\xB7" }),
+        /* @__PURE__ */ u4("span", { children: reconciliation.error ?? "Unavailable" })
+      ] }) });
+    }
     return /* @__PURE__ */ u4("div", { class: "card card-flat bento-full", children: [
       /* @__PURE__ */ u4("h2", { children: "OpenAI Org Usage Reconciliation" }),
       /* @__PURE__ */ u4("div", { class: "muted", style: { marginBottom: "12px" }, children: [
