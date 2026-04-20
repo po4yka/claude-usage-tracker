@@ -10,11 +10,11 @@ export function fmt(n: number): string {
 }
 
 export function fmtCost(c: number): string {
-  return '$' + c.toFixed(4);
+  return '$' + c.toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 });
 }
 
 export function fmtCostBig(c: number): string {
-  return '$' + c.toFixed(2);
+  return '$' + c.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 export function fmtCostCompact(c: number): string {
@@ -76,6 +76,17 @@ export function esc(s: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+/** Humanize a snake_case or kebab-case slug for display.
+ *  Returns em-dash for 'not_available' or 'unknown' or empty strings. */
+export function fmtLabel(s: string | null | undefined): string {
+  if (!s || s === 'not_available' || s === 'unknown') return '\u2014';
+  return s
+    .split(/[_\s-]+/)
+    .filter(Boolean)
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(' ');
 }
 
 /** Middle-ellipsis truncation for paths or identifiers that carry meaning

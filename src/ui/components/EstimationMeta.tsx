@@ -1,15 +1,9 @@
+import { fmtLabel } from '../lib/format';
+
 interface EstimationMetaProps {
   confidenceBreakdown: Array<[string, { sessions: number; cost: number }]>;
   billingModeBreakdown: Array<[string, { sessions: number; cost: number }]>;
   pricingVersions: string[];
-}
-
-function humanizeKey(key: string): string {
-  return key
-    .split(/[_\s-]+/)
-    .filter(Boolean)
-    .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-    .join(' ');
 }
 
 function formatPricingVersion(v: string): string {
@@ -23,7 +17,7 @@ export function EstimationMeta({
   pricingVersions,
 }: EstimationMetaProps) {
   const formatBreakdown = (rows: Array<[string, { sessions: number; cost: number }]>) =>
-    rows.map(([key, value]) => `${humanizeKey(key)}: ${value.sessions.toLocaleString()}`).join(' · ');
+    rows.map(([key, value]) => `${fmtLabel(key)}: ${value.sessions.toLocaleString()}`).join(' · ');
 
   return (
     <>
@@ -52,7 +46,7 @@ export function EstimationMeta({
             {pricingVersions.length === 0
               ? 'n/a'
               : pricingVersions.length === 1
-                ? formatPricingVersion(pricingVersions[0])
+                ? formatPricingVersion(pricingVersions[0] ?? '')
                 : `mixed (${pricingVersions.length})`}
           </div>
           <div class="stat-sub">Stored per-session pricing metadata</div>

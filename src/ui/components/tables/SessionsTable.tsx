@@ -6,7 +6,7 @@ import {
   type SortingState,
   type VisibilityState,
 } from '@tanstack/table-core';
-import { fmt, anyHasCredits } from '../../lib/format';
+import { fmt, anyHasCredits, fmtLabel } from '../../lib/format';
 import {
   lastFilteredSessions,
   SESSIONS_PAGE_SIZE,
@@ -199,7 +199,7 @@ function useSessionColumns(
           return (
             <div class="muted" style={{ fontSize: '10px', lineHeight: '1.4' }}>
               <div style={{ whiteSpace: 'nowrap' }}>
-                {row.cost_confidence || 'low'} / {row.billing_mode || 'estimated_local'}
+                {fmtLabel(row.cost_confidence || 'low')} / {fmtLabel(row.billing_mode || 'estimated_local')}
               </div>
               <div title={pricing} style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '140px' }}>
                 {shortPricing}

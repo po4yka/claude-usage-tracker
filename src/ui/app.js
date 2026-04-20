@@ -1820,10 +1820,10 @@
     return n3.toLocaleString();
   }
   function fmtCost(c4) {
-    return "$" + c4.toFixed(4);
+    return "$" + c4.toLocaleString("en-US", { minimumFractionDigits: 4, maximumFractionDigits: 4 });
   }
   function fmtCostBig(c4) {
-    return "$" + c4.toFixed(2);
+    return "$" + c4.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
   function fmtCostCompact(c4) {
     const abs = Math.abs(c4);
@@ -1862,6 +1862,10 @@
   }
   function esc(s4) {
     return s4.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+  function fmtLabel(s4) {
+    if (!s4 || s4 === "not_available" || s4 === "unknown") return "\u2014";
+    return s4.split(/[_\s-]+/).filter(Boolean).map((w5) => w5.charAt(0).toUpperCase() + w5.slice(1).toLowerCase()).join(" ");
   }
   function truncateMid(s4, max2, tailChars = 8) {
     const codepoints = Array.from(s4);
@@ -5684,9 +5688,6 @@
   }
 
   // src/ui/components/EstimationMeta.tsx
-  function humanizeKey(key) {
-    return key.split(/[_\s-]+/).filter(Boolean).map((w5) => w5.charAt(0).toUpperCase() + w5.slice(1).toLowerCase()).join(" ");
-  }
   function formatPricingVersion(v4) {
     const m4 = v4.match(/^\d{4}-\d{2}-\d{2}/);
     return m4 ? m4[0] : v4;
@@ -5696,7 +5697,7 @@
     billingModeBreakdown,
     pricingVersions
   }) {
-    const formatBreakdown = (rows) => rows.map(([key, value]) => `${humanizeKey(key)}: ${value.sessions.toLocaleString()}`).join(" \xB7 ");
+    const formatBreakdown = (rows) => rows.map(([key, value]) => `${fmtLabel(key)}: ${value.sessions.toLocaleString()}`).join(" \xB7 ");
     return /* @__PURE__ */ u4(S, { children: [
       /* @__PURE__ */ u4("div", { class: "card stat-card", children: /* @__PURE__ */ u4("div", { class: "stat-content", children: [
         /* @__PURE__ */ u4("div", { class: "stat-label", children: "Cost Confidence" }),
@@ -5710,7 +5711,7 @@
       ] }) }),
       /* @__PURE__ */ u4("div", { class: "card stat-card", children: /* @__PURE__ */ u4("div", { class: "stat-content", children: [
         /* @__PURE__ */ u4("div", { class: "stat-label", children: "Pricing Snapshot" }),
-        /* @__PURE__ */ u4("div", { class: "stat-value", style: { fontSize: "18px" }, children: pricingVersions.length === 0 ? "n/a" : pricingVersions.length === 1 ? formatPricingVersion(pricingVersions[0]) : `mixed (${pricingVersions.length})` }),
+        /* @__PURE__ */ u4("div", { class: "stat-value", style: { fontSize: "18px" }, children: pricingVersions.length === 0 ? "n/a" : pricingVersions.length === 1 ? formatPricingVersion(pricingVersions[0] ?? "") : `mixed (${pricingVersions.length})` }),
         /* @__PURE__ */ u4("div", { class: "stat-sub", children: "Stored per-session pricing metadata" })
       ] }) })
     ] });
@@ -6680,8 +6681,16 @@
       header: "Provider",
       cell: ({ getValue }) => /* @__PURE__ */ u4("span", { class: "model-tag", children: String(getValue()).toUpperCase() })
     },
-    { accessorKey: "service_tier", header: "Tier" },
-    { accessorKey: "inference_geo", header: "Region" },
+    {
+      accessorKey: "service_tier",
+      header: "Tier",
+      cell: ({ getValue }) => /* @__PURE__ */ u4("span", { children: fmtLabel(getValue()) })
+    },
+    {
+      accessorKey: "inference_geo",
+      header: "Region",
+      cell: ({ getValue }) => /* @__PURE__ */ u4("span", { children: fmtLabel(getValue()) })
+    },
     {
       accessorKey: "turns",
       header: "Turns",
@@ -6842,9 +6851,9 @@ ${row.project}` : row.project;
             const shortPricing = pricing.includes("@") ? pricing.split("@")[0] : pricing;
             return /* @__PURE__ */ u4("div", { class: "muted", style: { fontSize: "10px", lineHeight: "1.4" }, children: [
               /* @__PURE__ */ u4("div", { style: { whiteSpace: "nowrap" }, children: [
-                row.cost_confidence || "low",
+                fmtLabel(row.cost_confidence || "low"),
                 " / ",
-                row.billing_mode || "estimated_local"
+                fmtLabel(row.billing_mode || "estimated_local")
               ] }),
               /* @__PURE__ */ u4("div", { title: pricing, style: { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "140px" }, children: shortPricing })
             ] });
