@@ -140,6 +140,16 @@ function readVersionMetric(): VersionMetric {
 
 export const versionDonutMetric = signal<VersionMetric>(readVersionMetric());
 
+// ── Activity heatmap metric selector ─────────────────────────────────
+export type HeatmapMetric = 'cost' | 'calls';
+
+function readHeatmapMetric(): HeatmapMetric {
+  const p = readSearchParam('hm_metric');
+  return p === 'calls' ? 'calls' : 'cost';
+}
+
+export const heatmapMetric = signal<HeatmapMetric>(readHeatmapMetric());
+
 // ── Agent status expand/collapse (URL-persistent) ────────────────────
 function readAgentStatusExpanded(): boolean {
   const p = readSearchParam('agent_status_expanded');
@@ -189,6 +199,7 @@ export function restoreDashboardStateFromUrl(allModels: string[]): void {
   projectSearchQuery.value = readSearchParam('project') ?? '';
   selectedBucket.value = readBucket();
   versionDonutMetric.value = readVersionMetric();
+  heatmapMetric.value = readHeatmapMetric();
   agent_status_expanded.value = readAgentStatusExpanded();
   official_sync_expanded.value = readOfficialSyncExpanded();
   mobile_filters_expanded.value = readFiltersExpanded();
@@ -209,6 +220,7 @@ export function syncDashboardUrl(): void {
   }
   if (projectSearchQuery.value) params.set('project', projectSearchQuery.value);
   if (versionDonutMetric.value !== 'cost') params.set('version_metric', versionDonutMetric.value);
+  if (heatmapMetric.value !== 'cost') params.set('hm_metric', heatmapMetric.value);
   if (selectedBucket.value !== 'day') params.set('bucket', selectedBucket.value);
   if (agent_status_expanded.value) params.set('agent_status_expanded', '1');
   if (official_sync_expanded.value) params.set('official_sync_expanded', '1');

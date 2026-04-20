@@ -26,6 +26,15 @@ export function fmtCostCompact(c: number): string {
   return '$' + c.toFixed(4);
 }
 
+export function fmtTzOffset(minutes: number): string {
+  if (minutes === 0) return 'UTC';
+  const sign = minutes < 0 ? '-' : '+';
+  const abs = Math.abs(minutes);
+  const hh = Math.floor(abs / 60);
+  const mm = abs % 60;
+  return `UTC${sign}${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+}
+
 export function fmtResetTime(minutes: number | null | undefined): string {
   if (minutes == null || minutes <= 0) return 'now';
   if (minutes >= 1440) return Math.floor(minutes / 1440) + 'd ' + Math.floor((minutes % 1440) / 60) + 'h';

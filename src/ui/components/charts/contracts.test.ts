@@ -174,7 +174,11 @@ describe('chart contracts', () => {
       tz_offset_min: 0,
     };
 
-    const vnode = ActivityHeatmap({ data });
+    const vnode = ActivityHeatmap({
+      data,
+      metric: 'cost',
+      onMetricChange: () => undefined,
+    });
     const text = collectText(vnode);
     const titles = collectProp(vnode, 'title');
     const joined = text.join('');

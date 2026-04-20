@@ -558,6 +558,94 @@
   .chart-wrap { position: relative; height: 240px; }
   .chart-wrap.tall { height: 300px; }
   .chart-wrap.model-chart-wrap { height: auto; min-height: 0; }
+  .heatmap-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+  }
+  .heatmap-header {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .heatmap-title {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 400;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-primary);
+    padding: 0;
+  }
+  .heatmap-subtitle {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-secondary);
+    letter-spacing: 0.04em;
+  }
+  .heatmap-metric { margin-left: auto; }
+  .heatmap-grid {
+    display: grid;
+    grid-template-columns: 32px repeat(24, minmax(0, 1fr));
+    gap: 2px;
+    align-items: center;
+  }
+  .heatmap-hour-labels {
+    grid-column: 2 / -1;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text-secondary);
+    letter-spacing: 0.04em;
+  }
+  .heatmap-hour-labels span { text-align: left; }
+  .heatmap-dow-label {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding-right: 4px;
+    letter-spacing: 0.04em;
+  }
+  .heatmap-cell {
+    border-radius: 2px;
+    aspect-ratio: 1;
+    min-height: 10px;
+    transition: outline 0.1s ease;
+  }
+  .heatmap-cell:hover,
+  .heatmap-cell:focus-visible {
+    outline: 1px solid var(--text-display);
+    outline-offset: 1px;
+  }
+  .heatmap-cell--peak {
+    box-shadow: inset 0 0 0 1px var(--text-display);
+  }
+  .heatmap-cell--weekend { opacity: 0.92; }
+  .heatmap-legend {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-secondary);
+    letter-spacing: 0.04em;
+  }
+  .heatmap-legend-track {
+    display: flex;
+    flex: 0 0 160px;
+    height: 8px;
+    border-radius: 2px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .heatmap-legend-step { flex: 1 1 0; }
+
   .model-chart-panel {
     display: flex;
     flex-direction: column;

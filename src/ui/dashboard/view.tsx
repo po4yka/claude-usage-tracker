@@ -44,6 +44,7 @@ import {
   setSectionCollapsed,
   syncDashboardUrl,
   versionDonutMetric,
+  heatmapMetric,
   type DashboardTab,
 } from '../state/store';
 import type {
@@ -419,7 +420,21 @@ export function renderActivityHeatmap(data: HeatmapData | null): void {
     return;
   }
   setSectionVisibility('activity-heatmap', true);
-  render(<ActivityHeatmap data={data} />, container);
+
+  const handleMetricChange = (next: import('../state/store').HeatmapMetric) => {
+    heatmapMetric.value = next;
+    syncDashboardUrl();
+    renderActivityHeatmap(data);
+  };
+
+  render(
+    <ActivityHeatmap
+      data={data}
+      metric={heatmapMetric.value}
+      onMetricChange={handleMetricChange}
+    />,
+    container
+  );
 }
 
 export function renderCostReconciliation(): void {
