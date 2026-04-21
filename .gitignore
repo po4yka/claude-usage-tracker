@@ -10,3 +10,4 @@ scorecard.png
 .omc/
 .claude/scheduled_tasks.lock
 macos/HeimdallBar/.derived/
+macos/HeimdallBar/build/
