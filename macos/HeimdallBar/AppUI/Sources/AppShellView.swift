@@ -10,14 +10,17 @@ struct AppShellView: View {
 
     var body: some View {
         NavigationSplitView {
-            List(selection: self.selectionBinding) {
+            List(selection: self.$shell.navigationSelection) {
                 ForEach(self.shell.navigationItems, id: \.id) { item in
                     Label(item.title, systemImage: item.systemImage)
-                        .tag(Optional(item))
+                        .tag(item)
                 }
             }
             .listStyle(.sidebar)
             .navigationTitle("HeimdallBar")
+            .onChange(of: self.shell.navigationSelection) { _, newValue in
+                self.shell.selectNavigation(newValue)
+            }
         } detail: {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
@@ -70,16 +73,6 @@ struct AppShellView: View {
         .task {
             await self.settings.refreshBrowserImports()
         }
-    }
-
-    private var selectionBinding: Binding<AppNavigationItem?> {
-        Binding(
-            get: { self.shell.navigationSelection },
-            set: { selection in
-                guard let selection else { return }
-                self.shell.selectNavigation(selection)
-            }
-        )
     }
 
     private var isBusy: Bool {
