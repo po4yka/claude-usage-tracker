@@ -96,15 +96,45 @@ public final class ProviderFeatureModel {
     }
 
     public var missingCredentialDetail: String? {
-        guard self.credentialInspector.credentialPresence(for: self.provider) == .missing else {
-            return nil
+        // Prefer the authoritative diagnosticCode computed by the Rust helper,
+        // which considers env vars + macOS Keychain + file + config. The file
+        // probe is only a last-resort fallback for when the helper hasn't
+        // reported yet — with Claude Code v2.x on macOS, credentials live in
+        // Keychain by default, so a file-absent check is a false negative.
+        if let code = self.authHealth?.diagnosticCode {
+            switch code {
+            case "authenticated-compatible",
+                 "authenticated",
+                 "authenticated-incompatible":
+                return nil
+            case "expired-refreshable":
+                return "Token expired — will refresh on next poll"
+            case "requires-relogin", "refresh-failed":
+                return self.provider == .claude
+                    ? "Sign in to Claude (run /login in Claude Code)"
+                    : "Sign in to Codex"
+            case "missing-credentials":
+                return self.provider == .claude ? "Sign in to Claude" : "Sign in to Codex"
+            case "keychain-locked":
+                return "Keychain access denied — reopen HeimdallBar to retry"
+            case "managed-restricted":
+                return self.authHealth?.managedRestriction
+                    ?? "Blocked by managed policy"
+            default:
+                // Unknown diagnostic — show the raw code so we at least hint
+                // at something rather than the misleading 'missing file' text.
+                return self.authHealth?.failureReason ?? code
+            }
         }
-        switch self.provider {
-        case .claude:
-            return "Missing Claude OAuth credentials file"
-        case .codex:
-            return "Missing Codex auth file"
+
+        // Fallback: helper hasn't responded yet AND no file on disk. This used
+        // to always render "Missing Claude OAuth credentials file" even when
+        // the user was logged in via Keychain — now we only surface it when
+        // we truly have no signal.
+        if self.credentialInspector.credentialPresence(for: self.provider) == .missing {
+            return "Waiting for helper to report auth status"
         }
+        return nil
     }
 
     public func refresh() async {
