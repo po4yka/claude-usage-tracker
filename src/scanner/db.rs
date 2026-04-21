@@ -2662,17 +2662,41 @@ pub fn get_provider_cost_summary_since(
     conn: &Connection,
     provider: &str,
     start_date: &str,
-) -> Result<(i64, i64)> {
-    let (cost_nanos, total_tokens): (i64, i64) = conn.query_row(
+) -> Result<(i64, i64, crate::models::TokenBreakdown)> {
+    let row: (i64, i64, i64, i64, i64, i64, i64) = conn.query_row(
         "SELECT
             COALESCE(SUM(estimated_cost_nanos), 0),
-            COALESCE(SUM(input_tokens + output_tokens + cache_read_tokens + cache_creation_tokens + reasoning_output_tokens), 0)
+            COALESCE(SUM(input_tokens + output_tokens + cache_read_tokens + cache_creation_tokens + reasoning_output_tokens), 0),
+            COALESCE(SUM(input_tokens), 0),
+            COALESCE(SUM(output_tokens), 0),
+            COALESCE(SUM(cache_read_tokens), 0),
+            COALESCE(SUM(cache_creation_tokens), 0),
+            COALESCE(SUM(reasoning_output_tokens), 0)
          FROM turns
          WHERE provider = ?1 AND substr(timestamp, 1, 10) >= ?2",
         rusqlite::params![provider, start_date],
-        |row| Ok((row.get(0)?, row.get(1)?)),
+        |row| Ok((
+            row.get(0)?,
+            row.get(1)?,
+            row.get(2)?,
+            row.get(3)?,
+            row.get(4)?,
+            row.get(5)?,
+            row.get(6)?,
+        )),
     )?;
-    Ok((cost_nanos, total_tokens))
+    let (cost_nanos, total_tokens, input, output, cache_read, cache_creation, reasoning_output) = row;
+    Ok((
+        cost_nanos,
+        total_tokens,
+        crate::models::TokenBreakdown {
+            input,
+            output,
+            cache_read,
+            cache_creation,
+            reasoning_output,
+        },
+    ))
 }
 
 pub fn get_provider_daily_cost_history_since(
@@ -2684,7 +2708,12 @@ pub fn get_provider_daily_cost_history_since(
         "SELECT
             substr(timestamp, 1, 10) AS day,
             COALESCE(SUM(input_tokens + output_tokens + cache_read_tokens + cache_creation_tokens + reasoning_output_tokens), 0) AS total_tokens,
-            COALESCE(SUM(estimated_cost_nanos), 0) AS cost_nanos
+            COALESCE(SUM(estimated_cost_nanos), 0) AS cost_nanos,
+            COALESCE(SUM(input_tokens), 0) AS input_tokens,
+            COALESCE(SUM(output_tokens), 0) AS output_tokens,
+            COALESCE(SUM(cache_read_tokens), 0) AS cache_read_tokens,
+            COALESCE(SUM(cache_creation_tokens), 0) AS cache_creation_tokens,
+            COALESCE(SUM(reasoning_output_tokens), 0) AS reasoning_output_tokens
          FROM turns
          WHERE provider = ?1 AND substr(timestamp, 1, 10) >= ?2
          GROUP BY substr(timestamp, 1, 10)
@@ -2697,6 +2726,13 @@ pub fn get_provider_daily_cost_history_since(
             day: row.get(0)?,
             total_tokens: row.get(1)?,
             cost_usd: cost_nanos as f64 / 1_000_000_000.0,
+            breakdown: crate::models::TokenBreakdown {
+                input: row.get(3)?,
+                output: row.get(4)?,
+                cache_read: row.get(5)?,
+                cache_creation: row.get(6)?,
+                reasoning_output: row.get(7)?,
+            },
         })
     })?;
 

@@ -307,11 +307,42 @@ pub struct LiveProviderStatus {
     pub page_url: String,
 }
 
+#[derive(Debug, Clone, Copy, Default, Serialize)]
+pub struct TokenBreakdown {
+    pub input: i64,
+    pub output: i64,
+    pub cache_read: i64,
+    pub cache_creation: i64,
+    pub reasoning_output: i64,
+}
+
+impl TokenBreakdown {
+    pub fn total(&self) -> i64 {
+        self.input
+            + self.output
+            + self.cache_read
+            + self.cache_creation
+            + self.reasoning_output
+    }
+
+    /// Cache hit rate = cache_read / (cache_read + input).
+    /// Returns None when the denominator is zero (no reference tokens yet).
+    pub fn cache_hit_rate(&self) -> Option<f64> {
+        let denom = self.cache_read + self.input;
+        if denom <= 0 {
+            return None;
+        }
+        Some(self.cache_read as f64 / denom as f64)
+    }
+}
+
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct ProviderCostHistoryPoint {
     pub day: String,
     pub total_tokens: i64,
     pub cost_usd: f64,
+    #[serde(default)]
+    pub breakdown: TokenBreakdown,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -321,6 +352,18 @@ pub struct ProviderCostSummary {
     pub last_30_days_tokens: i64,
     pub last_30_days_cost_usd: f64,
     pub daily: Vec<ProviderCostHistoryPoint>,
+    #[serde(default)]
+    pub today_breakdown: TokenBreakdown,
+    #[serde(default)]
+    pub last_30_days_breakdown: TokenBreakdown,
+    /// Cache-read fraction over the 30-day window. `None` when denominator is
+    /// zero (no usage yet) so the UI can distinguish "0% hit rate" from
+    /// "no data".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_hit_rate_30d: Option<f64>,
+    /// Cache-read fraction for today only.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_hit_rate_today: Option<f64>,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]

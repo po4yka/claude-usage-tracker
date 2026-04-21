@@ -227,23 +227,69 @@ public struct ProviderStatusSummary: Codable, Sendable {
     }
 }
 
+/// Per-category breakdown of token usage. Optional on the wire so that
+/// Mac app builds keep decoding against older helpers that don't emit it.
+public struct TokenBreakdown: Codable, Sendable, Hashable {
+    public var input: Int
+    public var output: Int
+    public var cacheRead: Int
+    public var cacheCreation: Int
+    public var reasoningOutput: Int
+
+    public init(
+        input: Int = 0,
+        output: Int = 0,
+        cacheRead: Int = 0,
+        cacheCreation: Int = 0,
+        reasoningOutput: Int = 0
+    ) {
+        self.input = input
+        self.output = output
+        self.cacheRead = cacheRead
+        self.cacheCreation = cacheCreation
+        self.reasoningOutput = reasoningOutput
+    }
+
+    public var total: Int {
+        self.input + self.output + self.cacheRead + self.cacheCreation + self.reasoningOutput
+    }
+
+    public var isEmpty: Bool { self.total == 0 }
+
+    enum CodingKeys: String, CodingKey {
+        case input
+        case output
+        case cacheRead = "cache_read"
+        case cacheCreation = "cache_creation"
+        case reasoningOutput = "reasoning_output"
+    }
+}
+
 public struct CostHistoryPoint: Codable, Sendable, Identifiable {
     public var day: String
     public var totalTokens: Int
     public var costUSD: Double
+    public var breakdown: TokenBreakdown?
 
     public var id: String { self.day }
 
-    public init(day: String, totalTokens: Int, costUSD: Double) {
+    public init(
+        day: String,
+        totalTokens: Int,
+        costUSD: Double,
+        breakdown: TokenBreakdown? = nil
+    ) {
         self.day = day
         self.totalTokens = totalTokens
         self.costUSD = costUSD
+        self.breakdown = breakdown
     }
 
     enum CodingKeys: String, CodingKey {
         case day
         case totalTokens = "total_tokens"
         case costUSD = "cost_usd"
+        case breakdown
     }
 }
 
@@ -253,19 +299,31 @@ public struct ProviderCostSummary: Codable, Sendable {
     public var last30DaysTokens: Int
     public var last30DaysCostUSD: Double
     public var daily: [CostHistoryPoint]
+    public var todayBreakdown: TokenBreakdown?
+    public var last30DaysBreakdown: TokenBreakdown?
+    public var cacheHitRateToday: Double?
+    public var cacheHitRate30d: Double?
 
     public init(
         todayTokens: Int,
         todayCostUSD: Double,
         last30DaysTokens: Int,
         last30DaysCostUSD: Double,
-        daily: [CostHistoryPoint]
+        daily: [CostHistoryPoint],
+        todayBreakdown: TokenBreakdown? = nil,
+        last30DaysBreakdown: TokenBreakdown? = nil,
+        cacheHitRateToday: Double? = nil,
+        cacheHitRate30d: Double? = nil
     ) {
         self.todayTokens = todayTokens
         self.todayCostUSD = todayCostUSD
         self.last30DaysTokens = last30DaysTokens
         self.last30DaysCostUSD = last30DaysCostUSD
         self.daily = daily
+        self.todayBreakdown = todayBreakdown
+        self.last30DaysBreakdown = last30DaysBreakdown
+        self.cacheHitRateToday = cacheHitRateToday
+        self.cacheHitRate30d = cacheHitRate30d
     }
 
     enum CodingKeys: String, CodingKey {
@@ -274,6 +332,10 @@ public struct ProviderCostSummary: Codable, Sendable {
         case last30DaysTokens = "last_30_days_tokens"
         case last30DaysCostUSD = "last_30_days_cost_usd"
         case daily
+        case todayBreakdown = "today_breakdown"
+        case last30DaysBreakdown = "last_30_days_breakdown"
+        case cacheHitRateToday = "cache_hit_rate_today"
+        case cacheHitRate30d = "cache_hit_rate_30d"
     }
 }
 
@@ -1152,6 +1214,11 @@ public struct ProviderMenuProjection: Sendable, Identifiable {
     public var error: String?
     public var globalIssueLabel: String?
     public var historyFractions: [Double]
+    public var historyBreakdowns: [TokenBreakdown]
+    public var todayBreakdown: TokenBreakdown?
+    public var last30DaysBreakdown: TokenBreakdown?
+    public var cacheHitRateToday: Double?
+    public var cacheHitRate30d: Double?
     public var claudeFactors: [ClaudeUsageFactorSnapshot]
     public var adjunct: DashboardAdjunctSnapshot?
 
@@ -1185,7 +1252,12 @@ public struct ProviderMenuProjection: Sendable, Identifiable {
         globalIssueLabel: String?,
         historyFractions: [Double],
         claudeFactors: [ClaudeUsageFactorSnapshot],
-        adjunct: DashboardAdjunctSnapshot?
+        adjunct: DashboardAdjunctSnapshot?,
+        historyBreakdowns: [TokenBreakdown] = [],
+        todayBreakdown: TokenBreakdown? = nil,
+        last30DaysBreakdown: TokenBreakdown? = nil,
+        cacheHitRateToday: Double? = nil,
+        cacheHitRate30d: Double? = nil
     ) {
         self.provider = provider
         self.title = title
@@ -1213,6 +1285,11 @@ public struct ProviderMenuProjection: Sendable, Identifiable {
         self.error = error
         self.globalIssueLabel = globalIssueLabel
         self.historyFractions = historyFractions
+        self.historyBreakdowns = historyBreakdowns
+        self.todayBreakdown = todayBreakdown
+        self.last30DaysBreakdown = last30DaysBreakdown
+        self.cacheHitRateToday = cacheHitRateToday
+        self.cacheHitRate30d = cacheHitRate30d
         self.claudeFactors = claudeFactors
         self.adjunct = adjunct
     }

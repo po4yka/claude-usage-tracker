@@ -99,6 +99,14 @@ public enum MenuProjectionBuilder {
         // "Showing cached data" is already conveyed by the StateBadge; suppress the duplicate warning.
         warningLabels = warningLabels.uniqued()
 
+        // Align the historyBreakdowns slice with the same 7-day window the
+        // historyFractions uses so the stacked 7-day bar chart has one
+        // TokenBreakdown per visible bar.
+        let historyBreakdowns: [TokenBreakdown] = snapshot.map { snap in
+            let recent = Array(snap.costSummary.daily.suffix(7))
+            return recent.map { $0.breakdown ?? TokenBreakdown() }
+        } ?? []
+
         return ProviderMenuProjection(
             provider: provider,
             title: provider.title,
@@ -127,7 +135,12 @@ public enum MenuProjectionBuilder {
             globalIssueLabel: connectivityFailure.map(self.presentableRefreshFailure),
             historyFractions: history,
             claudeFactors: snapshot?.claudeUsage?.factors ?? [],
-            adjunct: adjunct
+            adjunct: adjunct,
+            historyBreakdowns: historyBreakdowns,
+            todayBreakdown: snapshot?.costSummary.todayBreakdown,
+            last30DaysBreakdown: snapshot?.costSummary.last30DaysBreakdown,
+            cacheHitRateToday: snapshot?.costSummary.cacheHitRateToday,
+            cacheHitRate30d: snapshot?.costSummary.cacheHitRate30d
         )
     }
 

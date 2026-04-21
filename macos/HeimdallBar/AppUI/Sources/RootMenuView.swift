@@ -192,8 +192,20 @@ struct ProviderMenuCard: View {
                     }
                 }
             }
+            if let breakdown = projection.todayBreakdown, !breakdown.isEmpty {
+                TokenBreakdownRow(title: "Today", breakdown: breakdown)
+            }
             if !projection.historyFractions.isEmpty {
-                HistoryBarStrip(fractions: projection.historyFractions)
+                HistoryBarStrip(
+                    fractions: projection.historyFractions,
+                    breakdowns: projection.historyBreakdowns
+                )
+            }
+            if let hitRate = projection.cacheHitRateToday {
+                CacheEfficiencyCard(
+                    hitRateToday: hitRate,
+                    hitRate30d: projection.cacheHitRate30d
+                )
             }
             Text(projection.costLabel)
                 .font(.caption)
@@ -616,6 +628,10 @@ private struct LaneStatusCard: View {
 
 struct HistoryBarStrip: View {
     let fractions: [Double]
+    /// Per-day token breakdown (input/output/cache-read/cache-creation). When
+    /// empty or not aligned with `fractions`, the widget falls back to the
+    /// flat-bar rendering used before Phase 1.
+    var breakdowns: [TokenBreakdown] = []
 
     var body: some View {
         let labels = Self.dayLabels(count: self.fractions.count)
@@ -627,20 +643,31 @@ struct HistoryBarStrip: View {
                     .textCase(.uppercase)
                     .tracking(0.4)
                 Spacer()
+                if self.hasBreakdowns {
+                    TokenLegend()
+                }
             }
             HStack(alignment: .bottom, spacing: 6) {
                 ForEach(Array(zip(self.fractions, labels).enumerated()), id: \.offset) { entry in
                     let (fraction, label) = entry.element
-                    // Today is the last slot — highlight it with the accent tint.
                     let isToday = entry.offset == self.fractions.count - 1
                     VStack(spacing: 3) {
                         ZStack(alignment: .bottom) {
                             RoundedRectangle(cornerRadius: 2, style: .continuous)
                                 .fill(Color.primary.opacity(0.06))
-                                .frame(height: 28)
-                            RoundedRectangle(cornerRadius: 2, style: .continuous)
-                                .fill(isToday ? Color.accentColor : Color.primary.opacity(0.7))
-                                .frame(height: max(2, 28 * fraction))
+                                .frame(height: 32)
+                            if self.hasBreakdowns {
+                                StackedDayBar(
+                                    breakdown: self.breakdowns[entry.offset],
+                                    fraction: fraction,
+                                    height: 32,
+                                    highlight: isToday
+                                )
+                            } else {
+                                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                                    .fill(isToday ? Color.accentColor : Color.primary.opacity(0.7))
+                                    .frame(height: max(2, 32 * fraction))
+                            }
                         }
                         .frame(maxWidth: .infinity)
                         Text(label)
@@ -654,6 +681,11 @@ struct HistoryBarStrip: View {
         .menuCardBackground(opacity: 0.03, cornerRadius: 8)
     }
 
+    private var hasBreakdowns: Bool {
+        self.breakdowns.count == self.fractions.count
+            && self.breakdowns.contains(where: { !$0.isEmpty })
+    }
+
     /// Produce day-of-week labels for the last N days ending today, so the
     /// rightmost label is today's weekday.
     private static func dayLabels(count: Int) -> [String] {
@@ -665,6 +697,244 @@ struct HistoryBarStrip: View {
         return (0..<count).map { offset in
             let date = calendar.date(byAdding: .day, value: -(count - 1 - offset), to: today) ?? today
             return formatter.string(from: date)
+        }
+    }
+}
+
+/// One day's worth of vertical segments. Heights are scaled so the total
+/// matches `fraction * height` — the _shape_ carries which categories
+/// dominated the day, not absolute token counts.
+private struct StackedDayBar: View {
+    let breakdown: TokenBreakdown
+    let fraction: Double
+    let height: CGFloat
+    let highlight: Bool
+
+    var body: some View {
+        let total = max(self.breakdown.total, 1)
+        let visibleHeight = max(2, self.height * CGFloat(self.fraction))
+        VStack(spacing: 1) {
+            Spacer(minLength: 0)
+            ForEach(Array(TokenCategory.orderedForStack.enumerated()), id: \.offset) { entry in
+                let category = entry.element
+                let tokens = category.value(for: self.breakdown)
+                if tokens > 0 {
+                    Rectangle()
+                        .fill(category.tint.opacity(self.highlight ? 1.0 : 0.85))
+                        .frame(
+                            height: max(1, visibleHeight * CGFloat(tokens) / CGFloat(total))
+                        )
+                }
+            }
+        }
+        .frame(height: self.height, alignment: .bottom)
+        .clipShape(RoundedRectangle(cornerRadius: 2, style: .continuous))
+    }
+}
+
+/// Five-category palette used by the stacked chart and the legend. Order is
+/// bottom-up in the stack: input → output → cache-read → cache-creation →
+/// reasoning. We lean on opacity steps over a two-hue system (monochrome
+/// gradient of primary + accent) to stay consistent with the rest of the
+/// app and keep the chart legible in both light and dark modes.
+enum TokenCategory: CaseIterable {
+    case input
+    case output
+    case cacheRead
+    case cacheCreation
+    case reasoning
+
+    static let orderedForStack: [TokenCategory] = [.input, .output, .cacheRead, .cacheCreation, .reasoning]
+
+    var label: String {
+        switch self {
+        case .input: return "Input"
+        case .output: return "Output"
+        case .cacheRead: return "Cached"
+        case .cacheCreation: return "Cache write"
+        case .reasoning: return "Reasoning"
+        }
+    }
+
+    var shortLabel: String {
+        switch self {
+        case .input: return "In"
+        case .output: return "Out"
+        case .cacheRead: return "Cached"
+        case .cacheCreation: return "Write"
+        case .reasoning: return "Reason"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .input: return Color.accentColor.opacity(0.85)
+        case .output: return Color.primary.opacity(0.85)
+        case .cacheRead: return Color.primary.opacity(0.55)
+        case .cacheCreation: return Color.primary.opacity(0.35)
+        case .reasoning: return Color.accentColor.opacity(0.55)
+        }
+    }
+
+    func value(for breakdown: TokenBreakdown) -> Int {
+        switch self {
+        case .input: return breakdown.input
+        case .output: return breakdown.output
+        case .cacheRead: return breakdown.cacheRead
+        case .cacheCreation: return breakdown.cacheCreation
+        case .reasoning: return breakdown.reasoningOutput
+        }
+    }
+}
+
+private struct TokenLegend: View {
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(Array(TokenCategory.orderedForStack.enumerated()), id: \.offset) { entry in
+                let category = entry.element
+                HStack(spacing: 3) {
+                    Circle()
+                        .fill(category.tint)
+                        .frame(width: 6, height: 6)
+                    Text(category.shortLabel)
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+}
+
+/// Horizontal stacked bar summarizing one period's token mix (today or 30d).
+/// Renders a 5-segment rail proportional to category share, with a total
+/// caption below and a tooltip that spells out each category's count.
+struct TokenBreakdownRow: View {
+    let title: String
+    let breakdown: TokenBreakdown
+
+    var body: some View {
+        let total = max(self.breakdown.total, 1)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(self.title)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .textCase(.uppercase)
+                    .tracking(0.4)
+                Spacer()
+                Text(Self.compactTokenCount(self.breakdown.total))
+                    .font(.caption.monospacedDigit().weight(.semibold))
+            }
+            GeometryReader { geo in
+                HStack(spacing: 1) {
+                    ForEach(Array(TokenCategory.orderedForStack.enumerated()), id: \.offset) { entry in
+                        let category = entry.element
+                        let tokens = category.value(for: self.breakdown)
+                        if tokens > 0 {
+                            Rectangle()
+                                .fill(category.tint)
+                                .frame(
+                                    width: max(
+                                        1,
+                                        geo.size.width * CGFloat(tokens) / CGFloat(total)
+                                    ),
+                                    height: 6
+                                )
+                        }
+                    }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 2, style: .continuous))
+            }
+            .frame(height: 6)
+            .help(Self.tooltip(for: self.breakdown))
+            TokenLegend()
+        }
+        .padding(8)
+        .menuCardBackground(opacity: 0.03, cornerRadius: 8)
+    }
+
+    /// '75,864,687' -> '75.9M'. Keeps one decimal for M/K and drops it for
+    /// under-1k counts. Aligns with how the web dashboard renders.
+    private static func compactTokenCount(_ count: Int) -> String {
+        let value = Double(count)
+        if value >= 1_000_000_000 {
+            return String(format: "%.1fB", value / 1_000_000_000)
+        }
+        if value >= 1_000_000 {
+            return String(format: "%.1fM", value / 1_000_000)
+        }
+        if value >= 1_000 {
+            return String(format: "%.1fK", value / 1_000)
+        }
+        return "\(count)"
+    }
+
+    private static func tooltip(for breakdown: TokenBreakdown) -> String {
+        TokenCategory.orderedForStack
+            .map { category in
+                "\(category.label): \(Self.compactTokenCount(category.value(for: breakdown)))"
+            }
+            .joined(separator: " · ")
+    }
+}
+
+/// Displays today's cache hit rate with a color-coded progress rail and a
+/// secondary 30-day comparison line. Hit rate is `cache_read / (cache_read +
+/// input)`; nil when there's no usage yet (both denominators zero).
+struct CacheEfficiencyCard: View {
+    let hitRateToday: Double
+    let hitRate30d: Double?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("Cache hit rate")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .textCase(.uppercase)
+                    .tracking(0.4)
+                Spacer()
+                Text(Self.percentLabel(self.hitRateToday))
+                    .font(.caption.monospacedDigit().weight(.semibold))
+                    .foregroundStyle(Self.tint(for: self.hitRateToday))
+            }
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 2, style: .continuous)
+                        .fill(Color.primary.opacity(0.1))
+                        .frame(height: 4)
+                    RoundedRectangle(cornerRadius: 2, style: .continuous)
+                        .fill(Self.tint(for: self.hitRateToday))
+                        .frame(
+                            width: geo.size.width
+                                * CGFloat(max(0, min(1, self.hitRateToday))),
+                            height: 4
+                        )
+                }
+            }
+            .frame(height: 4)
+            if let thirty = self.hitRate30d {
+                Text("30-day avg: \(Self.percentLabel(thirty))")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(8)
+        .menuCardBackground(opacity: 0.03, cornerRadius: 8)
+    }
+
+    private static func percentLabel(_ value: Double) -> String {
+        String(format: "%.1f%%", max(0, min(1, value)) * 100)
+    }
+
+    /// Green >= 60%, orange 30–60%, red < 30%. Matches the
+    /// LaneStatusCard pace-tint semantics (greater = better) but flipped —
+    /// here a HIGH value is good (more cache hits).
+    private static func tint(for rate: Double) -> Color {
+        switch rate {
+        case ..<0.3: return .red
+        case ..<0.6: return .orange
+        default: return .green
         }
     }
 }

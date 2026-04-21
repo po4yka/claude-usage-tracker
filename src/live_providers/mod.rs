@@ -784,11 +784,13 @@ fn provider_cost_summary(
 ) -> Result<ProviderCostSummary> {
     let today = chrono::Utc::now().date_naive().to_string();
     let start_date = (chrono::Utc::now().date_naive() - chrono::Duration::days(29)).to_string();
-    let (today_cost_nanos, today_tokens) =
+    let (today_cost_nanos, today_tokens, today_breakdown) =
         db::get_provider_cost_summary_since(conn, provider, &today)?;
-    let (last_30_cost_nanos, last_30_tokens) =
+    let (last_30_cost_nanos, last_30_tokens, last_30_days_breakdown) =
         db::get_provider_cost_summary_since(conn, provider, &start_date)?;
     let daily = db::get_provider_daily_cost_history_since(conn, provider, &start_date)?;
+    let cache_hit_rate_today = today_breakdown.cache_hit_rate();
+    let cache_hit_rate_30d = last_30_days_breakdown.cache_hit_rate();
 
     Ok(ProviderCostSummary {
         today_tokens,
@@ -796,6 +798,10 @@ fn provider_cost_summary(
         last_30_days_tokens: last_30_tokens,
         last_30_days_cost_usd: last_30_cost_nanos as f64 / 1_000_000_000.0,
         daily,
+        today_breakdown,
+        last_30_days_breakdown,
+        cache_hit_rate_today,
+        cache_hit_rate_30d,
     })
 }
 
