@@ -308,9 +308,13 @@ public enum HeimdallCLIEntrypoint {
         }
         let command: String = switch provider {
         case .claude:
-            "claude login"
+            "claude"
         case .codex:
             options.deviceAuth ? "codex login --device-auth" : "codex login"
+        }
+
+        if provider == .claude {
+            FileHandle.standardError.write(Data("Type /login at the Claude prompt to authenticate.\n".utf8))
         }
 
         let process = Process()

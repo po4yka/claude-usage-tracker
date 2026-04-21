@@ -43,10 +43,8 @@ public final class AuthCoordinator: Sendable {
             return launch.command
         }
         switch (provider, action.actionID) {
-        case (.claude, "claude-doctor"):
-            return "claude doctor"
         case (.claude, _):
-            return "claude login"
+            return "claude"
         case (.codex, "codex-login-device"):
             return "codex login --device-auth"
         case (.codex, _):
@@ -61,14 +59,14 @@ public final class AuthCoordinator: Sendable {
                 AuthRecoveryAction(
                     label: "Run Claude Login",
                     actionID: "claude-login",
-                    command: "claude login",
-                    detail: "Run Claude login to restore desktop subscription OAuth."
+                    command: "claude",
+                    detail: "Open Claude Code and type /login at the prompt to restore the subscription OAuth."
                 ),
                 AuthRecoveryAction(
                     label: "Run Claude Doctor",
                     actionID: "claude-doctor",
-                    command: "claude doctor",
-                    detail: "Use Claude doctor to diagnose credential, keychain, and environment problems."
+                    command: "claude",
+                    detail: "Open Claude Code and type /doctor at the prompt to diagnose credential, keychain, and environment problems."
                 ),
             ]
         case .codex:
@@ -102,9 +100,15 @@ public final class AuthCoordinator: Sendable {
         case (.claude, "claude-run"):
             return RecoveryLaunch(title: "Run Claude", command: "claude")
         case (.claude, "claude-login"):
-            return RecoveryLaunch(title: "Run Claude Login", command: "claude login")
+            return RecoveryLaunch(
+                title: "Claude Login — type /login at the prompt",
+                command: "claude"
+            )
         case (.claude, "claude-doctor"):
-            return RecoveryLaunch(title: "Run Claude Doctor", command: "claude doctor")
+            return RecoveryLaunch(
+                title: "Claude Doctor — type /doctor at the prompt",
+                command: "claude"
+            )
         case (.codex, "codex-login"):
             return RecoveryLaunch(title: "Run Codex Login", command: "codex login")
         case (.codex, "codex-login-device"):
