@@ -1,8 +1,7 @@
 <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-  <g>
-    <title>heimdall-horn-filled</title>
-    <!-- Megaphone-silhouette horn: narrow mouthpiece at left, dramatic bell flare at right.
-         Pure monochrome — no accent pip, so the silhouette cannot be misread as a bird head. -->
+  <g transform="rotate(-28 50 50)">
+    <title>heimdall-horn-raised</title>
+    <!-- v01 geometry rotated -28° around canvas center — horn raised aloft. -->
     <path d="M 22 40
              Q 40 32 56 28
              Q 74 22 84 22
