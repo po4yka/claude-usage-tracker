@@ -146,6 +146,7 @@ private struct WindowSettingsView: View {
                 subtitle: "Provider configuration, auth diagnostics, and web session imports",
                 issue: self.settings.issue?.message
             )
+            .padding(.horizontal, 20)
             SettingsView(
                 model: self.settings,
                 providerModel: self.providerModel

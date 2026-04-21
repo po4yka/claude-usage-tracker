@@ -59,7 +59,6 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .padding()
         .task {
             await self.model.refreshBrowserImports()
         }
