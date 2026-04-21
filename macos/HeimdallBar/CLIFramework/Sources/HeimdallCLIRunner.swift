@@ -204,8 +204,11 @@ public enum HeimdallCLIEntrypoint {
     ) async throws {
         let config = dependencies.settingsStore.load()
         let state = try await self.loadLiveState(options: options, config: config, dependencies: dependencies)
-        let client = dependencies.liveProviderClientFactory(config.helperPort)
-        let summaryMap = try await self.fetchCostSummaries(client: client, providers: options.providers)
+        let summaryMap = try await self.fetchCostSummaries(
+            dataSource: dependencies.providerDataSource,
+            config: config,
+            providers: options.providers
+        )
         let sections = state.sections.map { section in
             var updated = section
             updated.costSummary = summaryMap[section.provider] ?? section.costSummary
@@ -328,12 +331,11 @@ public enum HeimdallCLIEntrypoint {
         config: HeimdallBarConfig,
         dependencies: HeimdallCLIDependencies
     ) async throws -> CLILiveState {
-        let client = dependencies.liveProviderClientFactory(config.helperPort)
-        let envelope = if options.refresh {
-            try await client.refresh(provider: options.providers.count == 1 ? options.providers.first : nil)
-        } else {
-            try await client.fetchSnapshots()
-        }
+        let envelope = try await dependencies.providerDataSource.fetchSnapshots(
+            config: config,
+            refresh: options.refresh,
+            provider: options.providers.count == 1 ? options.providers.first : nil
+        )
 
         let snapshotsByProvider = Dictionary(uniqueKeysWithValues: envelope.providers.compactMap { snapshot in
             snapshot.providerID.map { ($0, snapshot) }
@@ -388,12 +390,13 @@ public enum HeimdallCLIEntrypoint {
     }
 
     private static func fetchCostSummaries(
-        client: any LiveProviderClient,
+        dataSource: any ProviderDataSource,
+        config: HeimdallBarConfig,
         providers: [ProviderID]
     ) async throws -> [ProviderID: ProviderCostSummary] {
         var summaries = [ProviderID: ProviderCostSummary]()
         for provider in providers {
-            let response = try await client.fetchCostSummary(provider: provider)
+            let response = try await dataSource.fetchCostSummary(config: config, provider: provider)
             summaries[provider] = response.summary
         }
         return summaries

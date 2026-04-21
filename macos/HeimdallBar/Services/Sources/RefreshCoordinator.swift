@@ -9,7 +9,7 @@ public final class RefreshCoordinator {
     private let adjunctLoader: any DashboardAdjunctLoading
     private let browserSessionManager: any BrowserSessionManaging
     private let widgetSnapshotCoordinator: WidgetSnapshotCoordinator
-    private let liveProviderClientFactory: @Sendable (Int) -> any LiveProviderClient
+    private let providerDataSource: any ProviderDataSource
     private var pollTask: Task<Void, Never>?
     private var started = false
 
@@ -20,7 +20,7 @@ public final class RefreshCoordinator {
         adjunctLoader: any DashboardAdjunctLoading,
         browserSessionManager: any BrowserSessionManaging,
         widgetSnapshotCoordinator: WidgetSnapshotCoordinator,
-        liveProviderClientFactory: @escaping @Sendable (Int) -> any LiveProviderClient
+        providerDataSource: any ProviderDataSource
     ) {
         self.sessionStore = sessionStore
         self.repository = repository
@@ -28,7 +28,7 @@ public final class RefreshCoordinator {
         self.adjunctLoader = adjunctLoader
         self.browserSessionManager = browserSessionManager
         self.widgetSnapshotCoordinator = widgetSnapshotCoordinator
-        self.liveProviderClientFactory = liveProviderClientFactory
+        self.providerDataSource = providerDataSource
     }
 
     public func start() {
@@ -58,13 +58,12 @@ public final class RefreshCoordinator {
             return
         }
 
-        let client = self.liveProviderClientFactory(self.sessionStore.config.helperPort)
         do {
-            let envelope = if force {
-                try await client.refresh(provider: provider)
-            } else {
-                try await client.fetchSnapshots()
-            }
+            let envelope = try await self.providerDataSource.fetchSnapshots(
+                config: self.sessionStore.config,
+                refresh: force,
+                provider: provider
+            )
             self.repository.apply(envelope.providers, replacing: provider == nil)
             await self.loadAdjuncts(for: provider.map { [$0] } ?? self.sessionStore.visibleProviders, forceRefresh: force)
             await self.loadImportedSessions(for: provider.map { [$0] } ?? ProviderID.allCases)

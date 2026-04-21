@@ -28,7 +28,7 @@ public final class AppModel {
                 writer: environment.widgetSnapshotWriter,
                 reloader: environment.widgetReloader
             ),
-            liveProviderClientFactory: environment.liveProviderClientFactory
+            providerDataSource: environment.providerDataSource
         )
         let authCoordinator = AuthCoordinator(runner: environment.authCommandRunner)
 

@@ -159,6 +159,18 @@ public protocol SyncProviderClient: Sendable {
     func fetchSyncedSnapshots() async throws -> ProviderSnapshotEnvelope
 }
 
+public protocol ProviderDataSource: Sendable {
+    func fetchSnapshots(
+        config: HeimdallBarConfig,
+        refresh: Bool,
+        provider: ProviderID?
+    ) async throws -> ProviderSnapshotEnvelope
+    func fetchCostSummary(
+        config: HeimdallBarConfig,
+        provider: ProviderID
+    ) async throws -> CostSummaryEnvelope
+}
+
 public protocol HelperRuntime: Sendable {
     func ensureServerRunning(port: Int) async -> Bool
     func stopOwnedHelper() async
@@ -220,7 +232,7 @@ public struct HeimdallAppEnvironment: Sendable {
     public var widgetSnapshotWriter: any WidgetSnapshotWriter
     public var widgetReloader: any WidgetReloading
     public var authCommandRunner: any AuthCommandRunning
-    public var liveProviderClientFactory: @Sendable (Int) -> any LiveProviderClient
+    public var providerDataSource: any ProviderDataSource
 
     public init(
         settingsStore: any SettingsStore,
@@ -231,7 +243,7 @@ public struct HeimdallAppEnvironment: Sendable {
         widgetSnapshotWriter: any WidgetSnapshotWriter,
         widgetReloader: any WidgetReloading,
         authCommandRunner: any AuthCommandRunning,
-        liveProviderClientFactory: @escaping @Sendable (Int) -> any LiveProviderClient
+        providerDataSource: any ProviderDataSource
     ) {
         self.settingsStore = settingsStore
         self.helperRuntime = helperRuntime
@@ -241,7 +253,7 @@ public struct HeimdallAppEnvironment: Sendable {
         self.widgetSnapshotWriter = widgetSnapshotWriter
         self.widgetReloader = widgetReloader
         self.authCommandRunner = authCommandRunner
-        self.liveProviderClientFactory = liveProviderClientFactory
+        self.providerDataSource = providerDataSource
     }
 }
 
@@ -249,18 +261,18 @@ public struct HeimdallCLIDependencies: Sendable {
     public var settingsStore: any SettingsStore
     public var adjunctLoader: any DashboardAdjunctLoading
     public var authCommandRunner: any AuthCommandRunning
-    public var liveProviderClientFactory: @Sendable (Int) -> any LiveProviderClient
+    public var providerDataSource: any ProviderDataSource
 
     public init(
         settingsStore: any SettingsStore,
         adjunctLoader: any DashboardAdjunctLoading,
         authCommandRunner: any AuthCommandRunning,
-        liveProviderClientFactory: @escaping @Sendable (Int) -> any LiveProviderClient
+        providerDataSource: any ProviderDataSource
     ) {
         self.settingsStore = settingsStore
         self.adjunctLoader = adjunctLoader
         self.authCommandRunner = authCommandRunner
-        self.liveProviderClientFactory = liveProviderClientFactory
+        self.providerDataSource = providerDataSource
     }
 }
 

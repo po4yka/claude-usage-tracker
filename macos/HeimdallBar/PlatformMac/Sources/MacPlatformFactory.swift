@@ -9,7 +9,7 @@ public struct MacPlatformCompositionRoot: Sendable {
     private let widgetSnapshotWriter: any WidgetSnapshotWriter
     private let widgetReloader: any WidgetReloading
     private let authCommandRunner: any AuthCommandRunning
-    private let liveProviderClientFactory: @Sendable (Int) -> any LiveProviderClient
+    private let providerDataSource: any ProviderDataSource
 
     public init(
         settingsStore: any SettingsStore = ConfigStore.shared,
@@ -31,7 +31,7 @@ public struct MacPlatformCompositionRoot: Sendable {
         self.widgetSnapshotWriter = widgetSnapshotWriter
         self.widgetReloader = widgetReloader
         self.authCommandRunner = authCommandRunner
-        self.liveProviderClientFactory = liveProviderClientFactory
+        self.providerDataSource = LocalProviderDataSource(clientFactory: liveProviderClientFactory)
     }
 
     public func appEnvironment() -> HeimdallAppEnvironment {
@@ -44,7 +44,7 @@ public struct MacPlatformCompositionRoot: Sendable {
             widgetSnapshotWriter: self.widgetSnapshotWriter,
             widgetReloader: self.widgetReloader,
             authCommandRunner: self.authCommandRunner,
-            liveProviderClientFactory: self.liveProviderClientFactory
+            providerDataSource: self.providerDataSource
         )
     }
 
@@ -53,7 +53,7 @@ public struct MacPlatformCompositionRoot: Sendable {
             settingsStore: self.settingsStore,
             adjunctLoader: self.adjunctLoader,
             authCommandRunner: self.authCommandRunner,
-            liveProviderClientFactory: self.liveProviderClientFactory
+            providerDataSource: self.providerDataSource
         )
     }
 }
