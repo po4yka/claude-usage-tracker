@@ -6988,13 +6988,15 @@ ${row.project}` : row.project;
   }) {
     const rate = data.cache_hit_rate;
     const hasRate = rate !== null && rate !== void 0;
-    const displayPct = hasRate ? (rate * 100).toFixed(1) + "%" : "--";
+    const displayPct = hasRate ? rate >= 0.999 ? "Fully cached" : (rate * 100).toFixed(1) + "%" : "--";
     const barFill = hasRate ? Math.max(0, Math.min(1, rate)) : 0;
     const tooltipParts = [];
     if (hasRate) {
       const readM = (data.cache_read_tokens / 1e6).toFixed(2);
-      const totalM = ((data.cache_read_tokens + data.input_tokens) / 1e6).toFixed(2);
-      tooltipParts.push(`${readM}M tokens cache-read / ${totalM}M total input-addressable tokens`);
+      const totalM = ((data.cache_read_tokens + data.cache_write_tokens + data.input_tokens) / 1e6).toFixed(2);
+      tooltipParts.push(
+        `${readM}M cache reads / ${totalM}M total input-side tokens (cache reads + cache writes + fresh input)`
+      );
       if (inputRatePerMtok !== void 0 && cacheReadRatePerMtok !== void 0 && data.cache_read_tokens > 0) {
         const savedUsd = data.cache_read_tokens / 1e6 * (inputRatePerMtok - cacheReadRatePerMtok);
         tooltipParts.push(

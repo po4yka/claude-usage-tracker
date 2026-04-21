@@ -325,10 +325,17 @@ impl TokenBreakdown {
             + self.reasoning_output
     }
 
-    /// Cache hit rate = cache_read / (cache_read + input).
-    /// Returns None when the denominator is zero (no reference tokens yet).
+    /// Cache hit rate = cache_read / (cache_read + cache_creation + input).
+    /// Denominator includes cache_creation so the ratio reflects the fraction
+    /// of input-side tokens that were served from cache, not just the reuse
+    /// ratio of non-newly-cached content. The narrow formula
+    /// `cr / (cr + input)` rounds to ~100% for heavy Claude Code users
+    /// because `input` is only the uncached remainder (typically < 1% of the
+    /// total input stream); the broad formula below reads meaningfully
+    /// between 0% and 100%.
+    /// Returns None when the denominator is zero (no input-side tokens yet).
     pub fn cache_hit_rate(&self) -> Option<f64> {
-        let denom = self.cache_read + self.input;
+        let denom = self.cache_read + self.cache_creation + self.input;
         if denom <= 0 {
             return None;
         }
@@ -654,4 +661,63 @@ pub struct SessionRow {
     /// Total credits for this session (Amp only).  `None` when no Amp data.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub credits: Option<f64>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cache_hit_rate_uses_broad_denominator() {
+        // Broad formula: cache_read / (cache_read + cache_creation + input)
+        let bd = TokenBreakdown {
+            input: 10,
+            output: 99,
+            cache_read: 80,
+            cache_creation: 10,
+            reasoning_output: 0,
+        };
+        // 80 / (80 + 10 + 10) = 0.8
+        let rate = bd.cache_hit_rate().expect("denom > 0");
+        assert!((rate - 0.8).abs() < 1e-9, "expected 0.80, got {rate}");
+    }
+
+    #[test]
+    fn cache_hit_rate_fully_cached_edge_case() {
+        // The pure-cache-read edge case — no fresh input and no cache
+        // creation — still yields 1.0 (legitimately "fully cached"). The UI
+        // can render this as "Fully cached" rather than "100.0%".
+        let bd = TokenBreakdown {
+            input: 0,
+            output: 0,
+            cache_read: 1000,
+            cache_creation: 0,
+            reasoning_output: 0,
+        };
+        let rate = bd.cache_hit_rate().expect("denom > 0");
+        assert!((rate - 1.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn cache_hit_rate_none_when_empty() {
+        let bd = TokenBreakdown::default();
+        assert!(bd.cache_hit_rate().is_none());
+    }
+
+    #[test]
+    fn cache_hit_rate_drops_when_cache_creation_large() {
+        // Demonstrates the fix: with the OLD narrow formula this would be
+        // near 1.0 (1000 / (1000 + 50) = 95%), but with cache_creation
+        // counted (big first-time prompt build) the ratio is lower.
+        let bd = TokenBreakdown {
+            input: 50,
+            output: 0,
+            cache_read: 1000,
+            cache_creation: 500,
+            reasoning_output: 0,
+        };
+        let rate = bd.cache_hit_rate().expect("denom > 0");
+        // 1000 / 1550 ≈ 0.645
+        assert!(rate > 0.60 && rate < 0.70, "expected ~0.645, got {rate}");
+    }
 }

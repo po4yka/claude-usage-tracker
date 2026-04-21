@@ -10,17 +10,22 @@ interface CacheEfficiencyCardProps {
 }
 
 /**
- * Phase 21 — Cache Hit Rate card.
+ * Cache Hit Rate card.
  *
  * Shows the percentage as a large Geist Mono display number and a horizontal
  * monochrome progress bar below it.
  *
- * Formula: cache_read / (cache_read + input_tokens)
- * Displays "--" when cache_hit_rate is null (no addressable token stream).
+ * Formula: cache_read / (cache_read + cache_write + input_tokens)
  *
- * Design: Apple-Swiss refined monochrome, no colour ramp, no gradients, no shadows.
- * The bar uses --color-text-primary at 12% opacity for the track and 70%
- * opacity for the fill, matching the existing inline-bar pattern from Phase 18.
+ * Anthropic reports `input_tokens` as the uncached remainder only (typically
+ * just the latest user message), so the narrow ratio `cr / (cr + in)` rounds
+ * to ~100% for heavy Claude Code users. Including cache writes in the
+ * denominator reflects the fraction of input-side tokens actually served
+ * from cache and reads meaningfully between 0% and 100%.
+ *
+ * Displays "--" when cache_hit_rate is null (no addressable token stream)
+ * and "Fully cached" when the rate is ≥ 99.9% (legit but misleading if shown
+ * as 100.0%).
  */
 export function CacheEfficiencyCard({
   data,
@@ -30,15 +35,24 @@ export function CacheEfficiencyCard({
   const rate = data.cache_hit_rate;
   const hasRate = rate !== null && rate !== undefined;
 
-  const displayPct = hasRate ? (rate! * 100).toFixed(1) + '%' : '--';
+  const displayPct = hasRate
+    ? rate! >= 0.999
+      ? 'Fully cached'
+      : (rate! * 100).toFixed(1) + '%'
+    : '--';
   const barFill = hasRate ? Math.max(0, Math.min(1, rate!)) : 0;
 
   // Tooltip content
   const tooltipParts: string[] = [];
   if (hasRate) {
     const readM = (data.cache_read_tokens / 1_000_000).toFixed(2);
-    const totalM = ((data.cache_read_tokens + data.input_tokens) / 1_000_000).toFixed(2);
-    tooltipParts.push(`${readM}M tokens cache-read / ${totalM}M total input-addressable tokens`);
+    const totalM = (
+      (data.cache_read_tokens + data.cache_write_tokens + data.input_tokens) /
+      1_000_000
+    ).toFixed(2);
+    tooltipParts.push(
+      `${readM}M cache reads / ${totalM}M total input-side tokens (cache reads + cache writes + fresh input)`
+    );
 
     if (
       inputRatePerMtok !== undefined &&

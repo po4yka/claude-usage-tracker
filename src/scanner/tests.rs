@@ -1113,7 +1113,8 @@ mod tests {
         assert_eq!(ce.cache_read_tokens, 500); // 200 + 300
         assert_eq!(ce.cache_write_tokens, 0);
 
-        // hit_rate = 500 / (500 + 1000) = 1/3
+        // hit_rate = cache_read / (cache_read + cache_creation + input)
+        //          = 500 / (500 + 0 + 1000) = 1/3 (no cache writes in fixture)
         let rate = ce.cache_hit_rate.expect("should have a hit rate");
         assert!(
             (rate - 1.0 / 3.0).abs() < 1e-9,

@@ -1828,12 +1828,16 @@ pub fn get_dashboard_data(conn: &Connection, tz: TzParams) -> Result<DashboardDa
             agg_cache_write_cost += bd.cache_write_cost_nanos;
         }
 
-        // cache_read / (cache_read + input) when denominator > 0; else None.
-        // Denominator rationale (ROADMAP Phase 21): cache_read is the tokens we
-        // avoided re-billing; input is the tokens we still paid for; their sum
-        // is the "addressable" token stream.
-        let cache_hit_rate = if total_cache_read + total_input > 0 {
-            Some(total_cache_read as f64 / (total_cache_read + total_input) as f64)
+        // Cache hit rate = cache_read / (cache_read + cache_creation + input).
+        // Denominator rationale: Anthropic reports input_tokens as the
+        // uncached remainder only (~1% of the total input stream for heavy
+        // Claude Code users), so the narrow cr / (cr + in) ratio rounded to
+        // 100% for any continuous user. Including cache_creation in the
+        // denominator reflects the fraction of input-side tokens actually
+        // served from cache and reads meaningfully between 0% and 100%.
+        let denom = total_cache_read + total_cache_write + total_input;
+        let cache_hit_rate = if denom > 0 {
+            Some(total_cache_read as f64 / denom as f64)
         } else {
             None
         };

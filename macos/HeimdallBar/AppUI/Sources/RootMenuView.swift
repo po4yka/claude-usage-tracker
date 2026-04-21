@@ -943,8 +943,9 @@ struct CacheEfficiencyCard: View {
                     .foregroundStyle(.secondary)
                     .textCase(.uppercase)
                     .tracking(0.4)
+                    .help("Fraction of input-side tokens served from cache. Ratio is cache reads / (cache reads + cache writes + fresh input).")
                 Spacer()
-                Text(Self.percentLabel(self.hitRateToday))
+                Text(Self.rateLabel(self.hitRateToday))
                     .font(.caption.monospacedDigit().weight(.semibold))
                     .foregroundStyle(Self.tint(for: self.hitRateToday))
             }
@@ -965,7 +966,7 @@ struct CacheEfficiencyCard: View {
             .frame(height: 4)
             HStack(spacing: 8) {
                 if let thirty = self.hitRate30d {
-                    Text("30-day avg: \(Self.percentLabel(thirty))")
+                    Text("30-day avg: \(Self.rateLabel(thirty))")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
@@ -992,8 +993,15 @@ struct CacheEfficiencyCard: View {
         return String(format: "$%.2f", usd)
     }
 
-    private static func percentLabel(_ value: Double) -> String {
-        String(format: "%.1f%%", max(0, min(1, value)) * 100)
+    /// Render the hit-rate value. When the rate rounds to ≥ 99.9% show
+    /// "Fully cached" instead of "100.0%" — the number is technically
+    /// accurate but reads as "perfect optimization" which is misleading.
+    private static func rateLabel(_ value: Double) -> String {
+        let clamped = max(0, min(1, value))
+        if clamped >= 0.999 {
+            return "Fully cached"
+        }
+        return String(format: "%.1f%%", clamped * 100)
     }
 
     /// Green >= 60%, orange 30–60%, red < 30%. Matches the

@@ -34,7 +34,7 @@ describe('CacheEfficiencyCard', () => {
     };
 
     expect(vnode.props['title']).toContain(
-      '2.00M tokens cache-read / 4.00M total input-addressable tokens'
+      '2.00M cache reads / 4.00M total input-side tokens (cache reads + cache writes + fresh input)'
     );
     expect(vnode.props['title']).toContain('saved approx $5.40 vs. no-cache');
     expect(collectText(vnode)).toContain('50.0%');
