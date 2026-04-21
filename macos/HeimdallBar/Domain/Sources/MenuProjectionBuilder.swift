@@ -245,7 +245,7 @@ public enum MenuProjectionBuilder {
         switch config.resetDisplayMode {
         case .countdown:
             if let minutes = window.resetsInMinutes {
-                resetLabel = "resets in \(minutes)m"
+                resetLabel = "resets in \(Self.humanizeMinutes(minutes))"
             } else {
                 resetLabel = window.resetLabel ?? "reset unknown"
             }
@@ -487,6 +487,23 @@ public enum MenuProjectionBuilder {
         }
         return normalized
     }
+    /// Convert a minute count into a compact human-readable window:
+    /// 45 -> "45m", 225 -> "3h 45m", 1440 -> "1d", 3945 -> "2d 17h".
+    /// Keeps at most two magnitudes so the label stays short.
+    static func humanizeMinutes(_ minutes: Int) -> String {
+        if minutes < 60 {
+            return "\(minutes)m"
+        }
+        if minutes < 1440 {
+            let hours = minutes / 60
+            let mins = minutes % 60
+            return mins == 0 ? "\(hours)h" : "\(hours)h \(mins)m"
+        }
+        let days = minutes / 1440
+        let hours = (minutes % 1440) / 60
+        return hours == 0 ? "\(days)d" : "\(days)d \(hours)h"
+    }
+
     private static func paceLabel(forRemainingPercent remainingPercent: Int) -> String {
         switch remainingPercent {
         case ..<15:

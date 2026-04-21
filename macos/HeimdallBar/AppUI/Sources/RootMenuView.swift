@@ -531,6 +531,24 @@ private struct LaneStatusCard: View {
                         .font(.caption.monospacedDigit().weight(.semibold))
                 }
             }
+            if let remainingPercent = self.detail.remainingPercent {
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 2, style: .continuous)
+                            .fill(Color.primary.opacity(0.1))
+                            .frame(height: 4)
+                        RoundedRectangle(cornerRadius: 2, style: .continuous)
+                            .fill(Self.paceTint(remainingPercent: remainingPercent))
+                            .frame(
+                                width: geo.size.width
+                                    * CGFloat(max(0, min(100, 100 - remainingPercent)))
+                                    / 100,
+                                height: 4
+                            )
+                    }
+                }
+                .frame(height: 4)
+            }
             if let paceLabel = self.detail.paceLabel {
                 Text("Pace \(paceLabel.lowercased())")
                     .font(.caption2)
@@ -544,6 +562,17 @@ private struct LaneStatusCard: View {
         .padding(8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .menuCardBackground(opacity: 0.045, cornerRadius: 8)
+    }
+
+    /// Tint the progress bar by pace: comfortable green, heavy orange,
+    /// critical red. Tracks the paceLabel(forRemainingPercent:) thresholds
+    /// used in MenuProjectionBuilder.
+    private static func paceTint(remainingPercent: Int) -> Color {
+        switch remainingPercent {
+        case ..<15: return .red
+        case ..<35: return .orange
+        default: return .green
+        }
     }
 }
 
@@ -889,6 +918,8 @@ struct AuthStatusSection: View {
     let projection: ProviderMenuProjection
 
     var body: some View {
+        let isHealthy = (self.projection.authDiagnosticCode ?? "")
+            .hasPrefix("authenticated")
         if self.projection.authHeadline != nil
             || self.projection.authDetail != nil
             || !self.projection.authRecoveryActions.isEmpty
@@ -898,6 +929,11 @@ struct AuthStatusSection: View {
                     Text("Auth")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
+                    if isHealthy {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.green)
+                    }
                     Spacer()
                     if let summary = self.projection.authSummaryLabel {
                         Text(summary)
@@ -914,19 +950,26 @@ struct AuthStatusSection: View {
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
-                if let diagnostic = self.projection.authDiagnosticCode {
-                    Text("Diagnostic: \(diagnostic)")
-                        .font(.caption2.monospaced())
-                        .foregroundStyle(.secondary)
-                }
-                ForEach(self.model.authRecoveryActions) { action in
-                    Button {
-                        Task { await self.model.runAuthRecoveryAction(action) }
-                    } label: {
-                        Label(action.label, systemImage: "key.fill")
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                // Hide the developer-facing diagnostic code + recovery-action
+                // button stack when auth is healthy. The summary line and the
+                // green check above already convey the state; the recovery
+                // actions live one click away in Settings if the user wants
+                // to reach them proactively.
+                if !isHealthy {
+                    if let diagnostic = self.projection.authDiagnosticCode {
+                        Text("Diagnostic: \(diagnostic)")
+                            .font(.caption2.monospaced())
+                            .foregroundStyle(.secondary)
                     }
-                    .buttonStyle(SecondaryDashboardButtonStyle())
+                    ForEach(self.model.authRecoveryActions) { action in
+                        Button {
+                            Task { await self.model.runAuthRecoveryAction(action) }
+                        } label: {
+                            Label(action.label, systemImage: "key.fill")
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .buttonStyle(SecondaryDashboardButtonStyle())
+                    }
                 }
             }
             .padding(8)
