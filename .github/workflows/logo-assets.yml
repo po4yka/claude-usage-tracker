@@ -36,7 +36,7 @@ jobs:
         with:
           toolchain: stable
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32  # v2.9.1
         with:
           # Keyed on the logo-gen workflow so it does not clash with the main
           # Rust CI cache from ci.yml.
