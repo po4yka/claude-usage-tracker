@@ -45,17 +45,13 @@ public final class RefreshCoordinator {
     }
 
     public func refresh(force: Bool, provider: ProviderID? = nil) async {
-        self.repository.isRefreshing = true
-        self.repository.refreshingProvider = provider
-        defer {
-            self.repository.isRefreshing = false
-            self.repository.refreshingProvider = nil
-        }
+        self.repository.beginRefresh(provider: provider)
 
         let helperReady = await self.helperRuntime.ensureServerRunning(port: self.sessionStore.config.helperPort)
         guard helperReady else {
-            self.repository.lastError = "The local Heimdall server is still starting."
-            self.repository.lastRefreshCompletedAt = Date()
+            self.repository.finishRefresh(
+                issue: AppIssue(kind: .helperStartup, message: "The local Heimdall server is still starting.")
+            )
             return
         }
 
@@ -70,8 +66,7 @@ public final class RefreshCoordinator {
             await self.loadAdjuncts(for: provider.map { [$0] } ?? self.sessionStore.visibleProviders, forceRefresh: force)
             await self.loadImportedSessions(for: provider.map { [$0] } ?? ProviderID.allCases)
             self.repository.syncSelections(sessionStore: self.sessionStore)
-            self.repository.lastError = nil
-            self.repository.lastRefreshCompletedAt = Date()
+            self.repository.finishRefresh(issue: nil)
 
             do {
                 let snapshot = WidgetSnapshotBuilder.snapshot(
@@ -82,12 +77,16 @@ public final class RefreshCoordinator {
                     generatedAt: ISO8601DateFormatter().string(from: Date())
                 )
                 _ = try self.widgetSnapshotCoordinator.persist(snapshot)
+                self.repository.clearIssue(kind: .widgetPersistence)
             } catch {
-                self.repository.lastError = error.localizedDescription
+                self.repository.recordIssue(
+                    AppIssue(kind: .widgetPersistence, message: error.localizedDescription)
+                )
             }
         } catch {
-            self.repository.lastError = error.localizedDescription
-            self.repository.lastRefreshCompletedAt = Date()
+            self.repository.finishRefresh(
+                issue: AppIssue(kind: .refresh, provider: provider, message: error.localizedDescription)
+            )
         }
     }
 
@@ -100,30 +99,32 @@ public final class RefreshCoordinator {
         provider: ProviderID,
         candidate: BrowserSessionImportCandidate
     ) async {
-        self.repository.isImportingSession = true
-        defer { self.repository.isImportingSession = false }
+        self.repository.beginImport(provider: provider, resetting: false)
 
         do {
             let session = try await self.adjunctProvider.importBrowserSession(provider: provider, candidate: candidate)
             self.repository.importedSessions[provider] = session
             await self.loadAdjuncts(for: [provider], forceRefresh: true)
-            self.repository.lastError = nil
+            self.repository.finishImport(issue: nil)
         } catch {
-            self.repository.lastError = error.localizedDescription
+            self.repository.finishImport(
+                issue: AppIssue(kind: .browserImport, provider: provider, message: error.localizedDescription)
+            )
         }
     }
 
     public func resetBrowserSession(provider: ProviderID) async {
-        self.repository.isImportingSession = true
-        defer { self.repository.isImportingSession = false }
+        self.repository.beginImport(provider: provider, resetting: true)
 
         do {
             try await self.adjunctProvider.resetImportedSession(provider: provider)
             self.repository.importedSessions.removeValue(forKey: provider)
             await self.loadAdjuncts(for: [provider], forceRefresh: true)
-            self.repository.lastError = nil
+            self.repository.finishImport(issue: nil)
         } catch {
-            self.repository.lastError = error.localizedDescription
+            self.repository.finishImport(
+                issue: AppIssue(kind: .browserImport, provider: provider, message: error.localizedDescription)
+            )
         }
     }
 
@@ -154,7 +155,7 @@ public final class RefreshCoordinator {
                 forceRefresh: forceRefresh,
                 allowLiveNavigation: true
             )
-            self.repository.adjunctSnapshots[provider] = adjunct
+            self.repository.setAdjunctSnapshot(adjunct, for: provider)
         }
     }
 

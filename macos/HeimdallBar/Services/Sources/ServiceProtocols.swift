@@ -7,6 +7,148 @@ public protocol SettingsStore: Sendable {
     func validate() throws
 }
 
+public enum RefreshActivity: Sendable, Equatable {
+    case idle
+    case refreshingAll
+    case refreshingProvider(ProviderID)
+
+    public var provider: ProviderID? {
+        switch self {
+        case .idle, .refreshingAll:
+            return nil
+        case .refreshingProvider(let provider):
+            return provider
+        }
+    }
+
+    public var isRefreshing: Bool {
+        switch self {
+        case .idle:
+            return false
+        case .refreshingAll, .refreshingProvider:
+            return true
+        }
+    }
+}
+
+public enum SessionImportActivity: Sendable, Equatable {
+    case idle
+    case importing(ProviderID)
+    case resetting(ProviderID)
+
+    public var provider: ProviderID? {
+        switch self {
+        case .idle:
+            return nil
+        case .importing(let provider), .resetting(let provider):
+            return provider
+        }
+    }
+
+    public var isActive: Bool {
+        self != .idle
+    }
+}
+
+public enum AppIssueKind: String, Sendable, Equatable {
+    case helperStartup
+    case refresh
+    case settingsSave
+    case browserImport
+    case authRecovery
+    case widgetPersistence
+}
+
+public struct AppIssue: Error, Sendable, Equatable, Identifiable, LocalizedError {
+    public var kind: AppIssueKind
+    public var provider: ProviderID?
+    public var message: String
+    public var occurredAt: Date
+
+    public init(
+        kind: AppIssueKind,
+        provider: ProviderID? = nil,
+        message: String,
+        occurredAt: Date = Date()
+    ) {
+        self.kind = kind
+        self.provider = provider
+        self.message = message
+        self.occurredAt = occurredAt
+    }
+
+    public var id: String {
+        "\(self.kind.rawValue):\(self.provider?.rawValue ?? "global"):\(self.occurredAt.timeIntervalSince1970)"
+    }
+
+    public var errorDescription: String? {
+        self.message
+    }
+}
+
+public struct RefreshOperationState: Sendable, Equatable {
+    public var activity: RefreshActivity
+    public var lastCompletedAt: Date?
+    public var lastIssue: AppIssue?
+
+    public init(
+        activity: RefreshActivity = .idle,
+        lastCompletedAt: Date? = nil,
+        lastIssue: AppIssue? = nil
+    ) {
+        self.activity = activity
+        self.lastCompletedAt = lastCompletedAt
+        self.lastIssue = lastIssue
+    }
+
+    public var isRefreshing: Bool {
+        self.activity.isRefreshing
+    }
+
+    public var provider: ProviderID? {
+        self.activity.provider
+    }
+}
+
+public struct SessionImportOperationState: Sendable, Equatable {
+    public var activity: SessionImportActivity
+    public var lastIssue: AppIssue?
+
+    public init(
+        activity: SessionImportActivity = .idle,
+        lastIssue: AppIssue? = nil
+    ) {
+        self.activity = activity
+        self.lastIssue = lastIssue
+    }
+
+    public var isActive: Bool {
+        self.activity.isActive
+    }
+
+    public var provider: ProviderID? {
+        self.activity.provider
+    }
+}
+
+public struct PersistedAppSessionState: Codable, Sendable, Equatable {
+    public var selectedProvider: ProviderID
+    public var selectedMergeTab: MergeMenuTab
+
+    public init(
+        selectedProvider: ProviderID = .claude,
+        selectedMergeTab: MergeMenuTab = .overview
+    ) {
+        self.selectedProvider = selectedProvider
+        self.selectedMergeTab = selectedMergeTab
+    }
+}
+
+public protocol AppSessionStatePersisting: Sendable {
+    func loadAppSessionState() -> PersistedAppSessionState?
+    func saveAppSessionState(_ state: PersistedAppSessionState)
+}
+
 public protocol LiveProviderClient: Sendable {
     func fetchSnapshots() async throws -> ProviderSnapshotEnvelope
     func refresh(provider: ProviderID?) async throws -> ProviderSnapshotEnvelope
