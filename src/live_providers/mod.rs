@@ -541,16 +541,16 @@ where
                     });
                     available = true;
                     source_used = "oauth".into();
-                    if let Some(plan_type) = response.plan_type {
-                        if identity.is_none() {
-                            identity = Some(LiveProviderIdentity {
-                                provider: "codex".into(),
-                                account_email: None,
-                                account_organization: None,
-                                login_method: Some("chatgpt".into()),
-                                plan: Some(plan_type),
-                            });
-                        }
+                    if let Some(plan_type) = response.plan_type
+                        && identity.is_none()
+                    {
+                        identity = Some(LiveProviderIdentity {
+                            provider: "codex".into(),
+                            account_email: None,
+                            account_organization: None,
+                            login_method: Some("chatgpt".into()),
+                            plan: Some(plan_type),
+                        });
                     }
                     if let Some(rate_limit) = response.rate_limit {
                         primary = rate_limit

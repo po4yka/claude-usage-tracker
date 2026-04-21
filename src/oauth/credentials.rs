@@ -11,6 +11,7 @@ use super::models::{CredentialsFile, Identity, OAuthCredentials, Plan};
 const REFRESH_ENDPOINT: &str = "https://platform.claude.com/v1/oauth/token";
 const CLIENT_ID: &str = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
 const REFRESH_TIMEOUT: Duration = Duration::from_secs(30);
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 const KEYCHAIN_SERVICE_CANDIDATES: &[&str] = &["Claude Code-credentials", "Claude Code"];
 
 #[derive(Debug, Clone)]
@@ -28,6 +29,7 @@ pub enum ClaudeCredentialStore {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 enum KeychainStatus {
     Available,
     Missing,
@@ -89,11 +91,12 @@ pub fn load_credentials_from(path: &Path) -> Option<OAuthCredentials> {
     file.claude_ai_oauth
 }
 
+#[cfg_attr(not(any(target_os = "macos", test)), allow(dead_code))]
 fn load_credentials_from_str(contents: &str) -> Option<OAuthCredentials> {
-    if let Ok(file) = serde_json::from_str::<CredentialsFile>(contents) {
-        if file.claude_ai_oauth.is_some() {
-            return file.claude_ai_oauth;
-        }
+    if let Ok(file) = serde_json::from_str::<CredentialsFile>(contents)
+        && file.claude_ai_oauth.is_some()
+    {
+        return file.claude_ai_oauth;
     }
     serde_json::from_str::<OAuthCredentials>(contents).ok()
 }
@@ -416,6 +419,7 @@ fn oauth_health(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn auth_health(
     login_method: Option<String>,
     credential_backend: Option<String>,

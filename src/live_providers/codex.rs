@@ -628,10 +628,11 @@ pub fn build_auth_health(
         } else {
             None
         }
-    } else if let Some(workspace_id) = &config.forced_chatgpt_workspace_id {
-        Some(format!("forced_chatgpt_workspace_id={workspace_id}"))
     } else {
-        None
+        config
+            .forced_chatgpt_workspace_id
+            .as_ref()
+            .map(|workspace_id| format!("forced_chatgpt_workspace_id={workspace_id}"))
     };
 
     let is_refreshable = auth
@@ -735,7 +736,7 @@ fn decode_jwt_payload(token: &str) -> Result<Value> {
 
 fn decode_base64url(input: &str) -> Result<Vec<u8>> {
     let mut normalized = input.replace('-', "+").replace('_', "/");
-    while normalized.len() % 4 != 0 {
+    while !normalized.len().is_multiple_of(4) {
         normalized.push('=');
     }
     base64_decode(&normalized)
