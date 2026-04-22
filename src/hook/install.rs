@@ -87,13 +87,13 @@ pub fn install_into(
     // Ensure hooks.PreToolUse array exists and append.
     let hooks = root
         .as_object_mut()
-        .unwrap()
+        .context("settings.json root must be an object")?
         .entry("hooks")
         .or_insert_with(|| serde_json::json!({}));
 
     let pre_tool_use = hooks
         .as_object_mut()
-        .unwrap()
+        .context("hooks must be an object")?
         .entry("PreToolUse")
         .or_insert_with(|| serde_json::json!([]));
 
@@ -268,6 +268,41 @@ mod tests {
         let v: serde_json::Value = serde_json::from_str(&content).unwrap();
         // Only one entry should exist.
         assert_eq!(v["hooks"]["PreToolUse"].as_array().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn install_rejects_non_object_root() {
+        let dir = TempDir::new().unwrap();
+        let settings = tmp_settings(&dir);
+        let bin = hook_bin(&dir);
+
+        std::fs::write(&settings, "[]").unwrap();
+
+        let error = install_into(&settings, &bin).unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("settings.json root must be an object")
+        );
+    }
+
+    #[test]
+    fn install_rejects_non_object_hooks_value() {
+        let dir = TempDir::new().unwrap();
+        let settings = tmp_settings(&dir);
+        let bin = hook_bin(&dir);
+
+        std::fs::write(
+            &settings,
+            serde_json::to_string_pretty(&serde_json::json!({
+                "hooks": []
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+
+        let error = install_into(&settings, &bin).unwrap_err();
+        assert!(error.to_string().contains("hooks must be an object"));
     }
 
     #[test]
