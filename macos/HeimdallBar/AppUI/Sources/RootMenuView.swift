@@ -219,11 +219,16 @@ struct ProviderMenuCard: View {
             }
             if !projection.dailyCosts.isEmpty {
                 DailyCostChart(daily: projection.dailyCosts)
+                CacheHitTrendChart(daily: projection.dailyCosts)
+                CumulativeSpendChart(daily: projection.dailyCosts)
             }
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(projection.costLabel)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                if projection.historyFractions.count >= 2 {
+                    SpendSparkline(fractions: projection.historyFractions)
+                }
                 if let trend = projection.spendTrendDirection {
                     Image(systemName: Self.trendIcon(trend))
                         .font(.caption2.weight(.semibold))
@@ -406,6 +411,9 @@ struct OverviewMenuCard: View {
                 OverviewProviderCard(model: self.providerModel(item.provider), item: item)
             }
             OverviewSummaryCard(projection: self.projection)
+            if self.projection.items.count >= 2 {
+                ProviderComparisonChart(items: self.projection.items)
+            }
         }
         .padding(10)
         .menuCardBackground(opacity: 0.03, cornerRadius: 14)
