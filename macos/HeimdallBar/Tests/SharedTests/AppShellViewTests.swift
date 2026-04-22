@@ -334,6 +334,190 @@ struct AppShellViewTests {
     }
 
     @Test
+    func windowOverviewWeeklyProjectionAggregatesProjectedAndActualBurnAcrossProviders() {
+        let claude = self.makeProjection(
+            laneDetails: [
+                LaneDetailProjection(
+                    title: "Session",
+                    summary: "Session: 94% left",
+                    remainingPercent: 94,
+                    resetDetail: "resets in 4h",
+                    paceLabel: "Comfortable",
+                    resetMinutes: 240,
+                    windowMinutes: 300
+                ),
+                LaneDetailProjection(
+                    title: "Weekly",
+                    summary: "Weekly: 38% left",
+                    remainingPercent: 38,
+                    resetDetail: "resets in 1d 6h",
+                    paceLabel: "Critical",
+                    resetMinutes: 1_800,
+                    windowMinutes: 10_080
+                ),
+            ],
+            title: "Claude",
+            provider: .claude,
+            weeklyProjectedCostUSD: 1_400
+        )
+        let codex = self.makeProjection(
+            laneDetails: [
+                LaneDetailProjection(
+                    title: "Session",
+                    summary: "Session: 88% left",
+                    remainingPercent: 88,
+                    resetDetail: "resets in 3h",
+                    paceLabel: "Comfortable",
+                    resetMinutes: 180,
+                    windowMinutes: 300
+                ),
+                LaneDetailProjection(
+                    title: "Weekly",
+                    summary: "Weekly: 72% left",
+                    remainingPercent: 72,
+                    resetDetail: "resets in 2d 4h",
+                    paceLabel: "Stable",
+                    resetMinutes: 3_120,
+                    windowMinutes: 10_080
+                ),
+            ],
+            title: "Codex",
+            provider: .codex,
+            weeklyProjectedCostUSD: 560
+        )
+
+        let model = WindowOverviewWeeklyProjectionModel.make(items: [claude, codex])
+
+        #expect(model?.projectedCostUSD == 1_960)
+        #expect(model?.actualCostUSD == 1_536.6666666666667)
+        #expect(model?.elapsedFraction == 0.7840136054421769)
+        #expect(model?.providerCount == 2)
+        #expect(model?.leadProviderTitle == "Claude")
+        #expect(model?.projectedLabel == "$1,960.00")
+        #expect(model?.actualLabel == "$1,536.67")
+    }
+
+    @Test
+    func windowOverviewDesktopAnalyticsAggregatesHeatmapModelMixAndRecentSessions() {
+        let claude = self.makeProjection(
+            laneDetails: [],
+            title: "Claude",
+            provider: .claude,
+            byModel: [
+                ProviderModelRow(
+                    model: "claude-sonnet-4-5",
+                    costUSD: 42,
+                    input: 12_000,
+                    output: 5_000,
+                    cacheRead: 88_000,
+                    cacheCreation: 2_000,
+                    reasoningOutput: 800,
+                    turns: 31
+                ),
+                ProviderModelRow(
+                    model: "claude-haiku-3-5",
+                    costUSD: 8,
+                    input: 4_000,
+                    output: 1_200,
+                    cacheRead: 15_000,
+                    cacheCreation: 600,
+                    reasoningOutput: 0,
+                    turns: 14
+                ),
+            ],
+            activityHeatmap: [
+                ProviderHeatmapCell(dayOfWeek: 1, hour: 9, turns: 7),
+                ProviderHeatmapCell(dayOfWeek: 2, hour: 14, turns: 4),
+            ],
+            recentSessions: [
+                ProviderSession(
+                    sessionID: "claude-1",
+                    displayName: "parser.rs",
+                    startedAt: "2026-04-22T10:15:00Z",
+                    durationMinutes: 42,
+                    turns: 22,
+                    costUSD: 5.4,
+                    model: "claude-sonnet-4-5"
+                ),
+            ]
+        )
+        let codex = self.makeProjection(
+            laneDetails: [],
+            title: "Codex",
+            provider: .codex,
+            byModel: [
+                ProviderModelRow(
+                    model: "claude-sonnet-4-5",
+                    costUSD: 18,
+                    input: 3_000,
+                    output: 900,
+                    cacheRead: 14_000,
+                    cacheCreation: 500,
+                    reasoningOutput: 0,
+                    turns: 11
+                ),
+                ProviderModelRow(
+                    model: "gpt-5",
+                    costUSD: 12,
+                    input: 5_000,
+                    output: 2_000,
+                    cacheRead: 0,
+                    cacheCreation: 0,
+                    reasoningOutput: 2_100,
+                    turns: 9
+                ),
+            ],
+            activityHeatmap: [
+                ProviderHeatmapCell(dayOfWeek: 1, hour: 9, turns: 5),
+                ProviderHeatmapCell(dayOfWeek: 4, hour: 18, turns: 6),
+            ],
+            recentSessions: [
+                ProviderSession(
+                    sessionID: "codex-1",
+                    displayName: "pricing.rs",
+                    startedAt: "2026-04-22T11:30:00Z",
+                    durationMinutes: 18,
+                    turns: 9,
+                    costUSD: 1.2,
+                    model: "gpt-5"
+                ),
+            ]
+        )
+
+        let analytics = WindowOverviewDesktopAnalyticsModel.make(
+            projection: OverviewMenuProjection(
+                items: [claude, codex],
+                combinedCostLabel: "Combined today: $8.00",
+                combinedTodayCostUSD: 8,
+                refreshedAtLabel: "Updated right now",
+                activitySummaryLabel: "Across two providers",
+                historyFractions: [0.2, 0.4, 1.0, 0.3, 0.1, 0.0, 0.25],
+                warningLabels: [],
+                isShowingCachedData: false,
+                isRefreshing: false,
+                refreshStatusLabel: "Updated right now",
+                globalIssueLabel: nil
+            )
+        )
+
+        #expect(analytics.showsHeatmap)
+        #expect(analytics.showsModelMix)
+        #expect(analytics.showsRecentSessions)
+        #expect(analytics.modelRows.map(\.model) == ["claude-sonnet-4-5", "gpt-5", "claude-haiku-3-5"])
+        #expect(analytics.modelRows.first?.costUSD == 60)
+        #expect(analytics.modelRows.first?.turns == 42)
+        #expect(analytics.heatmapCells == [
+            ProviderHeatmapCell(dayOfWeek: 1, hour: 9, turns: 12),
+            ProviderHeatmapCell(dayOfWeek: 2, hour: 14, turns: 4),
+            ProviderHeatmapCell(dayOfWeek: 4, hour: 18, turns: 6),
+        ])
+        #expect(analytics.recentSessions.map(\.displayName) == [
+            "Codex · pricing.rs",
+            "Claude · parser.rs",
+        ])
+    }
+
+    @Test
     func providerStateBadgeDescriptorUsesIconsInsteadOfColorOnlyCues() {
         #expect(ProviderStateBadgeDescriptor.make(state: .healthy).symbolName == "checkmark.circle.fill")
         #expect(ProviderStateBadgeDescriptor.make(state: .degraded).symbolName == "exclamationmark.triangle.fill")
@@ -350,6 +534,8 @@ struct AppShellViewTests {
 
     private func makeProjection(
         laneDetails: [LaneDetailProjection],
+        title: String = "Codex",
+        provider: ProviderID = .codex,
         sourceLabel: String = "Source: cli",
         isShowingCachedData: Bool = false,
         authHeadline: String? = nil,
@@ -361,11 +547,15 @@ struct AppShellViewTests {
         last30DaysBreakdown: TokenBreakdown? = TokenBreakdown(input: 90_000, output: 44_000, cacheRead: 210_000),
         cacheHitRateToday: Double? = 0.54,
         cacheHitRate30d: Double? = 0.49,
-        cacheSavings30dUSD: Double? = 18.25
+        cacheSavings30dUSD: Double? = 18.25,
+        weeklyProjectedCostUSD: Double? = nil,
+        byModel: [ProviderModelRow] = [],
+        activityHeatmap: [ProviderHeatmapCell] = [],
+        recentSessions: [ProviderSession] = []
     ) -> ProviderMenuProjection {
         ProviderMenuProjection(
-            provider: .codex,
-            title: "Codex",
+            provider: provider,
+            title: title,
             sourceLabel: sourceLabel,
             sourceExplanationLabel: nil,
             authHeadline: authHeadline,
@@ -400,16 +590,16 @@ struct AppShellViewTests {
             cacheHitRateToday: cacheHitRateToday,
             cacheHitRate30d: cacheHitRate30d,
             cacheSavings30dUSD: cacheSavings30dUSD,
-            weeklyProjectedCostUSD: nil,
+            weeklyProjectedCostUSD: weeklyProjectedCostUSD,
             spendTrendDirection: nil,
             dailyCosts: [],
-            byModel: [],
+            byModel: byModel,
             byProject: [],
             byTool: [],
             byMcp: [],
             hourlyActivity: [],
-            activityHeatmap: [],
-            recentSessions: [],
+            activityHeatmap: activityHeatmap,
+            recentSessions: recentSessions,
             subagentBreakdown: nil,
             versionBreakdown: []
         )

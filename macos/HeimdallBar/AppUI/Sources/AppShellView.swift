@@ -254,7 +254,7 @@ private struct WindowOverviewActivitySection: View {
     }
 }
 
-private struct WindowOverviewDesktopAnalyticsModel {
+struct WindowOverviewDesktopAnalyticsModel {
     let providerComparisonItems: [ProviderMenuProjection]
     let heatmapCells: [ProviderHeatmapCell]
     let modelRows: [ProviderModelRow]
@@ -478,7 +478,7 @@ private struct WindowOverviewHistoryCard: View {
     }
 }
 
-private struct WindowOverviewWeeklyProjectionModel: Equatable {
+struct WindowOverviewWeeklyProjectionModel: Equatable {
     let actualCostUSD: Double
     let projectedCostUSD: Double
     let elapsedFraction: Double
