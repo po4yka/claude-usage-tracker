@@ -19,9 +19,15 @@ struct SpendSparkline: View {
             EmptyView()
         } else {
             let entries = Self.entries(from: self.fractions)
+            let averageFraction = Self.averageFraction(from: entries)
             let lastIndex = entries[entries.count - 1].index
             let lastFraction = entries[entries.count - 1].fraction
             Chart {
+                if let averageFraction {
+                    RuleMark(y: .value("Average", averageFraction))
+                        .foregroundStyle(Color.primary.opacity(0.16))
+                        .lineStyle(StrokeStyle(lineWidth: 1, dash: [2, 2]))
+                }
                 ForEach(entries) { entry in
                     AreaMark(
                         x: .value("Day", entry.index),
@@ -38,6 +44,14 @@ struct SpendSparkline: View {
                     .foregroundStyle(ChartStyle.lineStroke)
                     .lineStyle(StrokeStyle(lineWidth: 1.0, lineCap: .round, lineJoin: .round))
                     .interpolationMethod(.monotone)
+                }
+                if let firstEntry = entries.first {
+                    PointMark(
+                        x: .value("Start", firstEntry.index),
+                        y: .value("Fraction", firstEntry.fraction)
+                    )
+                    .foregroundStyle(Color.primary.opacity(0.45))
+                    .symbolSize(10)
                 }
                 PointMark(
                     x: .value("Day", lastIndex),
@@ -56,6 +70,7 @@ struct SpendSparkline: View {
             .frame(width: self.width, height: self.height)
             .help(Self.tooltip(for: entries))
             .accessibilityLabel("Spend sparkline, last \(self.fractions.count) days")
+            .accessibilityValue(Self.summary(for: entries))
         }
     }
 
@@ -66,12 +81,37 @@ struct SpendSparkline: View {
     }
 
     nonisolated static func tooltip(for entries: [Entry]) -> String {
+        let summary = Self.summary(for: entries)
         let labels = ChartDayLabels.lastNDays(entries.count)
-        return entries.enumerated().map { offset, entry in
+        let detail = entries.enumerated().map { offset, entry in
             let label = offset == entries.count - 1 ? "Today" : labels[offset]
             return "\(label): \(Int((entry.fraction * 100).rounded()))% of peak"
         }
         .joined(separator: "\n")
+        return [summary, detail].joined(separator: "\n")
+    }
+
+    nonisolated static func averageFraction(from entries: [Entry]) -> Double? {
+        guard !entries.isEmpty else { return nil }
+        return entries.reduce(0.0) { $0 + $1.fraction } / Double(entries.count)
+    }
+
+    nonisolated static func summary(for entries: [Entry]) -> String {
+        guard
+            let first = entries.first,
+            let last = entries.last,
+            let average = Self.averageFraction(from: entries)
+        else {
+            return ""
+        }
+        let deltaPoints = (last.fraction - first.fraction) * 100
+        let deltaLabel: String
+        if abs(deltaPoints) < 0.5 {
+            deltaLabel = "flat vs start"
+        } else {
+            deltaLabel = String(format: "%@%.0f pt vs start", deltaPoints >= 0 ? "+" : "-", abs(deltaPoints))
+        }
+        return "Today \(Int((last.fraction * 100).rounded()))% of peak; avg \(Int((average * 100).rounded()))%; \(deltaLabel)"
     }
 }
 

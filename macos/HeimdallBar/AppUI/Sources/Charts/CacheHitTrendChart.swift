@@ -16,12 +16,20 @@ struct CacheHitTrendChart: View {
         var id: Date { self.day }
     }
 
+    struct TrendEntry: Identifiable, Hashable {
+        let day: Date
+        let rate: Double
+        var id: Date { self.day }
+    }
+
     var body: some View {
         let entries = Self.entries(from: self.daily)
+        let movingAverage = Self.movingAverageEntries(from: entries)
+        let averageRate = Self.averageRate(from: entries)
         VStack(alignment: .leading, spacing: 6) {
             ChartHeader(
                 title: "Cache hit rate, 30 days",
-                caption: "Higher is better. Ratio uses cache reads vs. input + cache writes."
+                caption: "Higher is better. Dashed line = 7-day average; horizontal rule = 30-day average."
             )
             if entries.count < 2 {
                 Text("Cache hit rate is not available yet.")
@@ -29,8 +37,8 @@ struct CacheHitTrendChart: View {
                     .foregroundStyle(.secondary)
                     .padding(.vertical, 12)
             } else {
-                self.chart(entries: entries)
-                    .frame(height: 72)
+                self.chart(entries: entries, movingAverage: movingAverage, averageRate: averageRate)
+                    .frame(height: 84)
             }
         }
         .padding(8)
@@ -42,10 +50,13 @@ struct CacheHitTrendChart: View {
         .accessibilityLabel("Cache hit rate, last \(entries.count) days")
     }
 
-    private func chart(entries: [Entry]) -> some View {
+    private func chart(entries: [Entry], movingAverage: [TrendEntry], averageRate: Double?) -> some View {
         let lastDay = entries.last?.day
         let selectedEntry = self.selectedDay.flatMap { Self.nearestEntry(to: $0, in: entries) }
         let selectedIndex = selectedEntry.flatMap { entries.firstIndex(of: $0) }
+        let selectedAverage = selectedEntry.flatMap { entry in
+            movingAverage.first(where: { $0.day == entry.day })
+        }
         return Chart {
             ForEach(entries) { entry in
                 AreaMark(
@@ -64,6 +75,20 @@ struct CacheHitTrendChart: View {
                 .lineStyle(StrokeStyle(lineWidth: ChartStyle.lineWidth, lineCap: .round, lineJoin: .round))
                 .interpolationMethod(.monotone)
             }
+            ForEach(movingAverage) { entry in
+                LineMark(
+                    x: .value("Day", entry.day),
+                    y: .value("7-day average", entry.rate)
+                )
+                .foregroundStyle(ChartStyle.secondaryLineStroke)
+                .lineStyle(StrokeStyle(lineWidth: ChartStyle.secondaryLineWidth, lineCap: .round, lineJoin: .round, dash: [4, 3]))
+                .interpolationMethod(.monotone)
+            }
+            if let averageRate {
+                RuleMark(y: .value("Average rate", averageRate))
+                    .foregroundStyle(ChartStyle.referenceRuleStroke)
+                    .lineStyle(StrokeStyle(lineWidth: ChartStyle.referenceRuleWidth, dash: [2, 3]))
+            }
             if let lastDay = lastDay {
                 RuleMark(x: .value("Last", lastDay))
                     .foregroundStyle(ChartStyle.todayRuleStroke)
@@ -71,8 +96,11 @@ struct CacheHitTrendChart: View {
             }
             if let selectedEntry, let selectedIndex {
                 RuleMark(x: .value("Selected day", selectedEntry.day))
-                    .foregroundStyle(Color.primary.opacity(0.3))
+                    .foregroundStyle(Color.primary.opacity(0.34))
                     .lineStyle(StrokeStyle(lineWidth: 1))
+                RuleMark(y: .value("Selected rate", selectedEntry.rate))
+                    .foregroundStyle(Color.primary.opacity(0.16))
+                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [2, 3]))
                     .annotation(
                         position: ChartStyle.inspectorPlacement(index: selectedIndex, totalCount: entries.count).annotationPosition,
                         spacing: 6,
@@ -80,7 +108,11 @@ struct CacheHitTrendChart: View {
                     ) {
                         ChartInspectorCard(
                             title: Self.axisFormatter.string(from: selectedEntry.day),
-                            lines: [String(format: "%.1f%%", selectedEntry.rate * 100)]
+                            lines: Self.inspectorLines(
+                                for: selectedEntry,
+                                movingAverage: selectedAverage,
+                                averageRate: averageRate
+                            )
                         )
                     }
 
@@ -108,7 +140,7 @@ struct CacheHitTrendChart: View {
             }
         }
         .chartPlotStyle { plot in
-            plot.background(Color.clear)
+            ChartStyle.framedPlot(plot, verticalPadding: 4)
         }
         .chartOverlay { proxy in
             GeometryReader { geometry in
@@ -172,7 +204,49 @@ struct CacheHitTrendChart: View {
         }
     }
 
-    nonisolated(unsafe) private static let dayFormatter: DateFormatter = {
+    nonisolated static func movingAverageEntries(from entries: [Entry], windowSize: Int = 7) -> [TrendEntry] {
+        guard windowSize > 0 else { return [] }
+        return entries.indices.map { index in
+            let start = max(0, index - (windowSize - 1))
+            let window = entries[start...index]
+            let average = window.reduce(0.0) { $0 + $1.rate } / Double(window.count)
+            return TrendEntry(day: entries[index].day, rate: average)
+        }
+    }
+
+    nonisolated static func averageRate(from entries: [Entry]) -> Double? {
+        guard !entries.isEmpty else { return nil }
+        return entries.reduce(0.0) { $0 + $1.rate } / Double(entries.count)
+    }
+
+    nonisolated static func inspectorLines(
+        for entry: Entry,
+        movingAverage: TrendEntry?,
+        averageRate: Double?
+    ) -> [String] {
+        var lines = [Self.rateLabel(entry.rate)]
+        if let movingAverage {
+            lines.append("7d avg \(Self.rateLabel(movingAverage.rate))")
+        }
+        if let averageRate {
+            lines.append(Self.rateDeltaLabel(entry.rate - averageRate, suffix: "vs window avg"))
+        }
+        return lines
+    }
+
+    nonisolated private static func rateLabel(_ rate: Double) -> String {
+        String(format: "%.1f%%", rate * 100)
+    }
+
+    nonisolated private static func rateDeltaLabel(_ delta: Double, suffix: String) -> String {
+        let points = delta * 100
+        if abs(points) < 0.05 {
+            return "Flat \(suffix)"
+        }
+        return String(format: "%@%.1f pt %@", points >= 0 ? "+" : "-", abs(points), suffix)
+    }
+
+    private static let dayFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         formatter.timeZone = TimeZone(secondsFromGMT: 0)
@@ -180,7 +254,7 @@ struct CacheHitTrendChart: View {
         return formatter
     }()
 
-    nonisolated(unsafe) private static let axisFormatter: DateFormatter = {
+    private static let axisFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "MMM d"
         return formatter

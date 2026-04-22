@@ -20,18 +20,35 @@ struct TokenStackChart: View {
         var id: String { "\(self.dayIndex)-\(self.category.label)" }
     }
 
+    struct Summary: Equatable {
+        let totalTokens: Int
+        let averageDailyTokens: Int
+        let peakDayIndex: Int
+        let peakDayTotal: Int
+        let todayTotal: Int
+    }
+
     var body: some View {
         let entries = Self.entries(from: self.breakdowns)
+        let summary = Self.summary(from: self.breakdowns)
         VStack(alignment: .leading, spacing: 6) {
             if self.showsHeader {
                 ChartHeader(
                     title: "Usage history",
-                    caption: "Daily spend by category, last 7 days."
+                    caption: "Absolute daily token totals with per-category mix."
                 )
             }
-            self.chart(entries: entries)
-                .frame(height: 48)
-                .help(Self.tooltip(for: self.breakdowns))
+            if !entries.isEmpty, let summary {
+                self.summaryRow(summary)
+                self.chart(entries: entries, summary: summary)
+                    .frame(height: 76)
+                    .help(Self.tooltip(for: self.breakdowns))
+            } else {
+                Text("No token breakdown yet.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .padding(.vertical, 12)
+            }
         }
         .padding(8)
         .menuCardBackground(
@@ -42,12 +59,13 @@ struct TokenStackChart: View {
         .accessibilityLabel("Usage history by category, last \(self.breakdowns.count) days")
     }
 
-    private func chart(entries: [Entry]) -> some View {
+    private func chart(entries: [Entry], summary: Summary) -> some View {
         let labels = Self.dayLabels(count: self.breakdowns.count)
         let selectedBreakdown = self.selectedDayIndex.flatMap { index -> (Int, TokenBreakdown)? in
             guard self.breakdowns.indices.contains(index) else { return nil }
             return (index, self.breakdowns[index])
         }
+        let yAxisMarks = Self.yAxisMarks(maxTotal: summary.peakDayTotal)
         return Chart {
             ForEach(entries) { entry in
                 BarMark(
@@ -75,12 +93,25 @@ struct TokenStackChart: View {
                     }
             }
         }
+        .chartYScale(domain: 0...Double(max(summary.peakDayTotal, 1)) * 1.1)
         .chartForegroundStyleScale(
             domain: TokenCategory.orderedForStack.map(\.label),
             range: ChartStyle.categoryScale
         )
         .chartLegend(.hidden)
-        .chartYAxis(.hidden)
+        .chartYAxis {
+            AxisMarks(position: .trailing, values: yAxisMarks) { value in
+                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
+                    .foregroundStyle(Color.primary.opacity(0.08))
+                AxisValueLabel {
+                    if let tokens = value.as(Int.self) {
+                        Text(Self.compactTokenCount(tokens))
+                            .font(.system(size: 8).monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
         .chartXAxis {
             AxisMarks(values: Array(Set(entries.map(\.dayIndex))).sorted()) { value in
                 AxisValueLabel {
@@ -138,6 +169,50 @@ struct TokenStackChart: View {
         .animation(ChartStyle.hoverAnimation, value: self.selectedDayIndex)
     }
 
+    private func summaryRow(_ summary: Summary) -> some View {
+        HStack(spacing: 6) {
+            self.summaryMetric(
+                label: "Window",
+                value: Self.compactTokenCount(summary.totalTokens),
+                detail: "7-day total"
+            )
+            self.summaryMetric(
+                label: "Peak",
+                value: Self.dayLabels(count: self.breakdowns.count)[safe: summary.peakDayIndex] ?? "Day",
+                detail: Self.compactTokenCount(summary.peakDayTotal)
+            )
+            self.summaryMetric(
+                label: "Today",
+                value: Self.compactTokenCount(summary.todayTotal),
+                detail: "Avg \(Self.compactTokenCount(summary.averageDailyTokens))/day"
+            )
+        }
+    }
+
+    private func summaryMetric(label: String, value: String, detail: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label.uppercased())
+                .font(.system(size: 8, weight: .bold))
+                .tracking(0.5)
+                .foregroundStyle(Color.primary.opacity(0.48))
+            Text(value)
+                .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+            Text(detail)
+                .font(.system(size: 8))
+                .foregroundStyle(Color.primary.opacity(0.55))
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 7)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(Color.primary.opacity(0.045))
+        )
+    }
+
     nonisolated static func entries(from breakdowns: [TokenBreakdown]) -> [Entry] {
         let labels = Self.dayLabels(count: breakdowns.count)
         var result: [Entry] = []
@@ -172,17 +247,40 @@ struct TokenStackChart: View {
                 return "\(category.shortLabel) \(Self.compactTokenCount(tokens))"
             }
             .joined(separator: " · ")
-            return detail.isEmpty ? "\(label): no tokens" : "\(label): \(detail)"
+            let total = Self.compactTokenCount(breakdown.total)
+            return detail.isEmpty ? "\(label): no tokens" : "\(label): \(total) total · \(detail)"
         }
         .joined(separator: "\n")
     }
 
     nonisolated static func inspectorLines(for breakdown: TokenBreakdown) -> [String] {
-        TokenCategory.orderedForStack.compactMap { category in
+        let total = max(breakdown.total, 1)
+        return ["Total \(Self.compactTokenCount(breakdown.total))"] + TokenCategory.orderedForStack.compactMap { category in
             let tokens = category.value(for: breakdown)
             guard tokens > 0 else { return nil }
-            return "\(category.shortLabel) \(Self.compactTokenCount(tokens))"
+            return "\(category.shortLabel) \(Self.compactTokenCount(tokens)) · \(Self.percentLabel(Double(tokens) / Double(total)))"
         }
+    }
+
+    nonisolated static func summary(from breakdowns: [TokenBreakdown]) -> Summary? {
+        guard !breakdowns.isEmpty else { return nil }
+        let totals = breakdowns.map(\.total)
+        let totalTokens = totals.reduce(0, +)
+        let peakDayIndex = totals.enumerated().max(by: { $0.element < $1.element })?.offset ?? 0
+        let peakDayTotal = totals[safe: peakDayIndex] ?? 0
+        return Summary(
+            totalTokens: totalTokens,
+            averageDailyTokens: breakdowns.isEmpty ? 0 : totalTokens / breakdowns.count,
+            peakDayIndex: peakDayIndex,
+            peakDayTotal: peakDayTotal,
+            todayTotal: totals.last ?? 0
+        )
+    }
+
+    nonisolated static func yAxisMarks(maxTotal: Int) -> [Int] {
+        let peak = max(maxTotal, 1)
+        let midpoint = max(peak / 2, 1)
+        return Array(Set([0, midpoint, peak])).sorted()
     }
 
     nonisolated private static func dayLabels(count: Int) -> [String] {
@@ -205,6 +303,10 @@ struct TokenStackChart: View {
             return String(format: "%.1fK", value / 1_000)
         }
         return "\(count)"
+    }
+
+    nonisolated private static func percentLabel(_ value: Double) -> String {
+        String(format: "%.0f%%", max(0, min(1, value)) * 100)
     }
 }
 

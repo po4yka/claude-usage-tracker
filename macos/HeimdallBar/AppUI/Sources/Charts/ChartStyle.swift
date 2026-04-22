@@ -20,8 +20,15 @@ enum ChartStyle {
     static let areaFill: Color = Color.primary.opacity(0.08)
     static let lineStroke: Color = Color.primary.opacity(0.78)
     static let lineWidth: CGFloat = 1.5
+    static let secondaryLineStroke: Color = Color.primary.opacity(0.42)
+    static let secondaryLineWidth: CGFloat = 1
+    static let referenceRuleStroke: Color = Color.primary.opacity(0.22)
+    static let referenceRuleWidth: CGFloat = 1
     static let todayRuleStroke: Color = Color.accentColor.opacity(0.55)
     static let todayRuleWidth: CGFloat = 2
+    static let plotFill: Color = Color.primary.opacity(0.025)
+    static let plotStroke: Color = Color.primary.opacity(0.08)
+    static let plotCornerRadius: CGFloat = 10
 
     static let animation: Animation = .smooth(duration: 0.2)
     static let hoverAnimation: Animation = .easeOut(duration: 0.14)
@@ -55,6 +62,26 @@ enum ChartStyle {
         withAnimation(Self.hoverAnimation) {
             selection = newValue
         }
+    }
+
+    @ViewBuilder
+    static func framedPlot<Plot: View>(
+        _ plot: Plot,
+        horizontalPadding: CGFloat = 0,
+        verticalPadding: CGFloat = 0,
+        cornerRadius: CGFloat = ChartStyle.plotCornerRadius
+    ) -> some View {
+        plot
+            .padding(.horizontal, horizontalPadding)
+            .padding(.vertical, verticalPadding)
+            .background(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(Self.plotFill)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(Self.plotStroke, lineWidth: 1)
+            )
     }
 }
 

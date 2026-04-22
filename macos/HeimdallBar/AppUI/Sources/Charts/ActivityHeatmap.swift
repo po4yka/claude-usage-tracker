@@ -7,7 +7,7 @@ import SwiftUI
 struct ActivityHeatmap: View {
     let cells: [ProviderHeatmapCell]
 
-    private static let dayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    nonisolated private static let dayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
     private static let hourTicks = [0, 6, 12, 18, 23]
     private static let dayLabelWidth: CGFloat = 30
     private static let cellSpacing: CGFloat = 3
@@ -20,14 +20,31 @@ struct ActivityHeatmap: View {
         let peakHour: Int
     }
 
+    struct IntensityScale: Equatable {
+        struct Level: Equatable, Identifiable {
+            let threshold: Int
+            let opacity: Double
+
+            var id: Int { self.threshold * 100 + Int(self.opacity * 100) }
+        }
+
+        let levels: [Level]
+
+        func opacity(for turns: Int) -> Double {
+            guard turns > 0 else { return 0.04 }
+            return self.levels.last(where: { turns >= $0.threshold })?.opacity ?? 0.14
+        }
+    }
+
     var body: some View {
         let grid = Self.lookup(self.cells)
         let maxTurns = grid.flatMap { $0 }.max() ?? 0
         let summary = Self.summary(from: grid)
+        let scale = Self.intensityScale(for: grid)
         VStack(alignment: .leading, spacing: 6) {
             ChartHeader(
                 title: "Activity heatmap · 30 days",
-                caption: "Brighter cells = more turns.",
+                caption: "Stepped opacity scale keeps quieter hours visible.",
                 trailing: summary.map { summary in
                     AnyView(
                         Text("\(summary.totalTurns) turns")
@@ -42,7 +59,7 @@ struct ActivityHeatmap: View {
                     .foregroundStyle(.secondary)
                     .padding(.vertical, 12)
             } else {
-                self.heatmapGrid(grid: grid, maxTurns: maxTurns, summary: summary)
+                self.heatmapGrid(grid: grid, summary: summary, scale: scale)
             }
         }
         .padding(8)
@@ -56,12 +73,14 @@ struct ActivityHeatmap: View {
     }
 
     @ViewBuilder
-    private func heatmapGrid(grid: [[Int]], maxTurns: Int, summary: Summary?) -> some View {
+    private func heatmapGrid(grid: [[Int]], summary: Summary?, scale: IntensityScale) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             if let summary {
                 self.summaryRow(summary)
                     .padding(.bottom, 4)
             }
+            self.legendRow(scale)
+                .padding(.bottom, 5)
             VStack(spacing: Self.cellSpacing) {
                 ForEach(0..<7, id: \.self) { day in
                     HStack(alignment: .center, spacing: 8) {
@@ -74,7 +93,11 @@ struct ActivityHeatmap: View {
                                 let turns = grid[day][hour]
                                 let isPeak = summary?.peakDay == day && summary?.peakHour == hour
                                 RoundedRectangle(cornerRadius: 2, style: .continuous)
-                                    .fill(Self.fillColor(turns: turns, maxTurns: maxTurns))
+                                    .fill(Self.fillColor(turns: turns, scale: scale))
+                                    .overlay {
+                                        RoundedRectangle(cornerRadius: 2, style: .continuous)
+                                            .stroke(Color.primary.opacity(turns > 0 ? 0.1 : 0.04), lineWidth: 0.6)
+                                    }
                                     .overlay {
                                         if isPeak {
                                             RoundedRectangle(cornerRadius: 2, style: .continuous)
@@ -109,6 +132,26 @@ struct ActivityHeatmap: View {
         }
     }
 
+    private func legendRow(_ scale: IntensityScale) -> some View {
+        HStack(spacing: 8) {
+            Text("Scale")
+                .font(.system(size: 8, weight: .bold))
+                .tracking(0.5)
+                .foregroundStyle(Color.primary.opacity(0.48))
+            ForEach(scale.levels) { level in
+                HStack(spacing: 4) {
+                    RoundedRectangle(cornerRadius: 2, style: .continuous)
+                        .fill(Color.primary.opacity(level.opacity))
+                        .frame(width: 10, height: 10)
+                    Text("\(Self.turnLabel(level.threshold))+")
+                        .font(.system(size: 8).monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
     private func summaryRow(_ summary: Summary) -> some View {
         HStack(spacing: 6) {
             self.summaryMetric(
@@ -124,8 +167,8 @@ struct ActivityHeatmap: View {
             self.summaryMetric(
                 label: "Cadence",
                 value: summary.activeCells > 0
-                    ? "\(summary.totalTurns / summary.activeCells)"
-                    : "0",
+                    ? String(format: "%.1f", Double(summary.totalTurns) / Double(summary.activeCells))
+                    : "0.0",
                 detail: "avg turns/cell"
             )
         }
@@ -220,18 +263,52 @@ struct ActivityHeatmap: View {
         return grid
     }
 
-    private static func fillColor(turns: Int, maxTurns: Int) -> Color {
-        let intensity: Double
-        if turns == 0 || maxTurns == 0 {
-            intensity = 0.05
-        } else {
-            intensity = max(0.12, min(1.0, Double(turns) / Double(maxTurns)))
+    nonisolated static func intensityScale(for grid: [[Int]]) -> IntensityScale {
+        let active = grid
+            .flatMap { $0 }
+            .filter { $0 > 0 }
+            .sorted()
+
+        guard !active.isEmpty else { return IntensityScale(levels: []) }
+
+        let candidates = [
+            1,
+            Self.quantile(active, fraction: 0.35),
+            Self.quantile(active, fraction: 0.6),
+            Self.quantile(active, fraction: 0.85),
+            active.last ?? 1,
+        ]
+
+        let thresholds = candidates.reduce(into: [Int]()) { result, value in
+            let clamped = max(1, value)
+            if result.last != clamped {
+                result.append(clamped)
+            }
         }
-        return Color.primary.opacity(intensity)
+
+        let opacityRamp: [Double] = [0.14, 0.24, 0.38, 0.58, 0.82]
+        let levels = thresholds.enumerated().map { index, threshold in
+            IntensityScale.Level(
+                threshold: threshold,
+                opacity: opacityRamp[min(index, opacityRamp.count - 1)]
+            )
+        }
+        return IntensityScale(levels: levels)
     }
 
-    private static func hourLabel(_ hour: Int) -> String {
+    private static func fillColor(turns: Int, scale: IntensityScale) -> Color {
+        Color.primary.opacity(scale.opacity(for: turns))
+    }
+
+    nonisolated private static func hourLabel(_ hour: Int) -> String {
         String(format: "%02d", hour)
+    }
+
+    nonisolated private static func turnLabel(_ turns: Int) -> String {
+        if turns >= 1_000 {
+            return String(format: "%.1fK", Double(turns) / 1_000)
+        }
+        return "\(turns)"
     }
 
     private static func tickAlignment(for hour: Int) -> Alignment {
@@ -242,6 +319,13 @@ struct ActivityHeatmap: View {
             return .trailing
         }
         return .center
+    }
+
+    nonisolated private static func quantile(_ values: [Int], fraction: Double) -> Int {
+        guard !values.isEmpty else { return 0 }
+        let clamped = max(0, min(1, fraction))
+        let index = Int((Double(values.count - 1) * clamped).rounded())
+        return values[index]
     }
 }
 

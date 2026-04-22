@@ -16,12 +16,20 @@ struct DailyCostChart: View {
         var id: Date { self.day }
     }
 
+    struct TrendEntry: Identifiable, Hashable {
+        let day: Date
+        let costUSD: Double
+        var id: Date { self.day }
+    }
+
     var body: some View {
         let entries = Self.entries(from: self.daily)
+        let movingAverage = Self.movingAverageEntries(from: entries)
+        let windowAverage = Self.averageCost(from: entries)
         VStack(alignment: .leading, spacing: 6) {
             ChartHeader(
                 title: "Daily cost",
-                caption: "Last \(entries.count) days. The vertical line marks today."
+                caption: "Last \(entries.count) days. Dashed line = 7-day average; horizontal rule = window average."
             )
             if entries.isEmpty {
                 Text("No daily data yet.")
@@ -29,8 +37,8 @@ struct DailyCostChart: View {
                     .foregroundStyle(.secondary)
                     .padding(.vertical, 12)
             } else {
-                self.chart(entries: entries)
-                    .frame(height: 72)
+                self.chart(entries: entries, movingAverage: movingAverage, windowAverage: windowAverage)
+                    .frame(height: 84)
             }
         }
         .padding(8)
@@ -42,10 +50,13 @@ struct DailyCostChart: View {
         .accessibilityLabel("Daily cost, last \(entries.count) days")
     }
 
-    private func chart(entries: [Entry]) -> some View {
+    private func chart(entries: [Entry], movingAverage: [TrendEntry], windowAverage: Double?) -> some View {
         let today = entries.last?.day
         let selectedEntry = self.selectedDay.flatMap { Self.nearestEntry(to: $0, in: entries) }
         let selectedIndex = selectedEntry.flatMap { entries.firstIndex(of: $0) }
+        let selectedAverage = selectedEntry.flatMap { entry in
+            movingAverage.first(where: { $0.day == entry.day })
+        }
         return Chart {
             ForEach(entries) { entry in
                 AreaMark(
@@ -64,6 +75,20 @@ struct DailyCostChart: View {
                 .lineStyle(StrokeStyle(lineWidth: ChartStyle.lineWidth, lineCap: .round, lineJoin: .round))
                 .interpolationMethod(.monotone)
             }
+            ForEach(movingAverage) { entry in
+                LineMark(
+                    x: .value("Day", entry.day),
+                    y: .value("7-day average", entry.costUSD)
+                )
+                .foregroundStyle(ChartStyle.secondaryLineStroke)
+                .lineStyle(StrokeStyle(lineWidth: ChartStyle.secondaryLineWidth, lineCap: .round, lineJoin: .round, dash: [4, 3]))
+                .interpolationMethod(.monotone)
+            }
+            if let windowAverage {
+                RuleMark(y: .value("Window average", windowAverage))
+                    .foregroundStyle(ChartStyle.referenceRuleStroke)
+                    .lineStyle(StrokeStyle(lineWidth: ChartStyle.referenceRuleWidth, dash: [2, 3]))
+            }
             if let today = today {
                 RuleMark(x: .value("Today", today))
                     .foregroundStyle(ChartStyle.todayRuleStroke)
@@ -71,8 +96,11 @@ struct DailyCostChart: View {
             }
             if let selectedEntry, let selectedIndex {
                 RuleMark(x: .value("Selected day", selectedEntry.day))
-                    .foregroundStyle(Color.primary.opacity(0.3))
+                    .foregroundStyle(Color.primary.opacity(0.34))
                     .lineStyle(StrokeStyle(lineWidth: 1))
+                RuleMark(y: .value("Selected cost", selectedEntry.costUSD))
+                    .foregroundStyle(Color.primary.opacity(0.16))
+                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [2, 3]))
                     .annotation(
                         position: ChartStyle.inspectorPlacement(index: selectedIndex, totalCount: entries.count).annotationPosition,
                         spacing: 6,
@@ -80,7 +108,11 @@ struct DailyCostChart: View {
                     ) {
                         ChartInspectorCard(
                             title: Self.axisFormatter.string(from: selectedEntry.day),
-                            lines: [Self.currencyLabel(selectedEntry.costUSD)]
+                            lines: Self.inspectorLines(
+                                for: selectedEntry,
+                                movingAverage: selectedAverage,
+                                windowAverage: windowAverage
+                            )
                         )
                     }
 
@@ -108,7 +140,7 @@ struct DailyCostChart: View {
             }
         }
         .chartPlotStyle { plot in
-            plot.background(Color.clear)
+            ChartStyle.framedPlot(plot, verticalPadding: 4)
         }
         .chartOverlay { proxy in
             GeometryReader { geometry in
@@ -168,11 +200,48 @@ struct DailyCostChart: View {
         }
     }
 
+    nonisolated static func movingAverageEntries(from entries: [Entry], windowSize: Int = 7) -> [TrendEntry] {
+        guard windowSize > 0 else { return [] }
+        return entries.indices.map { index in
+            let start = max(0, index - (windowSize - 1))
+            let window = entries[start...index]
+            let average = window.reduce(0.0) { $0 + $1.costUSD } / Double(window.count)
+            return TrendEntry(day: entries[index].day, costUSD: average)
+        }
+    }
+
+    nonisolated static func averageCost(from entries: [Entry]) -> Double? {
+        guard !entries.isEmpty else { return nil }
+        return entries.reduce(0.0) { $0 + $1.costUSD } / Double(entries.count)
+    }
+
+    nonisolated static func inspectorLines(
+        for entry: Entry,
+        movingAverage: TrendEntry?,
+        windowAverage: Double?
+    ) -> [String] {
+        var lines = [Self.currencyLabel(entry.costUSD)]
+        if let movingAverage {
+            lines.append("7d avg \(Self.currencyLabel(movingAverage.costUSD))")
+        }
+        if let windowAverage {
+            lines.append(Self.currencyDeltaLabel(entry.costUSD - windowAverage, suffix: "vs window avg"))
+        }
+        return lines
+    }
+
     nonisolated private static func currencyLabel(_ usd: Double) -> String {
         String(format: "$%.2f", usd)
     }
 
-    nonisolated(unsafe) private static let dayFormatter: DateFormatter = {
+    nonisolated private static func currencyDeltaLabel(_ delta: Double, suffix: String) -> String {
+        if abs(delta) < 0.005 {
+            return "Flat \(suffix)"
+        }
+        return "\(delta >= 0 ? "+" : "-")\(Self.currencyLabel(abs(delta))) \(suffix)"
+    }
+
+    private static let dayFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         formatter.timeZone = TimeZone(secondsFromGMT: 0)
@@ -180,7 +249,7 @@ struct DailyCostChart: View {
         return formatter
     }()
 
-    nonisolated(unsafe) private static let axisFormatter: DateFormatter = {
+    private static let axisFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "MMM d"
         return formatter

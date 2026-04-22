@@ -2,8 +2,8 @@ import Charts
 import HeimdallDomain
 import SwiftUI
 
-/// Stacked-area chart showing per-provider daily cost over the trailing 30
-/// days, with a total-spend outline and compact provider share cards.
+/// Stacked daily cost bars showing per-provider spend over the trailing 30
+/// days, with a total-spend contour and compact provider share cards.
 struct ProviderComparisonChart: View {
     let items: [ProviderMenuProjection]
     @State private var selectedDay: Date?
@@ -27,6 +27,9 @@ struct ProviderComparisonChart: View {
         let title: String
         let costUSD: Double
         let share: Double
+        let averageDailyCostUSD: Double?
+        let peakDailyCostUSD: Double
+        let latestCostUSD: Double
 
         var id: String { self.title }
     }
@@ -42,22 +45,35 @@ struct ProviderComparisonChart: View {
         let totals = Self.totalEntries(from: entries)
         let providerTitles = summaries.map(\.title)
         let totalCostUSD = summaries.reduce(0.0) { $0 + $1.costUSD }
+        let selectedTotal = self.selectedDay.flatMap { Self.nearestTotalEntry(to: $0, in: totals) }
+        let selectedEntries = selectedTotal.map { total in
+            entries
+                .filter { $0.day == total.day }
+                .sorted { $0.costUSD > $1.costUSD }
+        } ?? []
         let hasData = summaries.count >= 2 && !entries.isEmpty && !totals.isEmpty
 
         VStack(alignment: .leading, spacing: 8) {
             ChartHeader(
                 title: "Provider split, 30 days",
-                caption: "Stacked daily cost by provider with total-spend contour."
+                caption: "Stacked daily cost bars by provider with total-spend contour."
             )
 
             if hasData {
                 ProviderComparisonSummaryStrip(
                     totalCostUSD: totalCostUSD,
                     averageDailyCostUSD: Self.averageDailyCost(totalCostUSD: totalCostUSD, activeDays: totals.count),
-                    leadProvider: summaries.first
+                    leadProvider: summaries.first,
+                    selectedTotal: selectedTotal,
+                    selectedEntries: selectedEntries
                 )
 
-                self.chart(entries: entries, totals: totals, providerTitles: providerTitles)
+                self.chart(
+                    entries: entries,
+                    totals: totals,
+                    providerTitles: providerTitles,
+                    selectedTotal: selectedTotal
+                )
                     .frame(height: 104)
                     .help(Self.tooltip(entries: entries, totals: totals))
 
@@ -85,18 +101,22 @@ struct ProviderComparisonChart: View {
         .accessibilityLabel("Provider cost split, last 30 days")
     }
 
-    private func chart(entries: [Entry], totals: [TotalEntry], providerTitles: [String]) -> some View {
-        let selectedTotal = self.selectedDay.flatMap { Self.nearestTotalEntry(to: $0, in: totals) }
+    private func chart(
+        entries: [Entry],
+        totals: [TotalEntry],
+        providerTitles: [String],
+        selectedTotal: TotalEntry?
+    ) -> some View {
         let selectedIndex = selectedTotal.flatMap { totals.firstIndex(of: $0) }
         return Chart {
             ForEach(entries) { entry in
-                AreaMark(
+                BarMark(
                     x: .value("Day", entry.day),
                     y: .value("Cost", entry.costUSD),
                     stacking: .standard
                 )
                 .foregroundStyle(by: .value("Provider", entry.providerTitle))
-                .interpolationMethod(.monotone)
+                .opacity(Self.entryOpacity(for: entry, selectedDay: selectedTotal?.day))
             }
 
             ForEach(totals) { entry in
@@ -158,16 +178,7 @@ struct ProviderComparisonChart: View {
         }
         .chartYScale(domain: .automatic(includesZero: true))
         .chartPlotStyle { plot in
-            plot
-                .padding(.vertical, 4)
-                .background(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(Color.primary.opacity(0.025))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-                )
+            ChartStyle.framedPlot(plot, verticalPadding: 4)
         }
         .chartOverlay { proxy in
             GeometryReader { geometry in
@@ -234,22 +245,35 @@ struct ProviderComparisonChart: View {
     }
 
     nonisolated static func providerSummaries(from items: [ProviderMenuProjection]) -> [ProviderSummary] {
-        let raw: [(title: String, costUSD: Double)] = items.compactMap { item in
+        let raw = items.compactMap { item -> ProviderSummary? in
             let dailyFallback = item.dailyCosts.reduce(0.0) { $0 + $1.costUSD }
             let total = item.last30DaysCostUSD ?? dailyFallback
             guard total > 0 else { return nil }
-            return (title: item.title, costUSD: total)
+            return ProviderSummary(
+                title: item.title,
+                costUSD: total,
+                share: 0,
+                averageDailyCostUSD: Self.averageDailyCost(
+                    totalCostUSD: total,
+                    activeDays: item.dailyCosts.filter { $0.costUSD > 0 }.count
+                ),
+                peakDailyCostUSD: item.dailyCosts.map(\.costUSD).max() ?? 0,
+                latestCostUSD: item.dailyCosts.last?.costUSD ?? 0
+            )
         }
 
         let totalCostUSD = raw.reduce(0.0) { $0 + $1.costUSD }
         guard totalCostUSD > 0 else { return [] }
 
         return raw
-            .map {
+            .map { summary in
                 ProviderSummary(
-                    title: $0.title,
-                    costUSD: $0.costUSD,
-                    share: $0.costUSD / totalCostUSD
+                    title: summary.title,
+                    costUSD: summary.costUSD,
+                    share: summary.costUSD / totalCostUSD,
+                    averageDailyCostUSD: summary.averageDailyCostUSD,
+                    peakDailyCostUSD: summary.peakDailyCostUSD,
+                    latestCostUSD: summary.latestCostUSD
                 )
             }
             .sorted { lhs, rhs in
@@ -270,7 +294,9 @@ struct ProviderComparisonChart: View {
         return totals.map { total in
             let providers = byDay[total.day, default: []]
                 .sorted { $0.costUSD > $1.costUSD }
-                .map { "\($0.providerTitle) \(Self.currencyLabel($0.costUSD))" }
+                .map {
+                    "\($0.providerTitle) \(Self.currencyLabel($0.costUSD)) · \(Self.percentLabel($0.costUSD / max(total.costUSD, 0.000_1)))"
+                }
                 .joined(separator: " · ")
             let prefix = "\(Self.axisFormatter.string(from: total.day)): \(Self.currencyLabel(total.costUSD))"
             return providers.isEmpty ? prefix : "\(prefix) · \(providers)"
@@ -282,8 +308,10 @@ struct ProviderComparisonChart: View {
         let contributors = entries
             .filter { $0.day == total.day }
             .sorted { $0.costUSD > $1.costUSD }
-            .map { "\($0.providerTitle) \(Self.currencyLabel($0.costUSD))" }
-        return [Self.currencyLabel(total.costUSD)] + contributors
+            .map {
+                "\($0.providerTitle) \(Self.currencyLabel($0.costUSD)) · \(Self.percentLabel($0.costUSD / max(total.costUSD, 0.000_1)))"
+            }
+        return ["Total \(Self.currencyLabel(total.costUSD))"] + contributors
     }
 
     nonisolated static func nearestTotalEntry(to day: Date, in totals: [TotalEntry]) -> TotalEntry? {
@@ -308,6 +336,11 @@ struct ProviderComparisonChart: View {
         return result
     }
 
+    nonisolated static func entryOpacity(for entry: Entry, selectedDay: Date?) -> Double {
+        guard let selectedDay else { return 0.9 }
+        return entry.day == selectedDay ? 0.95 : 0.34
+    }
+
     nonisolated static func currencyLabel(_ value: Double) -> String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency
@@ -325,7 +358,7 @@ struct ProviderComparisonChart: View {
         String(format: "%.0f%%", max(0, min(1, value)) * 100)
     }
 
-    nonisolated(unsafe) static let dayFormatter: DateFormatter = {
+    nonisolated static let dayFormatter: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "yyyy-MM-dd"
         f.timeZone = TimeZone(secondsFromGMT: 0)
@@ -333,7 +366,7 @@ struct ProviderComparisonChart: View {
         return f
     }()
 
-    nonisolated(unsafe) private static let axisFormatter: DateFormatter = {
+    nonisolated static let axisFormatter: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "MMM d"
         return f
@@ -344,6 +377,8 @@ private struct ProviderComparisonSummaryStrip: View {
     let totalCostUSD: Double
     let averageDailyCostUSD: Double?
     let leadProvider: ProviderComparisonChart.ProviderSummary?
+    let selectedTotal: ProviderComparisonChart.TotalEntry?
+    let selectedEntries: [ProviderComparisonChart.Entry]
 
     var body: some View {
         HStack(spacing: 8) {
@@ -360,6 +395,14 @@ private struct ProviderComparisonSummaryStrip: View {
                     title: "Leader",
                     value: leadProvider.title,
                     detail: "\(ProviderComparisonChart.percentLabel(leadProvider.share)) share · \(ProviderComparisonChart.currencyLabel(leadProvider.costUSD))"
+                )
+            }
+
+            if let selectedTotal, let leadEntry = self.selectedEntries.first {
+                ProviderComparisonHeadlineCard(
+                    title: ProviderComparisonChart.axisFormatter.string(from: selectedTotal.day),
+                    value: ProviderComparisonChart.currencyLabel(selectedTotal.costUSD),
+                    detail: "\(leadEntry.providerTitle) leads · \(ProviderComparisonChart.percentLabel(leadEntry.costUSD / max(selectedTotal.costUSD, 0.000_1)))"
                 )
             }
         }
@@ -397,7 +440,7 @@ private struct ProviderSplitStatCard: View {
     let tint: Color
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 5) {
             HStack(alignment: .center, spacing: 6) {
                 Circle()
                     .fill(self.tint)
@@ -405,14 +448,46 @@ private struct ProviderSplitStatCard: View {
                 Text(self.summary.title)
                     .font(.caption.weight(.semibold))
                 Spacer(minLength: 0)
+                Text(ProviderComparisonChart.percentLabel(self.summary.share))
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(Color.primary.opacity(0.62))
             }
 
-            Text(ProviderComparisonChart.percentLabel(self.summary.share))
-                .font(.headline.monospacedDigit().weight(.semibold))
+            GeometryReader { proxy in
+                let width = max(proxy.size.width, 0)
+                ZStack(alignment: .leading) {
+                    Capsule(style: .continuous)
+                        .fill(Color.primary.opacity(0.08))
+                    Capsule(style: .continuous)
+                        .fill(self.tint)
+                        .frame(width: width * self.summary.share)
+                }
+            }
+            .frame(height: 6)
 
             Text(ProviderComparisonChart.currencyLabel(self.summary.costUSD))
                 .font(.caption2)
-                .foregroundStyle(Color.primary.opacity(0.66))
+                .foregroundStyle(.primary)
+
+            Text(
+                [
+                    self.summary.averageDailyCostUSD.map {
+                        "Avg/day \(ProviderComparisonChart.currencyLabel($0))"
+                    },
+                    self.summary.latestCostUSD > 0
+                        ? "Latest \(ProviderComparisonChart.currencyLabel(self.summary.latestCostUSD))"
+                        : nil,
+                    self.summary.peakDailyCostUSD > 0
+                        ? "Peak \(ProviderComparisonChart.currencyLabel(self.summary.peakDailyCostUSD))"
+                        : nil,
+                ]
+                .compactMap { $0 }
+                .prefix(2)
+                .joined(separator: " · ")
+            )
+            .font(.caption2)
+            .foregroundStyle(Color.primary.opacity(0.66))
+            .lineLimit(2)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 10)

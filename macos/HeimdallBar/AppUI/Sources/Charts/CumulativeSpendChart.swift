@@ -12,16 +12,24 @@ struct CumulativeSpendChart: View {
 
     struct Entry: Identifiable, Hashable {
         let day: Date
+        let dayCostUSD: Double
+        let cumulativeCostUSD: Double
+        var id: Date { self.day }
+    }
+
+    struct PaceEntry: Identifiable, Hashable {
+        let day: Date
         let cumulativeCostUSD: Double
         var id: Date { self.day }
     }
 
     var body: some View {
         let entries = Self.entries(from: self.daily)
+        let pace = Self.paceEntries(from: entries)
         VStack(alignment: .leading, spacing: 6) {
             ChartHeader(
                 title: "Cumulative spend, 30 days",
-                caption: "Running total. The line is always monotonic."
+                caption: "Running total. Dashed line = even spend pace across the window."
             )
             if entries.isEmpty {
                 Text("No daily data yet.")
@@ -29,8 +37,8 @@ struct CumulativeSpendChart: View {
                     .foregroundStyle(.secondary)
                     .padding(.vertical, 12)
             } else {
-                self.chart(entries: entries)
-                    .frame(height: 72)
+                self.chart(entries: entries, pace: pace)
+                    .frame(height: 84)
             }
         }
         .padding(8)
@@ -42,9 +50,13 @@ struct CumulativeSpendChart: View {
         .accessibilityLabel("Cumulative spend, last \(entries.count) days")
     }
 
-    private func chart(entries: [Entry]) -> some View {
+    private func chart(entries: [Entry], pace: [PaceEntry]) -> some View {
         let selectedEntry = self.selectedDay.flatMap { Self.nearestEntry(to: $0, in: entries) }
         let selectedIndex = selectedEntry.flatMap { entries.firstIndex(of: $0) }
+        let latest = entries.last
+        let selectedPace = selectedEntry.flatMap { entry in
+            pace.first(where: { $0.day == entry.day })
+        }
         return Chart {
             ForEach(entries) { entry in
                 AreaMark(
@@ -63,10 +75,27 @@ struct CumulativeSpendChart: View {
                 .lineStyle(StrokeStyle(lineWidth: ChartStyle.lineWidth, lineCap: .round, lineJoin: .round))
                 .interpolationMethod(.monotone)
             }
+            ForEach(pace) { entry in
+                LineMark(
+                    x: .value("Day", entry.day),
+                    y: .value("Even pace", entry.cumulativeCostUSD)
+                )
+                .foregroundStyle(ChartStyle.secondaryLineStroke)
+                .lineStyle(StrokeStyle(lineWidth: ChartStyle.secondaryLineWidth, lineCap: .round, lineJoin: .round, dash: [4, 3]))
+                .interpolationMethod(.monotone)
+            }
+            if let latest {
+                RuleMark(x: .value("Latest day", latest.day))
+                    .foregroundStyle(ChartStyle.todayRuleStroke)
+                    .lineStyle(StrokeStyle(lineWidth: ChartStyle.todayRuleWidth, dash: [2, 2]))
+            }
             if let selectedEntry, let selectedIndex {
                 RuleMark(x: .value("Selected day", selectedEntry.day))
-                    .foregroundStyle(Color.primary.opacity(0.3))
+                    .foregroundStyle(Color.primary.opacity(0.34))
                     .lineStyle(StrokeStyle(lineWidth: 1))
+                RuleMark(y: .value("Selected cumulative cost", selectedEntry.cumulativeCostUSD))
+                    .foregroundStyle(Color.primary.opacity(0.16))
+                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [2, 3]))
                     .annotation(
                         position: ChartStyle.inspectorPlacement(index: selectedIndex, totalCount: entries.count).annotationPosition,
                         spacing: 6,
@@ -74,7 +103,7 @@ struct CumulativeSpendChart: View {
                     ) {
                         ChartInspectorCard(
                             title: Self.axisFormatter.string(from: selectedEntry.day),
-                            lines: [Self.currencyLabel(selectedEntry.cumulativeCostUSD)]
+                            lines: Self.inspectorLines(for: selectedEntry, pace: selectedPace)
                         )
                     }
 
@@ -102,7 +131,7 @@ struct CumulativeSpendChart: View {
             }
         }
         .chartPlotStyle { plot in
-            plot.background(Color.clear)
+            ChartStyle.framedPlot(plot, verticalPadding: 4)
         }
         .chartOverlay { proxy in
             GeometryReader { geometry in
@@ -145,7 +174,18 @@ struct CumulativeSpendChart: View {
         return daily.compactMap { point in
             guard let date = Self.dayFormatter.date(from: point.day) else { return nil }
             running += point.costUSD
-            return Entry(day: date, cumulativeCostUSD: running)
+            return Entry(day: date, dayCostUSD: point.costUSD, cumulativeCostUSD: running)
+        }
+    }
+
+    nonisolated static func paceEntries(from entries: [Entry]) -> [PaceEntry] {
+        guard let total = entries.last?.cumulativeCostUSD, !entries.isEmpty else { return [] }
+        let dailyPace = total / Double(entries.count)
+        return entries.indices.map { index in
+            PaceEntry(
+                day: entries[index].day,
+                cumulativeCostUSD: dailyPace * Double(index + 1)
+            )
         }
     }
 
@@ -162,11 +202,29 @@ struct CumulativeSpendChart: View {
         }
     }
 
+    nonisolated static func inspectorLines(for entry: Entry, pace: PaceEntry?) -> [String] {
+        var lines = [
+            Self.currencyLabel(entry.cumulativeCostUSD),
+            "Day spend \(Self.currencyLabel(entry.dayCostUSD))",
+        ]
+        if let pace {
+            lines.append(Self.currencyDeltaLabel(entry.cumulativeCostUSD - pace.cumulativeCostUSD, suffix: "vs pace"))
+        }
+        return lines
+    }
+
     nonisolated private static func currencyLabel(_ usd: Double) -> String {
         String(format: "$%.2f", usd)
     }
 
-    nonisolated(unsafe) private static let dayFormatter: DateFormatter = {
+    nonisolated private static func currencyDeltaLabel(_ delta: Double, suffix: String) -> String {
+        if abs(delta) < 0.005 {
+            return "Flat \(suffix)"
+        }
+        return "\(delta >= 0 ? "+" : "-")\(Self.currencyLabel(abs(delta))) \(suffix)"
+    }
+
+    private static let dayFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         formatter.timeZone = TimeZone(secondsFromGMT: 0)
@@ -174,7 +232,7 @@ struct CumulativeSpendChart: View {
         return formatter
     }()
 
-    nonisolated(unsafe) private static let axisFormatter: DateFormatter = {
+    private static let axisFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "MMM d"
         return formatter

@@ -126,6 +126,48 @@ struct ChartsTests {
     }
 
     @Test
+    func dailyCostChartMovingAverageTracksTrailingWindow() {
+        let entries = DailyCostChart.entries(from: [
+            CostHistoryPoint(day: "2026-04-18", totalTokens: 0, costUSD: 2.0),
+            CostHistoryPoint(day: "2026-04-19", totalTokens: 0, costUSD: 4.0),
+            CostHistoryPoint(day: "2026-04-20", totalTokens: 0, costUSD: 8.0),
+        ])
+        let movingAverage = DailyCostChart.movingAverageEntries(from: entries, windowSize: 2)
+
+        #expect(movingAverage.map(\.costUSD) == [2.0, 3.0, 6.0])
+        #expect(DailyCostChart.averageCost(from: entries) == 14.0 / 3.0)
+    }
+
+    @Test
+    func cacheHitTrendChartMovingAverageAndAverageRateStayStable() {
+        let entries = [
+            CacheHitTrendChart.Entry(day: ProviderComparisonChart.dayFormatter.date(from: "2026-04-18")!, rate: 0.2),
+            CacheHitTrendChart.Entry(day: ProviderComparisonChart.dayFormatter.date(from: "2026-04-19")!, rate: 0.4),
+            CacheHitTrendChart.Entry(day: ProviderComparisonChart.dayFormatter.date(from: "2026-04-20")!, rate: 0.8),
+        ]
+
+        let movingAverage = CacheHitTrendChart.movingAverageEntries(from: entries, windowSize: 2)
+
+        #expect(abs(movingAverage[0].rate - 0.2) < 0.0001)
+        #expect(abs(movingAverage[1].rate - 0.3) < 0.0001)
+        #expect(abs(movingAverage[2].rate - 0.6) < 0.0001)
+        #expect(abs((CacheHitTrendChart.averageRate(from: entries) ?? 0) - ((0.2 + 0.4 + 0.8) / 3.0)) < 0.0001)
+    }
+
+    @Test
+    func cumulativeSpendChartPaceEntriesUseEvenWindowPace() {
+        let entries = CumulativeSpendChart.entries(from: [
+            CostHistoryPoint(day: "2026-04-18", totalTokens: 0, costUSD: 3.0),
+            CostHistoryPoint(day: "2026-04-19", totalTokens: 0, costUSD: 6.0),
+            CostHistoryPoint(day: "2026-04-20", totalTokens: 0, costUSD: 3.0),
+        ])
+        let pace = CumulativeSpendChart.paceEntries(from: entries)
+
+        #expect(entries.map(\.cumulativeCostUSD) == [3.0, 9.0, 12.0])
+        #expect(pace.map(\.cumulativeCostUSD) == [4.0, 8.0, 12.0])
+    }
+
+    @Test
     func providerComparisonChartTotalEntriesRollUpSameDayAcrossProviders() {
         let entries = ProviderComparisonChart.entries(from: [
             self.makeProviderProjection(
@@ -200,6 +242,20 @@ struct ChartsTests {
     }
 
     @Test
+    func activityHeatmapIntensityScalePreservesQuietActivityBuckets() {
+        let scale = ActivityHeatmap.intensityScale(for: [
+            [0, 1, 2, 0],
+            [3, 5, 8, 0],
+            [0, 13, 0, 21],
+        ])
+
+        #expect(scale.levels.count >= 3)
+        #expect(scale.opacity(for: 0) == 0.04)
+        #expect(scale.opacity(for: 1) >= 0.14)
+        #expect(scale.opacity(for: 21) >= scale.opacity(for: 5))
+    }
+
+    @Test
     func historyBarChartTooltipIncludesDayLabelsAndPercentages() {
         let entries = HistoryBarChart.entries(from: [0.25, 1.0])
         let tooltip = HistoryBarChart.tooltip(for: entries)
@@ -224,6 +280,19 @@ struct ChartsTests {
         #expect(tooltip.contains("Claude"))
         #expect(tooltip.contains("Codex"))
         #expect(tooltip.contains("$13.75"))
+    }
+
+    @Test
+    func spendSparklineSummaryIncludesAverageAndTrend() {
+        let summary = SpendSparkline.summary(for: [
+            .init(index: 0, fraction: 0.2),
+            .init(index: 1, fraction: 0.5),
+            .init(index: 2, fraction: 0.8),
+        ])
+
+        #expect(summary.contains("Today 80% of peak"))
+        #expect(summary.contains("avg 50%"))
+        #expect(summary.contains("+60 pt vs start"))
     }
 
     private func makeProviderProjection(
