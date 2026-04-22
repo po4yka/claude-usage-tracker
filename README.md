@@ -140,6 +140,11 @@ The repository now ships Codex-native project assets for contributors who use Co
   - `heimdall_provider_worker` for scanner/provider implementation
   - `heimdall_dashboard_worker` for dashboard implementation
 - **Repo-scoped skills** live in `.agents/skills/`:
+  - `heimdall-rust-test-runner` for targeted Rust and UI verification
+  - `heimdall-pr-review` for findings-first branch and diff review
+  - `heimdall-fix-unwraps` for removing production Rust `.unwrap()` paths safely
+  - `heimdall-rust-dependency-audit` for dependency and security audit passes
+  - `heimdall-rust-binary-audit` for release-size and bloat analysis
   - `heimdall-scanner-provider` for new or changed providers
   - `heimdall-schema-evolution` for additive schema/data-flow changes
   - `heimdall-dashboard` for `src/ui/` work and committed UI artifacts

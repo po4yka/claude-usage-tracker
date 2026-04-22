@@ -1,6 +1,6 @@
 # DESIGN.md – Claude Usage Tracker
 
-A data-dense analytics dashboard for Claude Code usage tracking. Apple-Swiss refined design: refined-dark + warm-off-white-light canvases, type-driven hierarchy via size/weight/space, semantic color with blue-gray interactive accent, red reserved for error/destructive. Calm enough for multi-hour sessions. The canonical source of truth is `.claude/skills/industrial-design/SKILL.md` (directory name is legacy; contents are current); this file mirrors the product-specific decisions that layer on top of the skill.
+A data-dense analytics dashboard for Claude Code usage tracking. Apple-Swiss refined design: refined-dark + warm-off-white-light canvases, type-driven hierarchy via size/weight/space, semantic color with blue-gray interactive accent, red reserved for error/destructive. Calm enough for multi-hour sessions. The canonical source of truth is `.agents/skills/industrial-design/SKILL.md`; the legacy `.claude/skills/industrial-design/SKILL.md` copy remains for Claude compatibility.
 
 ---
 
@@ -34,7 +34,7 @@ A data-dense analytics dashboard for Claude Code usage tracking. Apple-Swiss ref
 
 ## 2. Color Palette & Roles
 
-All colors must be declared as CSS variables. Never hardcode hex. The full table lives in `.claude/skills/industrial-design/references/tokens.md`; the rows below are the binding set for this project.
+All colors must be declared as CSS variables. Never hardcode hex. The full table lives in `.agents/skills/industrial-design/references/tokens.md`; the rows below are the binding set for this project.
 
 ### Dark Theme (default)
 
@@ -356,10 +356,10 @@ Max width:     1400px
 
 ## 10. Source of truth
 
-- Skill: `.claude/skills/industrial-design/SKILL.md`
-- Tokens: `.claude/skills/industrial-design/references/tokens.md`
-- Components: `.claude/skills/industrial-design/references/components.md`
-- Platform mapping (Preact + Tailwind v4): `.claude/skills/industrial-design/references/platform-mapping.md`
+- Skill: `.agents/skills/industrial-design/SKILL.md`
+- Tokens: `.agents/skills/industrial-design/references/tokens.md`
+- Components: `.agents/skills/industrial-design/references/components.md`
+- Platform mapping (Preact + Tailwind v4): `.agents/skills/industrial-design/references/platform-mapping.md`
 
 ---
 

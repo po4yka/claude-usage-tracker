@@ -234,7 +234,7 @@ See [AGENTS.md](AGENTS.md) for the full "Adding X" playbook covering: new models
 
 ## Dashboard UI
 
-When editing dashboard files (`src/ui/`), follow the design skill at `.claude/skills/industrial-design/SKILL.md` (directory keeps its legacy name; contents are now the Apple-Swiss refined system). Key rules:
+When editing dashboard files (`src/ui/`), follow the repo-scoped design skill at `.agents/skills/industrial-design/SKILL.md`. The legacy `.claude/skills/industrial-design/SKILL.md` copy remains for Claude compatibility. Key rules:
 
 - **Typography:** Inter for UI, headings, body. Geist Mono for numbers, code, tabular columns. No Space Grotesk, no Space Mono, no Doto.
 - **Canvas:** dark `#0A0A0A`, light `#F5F5F5` (warm off-white). Both first-class via CSS variables; never hardcode hex values.

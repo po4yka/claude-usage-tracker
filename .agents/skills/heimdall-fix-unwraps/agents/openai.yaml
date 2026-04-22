@@ -1,0 +1,7 @@
+interface:
+  display_name: "Heimdall Fix Unwraps"
+  short_description: "Remove panic-prone unwraps from Heimdall Rust code."
+  default_prompt: "Use $heimdall-fix-unwraps to remove production Rust unwraps from this Heimdall change safely."
+
+policy:
+  allow_implicit_invocation: false

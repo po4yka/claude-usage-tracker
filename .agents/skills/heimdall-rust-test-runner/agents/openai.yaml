@@ -1,0 +1,7 @@
+interface:
+  display_name: "Heimdall Rust Test Runner"
+  short_description: "Pick and run the right Heimdall verification commands."
+  default_prompt: "Use $heimdall-rust-test-runner to choose and run the right Heimdall Rust or UI verification commands for this change."
+
+policy:
+  allow_implicit_invocation: true

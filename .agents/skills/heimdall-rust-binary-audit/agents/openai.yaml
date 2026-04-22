@@ -1,0 +1,7 @@
+interface:
+  display_name: "Heimdall Rust Binary Audit"
+  short_description: "Analyze Heimdall release binary size and bloat."
+  default_prompt: "Use $heimdall-rust-binary-audit to inspect Heimdall release binary size and likely bloat sources."
+
+policy:
+  allow_implicit_invocation: false

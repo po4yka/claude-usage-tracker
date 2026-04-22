@@ -9,6 +9,17 @@ Local AI session observability for Claude Code, Codex, and adjacent tooling. Two
 
 Persistent storage is a single SQLite database. UI is Preact + Tailwind v4 compiled to a single JS/CSS bundle via esbuild; both compiled artifacts live in git so `cargo build` never requires Node.js.
 
+## Mandatory Skill Usage
+
+- Use `$heimdall-rust-test-runner` when choosing or running Heimdall Rust or UI verification commands, and after meaningful Rust changes.
+- Use `$heimdall-pr-review` for review requests and before handing off substantial code work.
+- Use `$heimdall-fix-unwraps` when removing panic-prone `.unwrap()` usage from production Rust code.
+- Use `$heimdall-rust-dependency-audit` for dependency, security, license, or unused-crate audit work.
+- Use `$heimdall-rust-binary-audit` for release binary size or bloat analysis.
+- Use `$heimdall-scanner-provider` for work under `src/scanner/providers/` and surrounding provider wiring.
+- Use `$heimdall-schema-evolution` when a change crosses models, parser or provider code, SQLite schema, API output, and dashboard types.
+- Use `$heimdall-dashboard` for dashboard work in `src/ui/`.
+
 ## Build & Run
 
 ```bash
@@ -319,7 +330,7 @@ Always use additive migrations (ALTER TABLE ADD COLUMN). Check for column existe
 
 ## Dashboard UI
 
-When editing dashboard files (`src/ui/`), follow the design skill at `.claude/skills/industrial-design/SKILL.md`. Key rules:
+When editing dashboard files (`src/ui/`), follow the design skill at `.agents/skills/industrial-design/SKILL.md`. Key rules:
 
 - Monochrome canvas; single red accent (`#D71921`) per screen for urgent/destructive only.
 - Numbers in Space Mono (tabular numerals); body in Space Grotesk; Doto for hero display.

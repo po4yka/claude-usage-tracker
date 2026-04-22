@@ -1,0 +1,7 @@
+interface:
+  display_name: "Heimdall Rust Dependency Audit"
+  short_description: "Audit Heimdall Rust dependencies and report risks."
+  default_prompt: "Use $heimdall-rust-dependency-audit to audit Heimdall dependencies for advisories, policy issues, and unused crates."
+
+policy:
+  allow_implicit_invocation: false
