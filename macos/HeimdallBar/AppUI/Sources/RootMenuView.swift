@@ -541,7 +541,7 @@ private struct TopMetricRow: View {
         HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(self.title)
-                    .font(.caption.weight(.medium))
+                    .font(.footnote.weight(.semibold))
                     .foregroundStyle(.secondary)
                 Text(self.detail)
                     .font(.caption)
@@ -690,14 +690,19 @@ struct HistoryBarStrip: View {
         let labels = Self.dayLabels(count: self.fractions.count)
         VStack(alignment: .leading, spacing: 6) {
             if self.showsHeader {
-                HStack {
-                    Text("Last \(self.fractions.count) days")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    if self.hasBreakdowns {
-                        TokenLegend()
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text("Usage history")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        if self.hasBreakdowns {
+                            TokenLegend()
+                        }
                     }
+                    Text("Relative daily spend normalized to the 7-day peak. Today is on the right.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                 }
             }
             HStack(alignment: .bottom, spacing: 6) {
@@ -722,15 +727,9 @@ struct HistoryBarStrip: View {
                                     .frame(height: max(2, 32 * fraction))
                             }
                         }
-                        .overlay(alignment: .bottom) {
-                            if isToday {
-                                RoundedRectangle(cornerRadius: 1.5, style: .continuous)
-                                    .fill(Color.primary.opacity(0.55))
-                                    .frame(height: 2)
-                            }
-                        }
+                        .help(self.helpText(for: label, fraction: fraction, index: entry.offset))
                         .frame(maxWidth: .infinity)
-                        Text(label)
+                        Text(isToday ? "Today" : label)
                             .font(.system(size: 9, weight: isToday ? .semibold : .regular).monospacedDigit())
                             .foregroundStyle(isToday ? .primary : .secondary)
                     }
@@ -744,6 +743,38 @@ struct HistoryBarStrip: View {
     private var hasBreakdowns: Bool {
         self.breakdowns.count == self.fractions.count
             && self.breakdowns.contains(where: { !$0.isEmpty })
+    }
+
+    private func helpText(for label: String, fraction: Double, index: Int) -> String {
+        let baseLabel = index == self.fractions.count - 1 ? "Today" : label
+        let normalized = Int((max(0, fraction) * 100).rounded())
+        if self.hasBreakdowns {
+            let breakdown = self.breakdowns[index]
+            return "\(baseLabel) · \(normalized)% of the 7-day peak · \(self.breakdownTooltip(for: breakdown))"
+        }
+        return "\(baseLabel) · \(normalized)% of the 7-day peak"
+    }
+
+    private func breakdownTooltip(for breakdown: TokenBreakdown) -> String {
+        TokenCategory.orderedForStack
+            .map { category in
+                "\(category.label): \(Self.compactTokenCount(category.value(for: breakdown)))"
+            }
+            .joined(separator: " · ")
+    }
+
+    private static func compactTokenCount(_ count: Int) -> String {
+        let value = Double(count)
+        if value >= 1_000_000_000 {
+            return String(format: "%.1fB", value / 1_000_000_000)
+        }
+        if value >= 1_000_000 {
+            return String(format: "%.1fM", value / 1_000_000)
+        }
+        if value >= 1_000 {
+            return String(format: "%.1fK", value / 1_000)
+        }
+        return "\(count)"
     }
 
     /// Produce day-of-week labels for the last N days ending today, so the
@@ -1274,6 +1305,9 @@ struct OverviewProviderCard: View {
             )
             Text(self.item.costLabel)
                 .font(.caption)
+                .foregroundStyle(.secondary)
+            Text(self.item.lastRefreshLabel)
+                .font(.caption2)
                 .foregroundStyle(.secondary)
             if let summaryNote = self.summaryNote {
                 Text(summaryNote)

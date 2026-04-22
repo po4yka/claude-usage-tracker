@@ -24,7 +24,7 @@ struct AppShellViewTests {
         #expect(summary == WindowProviderMetricSummary(
             title: "Session remaining",
             value: "64%",
-            qualifier: "LEFT",
+            qualifier: "Remaining",
             detail: "resets in 18m"
         ))
     }
@@ -49,7 +49,7 @@ struct AppShellViewTests {
         #expect(summary == WindowProviderMetricSummary(
             title: "Session usage",
             value: "36%",
-            qualifier: "USED",
+            qualifier: "Used",
             detail: "resets in 18m"
         ))
     }
@@ -67,7 +67,7 @@ struct AppShellViewTests {
         #expect(summary == WindowProviderMetricSummary(
             title: "Session availability",
             value: "Unavailable",
-            qualifier: "LIVE QUOTA",
+            qualifier: "Live quota",
             detail: "OAuth session data is unavailable"
         ))
     }

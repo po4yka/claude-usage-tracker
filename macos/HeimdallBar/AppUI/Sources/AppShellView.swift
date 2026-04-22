@@ -10,20 +10,8 @@ struct AppShellView: View {
 
     var body: some View {
         NavigationSplitView {
-            List(selection: self.$shell.navigationSelection) {
-                ForEach(self.shell.navigationItems, id: \.id) { item in
-                    SidebarNavigationRow(
-                        item: item,
-                        isSelected: self.shell.navigationSelection == item
-                    )
-                        .tag(item)
-                }
-            }
-            .listStyle(.sidebar)
+            WindowSidebar(shell: self.shell)
             .navigationTitle("HeimdallBar")
-            .onChange(of: self.shell.navigationSelection) { _, newValue in
-                self.shell.selectNavigation(newValue)
-            }
         } detail: {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
@@ -86,6 +74,31 @@ struct AppShellView: View {
         case .provider(let provider):
             return self.providerModel(provider).isBusy
         }
+    }
+}
+
+private struct WindowSidebar: View {
+    @Bindable var shell: AppShellModel
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(self.shell.navigationItems, id: \.id) { item in
+                    Button {
+                        self.shell.selectNavigation(item)
+                    } label: {
+                        SidebarNavigationRow(
+                            item: item,
+                            isSelected: self.shell.navigationSelection == item
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(12)
+        }
+        .frame(minWidth: 228, idealWidth: 244, maxHeight: .infinity, alignment: .topLeading)
+        .background(Color(nsColor: .windowBackgroundColor))
     }
 }
 
@@ -197,10 +210,15 @@ private struct SidebarNavigationRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: self.item.systemImage)
-                .font(.system(size: 14, weight: .semibold))
-                .frame(width: 16)
-                .foregroundStyle(self.isSelected ? Color.primary : Color.secondary)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(self.isSelected ? Color.primary.opacity(0.08) : Color.primary.opacity(0.04))
+                .frame(width: 28, height: 28)
+                .overlay {
+                    Image(systemName: self.item.systemImage)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(self.isSelected ? Color.primary : Color.secondary)
+                        .symbolRenderingMode(.monochrome)
+                }
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(self.item.title)
@@ -214,8 +232,20 @@ private struct SidebarNavigationRow: View {
 
             Spacer(minLength: 0)
         }
-        .padding(.vertical, 2)
-        .contentShape(Rectangle())
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(self.isSelected ? Color.primary.opacity(0.05) : Color.clear)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(
+                    self.isSelected ? Color.primary.opacity(0.08) : Color.clear,
+                    lineWidth: 1
+                )
+        )
+        .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
 
@@ -224,9 +254,9 @@ private struct WindowSectionHeader: View {
     let subtitle: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
+        VStack(alignment: .leading, spacing: 4) {
             Text(self.title)
-                .font(.headline)
+                .font(.title3.weight(.semibold))
             Text(self.subtitle)
                 .font(.callout)
                 .foregroundStyle(.secondary)
@@ -241,7 +271,7 @@ private struct WindowOverviewHistoryCard: View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Last 7 days")
                 .font(.headline)
-            Text("Relative daily spend across the visible week. The latest day is underlined.")
+            Text("Relative daily spend normalized to the 7-day peak. Today appears at the right.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
 
@@ -271,7 +301,7 @@ struct WindowProviderMetricSummary: Equatable {
             return Self(
                 title: "Session availability",
                 value: "Unavailable",
-                qualifier: "LIVE QUOTA",
+                qualifier: "Live quota",
                 detail: self.unavailableDetail(for: item)
             )
         }
@@ -283,7 +313,7 @@ struct WindowProviderMetricSummary: Equatable {
         return Self(
             title: showUsedValues ? "Session usage" : "Session remaining",
             value: "\(shownPercent)%",
-            qualifier: showUsedValues ? "USED" : "LEFT",
+            qualifier: showUsedValues ? "Used" : "Remaining",
             detail: lane.resetDetail ?? lane.summary
         )
     }
@@ -347,7 +377,7 @@ private struct WindowOverviewProviderCard: View {
             HStack(alignment: .bottom, spacing: 16) {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(self.metric.title)
-                        .font(.caption.weight(.medium))
+                        .font(.footnote.weight(.semibold))
                         .foregroundStyle(.secondary)
                     Text(self.metric.detail)
                         .font(.body.weight(.medium))
@@ -355,10 +385,10 @@ private struct WindowOverviewProviderCard: View {
                         .fixedSize(horizontal: false, vertical: true)
 
                     if let secondaryLine = self.secondaryLine {
-                        Text(secondaryLine)
-                            .font(.caption)
-                            .foregroundStyle(self.secondaryLineColor)
-                            .fixedSize(horizontal: false, vertical: true)
+                        WindowCardNote(
+                            text: secondaryLine,
+                            tone: self.secondaryLineTone
+                        )
                     }
                 }
 
@@ -368,7 +398,7 @@ private struct WindowOverviewProviderCard: View {
                     Text(self.metric.value)
                         .font(.system(size: 32, weight: .bold, design: .rounded).monospacedDigit())
                     Text(self.metric.qualifier)
-                        .font(.caption.weight(.medium))
+                        .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
                 }
             }
@@ -392,14 +422,14 @@ private struct WindowOverviewProviderCard: View {
         return self.item.authHeadline
     }
 
-    private var secondaryLineColor: Color {
+    private var secondaryLineTone: WindowCardNote.Tone {
         if self.item.incidentLabel != nil {
-            return .red
+            return .critical
         }
         if !self.item.warningLabels.isEmpty {
-            return .orange
+            return .warning
         }
-        return .secondary
+        return .neutral
     }
 
     private var borderColor: Color {
@@ -459,13 +489,6 @@ private struct WindowOverviewTotalsCard: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            if let warningLine = self.warningLine {
-                Divider()
-                Label(warningLine, systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.orange)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -483,15 +506,6 @@ private struct WindowOverviewTotalsCard: View {
         self.projection.items.max { lhs, rhs in
             Self.todayCost(lhs) < Self.todayCost(rhs)
         }
-    }
-
-    private var warningLine: String? {
-        guard let first = self.projection.warningLabels.first else { return nil }
-        let extraCount = self.projection.warningLabels.count - 1
-        if extraCount > 0 {
-            return "\(first) (+\(extraCount) more)"
-        }
-        return first
     }
 
     private static func todayCost(_ item: ProviderMenuProjection) -> Double {
@@ -579,6 +593,50 @@ private struct WindowHeader: View {
                         .fill(Color.primary.opacity(0.05))
                 )
             }
+        }
+    }
+}
+
+private struct WindowCardNote: View {
+    enum Tone {
+        case neutral
+        case warning
+        case critical
+    }
+
+    let text: String
+    let tone: Tone
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Image(systemName: self.iconName)
+                .font(.caption.weight(.semibold))
+            Text(self.text)
+                .font(.caption)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .foregroundStyle(self.color)
+    }
+
+    private var iconName: String {
+        switch self.tone {
+        case .neutral:
+            return "info.circle.fill"
+        case .warning:
+            return "exclamationmark.triangle.fill"
+        case .critical:
+            return "exclamationmark.octagon.fill"
+        }
+    }
+
+    private var color: Color {
+        switch self.tone {
+        case .neutral:
+            return .secondary
+        case .warning:
+            return .orange
+        case .critical:
+            return .red
         }
     }
 }
