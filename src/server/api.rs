@@ -75,7 +75,9 @@ pub struct AppState {
 pub async fn api_data(
     State(state): State<Arc<AppState>>,
     Query(tz): Query<TzParams>,
+    request: Request,
 ) -> Result<Json<Value>, StatusCode> {
+    enforce_loopback_request(&request)?;
     let _db_guard = state.db_lock.lock().await;
     let db_path = state.db_path.clone();
     let openai_lookback_days = state.openai_lookback_days;
@@ -450,7 +452,9 @@ fn enforce_loopback_request(request: &Request) -> Result<(), StatusCode> {
 /// without making any network calls.
 pub async fn api_agent_status(
     State(state): State<Arc<AppState>>,
+    request: Request,
 ) -> Result<Json<Value>, StatusCode> {
+    enforce_loopback_request(&request)?;
     let snapshot = refresh_agent_status(&state).await?;
     let value = serde_json::to_value(&snapshot).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(value))
@@ -649,7 +653,9 @@ pub struct HeatmapResponse {
 pub async fn api_heatmap(
     State(state): State<Arc<AppState>>,
     Query(params): Query<HeatmapParams>,
+    request: Request,
 ) -> Result<Json<Value>, StatusCode> {
+    enforce_loopback_request(&request)?;
     let _db_guard = state.db_lock.lock().await;
     let db_path = state.db_path.clone();
     let period = params.period.unwrap_or_else(|| "month".to_string());
@@ -697,7 +703,11 @@ pub async fn api_heatmap(
 /// 15 seconds plus an event after each watcher-triggered scan.
 ///
 /// Event body JSON: `{ "type": "scan_completed", "ts": "<iso8601>" }`
-pub async fn api_stream(State(state): State<Arc<AppState>>) -> impl axum::response::IntoResponse {
+pub async fn api_stream(
+    State(state): State<Arc<AppState>>,
+    request: Request,
+) -> Result<impl axum::response::IntoResponse, StatusCode> {
+    enforce_loopback_request(&request)?;
     let rx = state.scan_event_tx.subscribe();
     let broadcast_stream = BroadcastStream::new(rx);
 
@@ -710,11 +720,11 @@ pub async fn api_stream(State(state): State<Arc<AppState>>) -> impl axum::respon
         })
     });
 
-    Sse::new(event_stream).keep_alive(
+    Ok(Sse::new(event_stream).keep_alive(
         KeepAlive::new()
             .interval(std::time::Duration::from_secs(15))
             .text("ping"),
-    )
+    ))
 }
 
 /// `GET /api/billing-blocks` — returns all billing blocks with optional quota metadata.
@@ -730,7 +740,9 @@ pub async fn api_stream(State(state): State<Arc<AppState>>) -> impl axum::respon
 /// ```
 pub async fn api_billing_blocks(
     State(state): State<Arc<AppState>>,
+    request: Request,
 ) -> Result<Json<Value>, StatusCode> {
+    enforce_loopback_request(&request)?;
     use crate::analytics::blocks::{
         calculate_burn_rate, identify_blocks_with_gaps, project_block_usage,
     };
@@ -841,7 +853,9 @@ pub async fn api_billing_blocks(
 /// ```
 pub async fn api_context_window(
     State(state): State<Arc<AppState>>,
+    request: Request,
 ) -> Result<Json<Value>, StatusCode> {
+    enforce_loopback_request(&request)?;
     use crate::analytics::quota::severity_for_pct;
     use rusqlite::OptionalExtension;
 
@@ -931,7 +945,9 @@ pub async fn api_context_window(
 pub async fn api_cost_reconciliation(
     State(state): State<Arc<AppState>>,
     Query(params): Query<CostReconciliationParams>,
+    request: Request,
 ) -> Result<Json<Value>, StatusCode> {
+    enforce_loopback_request(&request)?;
     let _db_guard = state.db_lock.lock().await;
     let db_path = state.db_path.clone();
     let period = params.period.clone();
@@ -1225,7 +1241,9 @@ async fn maybe_send_cost_threshold_webhook(
 /// updates the cache.
 pub async fn api_community_signal(
     State(state): State<Arc<AppState>>,
+    request: Request,
 ) -> Result<Json<Value>, StatusCode> {
+    enforce_loopback_request(&request)?;
     let Some(signal) = refresh_community_signal(&state).await? else {
         return Ok(Json(serde_json::json!({ "enabled": false })));
     };

@@ -14,7 +14,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 
-use super::{InstallStatus, Interval, SCAN_JOB, ScheduledJob, Scheduler};
+use super::{InstallStatus, Interval, SCAN_JOB, ScheduledJob, Scheduler, xml_escape};
 
 /// Label used as the plist `<key>Label</key>` and as the service identifier.
 pub const PLIST_LABEL: &str = "dev.heimdall.scan";
@@ -80,12 +80,12 @@ pub fn generate_plist_for_job(
     db_path: &Path,
     interval: Interval,
 ) -> String {
-    let bin_str = bin_path.display();
-    let db_str = db_path.display();
+    let bin_str = xml_escape(&bin_path.to_string_lossy());
+    let db_str = xml_escape(&db_path.to_string_lossy());
     let command_entries = job
         .command
         .iter()
-        .map(|arg| format!("        <string>{arg}</string>"))
+        .map(|arg| format!("        <string>{}</string>", xml_escape(arg)))
         .collect::<Vec<_>>()
         .join("\n");
 
@@ -341,6 +341,17 @@ mod tests {
         assert!(xml.contains(USAGE_MONITOR_JOB.launchd_label));
         assert!(xml.contains("<string>usage-monitor</string>"));
         assert!(xml.contains("<string>capture</string>"));
+    }
+
+    #[test]
+    fn plist_escapes_xml_reserved_chars_in_paths() {
+        let xml = generate_plist(
+            Path::new("/tmp/ACME & Co/<tool>"),
+            Path::new("/tmp/dbs/usage>prod&test<.db"),
+            Interval::Hourly,
+        );
+        assert!(xml.contains("/tmp/ACME &amp; Co/&lt;tool&gt;"));
+        assert!(xml.contains("/tmp/dbs/usage&gt;prod&amp;test&lt;.db"));
     }
 
     // ── install/uninstall/status round-trip (isolated, no shell-out) ─────────

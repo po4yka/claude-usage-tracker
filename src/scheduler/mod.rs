@@ -183,6 +183,26 @@ pub fn resolve_bin_path() -> Result<PathBuf> {
     Ok(canonical)
 }
 
+pub(crate) fn xml_escape(value: &str) -> String {
+    let mut escaped = String::with_capacity(value.len());
+    for ch in value.chars() {
+        match ch {
+            '&' => escaped.push_str("&amp;"),
+            '<' => escaped.push_str("&lt;"),
+            '>' => escaped.push_str("&gt;"),
+            '"' => escaped.push_str("&quot;"),
+            '\'' => escaped.push_str("&apos;"),
+            _ => escaped.push(ch),
+        }
+    }
+    escaped
+}
+
+pub(crate) fn shell_quote(value: &str) -> String {
+    let escaped = value.replace('\'', "'\\''");
+    format!("'{escaped}'")
+}
+
 // ── Tests ──────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -216,5 +236,18 @@ mod tests {
     fn interval_as_str() {
         assert_eq!(Interval::Hourly.as_str(), "hourly");
         assert_eq!(Interval::Daily.as_str(), "daily");
+    }
+
+    #[test]
+    fn xml_escape_escapes_reserved_chars() {
+        assert_eq!(
+            xml_escape("a&b<c>d\"e'f"),
+            "a&amp;b&lt;c&gt;d&quot;e&apos;f"
+        );
+    }
+
+    #[test]
+    fn shell_quote_wraps_and_escapes_single_quotes() {
+        assert_eq!(shell_quote("/tmp/it's here"), "'/tmp/it'\\''s here'");
     }
 }

@@ -21,7 +21,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 
-use super::{InstallStatus, Interval, SCAN_JOB, ScheduledJob, Scheduler};
+use super::{InstallStatus, Interval, SCAN_JOB, ScheduledJob, Scheduler, shell_quote};
 
 /// Comment marker that identifies Heimdall-owned crontab lines.
 pub const CRON_TAG: &str = "# heimdall-scheduler:v1";
@@ -141,13 +141,14 @@ pub fn build_heimdall_block_for_job(
 }
 
 fn job_command(bin_path: &Path, db_path: &Path, job: ScheduledJob) -> String {
-    let command = job.command.join(" ");
-    format!(
-        "{} {} --db-path {}",
-        bin_path.display(),
-        command,
-        db_path.display()
-    )
+    std::iter::once(shell_quote(&bin_path.to_string_lossy()))
+        .chain(job.command.iter().map(|arg| shell_quote(arg)))
+        .chain([
+            shell_quote("--db-path"),
+            shell_quote(&db_path.to_string_lossy()),
+        ])
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// Remove all Heimdall-owned lines from a crontab text.
@@ -302,7 +303,18 @@ mod tests {
             Interval::Daily,
         );
         assert!(block.contains(USAGE_MONITOR_JOB.cron_tag));
-        assert!(block.contains("usage-monitor capture --db-path"));
+        assert!(block.contains("'usage-monitor' 'capture' '--db-path'"));
+    }
+
+    #[test]
+    fn block_shell_quotes_paths() {
+        let block = build_heimdall_block(
+            Path::new("/opt/ACME Tools/heimdall's bin"),
+            Path::new("/home/bob/Usage Data/usage's main.db"),
+            Interval::Hourly,
+        );
+        assert!(block.contains("'/opt/ACME Tools/heimdall'\\''s bin'"));
+        assert!(block.contains("'/home/bob/Usage Data/usage'\\''s main.db'"));
     }
 
     // ── remove_heimdall_entries ───────────────────────────────────────────────
@@ -328,7 +340,7 @@ mod tests {
         );
         assert!(!result.contains(CRON_TAG), "heimdall tag must be removed");
         assert!(
-            !result.contains("/bin/cut scan"),
+            !result.contains("/bin/cut"),
             "heimdall cron line must be removed"
         );
     }

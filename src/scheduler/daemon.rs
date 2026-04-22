@@ -19,7 +19,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 
-use super::InstallStatus;
+use super::{InstallStatus, xml_escape};
 
 /// Label used as the plist `<key>Label</key>` and as the service identifier.
 pub const DAEMON_PLIST_LABEL: &str = "dev.heimdall.daemon";
@@ -141,7 +141,7 @@ impl LaunchdDaemonScheduler {
 /// with `RunAtLoad = true` and `KeepAlive = true` so launchd restarts the
 /// process if it exits.
 pub fn generate_daemon_plist(bin_path: &Path, logs_dir: &Path) -> String {
-    let bin_str = bin_path.display();
+    let bin_str = xml_escape(&bin_path.to_string_lossy());
     let log_out = logs_dir.join("daemon.log");
     let log_err = logs_dir.join("daemon.err");
 
@@ -183,8 +183,8 @@ pub fn generate_daemon_plist(bin_path: &Path, logs_dir: &Path) -> String {
 "#,
         label = DAEMON_PLIST_LABEL,
         bin = bin_str,
-        log_out = log_out.display(),
-        log_err = log_err.display(),
+        log_out = xml_escape(&log_out.to_string_lossy()),
+        log_err = xml_escape(&log_err.to_string_lossy()),
     )
 }
 
@@ -391,6 +391,17 @@ mod tests {
             xml.contains("<string>--background-poll</string>"),
             "plist must pass --background-poll"
         );
+    }
+
+    #[test]
+    fn generate_daemon_plist_escapes_xml_reserved_chars_in_paths() {
+        let xml = generate_daemon_plist(
+            Path::new("/tmp/ACME & Co/<heimdall>"),
+            Path::new("/tmp/logs & traces/<heimdall>"),
+        );
+        assert!(xml.contains("/tmp/ACME &amp; Co/&lt;heimdall&gt;"));
+        assert!(xml.contains("/tmp/logs &amp; traces/&lt;heimdall&gt;/daemon.log"));
+        assert!(xml.contains("/tmp/logs &amp; traces/&lt;heimdall&gt;/daemon.err"));
     }
 
     // ── install/uninstall round-trip (isolated, no shell-out) ─────────────────

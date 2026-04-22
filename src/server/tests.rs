@@ -21,12 +21,14 @@ mod tests {
     use crate::oauth::models::{BudgetInfo, Identity, Plan, UsageWindowsResponse, WindowInfo};
     use crate::scanner;
     use crate::server::api::{
-        AppState, api_agent_status, api_claude_usage, api_community_signal,
-        api_live_provider_history, api_live_provider_refresh, api_live_providers,
-        api_mobile_snapshot, api_rescan, api_usage_windows,
+        AppState, CostReconciliationParams, HeatmapParams, api_agent_status, api_billing_blocks,
+        api_claude_usage, api_community_signal, api_context_window, api_cost_reconciliation,
+        api_data, api_heatmap, api_live_provider_history, api_live_provider_refresh,
+        api_live_providers, api_mobile_snapshot, api_rescan, api_stream, api_usage_windows,
     };
     use crate::server::assets;
     use crate::server::{ServeOptions, build_router, build_state, start_background_pollers_with};
+    use crate::tz::TzParams;
     use crate::webhooks::WebhookState;
 
     fn make_assistant(session_id: &str, input: i64, output: i64, msg_id: &str) -> String {
@@ -631,6 +633,15 @@ mod tests {
         let state = Arc::new(base_state(db_path, projects));
         let remote: SocketAddr = "192.168.1.20:43120".parse().unwrap();
 
+        let data_req = {
+            let mut req = Request::builder()
+                .uri("/api/data")
+                .body(Body::empty())
+                .unwrap();
+            req.extensions_mut()
+                .insert(axum::extract::ConnectInfo(remote));
+            req
+        };
         let usage_req = {
             let mut req = Request::builder()
                 .uri("/api/usage-windows")
@@ -685,7 +696,76 @@ mod tests {
                 .insert(axum::extract::ConnectInfo(remote));
             req
         };
+        let heatmap_req = {
+            let mut req = Request::builder()
+                .uri("/api/heatmap")
+                .body(Body::empty())
+                .unwrap();
+            req.extensions_mut()
+                .insert(axum::extract::ConnectInfo(remote));
+            req
+        };
+        let stream_req = {
+            let mut req = Request::builder()
+                .uri("/api/stream")
+                .body(Body::empty())
+                .unwrap();
+            req.extensions_mut()
+                .insert(axum::extract::ConnectInfo(remote));
+            req
+        };
+        let billing_blocks_req = {
+            let mut req = Request::builder()
+                .uri("/api/billing-blocks")
+                .body(Body::empty())
+                .unwrap();
+            req.extensions_mut()
+                .insert(axum::extract::ConnectInfo(remote));
+            req
+        };
+        let context_window_req = {
+            let mut req = Request::builder()
+                .uri("/api/context-window")
+                .body(Body::empty())
+                .unwrap();
+            req.extensions_mut()
+                .insert(axum::extract::ConnectInfo(remote));
+            req
+        };
+        let cost_reconciliation_req = {
+            let mut req = Request::builder()
+                .uri("/api/cost-reconciliation")
+                .body(Body::empty())
+                .unwrap();
+            req.extensions_mut()
+                .insert(axum::extract::ConnectInfo(remote));
+            req
+        };
+        let agent_status_req = {
+            let mut req = Request::builder()
+                .uri("/api/agent-status")
+                .body(Body::empty())
+                .unwrap();
+            req.extensions_mut()
+                .insert(axum::extract::ConnectInfo(remote));
+            req
+        };
+        let community_signal_req = {
+            let mut req = Request::builder()
+                .uri("/api/community-signal")
+                .body(Body::empty())
+                .unwrap();
+            req.extensions_mut()
+                .insert(axum::extract::ConnectInfo(remote));
+            req
+        };
 
+        let data = api_data(
+            State(state.clone()),
+            axum::extract::Query(TzParams::default()),
+            data_req,
+        )
+        .await;
         let usage = api_usage_windows(State(state.clone()), usage_req).await;
         let claude_usage = api_claude_usage(State(state.clone()), claude_req).await;
         let live = api_live_providers(
@@ -715,14 +795,40 @@ mod tests {
             history_req,
         )
         .await;
-        let mobile_snapshot = api_mobile_snapshot(State(state), mobile_snapshot_req).await;
+        let mobile_snapshot = api_mobile_snapshot(State(state.clone()), mobile_snapshot_req).await;
+        let heatmap = api_heatmap(
+            State(state.clone()),
+            axum::extract::Query(HeatmapParams::default()),
+            heatmap_req,
+        )
+        .await;
+        let stream = api_stream(State(state.clone()), stream_req).await;
+        let billing_blocks = api_billing_blocks(State(state.clone()), billing_blocks_req).await;
+        let context_window = api_context_window(State(state.clone()), context_window_req).await;
+        let cost_reconciliation = api_cost_reconciliation(
+            State(state.clone()),
+            axum::extract::Query(CostReconciliationParams::default()),
+            cost_reconciliation_req,
+        )
+        .await;
+        let agent_status = api_agent_status(State(state.clone()), agent_status_req).await;
+        let community_signal =
+            api_community_signal(State(state.clone()), community_signal_req).await;
 
+        assert_eq!(data.unwrap_err(), StatusCode::FORBIDDEN);
         assert_eq!(usage.unwrap_err(), StatusCode::FORBIDDEN);
         assert_eq!(claude_usage.unwrap_err(), StatusCode::FORBIDDEN);
         assert_eq!(live.unwrap_err(), StatusCode::FORBIDDEN);
         assert_eq!(refresh.unwrap_err(), StatusCode::FORBIDDEN);
         assert_eq!(history.unwrap_err(), StatusCode::FORBIDDEN);
         assert_eq!(mobile_snapshot.unwrap_err(), StatusCode::FORBIDDEN);
+        assert_eq!(heatmap.unwrap_err(), StatusCode::FORBIDDEN);
+        assert!(matches!(stream, Err(StatusCode::FORBIDDEN)));
+        assert_eq!(billing_blocks.unwrap_err(), StatusCode::FORBIDDEN);
+        assert_eq!(context_window.unwrap_err(), StatusCode::FORBIDDEN);
+        assert_eq!(cost_reconciliation.unwrap_err(), StatusCode::FORBIDDEN);
+        assert_eq!(agent_status.unwrap_err(), StatusCode::FORBIDDEN);
+        assert_eq!(community_signal.unwrap_err(), StatusCode::FORBIDDEN);
     }
 
     #[tokio::test]
