@@ -204,10 +204,11 @@ struct ProviderMenuCard: View {
                 TokenBreakdownRow(title: "Today", breakdown: breakdown)
             }
             if !projection.historyFractions.isEmpty {
-                HistoryBarStrip(
-                    fractions: projection.historyFractions,
-                    breakdowns: projection.historyBreakdowns
-                )
+                if Self.hasUsableBreakdowns(projection) {
+                    TokenStackChart(breakdowns: projection.historyBreakdowns)
+                } else {
+                    HistoryBarChart(fractions: projection.historyFractions)
+                }
             }
             if let hitRate = projection.cacheHitRateToday {
                 CacheEfficiencyCard(
@@ -215,6 +216,9 @@ struct ProviderMenuCard: View {
                     hitRate30d: projection.cacheHitRate30d,
                     savings30dUSD: projection.cacheSavings30dUSD
                 )
+            }
+            if !projection.dailyCosts.isEmpty {
+                DailyCostChart(daily: projection.dailyCosts)
             }
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(projection.costLabel)
@@ -385,6 +389,11 @@ struct ProviderMenuCard: View {
         return String(format: "$%.2f", usd)
     }
 
+    fileprivate static func hasUsableBreakdowns(_ projection: ProviderMenuProjection) -> Bool {
+        projection.historyBreakdowns.count == projection.historyFractions.count
+            && projection.historyBreakdowns.contains(where: { !$0.isEmpty })
+    }
+
 }
 
 struct OverviewMenuCard: View {
@@ -453,7 +462,10 @@ private struct OverviewSummaryCard: View {
                             Text("Last 7 days")
                                 .font(.caption.weight(.medium))
                                 .foregroundStyle(.secondary)
-                            HistoryBarStrip(fractions: self.projection.historyFractions)
+                            HistoryBarChart(
+                                fractions: self.projection.historyFractions,
+                                showsHeader: false
+                            )
                         }
                     }
 
@@ -715,152 +727,6 @@ private struct LaneStatusCard: View {
         case ..<35: return .orange
         default: return .green
         }
-    }
-}
-
-struct HistoryBarStrip: View {
-    let fractions: [Double]
-    var showsHeader: Bool = true
-    /// Per-day token breakdown (input/output/cache-read/cache-creation). When
-    /// empty or not aligned with `fractions`, the widget falls back to the
-    /// flat-bar rendering used before Phase 1.
-    var breakdowns: [TokenBreakdown] = []
-
-    var body: some View {
-        let labels = Self.dayLabels(count: self.fractions.count)
-        VStack(alignment: .leading, spacing: 6) {
-            if self.showsHeader {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text("Usage history")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(Color.primary.opacity(0.72))
-                        Spacer()
-                        if self.hasBreakdowns {
-                            TokenLegend()
-                        }
-                    }
-                    Text("Relative daily spend normalized to the 7-day peak. Today is on the right.")
-                        .font(.caption2)
-                        .foregroundStyle(Color.primary.opacity(0.68))
-                }
-            }
-            HStack(alignment: .bottom, spacing: 6) {
-                ForEach(Array(zip(self.fractions, labels).enumerated()), id: \.offset) { entry in
-                    let (fraction, label) = entry.element
-                    let isToday = entry.offset == self.fractions.count - 1
-                    VStack(spacing: 3) {
-                        ZStack(alignment: .bottom) {
-                            RoundedRectangle(cornerRadius: 2, style: .continuous)
-                                .fill(Color.primary.opacity(0.1))
-                                .frame(height: 32)
-                            if self.hasBreakdowns {
-                                StackedDayBar(
-                                    breakdown: self.breakdowns[entry.offset],
-                                    fraction: fraction,
-                                    height: 32,
-                                    highlight: isToday
-                                )
-                            } else {
-                                RoundedRectangle(cornerRadius: 2, style: .continuous)
-                                    .fill(Color.primary.opacity(isToday ? 0.95 : 0.78))
-                                    .frame(height: max(2, 32 * fraction))
-                            }
-                        }
-                        .help(self.helpText(for: label, fraction: fraction, index: entry.offset))
-                        .frame(maxWidth: .infinity)
-                        Text(isToday ? "Today" : label)
-                            .font(.system(size: 9, weight: isToday ? .semibold : .regular).monospacedDigit())
-                            .foregroundStyle(isToday ? .primary : .secondary)
-                    }
-                }
-            }
-        }
-        .padding(8)
-        .menuCardBackground(opacity: 0.03, cornerRadius: 8)
-    }
-
-    private var hasBreakdowns: Bool {
-        self.breakdowns.count == self.fractions.count
-            && self.breakdowns.contains(where: { !$0.isEmpty })
-    }
-
-    private func helpText(for label: String, fraction: Double, index: Int) -> String {
-        let baseLabel = index == self.fractions.count - 1 ? "Today" : label
-        let normalized = Int((max(0, fraction) * 100).rounded())
-        if self.hasBreakdowns {
-            let breakdown = self.breakdowns[index]
-            return "\(baseLabel) · \(normalized)% of the 7-day peak · \(self.breakdownTooltip(for: breakdown))"
-        }
-        return "\(baseLabel) · \(normalized)% of the 7-day peak"
-    }
-
-    private func breakdownTooltip(for breakdown: TokenBreakdown) -> String {
-        TokenCategory.orderedForStack
-            .map { category in
-                "\(category.label): \(Self.compactTokenCount(category.value(for: breakdown)))"
-            }
-            .joined(separator: " · ")
-    }
-
-    private static func compactTokenCount(_ count: Int) -> String {
-        let value = Double(count)
-        if value >= 1_000_000_000 {
-            return String(format: "%.1fB", value / 1_000_000_000)
-        }
-        if value >= 1_000_000 {
-            return String(format: "%.1fM", value / 1_000_000)
-        }
-        if value >= 1_000 {
-            return String(format: "%.1fK", value / 1_000)
-        }
-        return "\(count)"
-    }
-
-    /// Produce day-of-week labels for the last N days ending today, so the
-    /// rightmost label is today's weekday.
-    private static func dayLabels(count: Int) -> [String] {
-        guard count > 0 else { return [] }
-        let formatter = DateFormatter()
-        formatter.dateFormat = "EEE"
-        let calendar = Calendar.current
-        let today = Date()
-        return (0..<count).map { offset in
-            let date = calendar.date(byAdding: .day, value: -(count - 1 - offset), to: today) ?? today
-            return formatter.string(from: date)
-        }
-    }
-}
-
-/// One day's worth of vertical segments. Heights are scaled so the total
-/// matches `fraction * height` — the _shape_ carries which categories
-/// dominated the day, not absolute token counts.
-private struct StackedDayBar: View {
-    let breakdown: TokenBreakdown
-    let fraction: Double
-    let height: CGFloat
-    let highlight: Bool
-
-    var body: some View {
-        let total = max(self.breakdown.total, 1)
-        let visibleHeight = max(2, self.height * CGFloat(self.fraction))
-        VStack(spacing: 0) {
-            Spacer(minLength: 0)
-            ForEach(Array(TokenCategory.orderedForStack.enumerated()), id: \.offset) { entry in
-                let category = entry.element
-                let tokens = category.value(for: self.breakdown)
-                if tokens > 0 {
-                    Rectangle()
-                        .fill(category.tint)
-                        .frame(
-                            height: max(1, visibleHeight * CGFloat(tokens) / CGFloat(total))
-                        )
-                }
-            }
-        }
-        .frame(height: self.height, alignment: .bottom)
-        .clipShape(RoundedRectangle(cornerRadius: 2, style: .continuous))
-        .opacity(self.highlight ? 1.0 : 0.75)
     }
 }
 

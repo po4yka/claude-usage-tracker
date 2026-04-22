@@ -275,7 +275,7 @@ private struct WindowOverviewHistoryCard: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
 
-            HistoryBarStrip(
+            HistoryBarChart(
                 fractions: self.projection.historyFractions,
                 showsHeader: false
             )

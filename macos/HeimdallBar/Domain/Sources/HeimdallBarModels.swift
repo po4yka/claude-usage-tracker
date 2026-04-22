@@ -1373,6 +1373,10 @@ public struct ProviderMenuProjection: Sendable, Identifiable {
     public var globalIssueLabel: String?
     public var historyFractions: [Double]
     public var historyBreakdowns: [TokenBreakdown]
+    /// Full cost-per-day series from the underlying snapshot (typically the
+    /// trailing 30 days). Exposed so the menu can render a real 30-day chart
+    /// separately from the normalized 7-day `historyFractions` strip.
+    public var dailyCosts: [CostHistoryPoint]
     public var todayBreakdown: TokenBreakdown?
     public var last30DaysBreakdown: TokenBreakdown?
     public var cacheHitRateToday: Double?
@@ -1428,7 +1432,8 @@ public struct ProviderMenuProjection: Sendable, Identifiable {
         cacheHitRate30d: Double? = nil,
         cacheSavings30dUSD: Double? = nil,
         weeklyProjectedCostUSD: Double? = nil,
-        spendTrendDirection: TrendDirection? = nil
+        spendTrendDirection: TrendDirection? = nil,
+        dailyCosts: [CostHistoryPoint] = []
     ) {
         self.provider = provider
         self.title = title
@@ -1459,6 +1464,7 @@ public struct ProviderMenuProjection: Sendable, Identifiable {
         self.globalIssueLabel = globalIssueLabel
         self.historyFractions = historyFractions
         self.historyBreakdowns = historyBreakdowns
+        self.dailyCosts = dailyCosts
         self.todayBreakdown = todayBreakdown
         self.last30DaysBreakdown = last30DaysBreakdown
         self.cacheHitRateToday = cacheHitRateToday
