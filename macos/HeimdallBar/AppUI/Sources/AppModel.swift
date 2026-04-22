@@ -8,6 +8,7 @@ public final class AppModel {
     public let sessionStore: AppSessionStore
     public let shell: AppShellModel
     public let overview: OverviewFeatureModel
+    public let liveMonitor: LiveMonitorFeatureModel
     public let settings: SettingsFeatureModel
 
     private let refreshCoordinator: RefreshCoordinator
@@ -29,6 +30,10 @@ public final class AppModel {
             sessionStore: sessionStore,
             repository: providerRepository,
             refreshCoordinator: refreshCoordinator
+        )
+        self.liveMonitor = LiveMonitorFeatureModel(
+            sessionStore: sessionStore,
+            clientFactory: runtime.liveMonitorClientFactory
         )
         self.settings = SettingsFeatureModel(
             sessionStore: sessionStore,

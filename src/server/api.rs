@@ -7,6 +7,7 @@ use axum::extract::{Query, Request, State};
 use axum::http::StatusCode;
 use axum::response::Json;
 use axum::response::sse::{Event, KeepAlive, Sse};
+use serde::Serialize;
 use serde_json::Value;
 use tokio::sync::{Mutex, RwLock, broadcast};
 use tokio_stream::StreamExt;
@@ -19,10 +20,20 @@ use crate::agent_status::models::AgentStatusSnapshot;
 use crate::config::{AgentStatusConfig, AggregatorConfig, WebhookConfig};
 use crate::live_providers;
 use crate::models::ClaudeUsageResponse;
+use crate::models::LIVE_MONITOR_CONTRACT_VERSION;
+use crate::models::LiveMonitorBillingBlock;
+use crate::models::LiveMonitorBurnRate;
+use crate::models::LiveMonitorContextWindow;
+use crate::models::LiveMonitorFreshness;
+use crate::models::LiveMonitorProjection;
+use crate::models::LiveMonitorProvider;
+use crate::models::LiveMonitorQuota;
+use crate::models::LiveMonitorResponse;
 use crate::models::LiveProviderHistoryResponse;
 use crate::models::LiveProvidersResponse;
 use crate::models::MobileSnapshotEnvelope;
 use crate::models::OpenAiReconciliation;
+use crate::models::TokenBreakdown;
 use crate::oauth;
 use crate::oauth::models::UsageWindowsResponse;
 use crate::openai;
@@ -70,6 +81,53 @@ pub struct AppState {
     /// Cached live-provider snapshots for native menu consumers.
     pub live_provider_cache: RwLock<Option<(Instant, LiveProvidersResponse)>>,
     pub live_provider_refresh_lock: Mutex<()>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub(crate) struct BillingBlockViewResponse {
+    pub start: String,
+    pub end: String,
+    pub first_timestamp: String,
+    pub last_timestamp: String,
+    pub tokens: TokenBreakdown,
+    pub cost_nanos: i64,
+    pub models: Vec<String>,
+    pub is_active: bool,
+    pub is_gap: bool,
+    pub kind: String,
+    pub entry_count: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub burn_rate: Option<LiveMonitorBurnRate>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub projection: Option<LiveMonitorProjection>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub quota: Option<LiveMonitorQuota>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub(crate) struct BillingBlocksApiResponse {
+    pub session_length_hours: f64,
+    pub token_limit: Option<i64>,
+    pub historical_max_tokens: i64,
+    pub blocks: Vec<BillingBlockViewResponse>,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub(crate) struct ContextWindowApiResponse {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enabled: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total_input_tokens: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context_window_size: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pct: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub severity: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub captured_at: Option<String>,
 }
 
 pub async fn api_data(
@@ -424,6 +482,299 @@ pub async fn api_mobile_snapshot(
     Ok(Json(snapshot))
 }
 
+pub async fn api_live_monitor(
+    State(state): State<Arc<AppState>>,
+    request: Request,
+) -> Result<Json<LiveMonitorResponse>, StatusCode> {
+    enforce_loopback_request(&request)?;
+    let snapshots = live_providers::load_snapshots(&state, None, live_providers::ResponseScope::All, false)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let billing_blocks = load_billing_blocks_response(&state).await?;
+    let context_window = load_context_window_response(&state).await?;
+    Ok(Json(build_live_monitor_response(
+        snapshots,
+        billing_blocks,
+        context_window,
+    )))
+}
+
+fn build_live_monitor_response(
+    snapshots: LiveProvidersResponse,
+    billing_blocks: BillingBlocksApiResponse,
+    context_window: ContextWindowApiResponse,
+) -> LiveMonitorResponse {
+    let now = chrono::Utc::now();
+    let active_block = billing_blocks.blocks.iter().find(|block| block.is_active).cloned();
+    let context_window_detail = build_live_monitor_context_window(&context_window);
+
+    let providers = snapshots
+        .providers
+        .iter()
+        .map(|snapshot| {
+            let warnings = build_monitor_warnings(snapshot, active_block.as_ref(), &context_window_detail);
+            LiveMonitorProvider {
+                provider: snapshot.provider.clone(),
+                title: provider_title(&snapshot.provider).to_string(),
+                visual_state: monitor_visual_state(snapshot, &warnings).to_string(),
+                source_label: format!("Source: {}", snapshot.source_used),
+                warnings,
+                identity_label: monitor_identity_label(snapshot),
+                primary: snapshot.primary.clone(),
+                secondary: snapshot.secondary.clone(),
+                today_cost_usd: snapshot.cost_summary.today_cost_usd,
+                projected_weekly_spend_usd: projected_weekly_spend(snapshot),
+                last_refresh: snapshot.last_refresh.clone(),
+                last_refresh_label: format!("Updated {}", relative_refresh_label(&snapshot.last_refresh, now)),
+                active_block: if snapshot.provider == "claude" {
+                    active_block
+                        .as_ref()
+                        .map(|block| live_monitor_billing_block(block.clone()))
+                } else {
+                    None
+                },
+                context_window: if snapshot.provider == "claude" {
+                    context_window_detail.clone()
+                } else {
+                    None
+                },
+                recent_session: snapshot.cost_summary.recent_sessions.first().cloned(),
+            }
+        })
+        .collect::<Vec<_>>();
+
+    let newest_provider_refresh = snapshots
+        .providers
+        .iter()
+        .map(|provider| provider.last_refresh.clone())
+        .max();
+    let oldest_provider_refresh = snapshots
+        .providers
+        .iter()
+        .map(|provider| provider.last_refresh.clone())
+        .min();
+    let stale_providers = snapshots
+        .providers
+        .iter()
+        .filter(|provider| provider.stale)
+        .map(|provider| provider.provider.clone())
+        .collect::<Vec<_>>();
+    let global_issue = monitor_global_issue(&providers);
+
+    LiveMonitorResponse {
+        contract_version: LIVE_MONITOR_CONTRACT_VERSION,
+        generated_at: now.to_rfc3339(),
+        default_focus: "all".into(),
+        global_issue,
+        freshness: LiveMonitorFreshness {
+            newest_provider_refresh,
+            oldest_provider_refresh,
+            has_stale_providers: !stale_providers.is_empty(),
+            stale_providers,
+            refresh_state: if providers.iter().any(|provider| provider.visual_state == "error") {
+                "attention".into()
+            } else if providers.iter().any(|provider| provider.visual_state == "stale") {
+                "stale".into()
+            } else {
+                "current".into()
+            },
+        },
+        providers,
+    }
+}
+
+fn provider_title(provider: &str) -> &'static str {
+    match provider {
+        "claude" => "Claude",
+        "codex" => "Codex",
+        _ => "Provider",
+    }
+}
+
+fn relative_refresh_label(iso: &str, now: chrono::DateTime<chrono::Utc>) -> String {
+    chrono::DateTime::parse_from_rfc3339(iso)
+        .ok()
+        .map(|ts| ts.with_timezone(&chrono::Utc))
+        .map(|ts| {
+            let delta = now.signed_duration_since(ts);
+            if delta.num_minutes() <= 0 {
+                "just now".to_string()
+            } else if delta.num_minutes() < 60 {
+                format!("{}m ago", delta.num_minutes())
+            } else if delta.num_hours() < 24 {
+                format!("{}h ago", delta.num_hours())
+            } else {
+                format!("{}d ago", delta.num_days())
+            }
+        })
+        .unwrap_or_else(|| iso.to_string())
+}
+
+fn projected_weekly_spend(snapshot: &crate::models::LiveProviderSnapshot) -> Option<f64> {
+    let recent_days = snapshot
+        .cost_summary
+        .daily
+        .iter()
+        .rev()
+        .take(7)
+        .map(|point| point.cost_usd)
+        .collect::<Vec<_>>();
+    if !recent_days.is_empty() {
+        let avg = recent_days.iter().sum::<f64>() / recent_days.len() as f64;
+        return Some(avg * 7.0);
+    }
+    (snapshot.cost_summary.today_cost_usd > 0.0).then_some(snapshot.cost_summary.today_cost_usd * 7.0)
+}
+
+fn monitor_identity_label(snapshot: &crate::models::LiveProviderSnapshot) -> Option<String> {
+    let mut parts = Vec::new();
+    if let Some(identity) = snapshot.identity.as_ref() {
+        if let Some(plan) = identity.plan.as_ref() {
+            parts.push(plan.clone());
+        }
+        if let Some(login_method) = identity.login_method.as_ref() {
+            parts.push(login_method.clone());
+        }
+        if let Some(account_email) = identity.account_email.as_ref() {
+            parts.push(account_email.clone());
+        }
+    }
+    if parts.is_empty() { None } else { Some(parts.join(" · ")) }
+}
+
+fn push_warning(warnings: &mut Vec<String>, warning: Option<String>) {
+    if let Some(warning) = warning.filter(|warning| !warning.trim().is_empty())
+        && !warnings.iter().any(|existing| existing == &warning)
+    {
+        warnings.push(warning);
+    }
+}
+
+fn build_monitor_warnings(
+    snapshot: &crate::models::LiveProviderSnapshot,
+    active_block: Option<&BillingBlockViewResponse>,
+    context_window: &Option<LiveMonitorContextWindow>,
+) -> Vec<String> {
+    let mut warnings = Vec::new();
+    push_warning(&mut warnings, snapshot.error.clone());
+    if snapshot.auth.requires_relogin || !snapshot.auth.is_authenticated {
+        push_warning(&mut warnings, Some("Authentication needs attention".into()));
+    }
+    if let Some(status) = snapshot.status.as_ref()
+        && status.indicator != "none"
+    {
+        push_warning(
+            &mut warnings,
+            Some(format!("{} status: {}", provider_title(&snapshot.provider), status.description)),
+        );
+    }
+    if snapshot.provider == "claude"
+        && let Some(block) = active_block
+        && let Some(quota) = block.quota.as_ref()
+        && quota.projected_severity != "ok"
+    {
+        push_warning(
+            &mut warnings,
+            Some(format!("Billing block projected {}", quota.projected_severity)),
+        );
+    }
+    if snapshot.provider == "claude"
+        && let Some(context_window) = context_window.as_ref()
+        && context_window.severity != "ok"
+    {
+        push_warning(
+            &mut warnings,
+            Some(format!("Context window {}", context_window.severity)),
+        );
+    }
+    warnings
+}
+
+fn monitor_visual_state(
+    snapshot: &crate::models::LiveProviderSnapshot,
+    warnings: &[String],
+) -> &'static str {
+    if snapshot.error.is_some() || snapshot.auth.requires_relogin || !snapshot.auth.is_source_compatible {
+        return "error";
+    }
+    if let Some(status) = snapshot.status.as_ref()
+        && matches!(status.indicator.as_str(), "critical" | "major")
+    {
+        return "incident";
+    }
+    if snapshot.stale {
+        return "stale";
+    }
+    if !warnings.is_empty()
+        || snapshot
+            .status
+            .as_ref()
+            .is_some_and(|status| matches!(status.indicator.as_str(), "minor" | "maintenance"))
+    {
+        return "degraded";
+    }
+    "healthy"
+}
+
+fn monitor_global_issue(providers: &[LiveMonitorProvider]) -> Option<String> {
+    let error_count = providers
+        .iter()
+        .filter(|provider| provider.visual_state == "error")
+        .count();
+    if error_count > 0 {
+        return Some(format!(
+            "{} provider{} need attention",
+            error_count,
+            if error_count == 1 { "" } else { "s" }
+        ));
+    }
+    let stale_count = providers
+        .iter()
+        .filter(|provider| provider.visual_state == "stale")
+        .count();
+    if stale_count > 0 {
+        return Some(format!(
+            "{} provider{} using stale data",
+            stale_count,
+            if stale_count == 1 { "" } else { "s" }
+        ));
+    }
+    providers
+        .iter()
+        .find_map(|provider| provider.warnings.first().cloned())
+}
+
+fn build_live_monitor_context_window(
+    response: &ContextWindowApiResponse,
+) -> Option<LiveMonitorContextWindow> {
+    if response.enabled == Some(false) {
+        return None;
+    }
+    Some(LiveMonitorContextWindow {
+        total_input_tokens: response.total_input_tokens?,
+        context_window_size: response.context_window_size?,
+        pct: response.pct?,
+        severity: response.severity.clone()?,
+        session_id: response.session_id.clone(),
+        captured_at: response.captured_at.clone(),
+    })
+}
+
+fn live_monitor_billing_block(block: BillingBlockViewResponse) -> LiveMonitorBillingBlock {
+    LiveMonitorBillingBlock {
+        start: block.start,
+        end: block.end,
+        first_timestamp: block.first_timestamp,
+        last_timestamp: block.last_timestamp,
+        tokens: block.tokens,
+        cost_nanos: block.cost_nanos,
+        entry_count: block.entry_count,
+        burn_rate: block.burn_rate,
+        projection: block.projection,
+        quota: block.quota,
+    }
+}
+
 fn parse_live_provider_scope(
     scope: Option<&str>,
 ) -> Result<live_providers::ResponseScope, StatusCode> {
@@ -743,6 +1094,14 @@ pub async fn api_billing_blocks(
     request: Request,
 ) -> Result<Json<Value>, StatusCode> {
     enforce_loopback_request(&request)?;
+    let response = load_billing_blocks_response(&state).await?;
+    let value = serde_json::to_value(response).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(value))
+}
+
+pub(crate) async fn load_billing_blocks_response(
+    state: &Arc<AppState>,
+) -> Result<BillingBlocksApiResponse, StatusCode> {
     use crate::analytics::blocks::{
         calculate_burn_rate, identify_blocks_with_gaps, project_block_usage,
     };
@@ -753,87 +1112,99 @@ pub async fn api_billing_blocks(
     let token_limit = state.blocks_token_limit;
     let session_hours = state.session_length_hours;
 
-    let value = tokio::task::spawn_blocking(move || -> anyhow::Result<Value> {
+    tokio::task::spawn_blocking(move || -> anyhow::Result<BillingBlocksApiResponse> {
         let conn = db::open_db(&db_path)?;
         db::init_db(&conn)?;
 
         let turns = db::load_all_turns(&conn)?;
         let now = chrono::Utc::now();
         let blocks = identify_blocks_with_gaps(&turns, session_hours, now, true);
-        // Compute historical max directly from the already-loaded blocks vec —
-        // avoids a redundant full-table scan via historical_max_block_tokens.
         let historical_max_tokens = blocks
             .iter()
-            .filter(|b| !b.is_gap)
-            .map(|b| b.tokens.total())
+            .filter(|block| !block.is_gap)
+            .map(|block| block.tokens.total())
             .max()
             .unwrap_or(0);
 
-        let json_blocks: Vec<Value> = blocks
+        let blocks = blocks
             .iter()
-            .map(|b| {
-                let rate = if b.is_active {
-                    calculate_burn_rate(b, now)
+            .map(|block| {
+                let rate = if block.is_active {
+                    calculate_burn_rate(block, now)
                 } else {
                     None
                 };
-                let proj = project_block_usage(b, rate, now);
+                let projection = project_block_usage(block, rate, now);
 
-                let mut v = serde_json::json!({
-                    "start": b.start.to_rfc3339(),
-                    "end": b.end.to_rfc3339(),
-                    "first_timestamp": b.first_timestamp.to_rfc3339(),
-                    "last_timestamp": b.last_timestamp.to_rfc3339(),
-                    "tokens": b.tokens,
-                    "cost_nanos": b.cost_nanos,
-                    "models": b.models,
-                    "is_active": b.is_active,
-                    "is_gap": b.is_gap,
-                    "kind": b.kind,
-                    "entry_count": b.entry_count,
-                });
-                if b.is_active {
-                    v["burn_rate"] = match rate {
-                        Some(r) => {
-                            // TODO: thread AppState config thresholds here so API tier matches statusline when user overrides [statusline.burn_rate_*] in TOML.
-                            let tier = br::tier(r.tokens_per_min, &BurnRateConfig::default());
-                            serde_json::json!({
-                                "tokens_per_min": r.tokens_per_min,
-                                "cost_per_hour_nanos": r.cost_per_hour_nanos,
-                                "tier": tier,
-                            })
+                BillingBlockViewResponse {
+                    start: block.start.to_rfc3339(),
+                    end: block.end.to_rfc3339(),
+                    first_timestamp: block.first_timestamp.to_rfc3339(),
+                    last_timestamp: block.last_timestamp.to_rfc3339(),
+                    tokens: TokenBreakdown {
+                        input: block.tokens.input,
+                        output: block.tokens.output,
+                        cache_read: block.tokens.cache_read,
+                        cache_creation: block.tokens.cache_creation,
+                        reasoning_output: block.tokens.reasoning_output,
+                    },
+                    cost_nanos: block.cost_nanos,
+                    models: block.models.clone(),
+                    is_active: block.is_active,
+                    is_gap: block.is_gap,
+                    kind: block.kind.to_string(),
+                    entry_count: block.entry_count,
+                    burn_rate: rate.map(|rate| LiveMonitorBurnRate {
+                        tokens_per_min: rate.tokens_per_min,
+                        cost_per_hour_nanos: rate.cost_per_hour_nanos,
+                        tier: Some(match br::tier(rate.tokens_per_min, &BurnRateConfig::default()) {
+                            br::BurnRateTier::Normal => "normal",
+                            br::BurnRateTier::Moderate => "moderate",
+                            br::BurnRateTier::High => "high",
                         }
-                        None => Value::Null,
-                    };
-                    v["projection"] = serde_json::json!({
-                        "projected_cost_nanos": proj.projected_cost_nanos,
-                        "projected_tokens": proj.projected_tokens,
-                    });
+                        .into()),
+                    }),
+                    projection: block.is_active.then_some(LiveMonitorProjection {
+                        projected_cost_nanos: projection.projected_cost_nanos,
+                        projected_tokens: projection.projected_tokens as i64,
+                    }),
+                    quota: token_limit
+                        .filter(|_| block.is_active)
+                        .and_then(|limit| compute_quota(block, &projection, limit))
+                        .map(|quota| LiveMonitorQuota {
+                            limit_tokens: quota.limit_tokens,
+                            used_tokens: quota.used_tokens,
+                            projected_tokens: quota.projected_tokens,
+                            current_pct: quota.current_pct,
+                            projected_pct: quota.projected_pct,
+                            remaining_tokens: quota.remaining_tokens,
+                            current_severity: match quota.current_severity {
+                                crate::analytics::quota::Severity::Ok => "ok",
+                                crate::analytics::quota::Severity::Warn => "warn",
+                                crate::analytics::quota::Severity::Danger => "danger",
+                            }
+                            .into(),
+                            projected_severity: match quota.projected_severity {
+                                crate::analytics::quota::Severity::Ok => "ok",
+                                crate::analytics::quota::Severity::Warn => "warn",
+                                crate::analytics::quota::Severity::Danger => "danger",
+                            }
+                            .into(),
+                        }),
                 }
-                // Quota is only meaningful for the active block — historical blocks
-                // have projected_tokens == used_tokens (no real projection).
-                if let Some(limit) = token_limit
-                    && b.is_active
-                    && let Some(quota) = compute_quota(b, &proj, limit)
-                {
-                    v["quota"] = serde_json::to_value(quota).unwrap_or(Value::Null);
-                }
-                v
             })
             .collect();
 
-        Ok(serde_json::json!({
-            "session_length_hours": session_hours,
-            "token_limit": token_limit,
-            "historical_max_tokens": historical_max_tokens,
-            "blocks": json_blocks,
-        }))
+        Ok(BillingBlocksApiResponse {
+            session_length_hours: session_hours,
+            token_limit,
+            historical_max_tokens,
+            blocks,
+        })
     })
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    Ok(Json(value))
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
 
 /// `GET /api/context-window` — returns the most recent context-window snapshot
@@ -856,12 +1227,20 @@ pub async fn api_context_window(
     request: Request,
 ) -> Result<Json<Value>, StatusCode> {
     enforce_loopback_request(&request)?;
+    let response = load_context_window_response(&state).await?;
+    let value = serde_json::to_value(response).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(value))
+}
+
+pub(crate) async fn load_context_window_response(
+    state: &Arc<AppState>,
+) -> Result<ContextWindowApiResponse, StatusCode> {
     use crate::analytics::quota::severity_for_pct;
     use rusqlite::OptionalExtension;
 
     let db_path = state.db_path.clone();
 
-    let value = tokio::task::spawn_blocking(move || -> anyhow::Result<Value> {
+    tokio::task::spawn_blocking(move || -> anyhow::Result<ContextWindowApiResponse> {
         let conn = db::open_db(&db_path)?;
         db::init_db(&conn)?;
 
@@ -891,35 +1270,33 @@ pub async fn api_context_window(
             .map_err(anyhow::Error::from)?
         };
 
-        match result {
-            None => Ok(serde_json::json!({ "enabled": false })),
+        Ok(match result {
+            None => ContextWindowApiResponse {
+                enabled: Some(false),
+                ..Default::default()
+            },
             Some(row) => {
                 let pct = row.context_input_tokens as f64 / row.context_window_size as f64;
-                let severity = severity_for_pct(pct);
-                let severity_str = match severity {
-                    crate::analytics::quota::Severity::Ok => "ok",
-                    crate::analytics::quota::Severity::Warn => "warn",
-                    crate::analytics::quota::Severity::Danger => "danger",
-                };
-                let mut v = serde_json::json!({
-                    "total_input_tokens": row.context_input_tokens,
-                    "context_window_size": row.context_window_size,
-                    "pct": pct,
-                    "severity": severity_str,
-                    "captured_at": row.captured_at,
-                });
-                if let Some(sid) = row.session_id {
-                    v["session_id"] = serde_json::json!(sid);
+                ContextWindowApiResponse {
+                    enabled: None,
+                    total_input_tokens: Some(row.context_input_tokens),
+                    context_window_size: Some(row.context_window_size),
+                    pct: Some(pct),
+                    severity: Some(match severity_for_pct(pct) {
+                        crate::analytics::quota::Severity::Ok => "ok",
+                        crate::analytics::quota::Severity::Warn => "warn",
+                        crate::analytics::quota::Severity::Danger => "danger",
+                    }
+                    .into()),
+                    session_id: row.session_id,
+                    captured_at: Some(row.captured_at),
                 }
-                Ok(v)
             }
-        }
+        })
     })
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    Ok(Json(value))
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
 
 /// `GET /api/cost-reconciliation?period=<day|week|month>`

@@ -4,12 +4,15 @@ import Observation
 
 public enum AppNavigationItem: Hashable, Sendable, Identifiable {
     case overview
+    case liveMonitor
     case provider(ProviderID)
 
     public var id: String {
         switch self {
         case .overview:
             return "overview"
+        case .liveMonitor:
+            return "live-monitor"
         case .provider(let provider):
             return "provider:\(provider.rawValue)"
         }
@@ -19,6 +22,8 @@ public enum AppNavigationItem: Hashable, Sendable, Identifiable {
         switch self {
         case .overview:
             return "Overview"
+        case .liveMonitor:
+            return "Live Monitor"
         case .provider(let provider):
             return provider.title
         }
@@ -28,6 +33,8 @@ public enum AppNavigationItem: Hashable, Sendable, Identifiable {
         switch self {
         case .overview:
             return "All providers"
+        case .liveMonitor:
+            return "Fast refresh"
         case .provider(.claude):
             return "Anthropic usage"
         case .provider(.codex):
@@ -39,6 +46,8 @@ public enum AppNavigationItem: Hashable, Sendable, Identifiable {
         switch self {
         case .overview:
             return "square.grid.2x2"
+        case .liveMonitor:
+            return "waveform.path.ecg.rectangle"
         case .provider(.claude):
             return "quote.bubble"
         case .provider(.codex):
@@ -50,7 +59,7 @@ public enum AppNavigationItem: Hashable, Sendable, Identifiable {
         switch self {
         case .provider(let provider):
             return provider
-        case .overview:
+        case .overview, .liveMonitor:
             return nil
         }
     }
@@ -89,7 +98,7 @@ public final class AppShellModel {
     }
 
     public var navigationItems: [AppNavigationItem] {
-        [.overview] + self.visibleProviders.map(AppNavigationItem.provider)
+        [.overview, .liveMonitor] + self.visibleProviders.map(AppNavigationItem.provider)
     }
 
     public func selectNavigation(_ item: AppNavigationItem) {
@@ -98,7 +107,7 @@ public final class AppShellModel {
             self.sessionStore.selectedProvider = provider
             self.selectedMenuTab = provider == .claude ? .claude : .codex
             self.sessionStore.selectedMergeTab = self.selectedMenuTab
-        } else if item == .overview {
+        } else if item == .overview || item == .liveMonitor {
             self.selectedMenuTab = .overview
             self.sessionStore.selectedMergeTab = .overview
         }

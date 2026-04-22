@@ -1591,7 +1591,12 @@
   }
 
   // src/ui/components/Header.tsx
-  function Header({ onDataReload, onThemeToggle }) {
+  function Header({
+    onDataReload,
+    onThemeToggle,
+    navigationHref,
+    navigationLabel
+  }) {
     const headerRef = A2(null);
     const btnRef = A2(null);
     const triggerRef = A2(null);
@@ -1680,6 +1685,23 @@
       ] }),
       /* @__PURE__ */ u4("div", { class: "meta", children: metaText.value }),
       /* @__PURE__ */ u4("div", { class: "header-actions", children: [
+        navigationHref && navigationLabel && /* @__PURE__ */ u4(
+          "a",
+          {
+            href: navigationHref,
+            style: {
+              border: "1px solid var(--border-visible)",
+              borderRadius: "999px",
+              padding: "8px 12px",
+              color: "var(--text-primary)",
+              textDecoration: "none",
+              fontSize: "12px",
+              letterSpacing: "0.08em",
+              textTransform: "uppercase"
+            },
+            children: navigationLabel
+          }
+        ),
         /* @__PURE__ */ u4(
           "button",
           {
@@ -8728,6 +8750,389 @@ ${row.project}` : row.project;
     };
   }
 
+  // src/ui/monitor/store.ts
+  var liveMonitorData = y3(null);
+  var liveMonitorFocus = y3("all");
+  var liveMonitorRefreshing = y3(false);
+  var liveMonitorError = y3(null);
+  function setLiveMonitorData(data) {
+    liveMonitorData.value = data;
+    liveMonitorFocus.value = data.default_focus;
+    liveMonitorError.value = null;
+  }
+
+  // src/ui/monitor/MonitorHeader.tsx
+  function MonitorHeader({ onThemeToggle, onRefresh }) {
+    const mode = themeMode.value;
+    const icon = mode === "dark" ? /* @__PURE__ */ u4("svg", { "aria-hidden": "true", focusable: "false", width: "14", height: "14", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", "stroke-width": "2", children: /* @__PURE__ */ u4("path", { d: "M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" }) }) : /* @__PURE__ */ u4("svg", { "aria-hidden": "true", focusable: "false", width: "14", height: "14", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", "stroke-width": "2", children: [
+      /* @__PURE__ */ u4("circle", { cx: "12", cy: "12", r: "5" }),
+      /* @__PURE__ */ u4("line", { x1: "12", y1: "1", x2: "12", y2: "3" }),
+      /* @__PURE__ */ u4("line", { x1: "12", y1: "21", x2: "12", y2: "23" }),
+      /* @__PURE__ */ u4("line", { x1: "4.22", y1: "4.22", x2: "5.64", y2: "5.64" }),
+      /* @__PURE__ */ u4("line", { x1: "18.36", y1: "18.36", x2: "19.78", y2: "19.78" }),
+      /* @__PURE__ */ u4("line", { x1: "1", y1: "12", x2: "3", y2: "12" }),
+      /* @__PURE__ */ u4("line", { x1: "21", y1: "12", x2: "23", y2: "12" }),
+      /* @__PURE__ */ u4("line", { x1: "4.22", y1: "19.78", x2: "5.64", y2: "18.36" }),
+      /* @__PURE__ */ u4("line", { x1: "18.36", y1: "5.64", x2: "19.78", y2: "4.22" })
+    ] });
+    const generatedAt = liveMonitorData.value?.generated_at ?? null;
+    const issue = liveMonitorData.value?.global_issue ?? null;
+    return /* @__PURE__ */ u4("header", { children: [
+      /* @__PURE__ */ u4("div", { style: { display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }, children: [
+        /* @__PURE__ */ u4("h1", { style: { marginBottom: 0 }, children: [
+          /* @__PURE__ */ u4("span", { style: { color: "var(--text-secondary)", fontWeight: 400 }, children: "Live" }),
+          " ",
+          /* @__PURE__ */ u4("span", { style: { color: "var(--text-display)", fontWeight: 500 }, children: "Monitor" })
+        ] }),
+        issue && /* @__PURE__ */ u4(
+          "span",
+          {
+            style: {
+              fontFamily: "var(--font-mono)",
+              fontSize: "10px",
+              padding: "2px 8px",
+              borderRadius: "999px",
+              border: "1px solid var(--border-visible)",
+              color: "var(--accent)",
+              letterSpacing: "0.08em",
+              textTransform: "uppercase"
+            },
+            children: issue
+          }
+        )
+      ] }),
+      /* @__PURE__ */ u4("div", { class: "meta", children: generatedAt ? `Updated ${new Date(generatedAt).toLocaleTimeString()}` : "Waiting for monitor data" }),
+      /* @__PURE__ */ u4("div", { class: "header-actions", children: [
+        /* @__PURE__ */ u4("div", { style: { display: "inline-flex", border: "1px solid var(--border-visible)", borderRadius: "999px", overflow: "hidden" }, children: ["all", "claude", "codex"].map((option) => /* @__PURE__ */ u4(
+          "button",
+          {
+            type: "button",
+            onClick: () => {
+              liveMonitorFocus.value = option;
+            },
+            style: {
+              padding: "8px 12px",
+              border: "none",
+              borderRight: option === "codex" ? "none" : "1px solid var(--border-visible)",
+              background: liveMonitorFocus.value === option ? "var(--text-primary)" : "transparent",
+              color: liveMonitorFocus.value === option ? "var(--bg)" : "var(--text-primary)",
+              fontSize: "12px",
+              letterSpacing: "0.08em",
+              textTransform: "uppercase"
+            },
+            children: option === "all" ? "All" : option === "claude" ? "Claude" : "Codex"
+          },
+          option
+        )) }),
+        /* @__PURE__ */ u4(
+          "a",
+          {
+            href: "/",
+            style: {
+              border: "1px solid var(--border-visible)",
+              borderRadius: "999px",
+              padding: "8px 12px",
+              color: "var(--text-primary)",
+              textDecoration: "none",
+              fontSize: "12px",
+              letterSpacing: "0.08em",
+              textTransform: "uppercase"
+            },
+            children: "Dashboard"
+          }
+        ),
+        /* @__PURE__ */ u4(
+          "button",
+          {
+            class: "theme-toggle",
+            type: "button",
+            onClick: onThemeToggle,
+            "aria-label": "Toggle theme",
+            children: icon
+          }
+        ),
+        /* @__PURE__ */ u4("button", { type: "button", onClick: () => void onRefresh(), disabled: liveMonitorRefreshing.value, children: liveMonitorRefreshing.value ? "Refreshing\u2026" : "Refresh" })
+      ] })
+    ] });
+  }
+
+  // src/ui/monitor/view.tsx
+  function providersForFocus(data, focus) {
+    return focus === "all" ? data.providers : data.providers.filter((provider) => provider.provider === focus);
+  }
+  function detailProviders(data, focus) {
+    if (focus !== "all") {
+      return data.providers.filter((provider) => provider.provider === focus);
+    }
+    return data.providers.filter(
+      (provider) => provider.active_block || provider.context_window || provider.recent_session || provider.warnings.length > 0
+    );
+  }
+  function stateTone(state) {
+    switch (state) {
+      case "error":
+        return "var(--accent)";
+      case "incident":
+        return "var(--warning)";
+      case "degraded":
+        return "var(--warning)";
+      case "stale":
+        return "var(--text-secondary)";
+      default:
+        return "var(--text-primary)";
+    }
+  }
+  function stateLabel(state) {
+    return state.toUpperCase();
+  }
+  function ProviderLaneCard({ provider }) {
+    return /* @__PURE__ */ u4("div", { class: "card", style: { display: "grid", gap: "14px" }, children: [
+      /* @__PURE__ */ u4("div", { style: { display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "flex-start" }, children: [
+        /* @__PURE__ */ u4("div", { children: [
+          /* @__PURE__ */ u4("div", { class: "stat-label", style: { marginBottom: "6px" }, children: provider.title }),
+          /* @__PURE__ */ u4("div", { style: { fontSize: "28px", lineHeight: 1.1 }, children: fmtCostCompact(provider.today_cost_usd) }),
+          /* @__PURE__ */ u4("div", { class: "stat-sub", children: "Today cost" })
+        ] }),
+        /* @__PURE__ */ u4(
+          "div",
+          {
+            style: {
+              border: "1px solid var(--border-visible)",
+              borderRadius: "999px",
+              padding: "4px 8px",
+              fontFamily: "var(--font-mono)",
+              fontSize: "10px",
+              letterSpacing: "0.08em",
+              color: stateTone(provider.visual_state)
+            },
+            children: stateLabel(provider.visual_state)
+          }
+        )
+      ] }),
+      /* @__PURE__ */ u4("div", { style: { display: "grid", gap: "12px" }, children: [provider.primary, provider.secondary].filter(Boolean).map((window2, index) => /* @__PURE__ */ u4("div", { style: { display: "grid", gap: "6px" }, children: [
+        /* @__PURE__ */ u4("div", { style: { display: "flex", justifyContent: "space-between", gap: "12px" }, children: [
+          /* @__PURE__ */ u4("span", { class: "stat-label", children: index === 0 ? "Primary" : "Secondary" }),
+          /* @__PURE__ */ u4("span", { class: "stat-sub", children: [
+            window2?.used_percent.toFixed(1),
+            "% used"
+          ] })
+        ] }),
+        /* @__PURE__ */ u4(
+          SegmentedProgressBar,
+          {
+            value: window2?.used_percent ?? 0,
+            max: 100,
+            status: window2 && window2.used_percent >= 80 ? "accent" : window2 && window2.used_percent >= 50 ? "warning" : "success",
+            "aria-label": `${provider.title} ${index === 0 ? "primary" : "secondary"} quota`
+          }
+        ),
+        /* @__PURE__ */ u4("div", { class: "stat-sub", children: window2?.resets_in_minutes != null ? `Resets in ${fmtResetTime(window2.resets_in_minutes)}` : "No reset time available" })
+      ] }, `${provider.provider}-${index}`)) }),
+      /* @__PURE__ */ u4("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: "12px" }, children: [
+        /* @__PURE__ */ u4("div", { children: [
+          /* @__PURE__ */ u4("div", { class: "stat-label", children: "Weekly Projection" }),
+          /* @__PURE__ */ u4("div", { class: "stat-value", style: { fontSize: "20px" }, children: provider.projected_weekly_spend_usd != null ? fmtCostCompact(provider.projected_weekly_spend_usd) : "\u2014" })
+        ] }),
+        /* @__PURE__ */ u4("div", { children: [
+          /* @__PURE__ */ u4("div", { class: "stat-label", children: "Freshness" }),
+          /* @__PURE__ */ u4("div", { class: "stat-value", style: { fontSize: "20px" }, children: fmtRelativeTime(provider.last_refresh) }),
+          /* @__PURE__ */ u4("div", { class: "stat-sub", children: provider.last_refresh_label })
+        ] })
+      ] }),
+      /* @__PURE__ */ u4("div", { style: { display: "grid", gap: "4px" }, children: [
+        /* @__PURE__ */ u4("div", { class: "stat-sub", children: provider.source_label }),
+        provider.identity_label && /* @__PURE__ */ u4("div", { class: "stat-sub", children: provider.identity_label }),
+        provider.warnings.length > 0 && /* @__PURE__ */ u4("div", { class: "stat-sub", style: { color: stateTone(provider.visual_state) }, children: provider.warnings[0] })
+      ] })
+    ] });
+  }
+  function BlockPanel({ block }) {
+    const totalTokens2 = block.tokens.input + block.tokens.output + block.tokens.cache_read + block.tokens.cache_creation + block.tokens.reasoning_output;
+    return /* @__PURE__ */ u4("div", { class: "card stat-card", children: /* @__PURE__ */ u4("div", { class: "stat-content", children: [
+      /* @__PURE__ */ u4("div", { class: "stat-label", children: "Active Block" }),
+      /* @__PURE__ */ u4("div", { class: "stat-value", children: fmt(totalTokens2) }),
+      /* @__PURE__ */ u4("div", { class: "stat-sub", children: [
+        block.entry_count,
+        " entries \xB7 ends ",
+        new Date(block.end).toLocaleTimeString()
+      ] }),
+      block.burn_rate && /* @__PURE__ */ u4("div", { class: "stat-sub", children: [
+        fmt(totalTokens2),
+        " tokens \xB7 ",
+        fmtCostCompact(block.burn_rate.cost_per_hour_nanos / 1e9),
+        "/hr"
+      ] }),
+      block.quota && /* @__PURE__ */ u4("div", { style: { marginTop: "12px" }, children: [
+        /* @__PURE__ */ u4(
+          SegmentedProgressBar,
+          {
+            value: block.quota.projected_pct * 100,
+            max: 100,
+            status: block.quota.projected_severity === "danger" ? "accent" : block.quota.projected_severity === "warn" ? "warning" : "success",
+            "aria-label": "Projected billing block quota"
+          }
+        ),
+        /* @__PURE__ */ u4("div", { class: "stat-sub", style: { marginTop: "8px" }, children: [
+          Math.min(block.quota.projected_pct * 100, 999).toFixed(0),
+          "% projected \xB7 ",
+          fmt(block.quota.remaining_tokens),
+          " tokens left"
+        ] })
+      ] })
+    ] }) });
+  }
+  function ContextPanel({ data }) {
+    return /* @__PURE__ */ u4("div", { class: "card stat-card", children: /* @__PURE__ */ u4("div", { class: "stat-content", children: [
+      /* @__PURE__ */ u4("div", { class: "stat-label", children: "Context Window" }),
+      /* @__PURE__ */ u4("div", { class: "stat-value", children: fmt(data.total_input_tokens) }),
+      /* @__PURE__ */ u4("div", { class: "stat-sub", children: [
+        "of ",
+        fmt(data.context_window_size),
+        " \xB7 ",
+        (data.pct * 100).toFixed(1),
+        "%"
+      ] }),
+      /* @__PURE__ */ u4("div", { style: { marginTop: "12px" }, children: /* @__PURE__ */ u4(
+        SegmentedProgressBar,
+        {
+          value: data.total_input_tokens,
+          max: data.context_window_size,
+          status: data.severity === "danger" ? "accent" : data.severity === "warn" ? "warning" : "success",
+          "aria-label": "Context window usage"
+        }
+      ) })
+    ] }) });
+  }
+  function SessionPanel({ provider }) {
+    if (!provider.recent_session) return null;
+    const session = provider.recent_session;
+    return /* @__PURE__ */ u4("div", { class: "card stat-card", children: /* @__PURE__ */ u4("div", { class: "stat-content", children: [
+      /* @__PURE__ */ u4("div", { class: "stat-label", children: "Recent Session" }),
+      /* @__PURE__ */ u4("div", { class: "stat-value", style: { fontSize: "22px" }, children: provider.title }),
+      /* @__PURE__ */ u4("div", { class: "stat-sub", children: session.display_name }),
+      /* @__PURE__ */ u4("div", { class: "stat-sub", children: [
+        session.turns,
+        " turns \xB7 ",
+        session.duration_minutes,
+        "m \xB7 ",
+        fmtCostCompact(session.cost_usd)
+      ] }),
+      session.model && /* @__PURE__ */ u4("div", { class: "stat-sub", children: session.model })
+    ] }) });
+  }
+  function ProviderDetails({ provider }) {
+    return /* @__PURE__ */ u4("section", { style: { display: "grid", gap: "14px" }, children: [
+      /* @__PURE__ */ u4("div", { style: { display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "baseline", flexWrap: "wrap" }, children: [
+        /* @__PURE__ */ u4("h2", { style: { margin: 0 }, children: [
+          provider.title,
+          " Details"
+        ] }),
+        /* @__PURE__ */ u4("div", { class: "stat-sub", children: provider.last_refresh_label })
+      ] }),
+      /* @__PURE__ */ u4("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: "16px" }, children: [
+        provider.active_block && /* @__PURE__ */ u4(BlockPanel, { block: provider.active_block }),
+        provider.context_window && /* @__PURE__ */ u4(ContextPanel, { data: provider.context_window }),
+        /* @__PURE__ */ u4(SessionPanel, { provider })
+      ] }),
+      provider.warnings.length > 0 && /* @__PURE__ */ u4("div", { class: "card", style: { padding: "16px 18px" }, children: [
+        /* @__PURE__ */ u4("div", { class: "stat-label", children: "Warnings" }),
+        /* @__PURE__ */ u4("ul", { style: { margin: "10px 0 0", paddingLeft: "18px" }, children: provider.warnings.map((warning) => /* @__PURE__ */ u4("li", { children: warning }, warning)) })
+      ] })
+    ] });
+  }
+  function renderLiveMonitorView() {
+    const data = liveMonitorData.value;
+    if (!data) {
+      return /* @__PURE__ */ u4("div", { class: "card", style: { padding: "20px" }, children: [
+        /* @__PURE__ */ u4("div", { class: "stat-label", children: "Live Monitor" }),
+        /* @__PURE__ */ u4("div", { class: "stat-sub", children: "Waiting for provider data\u2026" })
+      ] });
+    }
+    const laneProviders = providersForFocus(data, liveMonitorFocus.value);
+    const details = detailProviders(data, liveMonitorFocus.value);
+    return /* @__PURE__ */ u4("div", { style: { display: "grid", gap: "24px" }, children: [
+      /* @__PURE__ */ u4("section", { style: { display: "grid", gap: "14px" }, children: [
+        /* @__PURE__ */ u4("div", { style: { display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "baseline", flexWrap: "wrap" }, children: [
+          /* @__PURE__ */ u4("h2", { style: { margin: 0 }, children: "Provider Lanes" }),
+          /* @__PURE__ */ u4("div", { class: "stat-sub", children: data.freshness.has_stale_providers ? `${data.freshness.stale_providers.join(", ")} stale` : "All providers current" })
+        ] }),
+        /* @__PURE__ */ u4("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))", gap: "16px" }, children: laneProviders.map((provider) => /* @__PURE__ */ u4(ProviderLaneCard, { provider }, provider.provider)) })
+      ] }),
+      details.map((provider) => /* @__PURE__ */ u4(ProviderDetails, { provider }, `details-${provider.provider}`))
+    ] });
+  }
+
+  // src/ui/monitor/runtime.ts
+  function createLiveMonitorRuntime() {
+    let intervalId = null;
+    let eventSource = null;
+    let visibilityHandler = null;
+    const mount = $2("main-content");
+    function renderView() {
+      R(renderLiveMonitorView(), mount);
+    }
+    async function loadData() {
+      liveMonitorRefreshing.value = true;
+      try {
+        const response = await fetch("/api/live-monitor");
+        if (!response.ok) {
+          throw new Error(`Monitor request failed (${response.status})`);
+        }
+        setLiveMonitorData(await response.json());
+      } catch (error) {
+        liveMonitorError.value = error instanceof Error ? error.message : "Live monitor refresh failed";
+      } finally {
+        liveMonitorRefreshing.value = false;
+        renderView();
+      }
+    }
+    function toggleVisibility(hidden) {
+      const filterMount = document.getElementById("filter-bar-mount");
+      const tabsMount = document.getElementById("dashboard-tabs-mount");
+      if (filterMount) filterMount.style.display = hidden ? "none" : "";
+      if (tabsMount) tabsMount.style.display = hidden ? "none" : "";
+    }
+    function subscribeToStream() {
+      if (typeof EventSource === "undefined") return;
+      eventSource = new EventSource("/api/stream");
+      eventSource.addEventListener("scan_completed", () => {
+        void loadData();
+      });
+    }
+    function start() {
+      document.title = "Live Monitor";
+      toggleVisibility(true);
+      renderView();
+      void loadData();
+      visibilityHandler = () => {
+        if (!document.hidden) {
+          void loadData();
+        }
+      };
+      document.addEventListener("visibilitychange", visibilityHandler);
+      intervalId = window.setInterval(() => {
+        if (!document.hidden) {
+          void loadData();
+        }
+      }, 1e4);
+      subscribeToStream();
+    }
+    function stop() {
+      if (intervalId != null) {
+        window.clearInterval(intervalId);
+      }
+      intervalId = null;
+      eventSource?.close();
+      eventSource = null;
+      if (visibilityHandler) {
+        document.removeEventListener("visibilitychange", visibilityHandler);
+      }
+      visibilityHandler = null;
+      toggleVisibility(false);
+    }
+    return { loadData, start, stop };
+  }
+
   // src/ui/lib/theme.ts
   function getTheme() {
     const stored = localStorage.getItem("theme");
@@ -8745,38 +9150,60 @@ ${row.project}` : row.project;
 
   // src/ui/app.tsx
   applyTheme(getTheme());
-  var runtime = createDashboardRuntime();
+  var isMonitorRoute = window.location.pathname === "/monitor";
+  var dashboardRuntime = !isMonitorRoute ? createDashboardRuntime() : null;
+  var monitorRuntime = isMonitorRoute ? createLiveMonitorRuntime() : null;
   function toggleTheme() {
     const current = document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark";
     const next = current === "light" ? "dark" : "light";
     localStorage.setItem("theme", next);
     applyTheme(next);
-    if (rawData.value) runtime.applyFilter();
+    if (rawData.value && dashboardRuntime) dashboardRuntime.applyFilter();
   }
   var headerMount = document.getElementById("header-mount");
   if (headerMount) {
-    R(/* @__PURE__ */ u4(Header, { onDataReload: runtime.loadData, onThemeToggle: toggleTheme }), headerMount);
+    if (isMonitorRoute && monitorRuntime) {
+      R(/* @__PURE__ */ u4(MonitorHeader, { onThemeToggle: toggleTheme, onRefresh: monitorRuntime.loadData }), headerMount);
+    } else if (dashboardRuntime) {
+      R(
+        /* @__PURE__ */ u4(
+          Header,
+          {
+            onDataReload: dashboardRuntime.loadData,
+            onThemeToggle: toggleTheme,
+            navigationHref: "/monitor",
+            navigationLabel: "Live Monitor"
+          }
+        ),
+        headerMount
+      );
+    }
   }
   var filterBarMount = document.getElementById("filter-bar-mount");
-  if (filterBarMount) {
+  if (filterBarMount && dashboardRuntime) {
     R(
-      /* @__PURE__ */ u4(FilterBar, { onFilterChange: runtime.applyFilter, onURLUpdate: syncDashboardUrl }),
+      /* @__PURE__ */ u4(FilterBar, { onFilterChange: dashboardRuntime.applyFilter, onURLUpdate: syncDashboardUrl }),
       filterBarMount
     );
   }
   var dashboardTabsMount = document.getElementById("dashboard-tabs-mount");
-  if (dashboardTabsMount) {
-    R(/* @__PURE__ */ u4(DashboardTabs, { onTabChange: runtime.handleDashboardTabChange }), dashboardTabsMount);
+  if (dashboardTabsMount && dashboardRuntime) {
+    R(/* @__PURE__ */ u4(DashboardTabs, { onTabChange: dashboardRuntime.handleDashboardTabChange }), dashboardTabsMount);
   }
   var footerEl = document.querySelector("footer");
   if (footerEl?.parentElement) {
     R(/* @__PURE__ */ u4(Footer, {}), footerEl.parentElement, footerEl);
   }
   var globalStatusMount = document.getElementById("inline-status-global");
-  if (globalStatusMount) {
+  if (globalStatusMount && dashboardRuntime) {
     R(/* @__PURE__ */ u4(InlineStatus, { placement: "global" }), globalStatusMount);
   }
-  runtime.start();
+  if (dashboardRuntime) {
+    dashboardRuntime.start();
+  }
+  if (monitorRuntime) {
+    monitorRuntime.start();
+  }
 })();
 /*! Bundled license information:
 

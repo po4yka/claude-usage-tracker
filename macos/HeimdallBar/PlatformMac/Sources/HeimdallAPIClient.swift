@@ -2,7 +2,7 @@ import Foundation
 import HeimdallDomain
 import HeimdallServices
 
-public struct HeimdallAPIClient: LiveProviderClient, MobileSnapshotClient, Sendable {
+public struct HeimdallAPIClient: LiveProviderClient, LiveMonitorClient, MobileSnapshotClient, Sendable {
     public var baseURL: URL
     private let session: URLSession
     private let retryPolicy: RetryPolicy
@@ -57,6 +57,37 @@ public struct HeimdallAPIClient: LiveProviderClient, MobileSnapshotClient, Senda
 
     public func fetchMobileSnapshot() async throws -> MobileSnapshotEnvelope {
         try await self.fetch(path: "/api/mobile-snapshot", as: MobileSnapshotEnvelope.self)
+    }
+
+    public func fetchLiveMonitor() async throws -> LiveMonitorEnvelope {
+        try self.validate(try await self.fetch(path: "/api/live-monitor", as: LiveMonitorEnvelope.self))
+    }
+
+    public func liveMonitorEvents() -> AsyncThrowingStream<String, Error> {
+        AsyncThrowingStream { continuation in
+            let session = self.session
+            let url = self.baseURL.appendingPathComponent("/api/stream")
+            let task = Task {
+                do {
+                    let (bytes, response) = try await session.bytes(from: url)
+                    guard let http = response as? HTTPURLResponse, 200..<300 ~= http.statusCode else {
+                        throw URLError(.badServerResponse)
+                    }
+                    for try await line in bytes.lines {
+                        if line.hasPrefix("event:") {
+                            continuation.yield(line.replacingOccurrences(of: "event:", with: "").trimmingCharacters(in: .whitespaces))
+                        }
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+
+            continuation.onTermination = { _ in
+                task.cancel()
+            }
+        }
     }
 
     private func fetch<T: Decodable>(path: String, as type: T.Type) async throws -> T {
@@ -128,6 +159,13 @@ public struct HeimdallAPIClient: LiveProviderClient, MobileSnapshotClient, Senda
 
     private func validate(_ envelope: ProviderSnapshotEnvelope) throws -> ProviderSnapshotEnvelope {
         guard envelope.contractVersion == LiveProviderContract.version else {
+            throw URLError(.cannotDecodeContentData)
+        }
+        return envelope
+    }
+
+    private func validate(_ envelope: LiveMonitorEnvelope) throws -> LiveMonitorEnvelope {
+        guard envelope.contractVersion == LiveMonitorContract.version else {
             throw URLError(.cannotDecodeContentData)
         }
         return envelope

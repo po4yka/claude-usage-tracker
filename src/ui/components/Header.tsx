@@ -7,9 +7,16 @@ import { metaText, planBadge, rescanLabel, rescanDisabled, themeMode } from '../
 interface HeaderProps {
   onDataReload: (force?: boolean) => Promise<void>;
   onThemeToggle: () => void;
+  navigationHref?: string;
+  navigationLabel?: string;
 }
 
-export function Header({ onDataReload, onThemeToggle }: HeaderProps) {
+export function Header({
+  onDataReload,
+  onThemeToggle,
+  navigationHref,
+  navigationLabel,
+}: HeaderProps) {
   const headerRef = useRef<HTMLElement | null>(null);
   const btnRef = useRef<HTMLButtonElement | null>(null);
   const triggerRef = useRef<(() => Promise<void>) | null>(null);
@@ -102,6 +109,23 @@ export function Header({ onDataReload, onThemeToggle }: HeaderProps) {
       </h1>
       <div class="meta">{metaText.value}</div>
       <div class="header-actions">
+        {navigationHref && navigationLabel && (
+          <a
+            href={navigationHref}
+            style={{
+              border: '1px solid var(--border-visible)',
+              borderRadius: '999px',
+              padding: '8px 12px',
+              color: 'var(--text-primary)',
+              textDecoration: 'none',
+              fontSize: '12px',
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+            }}
+          >
+            {navigationLabel}
+          </a>
+        )}
         <button
           class="theme-toggle"
           type="button"

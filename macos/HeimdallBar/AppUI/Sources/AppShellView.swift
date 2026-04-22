@@ -10,8 +10,10 @@ private enum AppShellLayout {
 }
 
 struct AppShellView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @Bindable var shell: AppShellModel
     @Bindable var overview: OverviewFeatureModel
+    @Bindable var liveMonitor: LiveMonitorFeatureModel
     let helperPort: Int
     let providerModel: (ProviderID) -> ProviderFeatureModel
 
@@ -29,6 +31,8 @@ struct AppShellView: View {
                             shell: self.shell,
                             providerModel: self.providerModel
                         )
+                    case .liveMonitor:
+                        WindowLiveMonitorView(model: self.liveMonitor, helperPort: self.helperPort)
                     case .provider(let provider):
                         WindowProviderView(model: self.providerModel(provider))
                     }
@@ -38,6 +42,13 @@ struct AppShellView: View {
                 .frame(maxWidth: .infinity, alignment: .center)
             }
             .background(Color(nsColor: .windowBackgroundColor))
+            .onAppear { self.syncLiveMonitorActivity() }
+            .onChange(of: self.shell.navigationSelection) { _, _ in
+                self.syncLiveMonitorActivity()
+            }
+            .onChange(of: self.scenePhase) { _, _ in
+                self.syncLiveMonitorActivity()
+            }
         }
         .toolbar {
             ToolbarItemGroup {
@@ -46,6 +57,8 @@ struct AppShellView: View {
                         switch self.shell.navigationSelection {
                         case .overview:
                             await self.overview.refreshAll()
+                        case .liveMonitor:
+                            await self.liveMonitor.refresh()
                         case .provider(let provider):
                             await self.providerModel(provider).refresh()
                         }
@@ -79,9 +92,18 @@ struct AppShellView: View {
         switch self.shell.navigationSelection {
         case .overview:
             return self.overview.projection.isRefreshing
+        case .liveMonitor:
+            return self.liveMonitor.isRefreshing
         case .provider(let provider):
             return self.providerModel(provider).isBusy
         }
+    }
+
+    private func syncLiveMonitorActivity() {
+        self.liveMonitor.updateActivity(
+            isSelected: self.shell.navigationSelection == .liveMonitor,
+            appIsActive: self.scenePhase == .active
+        )
     }
 }
 
@@ -251,6 +273,318 @@ private struct WindowOverviewActivitySection: View {
                 SessionsTable(sessions: analytics.recentSessions)
             }
         }
+    }
+}
+
+private struct WindowLiveMonitorView: View {
+    @Bindable var model: LiveMonitorFeatureModel
+    let helperPort: Int
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            WindowHeader(
+                title: "Live Monitor",
+                subtitle: self.model.envelope.map { "Updated \(Self.shortTime($0.generatedAt))" } ?? "Waiting for helper data",
+                issue: self.model.issue,
+                onRetry: {
+                    Task { await self.model.refresh() }
+                },
+                isRetrying: self.model.isRefreshing
+            )
+
+            VStack(alignment: .leading, spacing: 14) {
+                WindowSectionHeader(
+                    title: "Focus",
+                    subtitle: "Merged provider lanes with fast switching"
+                )
+                Picker("Provider focus", selection: Binding(
+                    get: { self.model.focus },
+                    set: { self.model.focus = $0 }
+                )) {
+                    ForEach(LiveMonitorFocus.allCases) { focus in
+                        Text(focus.title).tag(focus)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 320)
+            }
+
+            if let envelope = self.model.envelope {
+                VStack(alignment: .leading, spacing: 14) {
+                    WindowSectionHeader(
+                        title: "Provider Lanes",
+                        subtitle: envelope.freshness.hasStaleProviders
+                            ? "Stale: \(envelope.freshness.staleProviders.joined(separator: ", "))"
+                            : "All visible providers are current"
+                    )
+
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: AppShellLayout.sectionCardMinimumWidth), spacing: 16)], spacing: 16) {
+                        ForEach(self.model.providers) { provider in
+                            WindowLiveMonitorProviderCard(provider: provider)
+                        }
+                    }
+                }
+
+                ForEach(self.model.detailProviders) { provider in
+                    WindowLiveMonitorDetailSection(provider: provider)
+                }
+            } else {
+                ContentUnavailableView(
+                    "Waiting for live monitor data",
+                    systemImage: "waveform.path.ecg.rectangle",
+                    description: Text("The helper will populate this page when /api/live-monitor responds.")
+                )
+            }
+
+            HStack(spacing: 12) {
+                Button("Open Web Monitor") {
+                    if let url = URL(string: "http://127.0.0.1:\(self.helperPort)/monitor") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+                .buttonStyle(.bordered)
+
+                Button("Open Dashboard") {
+                    if let url = URL(string: "http://127.0.0.1:\(self.helperPort)") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+                .buttonStyle(.borderless)
+            }
+        }
+    }
+
+    private static func shortTime(_ iso: String) -> String {
+        guard let date = ISO8601DateFormatter().date(from: iso) else { return iso }
+        return date.formatted(date: .omitted, time: .shortened)
+    }
+}
+
+private struct WindowLiveMonitorProviderCard: View {
+    let provider: LiveMonitorProvider
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(self.provider.title)
+                    .font(.title3.weight(.semibold))
+                Text(self.provider.visualState.uppercased())
+                    .font(.caption2.weight(.bold))
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(self.stateColor.opacity(0.14))
+                    )
+                    .foregroundStyle(self.stateColor)
+                Spacer(minLength: 0)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(Self.currency(self.provider.todayCostUSD))
+                    .font(.system(size: 30, weight: .semibold).monospacedDigit())
+                Text("Today cost")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            ForEach(Array([self.provider.primary, self.provider.secondary].enumerated()), id: \.offset) { index, window in
+                if let window {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text(index == 0 ? "Primary" : "Secondary")
+                                .font(.caption.weight(.semibold))
+                            Spacer()
+                            Text("\(window.usedPercent.formatted(.number.precision(.fractionLength(1))))% used")
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        }
+                        ProgressView(value: min(max(window.usedPercent, 0), 100), total: 100)
+                            .tint(window.usedPercent >= 80 ? .red : window.usedPercent >= 50 ? .orange : .primary)
+                        Text(window.resetsInMinutes.map { "Resets in \(Self.resetLabel(minutes: $0))" } ?? "No reset time available")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            HStack(spacing: 14) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Weekly projection")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    Text(self.provider.projectedWeeklySpendUSD.map(Self.currency) ?? "—")
+                        .font(.body.monospacedDigit().weight(.semibold))
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Freshness")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    Text(self.provider.lastRefreshLabel)
+                        .font(.body)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(self.provider.sourceLabel)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if let identityLabel = self.provider.identityLabel {
+                    Text(identityLabel)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                if let warning = self.provider.warnings.first {
+                    Text(warning)
+                        .font(.caption)
+                        .foregroundStyle(self.stateColor)
+                }
+            }
+        }
+        .padding(18)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor))
+        )
+    }
+
+    private var stateColor: Color {
+        switch self.provider.visualState {
+        case "error": return .red
+        case "incident", "degraded": return .orange
+        case "stale": return .secondary
+        default: return .primary
+        }
+    }
+
+    private static func currency(_ value: Double) -> String {
+        value.formatted(.currency(code: "USD").precision(.fractionLength(value >= 1 ? 2 : 4)))
+    }
+
+    private static func resetLabel(minutes: Int) -> String {
+        if minutes >= 1_440 {
+            return "\(minutes / 1_440)d \((minutes % 1_440) / 60)h"
+        }
+        if minutes >= 60 {
+            return "\(minutes / 60)h \(minutes % 60)m"
+        }
+        return "\(minutes)m"
+    }
+}
+
+private struct WindowLiveMonitorDetailSection: View {
+    let provider: LiveMonitorProvider
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            WindowSectionHeader(
+                title: "\(self.provider.title) Details",
+                subtitle: self.provider.lastRefreshLabel
+            )
+
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 260), spacing: 16)], spacing: 16) {
+                if let block = self.provider.activeBlock {
+                    WindowLiveMonitorDetailCard(title: "Active Block") {
+                        let totalTokens = block.tokens.total
+                        Text(Self.compactNumber(totalTokens))
+                            .font(.system(size: 28, weight: .semibold).monospacedDigit())
+                        Text("\(block.entryCount) entries · ends \(Self.shortTime(block.end))")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        if let quota = block.quota {
+                            ProgressView(value: min(quota.projectedPercent, 1.0), total: 1.0)
+                                .tint(quota.projectedSeverity == "danger" ? .red : quota.projectedSeverity == "warn" ? .orange : .primary)
+                            Text("\(Int(quota.projectedPercent * 100))% projected · \(Self.compactNumber(quota.remainingTokens)) tokens left")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
+                if let context = self.provider.contextWindow {
+                    WindowLiveMonitorDetailCard(title: "Context Window") {
+                        Text(Self.compactNumber(context.totalInputTokens))
+                            .font(.system(size: 28, weight: .semibold).monospacedDigit())
+                        Text("of \(Self.compactNumber(context.contextWindowSize)) · \(Int(context.pct * 100))%")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        ProgressView(value: context.pct, total: 1.0)
+                            .tint(context.severity == "danger" ? .red : context.severity == "warn" ? .orange : .primary)
+                    }
+                }
+
+                if let session = self.provider.recentSession {
+                    WindowLiveMonitorDetailCard(title: "Recent Session") {
+                        Text(session.displayName)
+                            .font(.headline)
+                        Text("\(session.turns) turns · \(session.durationMinutes)m · \(Self.currency(session.costUSD))")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        if let model = session.model {
+                            Text(model)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+
+            if !self.provider.warnings.isEmpty {
+                WindowLiveMonitorDetailCard(title: "Warnings") {
+                    ForEach(self.provider.warnings, id: \.self) { warning in
+                        Text("• \(warning)")
+                            .font(.body)
+                    }
+                }
+            }
+        }
+    }
+
+    private static func shortTime(_ iso: String) -> String {
+        guard let date = ISO8601DateFormatter().date(from: iso) else { return iso }
+        return date.formatted(date: .omitted, time: .shortened)
+    }
+
+    private static func compactNumber(_ value: Int) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.maximumFractionDigits = 1
+        if abs(value) >= 1_000_000 {
+            return String(format: "%.1fM", Double(value) / 1_000_000)
+        }
+        if abs(value) >= 1_000 {
+            return String(format: "%.1fK", Double(value) / 1_000)
+        }
+        return formatter.string(from: NSNumber(value: value)) ?? "\(value)"
+    }
+
+    private static func currency(_ value: Double) -> String {
+        value.formatted(.currency(code: "USD").precision(.fractionLength(value >= 1 ? 2 : 4)))
+    }
+}
+
+private struct WindowLiveMonitorDetailCard<Content: View>: View {
+    let title: String
+    let content: Content
+
+    init(title: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(self.title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+            self.content
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(18)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor))
+        )
     }
 }
 

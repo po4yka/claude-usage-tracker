@@ -5,11 +5,15 @@ import { Footer } from './components/Footer';
 import { Header } from './components/Header';
 import { InlineStatus } from './components/InlineStatus';
 import { createDashboardRuntime } from './dashboard/runtime';
+import { MonitorHeader } from './monitor/MonitorHeader';
+import { createLiveMonitorRuntime } from './monitor/runtime';
 import { applyTheme, getTheme } from './lib/theme';
 import { rawData, syncDashboardUrl } from './state/store';
 
 applyTheme(getTheme());
-const runtime = createDashboardRuntime();
+const isMonitorRoute = window.location.pathname === '/monitor';
+const dashboardRuntime = !isMonitorRoute ? createDashboardRuntime() : null;
+const monitorRuntime = isMonitorRoute ? createLiveMonitorRuntime() : null;
 
 function toggleTheme(): void {
   const current =
@@ -19,25 +23,37 @@ function toggleTheme(): void {
   const next: 'light' | 'dark' = current === 'light' ? 'dark' : 'light';
   localStorage.setItem('theme', next);
   applyTheme(next);
-  if (rawData.value) runtime.applyFilter();
+  if (rawData.value && dashboardRuntime) dashboardRuntime.applyFilter();
 }
 
 const headerMount = document.getElementById('header-mount');
 if (headerMount) {
-  render(<Header onDataReload={runtime.loadData} onThemeToggle={toggleTheme} />, headerMount);
+  if (isMonitorRoute && monitorRuntime) {
+    render(<MonitorHeader onThemeToggle={toggleTheme} onRefresh={monitorRuntime.loadData} />, headerMount);
+  } else if (dashboardRuntime) {
+    render(
+      <Header
+        onDataReload={dashboardRuntime.loadData}
+        onThemeToggle={toggleTheme}
+        navigationHref="/monitor"
+        navigationLabel="Live Monitor"
+      />,
+      headerMount
+    );
+  }
 }
 
 const filterBarMount = document.getElementById('filter-bar-mount');
-if (filterBarMount) {
+if (filterBarMount && dashboardRuntime) {
   render(
-    <FilterBar onFilterChange={runtime.applyFilter} onURLUpdate={syncDashboardUrl} />,
+    <FilterBar onFilterChange={dashboardRuntime.applyFilter} onURLUpdate={syncDashboardUrl} />,
     filterBarMount
   );
 }
 
 const dashboardTabsMount = document.getElementById('dashboard-tabs-mount');
-if (dashboardTabsMount) {
-  render(<DashboardTabs onTabChange={runtime.handleDashboardTabChange} />, dashboardTabsMount);
+if (dashboardTabsMount && dashboardRuntime) {
+  render(<DashboardTabs onTabChange={dashboardRuntime.handleDashboardTabChange} />, dashboardTabsMount);
 }
 
 const footerEl = document.querySelector('footer');
@@ -46,8 +62,13 @@ if (footerEl?.parentElement) {
 }
 
 const globalStatusMount = document.getElementById('inline-status-global');
-if (globalStatusMount) {
+if (globalStatusMount && dashboardRuntime) {
   render(<InlineStatus placement="global" />, globalStatusMount);
 }
 
-runtime.start();
+if (dashboardRuntime) {
+  dashboardRuntime.start();
+}
+if (monitorRuntime) {
+  monitorRuntime.start();
+}

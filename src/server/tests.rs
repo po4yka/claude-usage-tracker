@@ -23,8 +23,9 @@ mod tests {
     use crate::server::api::{
         AppState, CostReconciliationParams, HeatmapParams, api_agent_status, api_billing_blocks,
         api_claude_usage, api_community_signal, api_context_window, api_cost_reconciliation,
-        api_data, api_heatmap, api_live_provider_history, api_live_provider_refresh,
-        api_live_providers, api_mobile_snapshot, api_rescan, api_stream, api_usage_windows,
+        api_data, api_heatmap, api_live_monitor, api_live_provider_history,
+        api_live_provider_refresh, api_live_providers, api_mobile_snapshot, api_rescan,
+        api_stream, api_usage_windows,
     };
     use crate::server::assets;
     use crate::server::{ServeOptions, build_router, build_state, start_background_pollers_with};
@@ -348,6 +349,7 @@ mod tests {
         let cases = [
             ("GET", "/", StatusCode::OK),
             ("GET", "/index.html", StatusCode::OK),
+            ("GET", "/monitor", StatusCode::OK),
             ("GET", "/favicon.ico", StatusCode::NO_CONTENT),
             ("GET", "/api/data", StatusCode::OK),
             ("POST", "/api/rescan", StatusCode::OK),
@@ -360,6 +362,7 @@ mod tests {
             ("GET", "/api/community-signal", StatusCode::OK),
             ("GET", "/api/billing-blocks", StatusCode::OK),
             ("GET", "/api/context-window", StatusCode::OK),
+            ("GET", "/api/live-monitor", StatusCode::OK),
             ("GET", "/api/cost-reconciliation", StatusCode::OK),
         ];
 
@@ -696,6 +699,15 @@ mod tests {
                 .insert(axum::extract::ConnectInfo(remote));
             req
         };
+        let live_monitor_req = {
+            let mut req = Request::builder()
+                .uri("/api/live-monitor")
+                .body(Body::empty())
+                .unwrap();
+            req.extensions_mut()
+                .insert(axum::extract::ConnectInfo(remote));
+            req
+        };
         let heatmap_req = {
             let mut req = Request::builder()
                 .uri("/api/heatmap")
@@ -796,6 +808,7 @@ mod tests {
         )
         .await;
         let mobile_snapshot = api_mobile_snapshot(State(state.clone()), mobile_snapshot_req).await;
+        let live_monitor = api_live_monitor(State(state.clone()), live_monitor_req).await;
         let heatmap = api_heatmap(
             State(state.clone()),
             axum::extract::Query(HeatmapParams::default()),
@@ -822,6 +835,7 @@ mod tests {
         assert_eq!(refresh.unwrap_err(), StatusCode::FORBIDDEN);
         assert_eq!(history.unwrap_err(), StatusCode::FORBIDDEN);
         assert_eq!(mobile_snapshot.unwrap_err(), StatusCode::FORBIDDEN);
+        assert_eq!(live_monitor.unwrap_err(), StatusCode::FORBIDDEN);
         assert_eq!(heatmap.unwrap_err(), StatusCode::FORBIDDEN);
         assert!(matches!(stream, Err(StatusCode::FORBIDDEN)));
         assert_eq!(billing_blocks.unwrap_err(), StatusCode::FORBIDDEN);
@@ -1005,6 +1019,94 @@ mod tests {
         assert_eq!(data["cache_hit"], true);
         assert_eq!(data["providers"].as_array().unwrap().len(), 1);
         assert_eq!(data["providers"][0]["provider"], "codex");
+    }
+
+    #[tokio::test]
+    async fn test_api_live_monitor_returns_provider_details_with_optional_capabilities() {
+        let tmp = TempDir::new().unwrap();
+        let (db_path, projects) = setup_test_db(&tmp);
+        let state = Arc::new(base_state(db_path.clone(), projects.clone()));
+
+        {
+            let mut cache = state.live_provider_cache.write().await;
+            let mut response = cached_live_provider_response(false);
+            response.providers[0].cost_summary.recent_sessions = vec![crate::models::ProviderSession {
+                session_id: "claude-session".into(),
+                display_name: "Claude session".into(),
+                started_at: "2026-04-21T09:00:00Z".into(),
+                duration_minutes: 42,
+                turns: 9,
+                cost_usd: 2.5,
+                model: Some("claude-sonnet-4-6".into()),
+            }];
+            *cache = Some((std::time::Instant::now(), response));
+        }
+
+        {
+            let conn = crate::scanner::db::open_db(&db_path).unwrap();
+            crate::scanner::db::init_db(&conn).unwrap();
+            conn.execute(
+                "INSERT OR IGNORE INTO live_events
+                    (dedup_key, received_at, session_id, tool_name, cost_usd_nanos,
+                     input_tokens, output_tokens, raw_json, context_input_tokens,
+                     context_window_size, hook_reported_cost_nanos)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+                rusqlite::params![
+                    "ctx-1",
+                    chrono::Utc::now().to_rfc3339(),
+                    "claude-session",
+                    "Read",
+                    500_i64,
+                    10_i64,
+                    5_i64,
+                    "{}",
+                    75_000_i64,
+                    200_000_i64,
+                    500_i64,
+                ],
+            )
+            .unwrap();
+        }
+
+        let app = crate::server::build_router(state);
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/live-monitor")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = resp.into_body().collect().await.unwrap().to_bytes();
+        let data: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+        assert_eq!(
+            data["contract_version"],
+            crate::models::LIVE_MONITOR_CONTRACT_VERSION
+        );
+        assert_eq!(data["default_focus"], "all");
+        assert_eq!(data["providers"].as_array().unwrap().len(), 2);
+
+        let claude = data["providers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|provider| provider["provider"] == "claude")
+            .unwrap();
+        assert!(claude.get("context_window").is_some());
+        assert!(claude.get("recent_session").is_some());
+
+        let codex = data["providers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|provider| provider["provider"] == "codex")
+            .unwrap();
+        assert!(codex.get("context_window").is_none());
+        assert!(codex.get("active_block").is_none());
     }
 
     #[tokio::test]

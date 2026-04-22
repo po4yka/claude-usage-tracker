@@ -4,4 +4,5 @@ export type BucketKey = 'day' | 'week';
 
 export * from './billing-types';
 export * from './dashboard-types';
+export * from './live-monitor-types';
 export * from './status-types';

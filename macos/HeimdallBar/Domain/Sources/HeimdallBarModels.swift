@@ -4,6 +4,10 @@ public enum LiveProviderContract {
     public static let version = 1
 }
 
+public enum LiveMonitorContract {
+    public static let version = 1
+}
+
 public enum MobileSnapshotContract {
     public static let version = 1
 }
@@ -903,6 +907,318 @@ public struct ProviderSnapshotEnvelope: Codable, Sendable {
         case responseScope = "response_scope"
         case cacheHit = "cache_hit"
         case refreshedProviders = "refreshed_providers"
+    }
+}
+
+public enum LiveMonitorFocus: String, Codable, CaseIterable, Sendable, Identifiable {
+    case all
+    case claude
+    case codex
+
+    public var id: String { self.rawValue }
+
+    public var title: String {
+        switch self {
+        case .all: return "All"
+        case .claude: return "Claude"
+        case .codex: return "Codex"
+        }
+    }
+}
+
+public struct LiveMonitorFreshness: Codable, Sendable {
+    public var newestProviderRefresh: String?
+    public var oldestProviderRefresh: String?
+    public var staleProviders: [String]
+    public var hasStaleProviders: Bool
+    public var refreshState: String
+
+    public init(
+        newestProviderRefresh: String? = nil,
+        oldestProviderRefresh: String? = nil,
+        staleProviders: [String],
+        hasStaleProviders: Bool,
+        refreshState: String
+    ) {
+        self.newestProviderRefresh = newestProviderRefresh
+        self.oldestProviderRefresh = oldestProviderRefresh
+        self.staleProviders = staleProviders
+        self.hasStaleProviders = hasStaleProviders
+        self.refreshState = refreshState
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case newestProviderRefresh = "newest_provider_refresh"
+        case oldestProviderRefresh = "oldest_provider_refresh"
+        case staleProviders = "stale_providers"
+        case hasStaleProviders = "has_stale_providers"
+        case refreshState = "refresh_state"
+    }
+}
+
+public struct LiveMonitorBurnRate: Codable, Sendable {
+    public var tokensPerMin: Double
+    public var costPerHourNanos: Int
+    public var tier: String?
+
+    public init(tokensPerMin: Double, costPerHourNanos: Int, tier: String? = nil) {
+        self.tokensPerMin = tokensPerMin
+        self.costPerHourNanos = costPerHourNanos
+        self.tier = tier
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case tokensPerMin = "tokens_per_min"
+        case costPerHourNanos = "cost_per_hour_nanos"
+        case tier
+    }
+}
+
+public struct LiveMonitorProjection: Codable, Sendable {
+    public var projectedCostNanos: Int
+    public var projectedTokens: Int
+
+    public init(projectedCostNanos: Int, projectedTokens: Int) {
+        self.projectedCostNanos = projectedCostNanos
+        self.projectedTokens = projectedTokens
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case projectedCostNanos = "projected_cost_nanos"
+        case projectedTokens = "projected_tokens"
+    }
+}
+
+public struct LiveMonitorQuota: Codable, Sendable {
+    public var limitTokens: Int
+    public var usedTokens: Int
+    public var projectedTokens: Int
+    public var currentPercent: Double
+    public var projectedPercent: Double
+    public var remainingTokens: Int
+    public var currentSeverity: String
+    public var projectedSeverity: String
+
+    public init(
+        limitTokens: Int,
+        usedTokens: Int,
+        projectedTokens: Int,
+        currentPercent: Double,
+        projectedPercent: Double,
+        remainingTokens: Int,
+        currentSeverity: String,
+        projectedSeverity: String
+    ) {
+        self.limitTokens = limitTokens
+        self.usedTokens = usedTokens
+        self.projectedTokens = projectedTokens
+        self.currentPercent = currentPercent
+        self.projectedPercent = projectedPercent
+        self.remainingTokens = remainingTokens
+        self.currentSeverity = currentSeverity
+        self.projectedSeverity = projectedSeverity
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case limitTokens = "limit_tokens"
+        case usedTokens = "used_tokens"
+        case projectedTokens = "projected_tokens"
+        case currentPercent = "current_pct"
+        case projectedPercent = "projected_pct"
+        case remainingTokens = "remaining_tokens"
+        case currentSeverity = "current_severity"
+        case projectedSeverity = "projected_severity"
+    }
+}
+
+public struct LiveMonitorBlock: Codable, Sendable {
+    public var start: String
+    public var end: String
+    public var firstTimestamp: String
+    public var lastTimestamp: String
+    public var tokens: TokenBreakdown
+    public var costNanos: Int
+    public var entryCount: Int
+    public var burnRate: LiveMonitorBurnRate?
+    public var projection: LiveMonitorProjection?
+    public var quota: LiveMonitorQuota?
+
+    public init(
+        start: String,
+        end: String,
+        firstTimestamp: String,
+        lastTimestamp: String,
+        tokens: TokenBreakdown,
+        costNanos: Int,
+        entryCount: Int,
+        burnRate: LiveMonitorBurnRate? = nil,
+        projection: LiveMonitorProjection? = nil,
+        quota: LiveMonitorQuota? = nil
+    ) {
+        self.start = start
+        self.end = end
+        self.firstTimestamp = firstTimestamp
+        self.lastTimestamp = lastTimestamp
+        self.tokens = tokens
+        self.costNanos = costNanos
+        self.entryCount = entryCount
+        self.burnRate = burnRate
+        self.projection = projection
+        self.quota = quota
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case start
+        case end
+        case firstTimestamp = "first_timestamp"
+        case lastTimestamp = "last_timestamp"
+        case tokens
+        case costNanos = "cost_nanos"
+        case entryCount = "entry_count"
+        case burnRate = "burn_rate"
+        case projection
+        case quota
+    }
+}
+
+public struct LiveMonitorContextWindow: Codable, Sendable {
+    public var totalInputTokens: Int
+    public var contextWindowSize: Int
+    public var pct: Double
+    public var severity: String
+    public var sessionID: String?
+    public var capturedAt: String?
+
+    public init(
+        totalInputTokens: Int,
+        contextWindowSize: Int,
+        pct: Double,
+        severity: String,
+        sessionID: String? = nil,
+        capturedAt: String? = nil
+    ) {
+        self.totalInputTokens = totalInputTokens
+        self.contextWindowSize = contextWindowSize
+        self.pct = pct
+        self.severity = severity
+        self.sessionID = sessionID
+        self.capturedAt = capturedAt
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case totalInputTokens = "total_input_tokens"
+        case contextWindowSize = "context_window_size"
+        case pct
+        case severity
+        case sessionID = "session_id"
+        case capturedAt = "captured_at"
+    }
+}
+
+public struct LiveMonitorProvider: Codable, Sendable, Identifiable {
+    public var provider: String
+    public var title: String
+    public var visualState: String
+    public var sourceLabel: String
+    public var warnings: [String]
+    public var identityLabel: String?
+    public var primary: ProviderRateWindow?
+    public var secondary: ProviderRateWindow?
+    public var todayCostUSD: Double
+    public var projectedWeeklySpendUSD: Double?
+    public var lastRefresh: String
+    public var lastRefreshLabel: String
+    public var activeBlock: LiveMonitorBlock?
+    public var contextWindow: LiveMonitorContextWindow?
+    public var recentSession: ProviderSession?
+
+    public var id: String { self.provider }
+    public var providerID: ProviderID? { ProviderID(rawValue: self.provider) }
+
+    public init(
+        provider: String,
+        title: String,
+        visualState: String,
+        sourceLabel: String,
+        warnings: [String],
+        identityLabel: String? = nil,
+        primary: ProviderRateWindow? = nil,
+        secondary: ProviderRateWindow? = nil,
+        todayCostUSD: Double,
+        projectedWeeklySpendUSD: Double? = nil,
+        lastRefresh: String,
+        lastRefreshLabel: String,
+        activeBlock: LiveMonitorBlock? = nil,
+        contextWindow: LiveMonitorContextWindow? = nil,
+        recentSession: ProviderSession? = nil
+    ) {
+        self.provider = provider
+        self.title = title
+        self.visualState = visualState
+        self.sourceLabel = sourceLabel
+        self.warnings = warnings
+        self.identityLabel = identityLabel
+        self.primary = primary
+        self.secondary = secondary
+        self.todayCostUSD = todayCostUSD
+        self.projectedWeeklySpendUSD = projectedWeeklySpendUSD
+        self.lastRefresh = lastRefresh
+        self.lastRefreshLabel = lastRefreshLabel
+        self.activeBlock = activeBlock
+        self.contextWindow = contextWindow
+        self.recentSession = recentSession
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case provider
+        case title
+        case visualState = "visual_state"
+        case sourceLabel = "source_label"
+        case warnings
+        case identityLabel = "identity_label"
+        case primary
+        case secondary
+        case todayCostUSD = "today_cost_usd"
+        case projectedWeeklySpendUSD = "projected_weekly_spend_usd"
+        case lastRefresh = "last_refresh"
+        case lastRefreshLabel = "last_refresh_label"
+        case activeBlock = "active_block"
+        case contextWindow = "context_window"
+        case recentSession = "recent_session"
+    }
+}
+
+public struct LiveMonitorEnvelope: Codable, Sendable {
+    public var contractVersion: Int
+    public var generatedAt: String
+    public var defaultFocus: LiveMonitorFocus
+    public var globalIssue: String?
+    public var freshness: LiveMonitorFreshness
+    public var providers: [LiveMonitorProvider]
+
+    public init(
+        contractVersion: Int = LiveMonitorContract.version,
+        generatedAt: String,
+        defaultFocus: LiveMonitorFocus,
+        globalIssue: String? = nil,
+        freshness: LiveMonitorFreshness,
+        providers: [LiveMonitorProvider]
+    ) {
+        self.contractVersion = contractVersion
+        self.generatedAt = generatedAt
+        self.defaultFocus = defaultFocus
+        self.globalIssue = globalIssue
+        self.freshness = freshness
+        self.providers = providers
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case contractVersion = "contract_version"
+        case generatedAt = "generated_at"
+        case defaultFocus = "default_focus"
+        case globalIssue = "global_issue"
+        case freshness
+        case providers
     }
 }
 

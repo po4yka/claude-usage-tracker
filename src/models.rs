@@ -586,6 +586,111 @@ pub struct LiveProvidersResponse {
     pub refreshed_providers: Vec<String>,
 }
 
+pub const LIVE_MONITOR_CONTRACT_VERSION: u32 = 1;
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct LiveMonitorFreshness {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub newest_provider_refresh: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub oldest_provider_refresh: Option<String>,
+    pub stale_providers: Vec<String>,
+    pub has_stale_providers: bool,
+    pub refresh_state: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct LiveMonitorBurnRate {
+    pub tokens_per_min: f64,
+    pub cost_per_hour_nanos: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tier: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct LiveMonitorProjection {
+    pub projected_cost_nanos: i64,
+    pub projected_tokens: i64,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct LiveMonitorQuota {
+    pub limit_tokens: i64,
+    pub used_tokens: i64,
+    pub projected_tokens: i64,
+    pub current_pct: f64,
+    pub projected_pct: f64,
+    pub remaining_tokens: i64,
+    pub current_severity: String,
+    pub projected_severity: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct LiveMonitorBillingBlock {
+    pub start: String,
+    pub end: String,
+    pub first_timestamp: String,
+    pub last_timestamp: String,
+    pub tokens: TokenBreakdown,
+    pub cost_nanos: i64,
+    pub entry_count: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub burn_rate: Option<LiveMonitorBurnRate>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub projection: Option<LiveMonitorProjection>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub quota: Option<LiveMonitorQuota>,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct LiveMonitorContextWindow {
+    pub total_input_tokens: i64,
+    pub context_window_size: i64,
+    pub pct: f64,
+    pub severity: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub captured_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct LiveMonitorProvider {
+    pub provider: String,
+    pub title: String,
+    pub visual_state: String,
+    pub source_label: String,
+    pub warnings: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub identity_label: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub primary: Option<LiveRateWindow>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub secondary: Option<LiveRateWindow>,
+    pub today_cost_usd: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub projected_weekly_spend_usd: Option<f64>,
+    pub last_refresh: String,
+    pub last_refresh_label: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub active_block: Option<LiveMonitorBillingBlock>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context_window: Option<LiveMonitorContextWindow>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub recent_session: Option<ProviderSession>,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct LiveMonitorResponse {
+    pub contract_version: u32,
+    pub generated_at: String,
+    pub default_focus: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub global_issue: Option<String>,
+    pub freshness: LiveMonitorFreshness,
+    pub providers: Vec<LiveMonitorProvider>,
+}
+
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct LiveProviderHistoryResponse {
     pub provider: String,

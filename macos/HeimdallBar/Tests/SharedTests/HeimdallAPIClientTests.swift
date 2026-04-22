@@ -65,6 +65,64 @@ struct HeimdallAPIClientTests {
         #expect(StubURLProtocol.requestCount == 1)
     }
 
+    @Test
+    func fetchLiveMonitorDecodesSharedContract() async throws {
+        StubURLProtocol.reset()
+        StubURLProtocol.handler = { request, _ in
+            #expect(request.url?.path == "/api/live-monitor")
+            return Self.jsonResponse(
+                url: try #require(request.url),
+                body: """
+                {
+                  "contract_version": 1,
+                  "generated_at": "2026-04-22T10:00:00Z",
+                  "default_focus": "all",
+                  "global_issue": "1 provider needs attention",
+                  "freshness": {
+                    "newest_provider_refresh": "2026-04-22T10:00:00Z",
+                    "oldest_provider_refresh": "2026-04-22T09:59:00Z",
+                    "stale_providers": [],
+                    "has_stale_providers": false,
+                    "refresh_state": "current"
+                  },
+                  "providers": [
+                    {
+                      "provider": "claude",
+                      "title": "Claude",
+                      "visual_state": "healthy",
+                      "source_label": "Source: oauth",
+                      "warnings": [],
+                      "identity_label": "pro",
+                      "primary": {
+                        "used_percent": 25,
+                        "resets_at": null,
+                        "resets_in_minutes": 10,
+                        "window_minutes": 300,
+                        "reset_label": "resets in 10m"
+                      },
+                      "secondary": null,
+                      "today_cost_usd": 3.25,
+                      "projected_weekly_spend_usd": 22.75,
+                      "last_refresh": "2026-04-22T10:00:00Z",
+                      "last_refresh_label": "Updated just now",
+                      "active_block": null,
+                      "context_window": null,
+                      "recent_session": null
+                    }
+                  ]
+                }
+                """
+            )
+        }
+
+        let client = Self.makeClient()
+        let envelope = try await client.fetchLiveMonitor()
+
+        #expect(envelope.contractVersion == LiveMonitorContract.version)
+        #expect(envelope.defaultFocus == .all)
+        #expect(envelope.providers.first?.providerID == .claude)
+    }
+
     private static func makeClient() -> HeimdallAPIClient {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [StubURLProtocol.self]

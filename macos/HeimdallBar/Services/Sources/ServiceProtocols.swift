@@ -156,6 +156,11 @@ public protocol LiveProviderClient: Sendable {
     func fetchCostSummary(provider: ProviderID) async throws -> CostSummaryEnvelope
 }
 
+public protocol LiveMonitorClient: Sendable {
+    func fetchLiveMonitor() async throws -> LiveMonitorEnvelope
+    func liveMonitorEvents() -> AsyncThrowingStream<String, Error>
+}
+
 public protocol SyncProviderClient: Sendable {
     func fetchSyncedSnapshots() async throws -> ProviderSnapshotEnvelope
 }

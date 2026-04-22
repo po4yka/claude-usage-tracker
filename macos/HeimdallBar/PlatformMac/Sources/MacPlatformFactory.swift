@@ -11,6 +11,7 @@ public struct MacPlatformCompositionRoot: Sendable {
     private let widgetReloader: any WidgetReloading
     private let authCommandRunner: any AuthCommandRunning
     private let providerDataSource: any ProviderDataSource
+    private let liveMonitorClientFactory: @Sendable (Int) -> any LiveMonitorClient
 
     public init(
         settingsStore: any SettingsStore = ConfigStore.shared,
@@ -33,6 +34,9 @@ public struct MacPlatformCompositionRoot: Sendable {
         self.widgetReloader = widgetReloader
         self.authCommandRunner = authCommandRunner
         self.providerDataSource = LocalProviderDataSource(clientFactory: liveProviderClientFactory)
+        self.liveMonitorClientFactory = { port in
+            HeimdallAPIClient(port: port)
+        }
     }
 
     @MainActor
@@ -62,7 +66,8 @@ public struct MacPlatformCompositionRoot: Sendable {
             refreshCoordinator: refreshCoordinator,
             authCoordinator: authCoordinator,
             settingsStore: self.settingsStore,
-            credentialInspector: self.credentialInspector
+            credentialInspector: self.credentialInspector,
+            liveMonitorClientFactory: self.liveMonitorClientFactory
         )
     }
 

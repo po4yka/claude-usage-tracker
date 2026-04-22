@@ -106,6 +106,13 @@ pub(crate) fn build_router(state: Arc<AppState>) -> Router {
             }),
         )
         .route(
+            "/monitor",
+            get({
+                let html = assets::render_dashboard();
+                move || async { Html(html) }
+            }),
+        )
+        .route(
             "/favicon.ico",
             get(|| async { axum::http::StatusCode::NO_CONTENT }),
         )
@@ -129,6 +136,7 @@ pub(crate) fn build_router(state: Arc<AppState>) -> Router {
             "/api/live-providers/history",
             get(api::api_live_provider_history),
         )
+        .route("/api/live-monitor", get(api::api_live_monitor))
         .route("/api/mobile-snapshot", get(api::api_mobile_snapshot))
         .route(
             "/api/cost-reconciliation",

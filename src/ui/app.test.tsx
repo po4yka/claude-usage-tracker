@@ -7,6 +7,11 @@ const runtimeSpies = vi.hoisted(() => ({
   applyFilter: vi.fn(),
   start: vi.fn(),
 }));
+const liveMonitorRuntimeSpies = vi.hoisted(() => ({
+  loadData: vi.fn(),
+  start: vi.fn(),
+  stop: vi.fn(),
+}));
 const themeSpies = vi.hoisted(() => ({
   getTheme: vi.fn(() => 'dark' as const),
   applyTheme: vi.fn(),
@@ -38,6 +43,12 @@ vi.mock('./components/InlineStatus', () => ({
 vi.mock('./dashboard/runtime', () => ({
   createDashboardRuntime: () => runtimeSpies,
 }));
+vi.mock('./monitor/runtime', () => ({
+  createLiveMonitorRuntime: () => liveMonitorRuntimeSpies,
+}));
+vi.mock('./monitor/MonitorHeader', () => ({
+  MonitorHeader: (props: unknown) => ({ type: 'MonitorHeader', props }),
+}));
 vi.mock('./lib/theme', () => themeSpies);
 vi.mock('./state/store', () => storeMock);
 
@@ -45,6 +56,7 @@ describe('app entrypoint', () => {
   beforeEach(() => {
     renderSpy.mockReset();
     Object.values(runtimeSpies).forEach(spy => spy.mockReset());
+    Object.values(liveMonitorRuntimeSpies).forEach(spy => spy.mockReset());
     Object.values(themeSpies).forEach(spy => spy.mockReset());
     themeSpies.getTheme.mockReturnValue('dark');
     storeMock.rawData.value = null;
@@ -83,7 +95,7 @@ describe('app entrypoint', () => {
       getItem: vi.fn(() => null),
     });
     vi.stubGlobal('window', {
-      location: { search: '' },
+      location: { pathname: '/', search: '' },
     });
 
     // @ts-expect-error intentional source import so the test exercises app.tsx, not the bundled app.js artifact
@@ -107,5 +119,37 @@ describe('app entrypoint', () => {
     expect(localStorage.setItem).toHaveBeenCalledWith('theme', 'dark');
     expect(themeSpies.applyTheme).toHaveBeenLastCalledWith('dark');
     expect(runtimeSpies.applyFilter).toHaveBeenCalledTimes(1);
+  });
+
+  it('boots the live monitor route without mounting dashboard shells', async () => {
+    const headerMount = { id: 'header-mount' };
+    const footerParent = { id: 'footer-parent' };
+    const footerNode = { parentElement: footerParent };
+
+    vi.stubGlobal('document', {
+      documentElement: {
+        getAttribute: vi.fn(() => null),
+      },
+      getElementById: vi.fn((id: string) => {
+        if (id === 'header-mount') return headerMount;
+        return null;
+      }),
+      querySelector: vi.fn((selector: string) => (selector === 'footer' ? footerNode : null)),
+    });
+    vi.stubGlobal('localStorage', {
+      setItem: vi.fn(),
+      getItem: vi.fn(() => null),
+    });
+    vi.stubGlobal('window', {
+      location: { pathname: '/monitor', search: '' },
+    });
+
+    // @ts-expect-error intentional source import so the test exercises app.tsx, not the bundled app.js artifact
+    await import('./app.tsx');
+
+    expect(runtimeSpies.start).not.toHaveBeenCalled();
+    expect(liveMonitorRuntimeSpies.start).toHaveBeenCalledTimes(1);
+    const headerRender = renderSpy.mock.calls.find(([, mount]) => mount === headerMount);
+    expect((headerRender?.[0] as { type: { name?: string } }).type.name).toBe('MonitorHeader');
   });
 });
