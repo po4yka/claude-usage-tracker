@@ -131,6 +131,64 @@ struct AppShellViewTests {
     }
 
     @Test
+    func windowOverviewProviderCostInsightsExposeTokenCountsCacheRatesAndMix() {
+        let model = WindowOverviewProviderCostInsightsModel.make(item: self.makeProjection(
+            laneDetails: [],
+            todayCostUSD: 172.77,
+            last30DaysCostUSD: 14_708.15,
+            todayBreakdown: TokenBreakdown(
+                input: 1_200_000,
+                output: 320_000,
+                cacheRead: 8_400_000,
+                cacheCreation: 150_000,
+                reasoningOutput: 80_000
+            ),
+            last30DaysBreakdown: TokenBreakdown(
+                input: 48_000_000,
+                output: 21_000_000,
+                cacheRead: 330_000_000,
+                cacheCreation: 9_000_000,
+                reasoningOutput: 1_800_000
+            ),
+            cacheHitRateToday: 0.731,
+            cacheHitRate30d: 0.684,
+            cacheSavings30dUSD: 1824.0
+        ))
+
+        #expect(model.stats == [
+            .init(title: "Today tokens", value: "10.2M", detail: "$172.77"),
+            .init(title: "30-day tokens", value: "409.8M", detail: "$14,708.15"),
+            .init(title: "Cache hit rate", value: "73.1%", detail: "30-day avg 68.4%"),
+            .init(title: "Cache savings", value: "$1,824.00", detail: "Last 30 days"),
+        ])
+        #expect(model.mixLabel == "Today mix: 1.2M in · 320.0K out · 8.4M cache read · 150.0K cache write · 80.0K reasoning")
+    }
+
+    @Test
+    func windowOverviewProviderCostInsightsFallBackToThirtyDaySignalsWhenTodayMissing() {
+        let model = WindowOverviewProviderCostInsightsModel.make(item: self.makeProjection(
+            laneDetails: [],
+            todayBreakdown: nil,
+            last30DaysBreakdown: TokenBreakdown(
+                input: 0,
+                output: 0,
+                cacheRead: 900_000,
+                cacheCreation: 120_000,
+                reasoningOutput: 0
+            ),
+            cacheHitRateToday: nil,
+            cacheHitRate30d: 0.882,
+            cacheSavings30dUSD: nil
+        ))
+
+        #expect(model.stats == [
+            .init(title: "30-day tokens", value: "1.0M", detail: "$42.00"),
+            .init(title: "Cache hit rate", value: "88.2%", detail: "Last 30 days"),
+        ])
+        #expect(model.mixLabel == "30-day mix: 900.0K cache read · 120.0K cache write")
+    }
+
+    @Test
     func providerStateBadgeDescriptorUsesIconsInsteadOfColorOnlyCues() {
         #expect(ProviderStateBadgeDescriptor.make(state: .healthy).symbolName == "checkmark.circle.fill")
         #expect(ProviderStateBadgeDescriptor.make(state: .degraded).symbolName == "exclamationmark.triangle.fill")
@@ -151,7 +209,14 @@ struct AppShellViewTests {
         isShowingCachedData: Bool = false,
         authHeadline: String? = nil,
         warningLabels: [String] = [],
-        incidentLabel: String? = nil
+        incidentLabel: String? = nil,
+        todayCostUSD: Double = 6.8,
+        last30DaysCostUSD: Double = 42,
+        todayBreakdown: TokenBreakdown? = TokenBreakdown(input: 12_000, output: 8_000, cacheRead: 44_000),
+        last30DaysBreakdown: TokenBreakdown? = TokenBreakdown(input: 90_000, output: 44_000, cacheRead: 210_000),
+        cacheHitRateToday: Double? = 0.54,
+        cacheHitRate30d: Double? = 0.49,
+        cacheSavings30dUSD: Double? = 18.25
     ) -> ProviderMenuProjection {
         ProviderMenuProjection(
             provider: .codex,
@@ -171,8 +236,8 @@ struct AppShellViewTests {
             lastRefreshLabel: "Last refresh: 2m ago",
             refreshStatusLabel: "Last refresh: 2m ago",
             costLabel: "Today: $6.80 · 30 days: $42.00",
-            todayCostUSD: 6.8,
-            last30DaysCostUSD: 42,
+            todayCostUSD: todayCostUSD,
+            last30DaysCostUSD: last30DaysCostUSD,
             laneDetails: laneDetails,
             creditsLabel: nil,
             incidentLabel: incidentLabel,
@@ -183,7 +248,12 @@ struct AppShellViewTests {
             globalIssueLabel: nil,
             historyFractions: [],
             claudeFactors: [],
-            adjunct: nil
+            adjunct: nil,
+            todayBreakdown: todayBreakdown,
+            last30DaysBreakdown: last30DaysBreakdown,
+            cacheHitRateToday: cacheHitRateToday,
+            cacheHitRate30d: cacheHitRate30d,
+            cacheSavings30dUSD: cacheSavings30dUSD
         )
     }
 }

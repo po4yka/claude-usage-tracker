@@ -308,6 +308,10 @@ public struct ProviderCostSummary: Codable, Sendable {
     public var cacheHitRateToday: Double?
     public var cacheHitRate30d: Double?
     public var cacheSavings30dUSD: Double?
+    public var byModel: [ProviderModelRow]
+    public var byProject: [ProviderProjectRow]
+    public var byTool: [ProviderToolRow]
+    public var byMcp: [ProviderMcpRow]
 
     public init(
         todayTokens: Int,
@@ -319,7 +323,11 @@ public struct ProviderCostSummary: Codable, Sendable {
         last30DaysBreakdown: TokenBreakdown? = nil,
         cacheHitRateToday: Double? = nil,
         cacheHitRate30d: Double? = nil,
-        cacheSavings30dUSD: Double? = nil
+        cacheSavings30dUSD: Double? = nil,
+        byModel: [ProviderModelRow] = [],
+        byProject: [ProviderProjectRow] = [],
+        byTool: [ProviderToolRow] = [],
+        byMcp: [ProviderMcpRow] = []
     ) {
         self.todayTokens = todayTokens
         self.todayCostUSD = todayCostUSD
@@ -331,6 +339,28 @@ public struct ProviderCostSummary: Codable, Sendable {
         self.cacheHitRateToday = cacheHitRateToday
         self.cacheHitRate30d = cacheHitRate30d
         self.cacheSavings30dUSD = cacheSavings30dUSD
+        self.byModel = byModel
+        self.byProject = byProject
+        self.byTool = byTool
+        self.byMcp = byMcp
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.todayTokens = try container.decode(Int.self, forKey: .todayTokens)
+        self.todayCostUSD = try container.decode(Double.self, forKey: .todayCostUSD)
+        self.last30DaysTokens = try container.decode(Int.self, forKey: .last30DaysTokens)
+        self.last30DaysCostUSD = try container.decode(Double.self, forKey: .last30DaysCostUSD)
+        self.daily = try container.decode([CostHistoryPoint].self, forKey: .daily)
+        self.todayBreakdown = try container.decodeIfPresent(TokenBreakdown.self, forKey: .todayBreakdown)
+        self.last30DaysBreakdown = try container.decodeIfPresent(TokenBreakdown.self, forKey: .last30DaysBreakdown)
+        self.cacheHitRateToday = try container.decodeIfPresent(Double.self, forKey: .cacheHitRateToday)
+        self.cacheHitRate30d = try container.decodeIfPresent(Double.self, forKey: .cacheHitRate30d)
+        self.cacheSavings30dUSD = try container.decodeIfPresent(Double.self, forKey: .cacheSavings30dUSD)
+        self.byModel = try container.decodeIfPresent([ProviderModelRow].self, forKey: .byModel) ?? []
+        self.byProject = try container.decodeIfPresent([ProviderProjectRow].self, forKey: .byProject) ?? []
+        self.byTool = try container.decodeIfPresent([ProviderToolRow].self, forKey: .byTool) ?? []
+        self.byMcp = try container.decodeIfPresent([ProviderMcpRow].self, forKey: .byMcp) ?? []
     }
 
     enum CodingKeys: String, CodingKey {
@@ -344,6 +374,154 @@ public struct ProviderCostSummary: Codable, Sendable {
         case cacheHitRateToday = "cache_hit_rate_today"
         case cacheHitRate30d = "cache_hit_rate_30d"
         case cacheSavings30dUSD = "cache_savings_30d_usd"
+        case byModel = "by_model"
+        case byProject = "by_project"
+        case byTool = "by_tool"
+        case byMcp = "by_mcp"
+    }
+}
+
+public struct ProviderModelRow: Codable, Sendable, Hashable, Identifiable {
+    public let model: String
+    public let costUSD: Double
+    public let input: Int
+    public let output: Int
+    public let cacheRead: Int
+    public let cacheCreation: Int
+    public let reasoningOutput: Int
+    public let turns: Int
+
+    public var id: String { self.model }
+
+    public init(
+        model: String,
+        costUSD: Double,
+        input: Int,
+        output: Int,
+        cacheRead: Int,
+        cacheCreation: Int,
+        reasoningOutput: Int,
+        turns: Int
+    ) {
+        self.model = model
+        self.costUSD = costUSD
+        self.input = input
+        self.output = output
+        self.cacheRead = cacheRead
+        self.cacheCreation = cacheCreation
+        self.reasoningOutput = reasoningOutput
+        self.turns = turns
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case model
+        case costUSD = "cost_usd"
+        case input
+        case output
+        case cacheRead = "cache_read"
+        case cacheCreation = "cache_creation"
+        case reasoningOutput = "reasoning_output"
+        case turns
+    }
+}
+
+public struct ProviderProjectRow: Codable, Sendable, Hashable, Identifiable {
+    public let project: String
+    public let displayName: String
+    public let costUSD: Double
+    public let turns: Int
+    public let sessions: Int
+
+    public var id: String { self.project }
+
+    public init(
+        project: String,
+        displayName: String,
+        costUSD: Double,
+        turns: Int,
+        sessions: Int
+    ) {
+        self.project = project
+        self.displayName = displayName
+        self.costUSD = costUSD
+        self.turns = turns
+        self.sessions = sessions
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case project
+        case displayName = "display_name"
+        case costUSD = "cost_usd"
+        case turns
+        case sessions
+    }
+}
+
+public struct ProviderToolRow: Codable, Sendable, Hashable, Identifiable {
+    public let toolName: String
+    public let category: String?
+    public let mcpServer: String?
+    public let invocations: Int
+    public let errors: Int
+    public let turnsUsed: Int
+    public let sessionsUsed: Int
+
+    public var id: String { "\(self.mcpServer ?? "_")/\(self.toolName)" }
+
+    public init(
+        toolName: String,
+        category: String?,
+        mcpServer: String?,
+        invocations: Int,
+        errors: Int,
+        turnsUsed: Int,
+        sessionsUsed: Int
+    ) {
+        self.toolName = toolName
+        self.category = category
+        self.mcpServer = mcpServer
+        self.invocations = invocations
+        self.errors = errors
+        self.turnsUsed = turnsUsed
+        self.sessionsUsed = sessionsUsed
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case toolName = "tool_name"
+        case category
+        case mcpServer = "mcp_server"
+        case invocations
+        case errors
+        case turnsUsed = "turns_used"
+        case sessionsUsed = "sessions_used"
+    }
+}
+
+public struct ProviderMcpRow: Codable, Sendable, Hashable, Identifiable {
+    public let server: String
+    public let invocations: Int
+    public let toolsUsed: Int
+    public let sessionsUsed: Int
+
+    public var id: String { self.server }
+
+    public init(
+        server: String,
+        invocations: Int,
+        toolsUsed: Int,
+        sessionsUsed: Int
+    ) {
+        self.server = server
+        self.invocations = invocations
+        self.toolsUsed = toolsUsed
+        self.sessionsUsed = sessionsUsed
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case server
+        case invocations
+        case toolsUsed = "tools_used"
+        case sessionsUsed = "sessions_used"
     }
 }
 
@@ -1391,6 +1569,10 @@ public struct ProviderMenuProjection: Sendable, Identifiable {
     public var spendTrendDirection: TrendDirection?
     public var claudeFactors: [ClaudeUsageFactorSnapshot]
     public var adjunct: DashboardAdjunctSnapshot?
+    public var byModel: [ProviderModelRow]
+    public var byProject: [ProviderProjectRow]
+    public var byTool: [ProviderToolRow]
+    public var byMcp: [ProviderMcpRow]
 
     public var id: String { self.provider.rawValue }
 
@@ -1433,7 +1615,11 @@ public struct ProviderMenuProjection: Sendable, Identifiable {
         cacheSavings30dUSD: Double? = nil,
         weeklyProjectedCostUSD: Double? = nil,
         spendTrendDirection: TrendDirection? = nil,
-        dailyCosts: [CostHistoryPoint] = []
+        dailyCosts: [CostHistoryPoint] = [],
+        byModel: [ProviderModelRow] = [],
+        byProject: [ProviderProjectRow] = [],
+        byTool: [ProviderToolRow] = [],
+        byMcp: [ProviderMcpRow] = []
     ) {
         self.provider = provider
         self.title = title
@@ -1474,6 +1660,10 @@ public struct ProviderMenuProjection: Sendable, Identifiable {
         self.spendTrendDirection = spendTrendDirection
         self.claudeFactors = claudeFactors
         self.adjunct = adjunct
+        self.byModel = byModel
+        self.byProject = byProject
+        self.byTool = byTool
+        self.byMcp = byMcp
     }
 }
 

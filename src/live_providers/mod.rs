@@ -907,6 +907,12 @@ fn provider_cost_summary(
         None
     };
 
+    let by_model = db::get_provider_model_rows(conn, provider, &start_date, 10).unwrap_or_default();
+    let by_project =
+        db::get_provider_project_rows(conn, provider, &start_date, 10).unwrap_or_default();
+    let by_tool = db::get_provider_tool_rows(conn, provider, &start_date, 15).unwrap_or_default();
+    let by_mcp = db::get_provider_mcp_rows(conn, provider, &start_date).unwrap_or_default();
+
     Ok(ProviderCostSummary {
         today_tokens,
         today_cost_usd: today_cost_nanos as f64 / 1_000_000_000.0,
@@ -918,6 +924,10 @@ fn provider_cost_summary(
         cache_hit_rate_today,
         cache_hit_rate_30d,
         cache_savings_30d_usd,
+        by_model,
+        by_project,
+        by_tool,
+        by_mcp,
     })
 }
 

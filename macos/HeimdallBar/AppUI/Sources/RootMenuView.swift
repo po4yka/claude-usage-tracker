@@ -231,6 +231,19 @@ struct ProviderMenuCard: View {
                 CacheHitTrendChart(daily: projection.dailyCosts)
                 CumulativeSpendChart(daily: projection.dailyCosts)
             }
+            if !projection.byModel.isEmpty {
+                ModelDistributionDonut(rows: projection.byModel)
+                ModelCostTable(rows: projection.byModel)
+            }
+            if !projection.byProject.isEmpty {
+                ProjectCostTable(rows: projection.byProject)
+            }
+            if !projection.byTool.isEmpty {
+                ToolUsageTable(rows: projection.byTool)
+            }
+            if !projection.byMcp.isEmpty {
+                McpSummaryTable(rows: projection.byMcp)
+            }
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(projection.costLabel)
                     .font(.caption)

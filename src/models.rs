@@ -385,6 +385,62 @@ pub struct ProviderCostSummary {
     /// model. None when no cache reads happened.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cache_savings_30d_usd: Option<f64>,
+    /// Top models by 30-day cost for this provider.
+    #[serde(default)]
+    pub by_model: Vec<ProviderModelRow>,
+    /// Top projects by 30-day cost for this provider.
+    #[serde(default)]
+    pub by_project: Vec<ProviderProjectRow>,
+    /// Top tools by 30-day invocation count for this provider.
+    #[serde(default)]
+    pub by_tool: Vec<ProviderToolRow>,
+    /// MCP server invocation totals for this provider (all rows, usually small).
+    #[serde(default)]
+    pub by_mcp: Vec<ProviderMcpRow>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub struct ProviderModelRow {
+    pub model: String,
+    pub cost_usd: f64,
+    pub input: u64,
+    pub output: u64,
+    pub cache_read: u64,
+    pub cache_creation: u64,
+    pub reasoning_output: u64,
+    pub turns: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub struct ProviderProjectRow {
+    pub project: String,
+    pub display_name: String,
+    pub cost_usd: f64,
+    pub turns: u64,
+    pub sessions: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub struct ProviderToolRow {
+    pub tool_name: String,
+    pub category: Option<String>,
+    pub mcp_server: Option<String>,
+    pub invocations: u64,
+    pub errors: u64,
+    pub turns_used: u64,
+    pub sessions_used: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub struct ProviderMcpRow {
+    pub server: String,
+    pub invocations: u64,
+    pub tools_used: u64,
+    pub sessions_used: u64,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]

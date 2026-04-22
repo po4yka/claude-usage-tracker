@@ -2775,6 +2775,148 @@ pub fn get_provider_daily_cost_history_since(
         .map_err(Into::into)
 }
 
+pub fn get_provider_model_rows(
+    conn: &Connection,
+    provider: &str,
+    start_date: &str,
+    limit: usize,
+) -> Result<Vec<crate::models::ProviderModelRow>> {
+    let mut stmt = conn.prepare(
+        "SELECT COALESCE(model, 'unknown') as model,
+                COALESCE(SUM(estimated_cost_nanos), 0) as cost_nanos,
+                COALESCE(SUM(input_tokens), 0) as input,
+                COALESCE(SUM(output_tokens), 0) as output,
+                COALESCE(SUM(cache_read_tokens), 0) as cache_read,
+                COALESCE(SUM(cache_creation_tokens), 0) as cache_creation,
+                COALESCE(SUM(reasoning_output_tokens), 0) as reasoning_output,
+                COUNT(*) as turns
+         FROM turns
+         WHERE provider = ?1 AND substr(timestamp, 1, 10) >= ?2
+         GROUP BY model
+         ORDER BY cost_nanos DESC
+         LIMIT ?3",
+    )?;
+    let rows = stmt.query_map(
+        rusqlite::params![provider, start_date, limit as i64],
+        |row| {
+            let cost_nanos: i64 = row.get(1)?;
+            Ok(crate::models::ProviderModelRow {
+                model: row.get(0)?,
+                cost_usd: cost_nanos as f64 / 1_000_000_000.0,
+                input: row.get::<_, i64>(2)? as u64,
+                output: row.get::<_, i64>(3)? as u64,
+                cache_read: row.get::<_, i64>(4)? as u64,
+                cache_creation: row.get::<_, i64>(5)? as u64,
+                reasoning_output: row.get::<_, i64>(6)? as u64,
+                turns: row.get::<_, i64>(7)? as u64,
+            })
+        },
+    )?;
+    rows.collect::<rusqlite::Result<Vec<_>>>()
+        .map_err(Into::into)
+}
+
+pub fn get_provider_project_rows(
+    conn: &Connection,
+    provider: &str,
+    start_date: &str,
+    limit: usize,
+) -> Result<Vec<crate::models::ProviderProjectRow>> {
+    let mut stmt = conn.prepare(
+        "SELECT s.project_name,
+                COALESCE(SUM(t.estimated_cost_nanos), 0) as cost_nanos,
+                COUNT(*) as turns,
+                COUNT(DISTINCT t.session_id) as sessions
+         FROM turns t
+         JOIN sessions s ON t.session_id = s.session_id
+         WHERE t.provider = ?1 AND substr(t.timestamp, 1, 10) >= ?2
+         GROUP BY s.project_name
+         ORDER BY cost_nanos DESC
+         LIMIT ?3",
+    )?;
+    let rows = stmt.query_map(
+        rusqlite::params![provider, start_date, limit as i64],
+        |row| {
+            let project: String = row.get(0)?;
+            let cost_nanos: i64 = row.get(1)?;
+            Ok(crate::models::ProviderProjectRow {
+                display_name: project.clone(),
+                project,
+                cost_usd: cost_nanos as f64 / 1_000_000_000.0,
+                turns: row.get::<_, i64>(2)? as u64,
+                sessions: row.get::<_, i64>(3)? as u64,
+            })
+        },
+    )?;
+    rows.collect::<rusqlite::Result<Vec<_>>>()
+        .map_err(Into::into)
+}
+
+pub fn get_provider_tool_rows(
+    conn: &Connection,
+    provider: &str,
+    start_date: &str,
+    limit: usize,
+) -> Result<Vec<crate::models::ProviderToolRow>> {
+    let mut stmt = conn.prepare(
+        "SELECT ti.tool_name, ti.tool_category, ti.mcp_server,
+                COUNT(*) as invocations,
+                COALESCE(SUM(ti.is_error), 0) as errors,
+                COUNT(DISTINCT ti.message_id) as turns_used,
+                COUNT(DISTINCT ti.session_id) as sessions_used
+         FROM tool_invocations ti
+         JOIN turns t ON ti.message_id = t.message_id AND ti.session_id = t.session_id
+         WHERE ti.provider = ?1 AND substr(t.timestamp, 1, 10) >= ?2
+         GROUP BY ti.tool_name
+         ORDER BY invocations DESC
+         LIMIT ?3",
+    )?;
+    let rows = stmt.query_map(
+        rusqlite::params![provider, start_date, limit as i64],
+        |row| {
+            Ok(crate::models::ProviderToolRow {
+                tool_name: row.get(0)?,
+                category: row.get(1)?,
+                mcp_server: row.get(2)?,
+                invocations: row.get::<_, i64>(3)? as u64,
+                errors: row.get::<_, i64>(4)? as u64,
+                turns_used: row.get::<_, i64>(5)? as u64,
+                sessions_used: row.get::<_, i64>(6)? as u64,
+            })
+        },
+    )?;
+    rows.collect::<rusqlite::Result<Vec<_>>>()
+        .map_err(Into::into)
+}
+
+pub fn get_provider_mcp_rows(
+    conn: &Connection,
+    provider: &str,
+    start_date: &str,
+) -> Result<Vec<crate::models::ProviderMcpRow>> {
+    let mut stmt = conn.prepare(
+        "SELECT ti.mcp_server,
+                COUNT(*) as invocations,
+                COUNT(DISTINCT ti.tool_name) as tools_used,
+                COUNT(DISTINCT ti.session_id) as sessions_used
+         FROM tool_invocations ti
+         JOIN turns t ON ti.message_id = t.message_id AND ti.session_id = t.session_id
+         WHERE ti.provider = ?1 AND ti.mcp_server IS NOT NULL AND substr(t.timestamp, 1, 10) >= ?2
+         GROUP BY ti.mcp_server
+         ORDER BY invocations DESC",
+    )?;
+    let rows = stmt.query_map(rusqlite::params![provider, start_date], |row| {
+        Ok(crate::models::ProviderMcpRow {
+            server: row.get(0)?,
+            invocations: row.get::<_, i64>(1)? as u64,
+            tools_used: row.get::<_, i64>(2)? as u64,
+            sessions_used: row.get::<_, i64>(3)? as u64,
+        })
+    })?;
+    rows.collect::<rusqlite::Result<Vec<_>>>()
+        .map_err(Into::into)
+}
+
 fn compute_duration_min(first: &str, last: &str) -> f64 {
     let parse = |s: &str| -> Option<chrono::DateTime<chrono::FixedOffset>> {
         chrono::DateTime::parse_from_rfc3339(s).ok().or_else(|| {
@@ -4824,5 +4966,96 @@ mod tests {
             .credits
             .expect("credits must be non-null for Amp project row");
         assert!((credits - 8.8).abs() < 1e-9, "expected 8.8, got {credits}");
+    }
+
+    #[test]
+    fn test_get_provider_model_rows_ordered_by_cost() {
+        let conn = test_conn();
+        let sessions = vec![crate::models::Session {
+            session_id: "pm1".into(),
+            project_name: "proj".into(),
+            first_timestamp: "2026-04-08T09:00:00Z".into(),
+            last_timestamp: "2026-04-08T10:00:00Z".into(),
+            provider: "claude".into(),
+            model: Some("claude-sonnet-4-6".into()),
+            ..Default::default()
+        }];
+        upsert_sessions(&conn, &sessions).unwrap();
+        let turns = vec![
+            Turn {
+                session_id: "pm1".into(),
+                timestamp: "2026-04-08T09:01:00Z".into(),
+                message_id: "pm-m1".into(),
+                provider: "claude".into(),
+                model: "claude-opus-4-5".into(),
+                input_tokens: 1000,
+                output_tokens: 500,
+                estimated_cost_nanos: 5_000_000_000,
+                ..Default::default()
+            },
+            Turn {
+                session_id: "pm1".into(),
+                timestamp: "2026-04-08T09:02:00Z".into(),
+                message_id: "pm-m2".into(),
+                provider: "claude".into(),
+                model: "claude-haiku-3-5".into(),
+                input_tokens: 200,
+                output_tokens: 100,
+                estimated_cost_nanos: 1_000_000_000,
+                ..Default::default()
+            },
+        ];
+        insert_turns(&conn, &turns).unwrap();
+
+        let rows =
+            get_provider_model_rows(&conn, "claude", "2026-04-01", 10).unwrap();
+        assert_eq!(rows.len(), 2);
+        // opus costs more — must come first
+        assert_eq!(rows[0].model, "claude-opus-4-5");
+        assert!(rows[0].cost_usd > rows[1].cost_usd);
+        assert_eq!(rows[0].turns, 1);
+        assert_eq!(rows[1].model, "claude-haiku-3-5");
+    }
+
+    #[test]
+    fn test_get_provider_tool_rows_ordered_by_invocations() {
+        let conn = test_conn();
+        let sessions = vec![crate::models::Session {
+            session_id: "pt1".into(),
+            project_name: "proj".into(),
+            first_timestamp: "2026-04-08T09:00:00Z".into(),
+            last_timestamp: "2026-04-08T10:00:00Z".into(),
+            provider: "claude".into(),
+            model: Some("claude-sonnet-4-6".into()),
+            ..Default::default()
+        }];
+        upsert_sessions(&conn, &sessions).unwrap();
+        let turns = vec![
+            Turn {
+                session_id: "pt1".into(),
+                timestamp: "2026-04-08T09:01:00Z".into(),
+                message_id: "pt-m1".into(),
+                provider: "claude".into(),
+                model: "claude-sonnet-4-6".into(),
+                tool_use_ids: vec![
+                    ("pt-t1".into(), "Read".into()),
+                    ("pt-t2".into(), "Read".into()),
+                    ("pt-t3".into(), "Bash".into()),
+                ],
+                all_tools: vec!["Read".into(), "Read".into(), "Bash".into()],
+                source_path: "/tmp/pt1.jsonl".into(),
+                ..Default::default()
+            },
+        ];
+        insert_turns(&conn, &turns).unwrap();
+        insert_tool_invocations(&conn, &turns, &HashMap::new()).unwrap();
+
+        let rows =
+            get_provider_tool_rows(&conn, "claude", "2026-04-01", 15).unwrap();
+        assert!(!rows.is_empty());
+        // Read has 2 invocations, Bash has 1 — Read must come first
+        assert_eq!(rows[0].tool_name, "Read");
+        assert_eq!(rows[0].invocations, 2);
+        assert!(rows.iter().any(|r| r.tool_name == "Bash" && r.invocations == 1));
     }
 }

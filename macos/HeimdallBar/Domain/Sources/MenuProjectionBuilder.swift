@@ -162,7 +162,11 @@ public enum MenuProjectionBuilder {
             cacheSavings30dUSD: snapshot?.costSummary.cacheSavings30dUSD,
             weeklyProjectedCostUSD: weeklyProjectedCost,
             spendTrendDirection: spendTrendDirection,
-            dailyCosts: snapshot?.costSummary.daily ?? []
+            dailyCosts: snapshot?.costSummary.daily ?? [],
+            byModel: snapshot?.costSummary.byModel ?? [],
+            byProject: snapshot?.costSummary.byProject ?? [],
+            byTool: snapshot?.costSummary.byTool ?? [],
+            byMcp: snapshot?.costSummary.byMcp ?? []
         )
     }
 

@@ -337,6 +337,190 @@ struct WindowProviderMetricSummary: Equatable {
     }
 }
 
+struct WindowOverviewProviderCostInsightsModel: Equatable {
+    struct Stat: Equatable, Identifiable {
+        let title: String
+        let value: String
+        let detail: String?
+
+        var id: String { self.title }
+    }
+
+    let stats: [Stat]
+    let mixLabel: String?
+
+    static func make(item: ProviderMenuProjection) -> Self {
+        var stats: [Stat] = []
+
+        if let today = item.todayBreakdown, !today.isEmpty {
+            stats.append(
+                Stat(
+                    title: "Today tokens",
+                    value: Self.compactTokenCount(today.total),
+                    detail: Self.costDetail(costUSD: item.todayCostUSD)
+                )
+            )
+        }
+
+        if let trailing = item.last30DaysBreakdown, !trailing.isEmpty {
+            stats.append(
+                Stat(
+                    title: "30-day tokens",
+                    value: Self.compactTokenCount(trailing.total),
+                    detail: Self.costDetail(costUSD: item.last30DaysCostUSD)
+                )
+            )
+        }
+
+        if let hit = Self.cacheHitDetail(today: item.cacheHitRateToday, trailing: item.cacheHitRate30d) {
+            stats.append(
+                Stat(
+                    title: "Cache hit rate",
+                    value: hit.value,
+                    detail: hit.detail
+                )
+            )
+        }
+
+        if let savings = item.cacheSavings30dUSD, savings > 0 {
+            stats.append(
+                Stat(
+                    title: "Cache savings",
+                    value: Self.currencyLabel(savings),
+                    detail: "Last 30 days"
+                )
+            )
+        }
+
+        let mixLabel = Self.mixLabel(today: item.todayBreakdown, trailing: item.last30DaysBreakdown)
+        return Self(stats: stats, mixLabel: mixLabel)
+    }
+
+    private static func costDetail(costUSD: Double?) -> String? {
+        guard let costUSD else { return nil }
+        return currencyLabel(costUSD)
+    }
+
+    private static func cacheHitDetail(today: Double?, trailing: Double?) -> (value: String, detail: String?)? {
+        if let today {
+            return (
+                value: percentLabel(today),
+                detail: trailing.map { "30-day avg \(percentLabel($0))" } ?? "Today"
+            )
+        }
+
+        if let trailing {
+            return (
+                value: percentLabel(trailing),
+                detail: "Last 30 days"
+            )
+        }
+
+        return nil
+    }
+
+    private static func mixLabel(today: TokenBreakdown?, trailing: TokenBreakdown?) -> String? {
+        let selected: (prefix: String, breakdown: TokenBreakdown)? = if let today, !today.isEmpty {
+            ("Today mix", today)
+        } else if let trailing, !trailing.isEmpty {
+            ("30-day mix", trailing)
+        } else {
+            nil
+        }
+
+        guard let selected else { return nil }
+        let breakdown = selected.breakdown
+        let parts = [
+            breakdown.input > 0 ? "\(compactTokenCount(breakdown.input)) in" : nil,
+            breakdown.output > 0 ? "\(compactTokenCount(breakdown.output)) out" : nil,
+            breakdown.cacheRead > 0 ? "\(compactTokenCount(breakdown.cacheRead)) cache read" : nil,
+            breakdown.cacheCreation > 0 ? "\(compactTokenCount(breakdown.cacheCreation)) cache write" : nil,
+            breakdown.reasoningOutput > 0 ? "\(compactTokenCount(breakdown.reasoningOutput)) reasoning" : nil,
+        ]
+        .compactMap { $0 }
+
+        guard !parts.isEmpty else { return nil }
+        return "\(selected.prefix): \(parts.joined(separator: " · "))"
+    }
+
+    static func compactTokenCount(_ count: Int) -> String {
+        let value = Double(count)
+        if value >= 1_000_000_000 {
+            return String(format: "%.1fB", value / 1_000_000_000)
+        }
+        if value >= 1_000_000 {
+            return String(format: "%.1fM", value / 1_000_000)
+        }
+        if value >= 1_000 {
+            return String(format: "%.1fK", value / 1_000)
+        }
+        return "\(count)"
+    }
+
+    private static func percentLabel(_ value: Double) -> String {
+        String(format: "%.1f%%", max(0, min(1, value)) * 100)
+    }
+
+    static func currencyLabel(_ value: Double) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.locale = Locale(identifier: "en_US")
+        formatter.currencyCode = "USD"
+        formatter.currencySymbol = "$"
+        formatter.minimumFractionDigits = 2
+        formatter.maximumFractionDigits = 2
+        formatter.positiveFormat = "¤#,##0.00"
+        formatter.negativeFormat = "-¤#,##0.00"
+        return formatter.string(from: NSNumber(value: value)) ?? String(format: "$%.2f", value)
+    }
+}
+
+private struct WindowOverviewProviderCostInsights: View {
+    let model: WindowOverviewProviderCostInsightsModel
+
+    private let columns = [
+        GridItem(.flexible(minimum: 120), spacing: 8),
+        GridItem(.flexible(minimum: 120), spacing: 8),
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if !self.model.stats.isEmpty {
+                LazyVGrid(columns: self.columns, spacing: 8) {
+                    ForEach(self.model.stats) { stat in
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(stat.title)
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                                .textCase(.uppercase)
+                                .tracking(0.4)
+                            Text(stat.value)
+                                .font(.callout.monospacedDigit().weight(.semibold))
+                            if let detail = stat.detail {
+                                Text(detail)
+                                    .font(.caption2)
+                                    .foregroundStyle(Color.primary.opacity(0.66))
+                                    .lineLimit(1)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 8)
+                        .menuCardBackground(opacity: 0.03, cornerRadius: 10)
+                    }
+                }
+            }
+
+            if let mixLabel = self.model.mixLabel {
+                Text(mixLabel)
+                    .font(.caption)
+                    .foregroundStyle(Color.primary.opacity(0.7))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+}
+
 private struct WindowOverviewProviderCard: View {
     @Bindable var model: ProviderFeatureModel
     let item: ProviderMenuProjection
@@ -351,6 +535,10 @@ private struct WindowOverviewProviderCard: View {
 
     private var note: WindowOverviewProviderNote? {
         WindowOverviewProviderNote.make(item: self.item)
+    }
+
+    private var costInsights: WindowOverviewProviderCostInsightsModel {
+        WindowOverviewProviderCostInsightsModel.make(item: self.item)
     }
 
     private var showsTrailingMetric: Bool {
@@ -409,6 +597,10 @@ private struct WindowOverviewProviderCard: View {
                         .font(.caption)
                         .foregroundStyle(Color.primary.opacity(0.68))
                         .fixedSize(horizontal: false, vertical: true)
+                }
+
+                if !self.costInsights.stats.isEmpty || self.costInsights.mixLabel != nil {
+                    WindowOverviewProviderCostInsights(model: self.costInsights)
                 }
 
                 if let note {
