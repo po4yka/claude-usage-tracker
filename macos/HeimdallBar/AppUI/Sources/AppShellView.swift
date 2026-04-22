@@ -348,8 +348,16 @@ private struct WindowOverviewProviderCard: View {
         )
     }
 
+    private var note: WindowOverviewProviderNote? {
+        WindowOverviewProviderNote.make(item: self.item)
+    }
+
+    private var showsTrailingMetric: Bool {
+        self.item.laneDetails.first?.remainingPercent != nil
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -368,42 +376,49 @@ private struct WindowOverviewProviderCard: View {
                 }
 
                 Spacer(minLength: 12)
-
-                Button("Open", action: self.openProvider)
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
+                VStack(alignment: .trailing, spacing: 8) {
+                    Button("Open", action: self.openProvider)
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    if self.showsTrailingMetric {
+                        VStack(alignment: .trailing, spacing: 4) {
+                            Text(self.metric.value)
+                                .font(.system(size: 30, weight: .bold, design: .rounded).monospacedDigit())
+                            Text(self.metric.qualifier)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
             }
 
-            HStack(alignment: .bottom, spacing: 16) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(self.metric.title)
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 8) {
+                Text(self.metric.title)
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Color.primary.opacity(0.72))
+                if self.showsTrailingMetric {
                     Text(self.metric.detail)
                         .font(.body.weight(.medium))
                         .foregroundStyle(.primary)
                         .fixedSize(horizontal: false, vertical: true)
-
-                    if let secondaryLine = self.secondaryLine {
-                        WindowCardNote(
-                            text: secondaryLine,
-                            tone: self.secondaryLineTone
-                        )
-                    }
+                } else {
+                    Text(self.metric.value)
+                        .font(.callout.weight(.semibold))
+                    Text(self.metric.detail)
+                        .font(.caption)
+                        .foregroundStyle(Color.primary.opacity(0.68))
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
-                Spacer(minLength: 12)
-
-                VStack(alignment: .trailing, spacing: 4) {
-                    Text(self.metric.value)
-                        .font(.system(size: 32, weight: .bold, design: .rounded).monospacedDigit())
-                    Text(self.metric.qualifier)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                if let note {
+                    WindowCardNote(
+                        text: note.text,
+                        tone: note.tone
+                    )
                 }
             }
         }
-        .padding(18)
+        .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .menuCardBackground(opacity: 0.04, cornerRadius: 16)
         .overlay(
@@ -412,38 +427,18 @@ private struct WindowOverviewProviderCard: View {
         )
     }
 
-    private var secondaryLine: String? {
-        if let incidentLabel = self.item.incidentLabel {
-            return incidentLabel
-        }
-        if let warning = self.item.warningLabels.first {
-            return warning
-        }
-        return self.item.authHeadline
-    }
-
-    private var secondaryLineTone: WindowCardNote.Tone {
-        if self.item.incidentLabel != nil {
-            return .critical
-        }
-        if !self.item.warningLabels.isEmpty {
-            return .warning
-        }
-        return .neutral
-    }
-
     private var borderColor: Color {
         switch self.item.visualState {
         case .error:
-            return .red.opacity(0.35)
+            return .red.opacity(0.42)
         case .incident:
-            return .red.opacity(0.28)
+            return .red.opacity(0.34)
         case .degraded, .stale:
-            return .orange.opacity(0.3)
+            return .orange.opacity(0.38)
         case .refreshing:
-            return Color.primary.opacity(0.14)
+            return Color.primary.opacity(0.18)
         case .healthy:
-            return Color.primary.opacity(0.08)
+            return Color.primary.opacity(0.12)
         }
     }
 
@@ -461,12 +456,14 @@ private struct WindowOverviewTotalsCard: View {
     let projection: OverviewMenuProjection
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Today")
-                .font(.headline)
-
-            Text(self.combinedValue)
-                .font(.system(size: 32, weight: .bold, design: .rounded).monospacedDigit())
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Text("Today")
+                    .font(.headline)
+                Spacer(minLength: 12)
+                Text(self.combinedValue)
+                    .font(.system(size: 30, weight: .bold, design: .rounded).monospacedDigit())
+            }
 
             if let topProvider = self.topProvider {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -490,7 +487,7 @@ private struct WindowOverviewTotalsCard: View {
                 .fixedSize(horizontal: false, vertical: true)
 
         }
-        .padding(18)
+        .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .menuCardBackground(opacity: 0.04, cornerRadius: 16)
     }
@@ -500,7 +497,10 @@ private struct WindowOverviewTotalsCard: View {
     }
 
     private var topProvider: ProviderMenuProjection? {
-        self.projection.items.max { lhs, rhs in
+        guard self.projection.combinedTodayCostUSD > 0 else {
+            return nil
+        }
+        return self.projection.items.max { lhs, rhs in
             Self.todayCost(lhs) < Self.todayCost(rhs)
         }
     }
@@ -584,9 +584,12 @@ private struct WindowHeader: View {
                 .foregroundStyle(.secondary)
             if let issue, !issue.isEmpty {
                 HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.orange)
                     Text(issue)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.primary)
                         .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 8)
                     if let onRetry {
@@ -600,22 +603,45 @@ private struct WindowHeader: View {
                 .padding(.vertical, 8)
                 .background(
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(Color.primary.opacity(0.05))
+                        .fill(Color.orange.opacity(0.12))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(Color.orange.opacity(0.28), lineWidth: 1)
                 )
             }
         }
     }
 }
 
-private struct WindowCardNote: View {
-    enum Tone {
-        case neutral
-        case warning
-        case critical
+enum WindowCardTone: Equatable {
+    case neutral
+    case warning
+    case critical
+}
+
+struct WindowOverviewProviderNote: Equatable {
+    let text: String
+    let tone: WindowCardTone
+
+    static func make(item: ProviderMenuProjection) -> Self? {
+        if let incidentLabel = item.incidentLabel {
+            return Self(text: incidentLabel, tone: .critical)
+        }
+        if let warning = item.warningLabels.first {
+            return Self(text: warning, tone: .warning)
+        }
+        if let authHeadline = item.authHeadline {
+            return Self(text: authHeadline, tone: .neutral)
+        }
+        return nil
     }
+}
+
+private struct WindowCardNote: View {
 
     let text: String
-    let tone: Tone
+    let tone: WindowCardTone
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
@@ -625,7 +651,17 @@ private struct WindowCardNote: View {
                 .font(.caption)
                 .fixedSize(horizontal: false, vertical: true)
         }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
         .foregroundStyle(self.color)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(self.backgroundColor)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(self.borderColor, lineWidth: 1)
+        )
     }
 
     private var iconName: String {
@@ -642,11 +678,33 @@ private struct WindowCardNote: View {
     private var color: Color {
         switch self.tone {
         case .neutral:
-            return .secondary
+            return Color.primary.opacity(0.78)
         case .warning:
             return .orange
         case .critical:
             return .red
+        }
+    }
+
+    private var backgroundColor: Color {
+        switch self.tone {
+        case .neutral:
+            return Color.primary.opacity(0.06)
+        case .warning:
+            return Color.orange.opacity(0.12)
+        case .critical:
+            return Color.red.opacity(0.12)
+        }
+    }
+
+    private var borderColor: Color {
+        switch self.tone {
+        case .neutral:
+            return Color.primary.opacity(0.14)
+        case .warning:
+            return Color.orange.opacity(0.24)
+        case .critical:
+            return Color.red.opacity(0.24)
         }
     }
 }
@@ -679,6 +737,13 @@ private struct ProviderSessionDetails: View {
             }
         }
         .padding(14)
-        .background(RoundedRectangle(cornerRadius: 14).fill(Color.primary.opacity(0.03)))
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color.primary.opacity(0.05))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(Color.primary.opacity(0.12), lineWidth: 1)
+        )
     }
 }

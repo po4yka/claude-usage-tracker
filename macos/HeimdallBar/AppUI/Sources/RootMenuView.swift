@@ -166,7 +166,8 @@ struct ProviderMenuCard: View {
             TopMetricRow(
                 title: self.primaryMetricTitle,
                 value: self.primaryMetricText,
-                detail: self.secondaryMetricText
+                detail: self.secondaryMetricText,
+                showsTrailingMetric: self.projection.laneDetails.first?.remainingPercent != nil
             )
             AuthStatusSection(model: self.providerModel, projection: projection)
             if projection.laneDetails.count > 1 {
@@ -179,8 +180,8 @@ struct ProviderMenuCard: View {
                     .foregroundStyle(.secondary)
             }
             ForEach(projection.warningLabels.prefix(2), id: \.self) { warning in
-                Text(warning)
-                    .font(.caption2)
+                Label(warning, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption2.weight(.medium))
                     .foregroundStyle(.orange)
             }
             // Only render identityLabel when it carries more than just the
@@ -243,9 +244,9 @@ struct ProviderMenuCard: View {
                     .foregroundStyle(.primary)
             }
             if let incidentLabel = projection.incidentLabel {
-                Text(incidentLabel)
-                    .font(.caption)
-                    .foregroundStyle(.orange)
+                Label(incidentLabel, systemImage: "exclamationmark.octagon.fill")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.red)
             }
             if !projection.claudeFactors.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
@@ -539,21 +540,90 @@ private struct TopMetricRow: View {
     let title: String
     let value: String
     let detail: String
+    var showsTrailingMetric: Bool = true
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: 3) {
+        if self.showsTrailingMetric {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(self.title)
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(Color.primary.opacity(0.72))
+                    Text(self.detail)
+                        .font(.caption)
+                        .foregroundStyle(Color.primary.opacity(0.68))
+                }
+                Spacer(minLength: 12)
+                Text(self.value)
+                    .font(.system(size: 18, weight: .bold, design: .rounded).monospacedDigit())
+                    .foregroundStyle(.primary)
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(self.title)
                     .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.primary.opacity(0.72))
+                Text(self.value)
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(.primary)
                 Text(self.detail)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.primary.opacity(0.68))
             }
-            Spacer(minLength: 12)
-            Text(self.value)
-                .font(.system(size: 18, weight: .bold, design: .rounded).monospacedDigit())
-                .foregroundStyle(.primary)
+        }
+    }
+}
+
+struct ProviderStateBadgeDescriptor {
+    let symbolName: String
+    let foregroundColor: Color
+    let backgroundColor: Color
+    let borderColor: Color
+
+    static func make(state: ProviderVisualState) -> Self {
+        switch state {
+        case .healthy:
+            return Self(
+                symbolName: "checkmark.circle.fill",
+                foregroundColor: .primary,
+                backgroundColor: Color.primary.opacity(0.16),
+                borderColor: Color.primary.opacity(0.18)
+            )
+        case .refreshing:
+            return Self(
+                symbolName: "arrow.clockwise.circle.fill",
+                foregroundColor: .primary,
+                backgroundColor: Color.primary.opacity(0.18),
+                borderColor: Color.primary.opacity(0.2)
+            )
+        case .stale:
+            return Self(
+                symbolName: "clock.badge.exclamationmark.fill",
+                foregroundColor: .primary,
+                backgroundColor: Color.orange.opacity(0.16),
+                borderColor: Color.orange.opacity(0.42)
+            )
+        case .degraded:
+            return Self(
+                symbolName: "exclamationmark.triangle.fill",
+                foregroundColor: .primary,
+                backgroundColor: Color.orange.opacity(0.2),
+                borderColor: Color.orange.opacity(0.46)
+            )
+        case .incident:
+            return Self(
+                symbolName: "exclamationmark.octagon.fill",
+                foregroundColor: .white,
+                backgroundColor: Color.red.opacity(0.9),
+                borderColor: Color.red.opacity(0.34)
+            )
+        case .error:
+            return Self(
+                symbolName: "xmark.octagon.fill",
+                foregroundColor: .white,
+                backgroundColor: Color.red,
+                borderColor: Color.red.opacity(0.4)
+            )
         }
     }
 }
@@ -563,56 +633,23 @@ struct StateBadge: View {
     let label: String
 
     var body: some View {
-        Text(self.label)
-            .font(.caption2.weight(.semibold))
-            .padding(.horizontal, 7)
-            .padding(.vertical, 3)
-            .foregroundStyle(self.foregroundColor)
-            .background(self.backgroundColor)
+        let descriptor = ProviderStateBadgeDescriptor.make(state: self.state)
+
+        HStack(spacing: 4) {
+            Image(systemName: descriptor.symbolName)
+                .font(.caption2.weight(.semibold))
+            Text(self.label)
+                .font(.caption2.weight(.semibold))
+        }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .foregroundStyle(descriptor.foregroundColor)
+            .background(descriptor.backgroundColor)
             .clipShape(Capsule())
             .overlay(
                 Capsule()
-                    .stroke(self.borderColor, lineWidth: 1)
+                    .stroke(descriptor.borderColor, lineWidth: 1)
             )
-    }
-
-    private var foregroundColor: Color {
-        switch self.state {
-        case .incident, .error:
-            return .white
-        case .stale, .degraded:
-            return .orange
-        default:
-            return .primary
-        }
-    }
-
-    private var backgroundColor: Color {
-        switch self.state {
-        case .healthy:
-            return Color.primary.opacity(0.12)
-        case .refreshing:
-            return Color.primary.opacity(0.16)
-        case .stale:
-            return Color.orange.opacity(0.18)
-        case .degraded:
-            return Color.orange.opacity(0.24)
-        case .incident:
-            return Color.red.opacity(0.85)
-        case .error:
-            return Color.red
-        }
-    }
-
-    private var borderColor: Color {
-        switch self.state {
-        case .healthy, .refreshing:
-            return Color.primary.opacity(0.12)
-        case .stale, .degraded:
-            return Color.orange.opacity(0.3)
-        case .incident, .error:
-            return Color.red.opacity(0.28)
-        }
     }
 }
 
@@ -697,7 +734,7 @@ struct HistoryBarStrip: View {
                     HStack {
                         Text("Usage history")
                             .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.primary.opacity(0.72))
                         Spacer()
                         if self.hasBreakdowns {
                             TokenLegend()
@@ -705,7 +742,7 @@ struct HistoryBarStrip: View {
                     }
                     Text("Relative daily spend normalized to the 7-day peak. Today is on the right.")
                         .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.primary.opacity(0.68))
                 }
             }
             HStack(alignment: .bottom, spacing: 6) {
@@ -715,7 +752,7 @@ struct HistoryBarStrip: View {
                     VStack(spacing: 3) {
                         ZStack(alignment: .bottom) {
                             RoundedRectangle(cornerRadius: 2, style: .continuous)
-                                .fill(Color.primary.opacity(0.06))
+                                .fill(Color.primary.opacity(0.1))
                                 .frame(height: 32)
                             if self.hasBreakdowns {
                                 StackedDayBar(
@@ -726,7 +763,7 @@ struct HistoryBarStrip: View {
                                 )
                             } else {
                                 RoundedRectangle(cornerRadius: 2, style: .continuous)
-                                    .fill(Color.primary.opacity(isToday ? 0.9 : 0.7))
+                                    .fill(Color.primary.opacity(isToday ? 0.95 : 0.78))
                                     .frame(height: max(2, 32 * fraction))
                             }
                         }
@@ -1304,7 +1341,8 @@ struct OverviewProviderCard: View {
             TopMetricRow(
                 title: self.metricTitle,
                 value: self.metricValue,
-                detail: self.metricDetail
+                detail: self.metricDetail,
+                showsTrailingMetric: self.item.laneDetails.first?.remainingPercent != nil
             )
             Text(self.item.costLabel)
                 .font(.caption)
@@ -1407,7 +1445,8 @@ struct AuthStatusSection: View {
     var body: some View {
         let isHealthy = (self.projection.authDiagnosticCode ?? "")
             .hasPrefix("authenticated")
-        if self.projection.authHeadline != nil
+        if self.projection.authSummaryLabel != nil
+            || self.projection.authHeadline != nil
             || self.projection.authDetail != nil
             || !self.projection.authRecoveryActions.isEmpty
         {
@@ -1417,8 +1456,8 @@ struct AuthStatusSection: View {
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
                     if isHealthy {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.caption2)
+                        Label("Connected", systemImage: "checkmark.circle.fill")
+                            .font(.caption2.weight(.semibold))
                             .foregroundStyle(.green)
                     }
                     Spacer()
@@ -1489,11 +1528,11 @@ private struct GlobalIssueBanner: View {
         .padding(.vertical, 8)
         .background(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color.orange.opacity(0.08))
+                .fill(Color.orange.opacity(0.12))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(Color.orange.opacity(0.18), lineWidth: 1)
+                .stroke(Color.orange.opacity(0.28), lineWidth: 1)
         )
     }
 }
@@ -1503,14 +1542,15 @@ struct MenuCardBackgroundModifier: ViewModifier {
     let cornerRadius: CGFloat
 
     func body(content: Content) -> some View {
+        let fillOpacity = max(self.opacity, 0.045)
         content
             .background(
                 RoundedRectangle(cornerRadius: self.cornerRadius, style: .continuous)
-                    .fill(Color.primary.opacity(self.opacity))
+                    .fill(Color.primary.opacity(fillOpacity))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: self.cornerRadius, style: .continuous)
-                    .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                    .stroke(Color.primary.opacity(0.12), lineWidth: 1)
             )
     }
 }
@@ -1542,14 +1582,15 @@ private struct SessionDisclosureRow: View {
     let subtitle: String
 
     var body: some View {
+        let descriptor = SessionHealthDescriptor.make(subtitle: self.subtitle)
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(self.title)
                     .font(.body.weight(.medium))
                 HStack(spacing: 5) {
-                    Circle()
-                        .fill(self.statusColor)
-                        .frame(width: 6, height: 6)
+                    Image(systemName: descriptor.systemImage)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(descriptor.color)
                     Text(self.subtitle)
                 }
                     .font(.caption2)
@@ -1568,18 +1609,23 @@ private struct SessionDisclosureRow: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                .stroke(Color.primary.opacity(0.12), lineWidth: 1)
         )
     }
+}
 
-    private var statusColor: Color {
-        switch self.subtitle.lowercased() {
+struct SessionHealthDescriptor {
+    let systemImage: String
+    let color: Color
+
+    static func make(subtitle: String) -> Self {
+        switch subtitle.lowercased() {
         case "connected":
-            return .green
+            return Self(systemImage: "checkmark.circle.fill", color: .green)
         case "login required", "expired":
-            return .orange
+            return Self(systemImage: "exclamationmark.triangle.fill", color: .orange)
         default:
-            return .secondary.opacity(0.7)
+            return Self(systemImage: "circle.dashed", color: .secondary.opacity(0.8))
         }
     }
 }
