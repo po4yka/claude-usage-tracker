@@ -202,6 +202,10 @@ struct ProviderMenuCard: View {
             }
             if let breakdown = projection.todayBreakdown, !breakdown.isEmpty {
                 TokenBreakdownRow(title: "Today", breakdown: breakdown)
+                TokenBreakdownDonut(title: "Today", breakdown: breakdown)
+            }
+            if let breakdown = projection.last30DaysBreakdown, !breakdown.isEmpty {
+                TokenBreakdownDonut(title: "30 days", breakdown: breakdown)
             }
             if !projection.historyFractions.isEmpty {
                 if Self.hasUsableBreakdowns(projection) {
@@ -212,6 +216,11 @@ struct ProviderMenuCard: View {
             }
             if let hitRate = projection.cacheHitRateToday {
                 CacheEfficiencyCard(
+                    hitRateToday: hitRate,
+                    hitRate30d: projection.cacheHitRate30d,
+                    savings30dUSD: projection.cacheSavings30dUSD
+                )
+                CacheMixRing(
                     hitRateToday: hitRate,
                     hitRate30d: projection.cacheHitRate30d,
                     savings30dUSD: projection.cacheSavings30dUSD
@@ -238,10 +247,9 @@ struct ProviderMenuCard: View {
                 Spacer(minLength: 0)
             }
             if let projected = projection.weeklyProjectedCostUSD, projected > 0 {
-                Text("Projected weekly: \(Self.formatProjectedCost(projected))")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .help("Linear extrapolation of the current weekly window's spend at the current pace.")
+                let weeklyLane = projection.laneDetails.dropFirst().first
+                let elapsed = weeklyLane.map { 1.0 - (Double($0.remainingPercent ?? 0) / 100.0) } ?? 0.0
+                WeeklyProjectionArc(projectedCostUSD: projected, elapsedFraction: elapsed)
             }
             if let creditsLabel = projection.creditsLabel {
                 Text(creditsLabel)
