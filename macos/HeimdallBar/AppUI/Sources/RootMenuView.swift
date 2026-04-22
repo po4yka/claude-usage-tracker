@@ -488,7 +488,10 @@ private struct OverviewSummaryCard: View {
             .map(\.title)
 
         guard !affectedProviders.isEmpty else { return nil }
-        return "\(affectedProviders.joined(separator: ", ")) have limited or fallback data."
+        if affectedProviders.count == 1, let provider = affectedProviders.first {
+            return "\(provider) needs attention."
+        }
+        return "\(affectedProviders.joined(separator: ", ")) need attention."
     }
 }
 

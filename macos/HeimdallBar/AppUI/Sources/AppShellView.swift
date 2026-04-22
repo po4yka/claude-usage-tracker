@@ -271,7 +271,7 @@ private struct WindowOverviewHistoryCard: View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Last 7 days")
                 .font(.headline)
-            Text("Relative daily spend normalized to the 7-day peak. Today appears at the right.")
+            Text("Relative activity across the visible week. Today appears at the right.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
 
@@ -496,10 +496,7 @@ private struct WindowOverviewTotalsCard: View {
     }
 
     private var combinedValue: String {
-        guard let value = self.projection.combinedCostLabel.split(separator: ":").last else {
-            return self.projection.combinedCostLabel
-        }
-        return value.trimmingCharacters(in: .whitespaces)
+        Self.currencyLabel(self.projection.combinedTodayCostUSD)
     }
 
     private var topProvider: ProviderMenuProjection? {
@@ -509,12 +506,20 @@ private struct WindowOverviewTotalsCard: View {
     }
 
     private static func todayCost(_ item: ProviderMenuProjection) -> Double {
-        guard let value = item.costLabel.split(separator: "·").first?
-            .replacingOccurrences(of: "Today: $", with: "")
-            .trimmingCharacters(in: .whitespaces) else {
-            return 0
-        }
-        return Double(value) ?? 0
+        item.todayCostUSD ?? 0
+    }
+
+    private static func currencyLabel(_ value: Double) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.locale = Locale(identifier: "en_US")
+        formatter.currencyCode = "USD"
+        formatter.currencySymbol = "$"
+        formatter.minimumFractionDigits = 2
+        formatter.maximumFractionDigits = 2
+        formatter.positiveFormat = "¤#,##0.00"
+        formatter.negativeFormat = "-¤#,##0.00"
+        return formatter.string(from: NSNumber(value: value)) ?? String(format: "$%.2f", value)
     }
 }
 
@@ -528,15 +533,20 @@ private struct WindowProviderView: View {
         guard let projected = projection.weeklyProjectedCostUSD, projected > 0 else {
             return status
         }
-        let formatted: String
-        if projected >= 1000 {
-            formatted = String(format: "$%.0f", projected)
-        } else if projected >= 10 {
-            formatted = String(format: "$%.1f", projected)
-        } else {
-            formatted = String(format: "$%.2f", projected)
-        }
-        return "\(status) · Weekly projected \(formatted)"
+        return "\(status) · Projected this week: \(Self.currencyLabel(projected))"
+    }
+
+    private static func currencyLabel(_ value: Double) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.locale = Locale(identifier: "en_US")
+        formatter.currencyCode = "USD"
+        formatter.currencySymbol = "$"
+        formatter.minimumFractionDigits = 2
+        formatter.maximumFractionDigits = 2
+        formatter.positiveFormat = "¤#,##0.00"
+        formatter.negativeFormat = "-¤#,##0.00"
+        return formatter.string(from: NSNumber(value: value)) ?? String(format: "$%.2f", value)
     }
 
     var body: some View {

@@ -1361,6 +1361,8 @@ public struct ProviderMenuProjection: Sendable, Identifiable {
     public var lastRefreshLabel: String
     public var refreshStatusLabel: String
     public var costLabel: String
+    public var todayCostUSD: Double?
+    public var last30DaysCostUSD: Double?
     public var laneDetails: [LaneDetailProjection]
     public var creditsLabel: String?
     public var incidentLabel: String?
@@ -1406,6 +1408,8 @@ public struct ProviderMenuProjection: Sendable, Identifiable {
         lastRefreshLabel: String,
         refreshStatusLabel: String,
         costLabel: String,
+        todayCostUSD: Double? = nil,
+        last30DaysCostUSD: Double? = nil,
         laneDetails: [LaneDetailProjection],
         creditsLabel: String?,
         incidentLabel: String?,
@@ -1443,6 +1447,8 @@ public struct ProviderMenuProjection: Sendable, Identifiable {
         self.lastRefreshLabel = lastRefreshLabel
         self.refreshStatusLabel = refreshStatusLabel
         self.costLabel = costLabel
+        self.todayCostUSD = todayCostUSD
+        self.last30DaysCostUSD = last30DaysCostUSD
         self.laneDetails = laneDetails
         self.creditsLabel = creditsLabel
         self.incidentLabel = incidentLabel
@@ -1468,6 +1474,7 @@ public struct ProviderMenuProjection: Sendable, Identifiable {
 public struct OverviewMenuProjection: Sendable {
     public var items: [ProviderMenuProjection]
     public var combinedCostLabel: String
+    public var combinedTodayCostUSD: Double
     public var refreshedAtLabel: String
     public var activitySummaryLabel: String
     public var historyFractions: [Double]
@@ -1480,6 +1487,7 @@ public struct OverviewMenuProjection: Sendable {
     public init(
         items: [ProviderMenuProjection],
         combinedCostLabel: String,
+        combinedTodayCostUSD: Double,
         refreshedAtLabel: String,
         activitySummaryLabel: String,
         historyFractions: [Double],
@@ -1491,6 +1499,7 @@ public struct OverviewMenuProjection: Sendable {
     ) {
         self.items = items
         self.combinedCostLabel = combinedCostLabel
+        self.combinedTodayCostUSD = combinedTodayCostUSD
         self.refreshedAtLabel = refreshedAtLabel
         self.activitySummaryLabel = activitySummaryLabel
         self.historyFractions = historyFractions

@@ -44,7 +44,7 @@ struct MenuProjectionBuilderTests {
 
         #expect(projection.visualState == .incident)
         #expect(projection.stateLabel == "Incident")
-        #expect(projection.incidentLabel?.contains("CRITICAL") == true)
+        #expect(projection.incidentLabel == "[CRITICAL] OpenAI critical incident")
         #expect(projection.warningLabels.contains("Requested oauth, but Heimdall resolved cli-rpc."))
         #expect(projection.warningLabels.contains("Resolution chain: oauth -> cli-rpc"))
         #expect(projection.laneDetails.first?.summary.contains("64% left") == true)
@@ -71,7 +71,9 @@ struct MenuProjectionBuilderTests {
             identityLabel: nil,
             lastRefreshLabel: "Last refresh: 2m ago",
             refreshStatusLabel: "Last refresh: 2m ago",
-            costLabel: "Today: $3.20 · 30d: $21.00",
+            costLabel: "Today: $3.20 · 30 days: $21.00",
+            todayCostUSD: 3.2,
+            last30DaysCostUSD: 21,
             laneDetails: [],
             creditsLabel: nil,
             incidentLabel: nil,
@@ -101,7 +103,9 @@ struct MenuProjectionBuilderTests {
             identityLabel: nil,
             lastRefreshLabel: "Last refresh: 4m ago",
             refreshStatusLabel: "Provider degraded · last refresh: 4m ago",
-            costLabel: "Today: $6.80 · 30d: $42.00",
+            costLabel: "Today: $6.80 · 30 days: $42.00",
+            todayCostUSD: 6.8,
+            last30DaysCostUSD: 42,
             laneDetails: [],
             creditsLabel: nil,
             incidentLabel: nil,
@@ -122,7 +126,8 @@ struct MenuProjectionBuilderTests {
         )
 
         #expect(overview.combinedCostLabel == "Combined today: $10.00")
-        #expect(overview.activitySummaryLabel == "Most active: Codex · degraded")
+        #expect(overview.combinedTodayCostUSD == 10)
+        #expect(overview.activitySummaryLabel == "Codex accounts for 68% of today's spend")
         #expect(overview.warningLabels == ["Shared warning", "Codex login required"])
         #expect(overview.historyFractions == [0.4, 0.6000000000000001])
         #expect(overview.refreshStatusLabel == "Last refresh: 2m ago")

@@ -23,14 +23,24 @@ public enum MenuProjectionBuilder {
         let adjunct = presentation.adjunct
         let resolution = presentation.resolution
         let history = snapshot.map { historyFractions($0.costSummary.daily) } ?? []
+        let normalizedStatusIndicator = snapshot?.status?.indicator
+            .lowercased()
+            .trimmingCharacters(in: .whitespaces)
         let statusLabel = snapshot?.status.map { status -> String in
-            let normalized = status.indicator.lowercased().trimmingCharacters(in: .whitespaces)
+            let normalized = normalizedStatusIndicator ?? ""
             if normalized.isEmpty || normalized == "none" {
                 return status.description
             }
             return "[\(status.indicator.uppercased())] \(status.description)"
         }
-        let incidentLabel = statusLabel.flatMap { $0.contains("major") || $0.contains("critical") ? $0 : nil }
+        let incidentLabel: String?
+        if let statusLabel,
+           let normalizedStatusIndicator,
+           normalizedStatusIndicator.contains("major") || normalizedStatusIndicator.contains("critical") {
+            incidentLabel = statusLabel
+        } else {
+            incidentLabel = nil
+        }
         let identityLabel = presentation.displayIdentityLabel
         let creditsLabel = presentation.displayCredits.map { value in
             resolution.effectiveSource == .web
@@ -51,12 +61,10 @@ public enum MenuProjectionBuilder {
         } else {
             "Waiting for data"
         }
+        let todayCostUSD = snapshot?.costSummary.todayCostUSD
+        let last30DaysCostUSD = snapshot?.costSummary.last30DaysCostUSD
         let costLabel = if let snapshot {
-            String(
-                format: "Today: $%.2f · 30d: $%.2f",
-                snapshot.costSummary.todayCostUSD,
-                snapshot.costSummary.last30DaysCostUSD
-            )
+            "Today: \(currencyLabel(snapshot.costSummary.todayCostUSD)) · 30 days: \(currencyLabel(snapshot.costSummary.last30DaysCostUSD))"
         } else {
             "Today: unavailable"
         }
@@ -133,6 +141,8 @@ public enum MenuProjectionBuilder {
             lastRefreshLabel: lastRefreshLabel,
             refreshStatusLabel: refreshStatusLabel,
             costLabel: costLabel,
+            todayCostUSD: todayCostUSD,
+            last30DaysCostUSD: last30DaysCostUSD,
             laneDetails: laneDetails,
             creditsLabel: creditsLabel,
             incidentLabel: incidentLabel,
@@ -161,25 +171,25 @@ public enum MenuProjectionBuilder {
         lastGlobalError: String?
     ) -> OverviewMenuProjection {
         let refreshedLabel = items.map(\.lastRefreshLabel).first ?? "Waiting for data"
-        let totalCost = items
-            .compactMap { item in
-                item.costLabel.split(separator: "·").first?
-                    .replacingOccurrences(of: "Today: $", with: "")
-                    .trimmingCharacters(in: .whitespaces)
-            }
-            .compactMap(Double.init)
-            .reduce(0.0, +)
+        let totalCost = items.compactMap(\.todayCostUSD).reduce(0.0, +)
         let historyFractions = mergedHistory(items: items)
         let warningLabels = items
             .flatMap(\.warningLabels)
             .uniqued()
         let hottestProvider = items.max(by: { lhs, rhs in
-            numericTodayCost(lhs.costLabel) < numericTodayCost(rhs.costLabel)
+            (lhs.todayCostUSD ?? 0) < (rhs.todayCostUSD ?? 0)
         })
-        let activitySummaryLabel = if let hottestProvider {
-            "Most active: \(hottestProvider.title) · \(hottestProvider.stateLabel.lowercased())"
+        let activitySummaryLabel: String
+        if let hottestProvider {
+            let providerCost = hottestProvider.todayCostUSD ?? 0
+            if totalCost > 0 {
+                let share = Int((providerCost / totalCost * 100).rounded())
+                activitySummaryLabel = "\(hottestProvider.title) accounts for \(share)% of today's spend"
+            } else {
+                activitySummaryLabel = "Highest spend today: \(hottestProvider.title)"
+            }
         } else {
-            "Waiting for provider activity"
+            activitySummaryLabel = "Waiting for provider activity"
         }
         let refreshStatusLabel: String
         let isShowingCachedData = lastGlobalError?.isEmpty == false && !items.isEmpty
@@ -211,7 +221,8 @@ public enum MenuProjectionBuilder {
 
         return OverviewMenuProjection(
             items: items,
-            combinedCostLabel: String(format: "Combined today: $%.2f", totalCost),
+            combinedCostLabel: "Combined today: \(currencyLabel(totalCost))",
+            combinedTodayCostUSD: totalCost,
             refreshedAtLabel: refreshedLabel,
             activitySummaryLabel: activitySummaryLabel,
             historyFractions: historyFractions,
@@ -344,16 +355,6 @@ public enum MenuProjectionBuilder {
             guard count > 0 else { return 0 }
             return min(1, total / Double(count))
         }
-    }
-
-    private static func numericTodayCost(_ label: String) -> Double {
-        guard let todayLabel = label.split(separator: "·").first else {
-            return 0
-        }
-        let normalized = String(todayLabel)
-            .replacingOccurrences(of: "Today: $", with: "")
-            .trimmingCharacters(in: .whitespaces)
-        return Double(normalized) ?? 0
     }
 
     private static func visualState(
@@ -518,6 +519,20 @@ public enum MenuProjectionBuilder {
         }
         return normalized
     }
+
+    private static func currencyLabel(_ value: Double) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.locale = Locale(identifier: "en_US")
+        formatter.currencyCode = "USD"
+        formatter.currencySymbol = "$"
+        formatter.minimumFractionDigits = 2
+        formatter.maximumFractionDigits = 2
+        formatter.positiveFormat = "¤#,##0.00"
+        formatter.negativeFormat = "-¤#,##0.00"
+        return formatter.string(from: NSNumber(value: value)) ?? String(format: "$%.2f", value)
+    }
+
     /// Linearly extrapolate the current weekly window's cost to the reset
     /// point: projected = cost_so_far / elapsed_fraction. Uses the Weekly /
     /// secondary lane's windowMinutes + resetsInMinutes to derive elapsed
