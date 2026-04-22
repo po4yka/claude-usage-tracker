@@ -1,3 +1,4 @@
+import Foundation
 import HeimdallServices
 
 public struct MacPlatformCompositionRoot: Sendable {
@@ -39,6 +40,7 @@ public struct MacPlatformCompositionRoot: Sendable {
         let sessionStore = AppSessionStore(config: self.settingsStore.load())
         let providerRepository = ProviderRepository()
         let liveProviderClient = HeimdallAPIClient(port: sessionStore.config.helperPort)
+        let snapshotSyncer = Self.makeSnapshotSyncer(client: liveProviderClient)
         let refreshCoordinator = RefreshCoordinator(
             sessionStore: sessionStore,
             repository: providerRepository,
@@ -50,10 +52,7 @@ public struct MacPlatformCompositionRoot: Sendable {
                 reloader: self.widgetReloader
             ),
             providerDataSource: self.providerDataSource,
-            snapshotSyncer: SnapshotSyncCoordinator(
-                client: liveProviderClient,
-                store: CloudKitSnapshotSyncStore()
-            )
+            snapshotSyncer: snapshotSyncer
         )
         let authCoordinator = AuthCoordinator(runner: self.authCommandRunner)
 
@@ -65,6 +64,31 @@ public struct MacPlatformCompositionRoot: Sendable {
             settingsStore: self.settingsStore,
             credentialInspector: self.credentialInspector
         )
+    }
+
+    static func makeSnapshotSyncer(
+        client: any MobileSnapshotClient,
+        bundleURL: URL = Bundle.main.bundleURL
+    ) -> (any SnapshotSyncing)? {
+        guard Self.shouldEnableCloudKitSnapshotSync(bundleURL: bundleURL) else {
+            return nil
+        }
+        return SnapshotSyncCoordinator(
+            client: client,
+            store: CloudKitSnapshotSyncStore()
+        )
+    }
+
+    static func shouldEnableCloudKitSnapshotSync(
+        bundleURL: URL = Bundle.main.bundleURL
+    ) -> Bool {
+        let path = bundleURL.path
+        #if DEBUG
+        if path.contains("/.derived/") || path.contains("/DerivedData/") {
+            return false
+        }
+        #endif
+        return true
     }
 
     public func cliDependencies() -> HeimdallCLIDependencies {
