@@ -19,56 +19,56 @@ struct RootMenuView: View {
     var body: some View {
         let overview = self.overview.projection
 
-        VStack(alignment: .leading, spacing: 10) {
-            MenuChromeHeader(
-                title: "HeimdallBar",
-                status: overview.refreshedAtLabel,
-                isRefreshing: overview.isRefreshing,
-                attentionLabel: self.attentionLabel(for: overview)
-            )
-
-            if let globalIssueLabel = overview.globalIssueLabel {
-                GlobalIssueBanner(
-                    message: globalIssueLabel,
-                    detail: overview.isShowingCachedData ? "Showing last known provider data" : nil
+        MenuScrollableContainer {
+            VStack(alignment: .leading, spacing: 10) {
+                MenuChromeHeader(
+                    title: "HeimdallBar",
+                    status: overview.refreshedAtLabel,
+                    isRefreshing: overview.isRefreshing,
+                    attentionLabel: self.attentionLabel(for: overview)
                 )
-            }
 
-            if self.shell.visibleTabs.count > 1 {
-                MergeTabSwitcher(
-                    tabs: self.shell.visibleTabs,
-                    selection: Binding(
-                        get: { self.shell.selectedMenuTab },
-                        set: { self.shell.selectMenuTab($0) }
+                if let globalIssueLabel = overview.globalIssueLabel {
+                    GlobalIssueBanner(
+                        message: globalIssueLabel,
+                        detail: overview.isShowingCachedData ? "Showing last known provider data" : nil
                     )
+                }
+
+                if self.shell.visibleTabs.count > 1 {
+                    MergeTabSwitcher(
+                        tabs: self.shell.visibleTabs,
+                        selection: Binding(
+                            get: { self.shell.selectedMenuTab },
+                            set: { self.shell.selectMenuTab($0) }
+                        )
+                    )
+                }
+
+                if self.shell.selectedMenuTab == .overview {
+                    OverviewMenuCard(providerModel: self.providerModel, projection: overview)
+                } else if let provider = self.shell.selectedMenuTab.providerID {
+                    let providerModel = self.providerModel(provider)
+                    ProviderMenuCard(providerModel: providerModel)
+                    SessionActionGroup(models: [providerModel])
+                }
+
+                Divider()
+
+                MenuActionRow(
+                    shell: self.shell,
+                    overview: self.overview,
+                    providerModel: self.providerModel,
+                    helperPort: self.helperPort,
+                    tab: self.shell.selectedMenuTab,
+                    onQuit: self.onQuit
                 )
-            }
 
-            if self.shell.selectedMenuTab == .overview {
-                OverviewMenuCard(providerModel: self.providerModel, projection: overview)
-            } else if let provider = self.shell.selectedMenuTab.providerID {
-                let providerModel = self.providerModel(provider)
-                ProviderMenuCard(providerModel: providerModel)
-                SessionActionGroup(models: [providerModel])
-            }
-
-            Divider()
-
-            MenuActionRow(
-                shell: self.shell,
-                overview: self.overview,
-                providerModel: self.providerModel,
-                helperPort: self.helperPort,
-                tab: self.shell.selectedMenuTab,
-                onQuit: self.onQuit
-            )
-
-            if self.shell.selectedMenuTab == .overview {
-                SessionActionGroup(models: self.shell.visibleProviders.map(self.providerModel))
+                if self.shell.selectedMenuTab == .overview {
+                    SessionActionGroup(models: self.shell.visibleProviders.map(self.providerModel))
+                }
             }
         }
-        .padding(10)
-        .frame(width: 336)
     }
 
     private func attentionLabel(for overview: OverviewMenuProjection) -> String? {
@@ -97,35 +97,35 @@ struct ProviderMenuView: View {
     let onQuit: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            MenuChromeHeader(
-                title: self.model.provider.title,
-                status: self.model.projection.lastRefreshLabel,
-                isRefreshing: self.model.projection.isRefreshing,
-                attentionLabel: self.providerAttentionLabel
-            )
-            if let globalIssueLabel = self.model.projection.globalIssueLabel {
-                GlobalIssueBanner(
-                    message: globalIssueLabel,
-                    detail: self.model.projection.isShowingCachedData ? "Showing last known provider data" : nil
+        MenuScrollableContainer {
+            VStack(alignment: .leading, spacing: 10) {
+                MenuChromeHeader(
+                    title: self.model.provider.title,
+                    status: self.model.projection.lastRefreshLabel,
+                    isRefreshing: self.model.projection.isRefreshing,
+                    attentionLabel: self.providerAttentionLabel
+                )
+                if let globalIssueLabel = self.model.projection.globalIssueLabel {
+                    GlobalIssueBanner(
+                        message: globalIssueLabel,
+                        detail: self.model.projection.isShowingCachedData ? "Showing last known provider data" : nil
+                    )
+                }
+                ProviderMenuCard(providerModel: self.model)
+                SessionActionGroup(models: [self.model])
+
+                Divider()
+
+                MenuActionRow(
+                    shell: nil,
+                    overview: nil,
+                    providerModel: { _ in self.model },
+                    helperPort: self.helperPort,
+                    tab: self.model.provider == .claude ? .claude : .codex,
+                    onQuit: self.onQuit
                 )
             }
-            ProviderMenuCard(providerModel: self.model)
-            SessionActionGroup(models: [self.model])
-
-            Divider()
-
-            MenuActionRow(
-                shell: nil,
-                overview: nil,
-                providerModel: { _ in self.model },
-                helperPort: self.helperPort,
-                tab: self.model.provider == .claude ? .claude : .codex,
-                onQuit: self.onQuit
-            )
         }
-        .padding(12)
-        .frame(width: 336)
     }
 
     private var providerAttentionLabel: String? {
@@ -136,6 +136,51 @@ struct ProviderMenuView: View {
         default:
             return "\(projection.title) is \(projection.stateLabel.lowercased())"
         }
+    }
+}
+
+private struct MenuScrollableContainer<Content: View>: View {
+    private static let width: CGFloat = 336
+    private static let minHeight: CGFloat = 200
+
+    @State private var contentHeight: CGFloat = Self.minHeight
+    let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        ScrollView(.vertical, showsIndicators: true) {
+            self.content
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    GeometryReader { proxy in
+                        Color.clear
+                            .preference(key: MenuContentHeightPreferenceKey.self, value: proxy.size.height)
+                    }
+                )
+        }
+        .frame(width: Self.width, height: min(max(self.contentHeight, Self.minHeight), Self.maxHeight))
+        .onPreferenceChange(MenuContentHeightPreferenceKey.self) { newHeight in
+            self.contentHeight = newHeight
+        }
+    }
+
+    private static var maxHeight: CGFloat {
+        guard let visibleHeight = NSScreen.main?.visibleFrame.height else {
+            return 720
+        }
+        return min(760, max(420, floor(visibleHeight * 0.72)))
+    }
+}
+
+private struct MenuContentHeightPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
     }
 }
 
