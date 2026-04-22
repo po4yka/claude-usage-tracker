@@ -1626,6 +1626,8 @@ public struct LaneDetailProjection: Sendable, Identifiable {
     public var remainingPercent: Int?
     public var resetDetail: String?
     public var paceLabel: String?
+    public var resetMinutes: Int?
+    public var windowMinutes: Int?
 
     public var id: String { self.title }
 
@@ -1634,13 +1636,17 @@ public struct LaneDetailProjection: Sendable, Identifiable {
         summary: String,
         remainingPercent: Int?,
         resetDetail: String?,
-        paceLabel: String?
+        paceLabel: String?,
+        resetMinutes: Int? = nil,
+        windowMinutes: Int? = nil
     ) {
         self.title = title
         self.summary = summary
         self.remainingPercent = remainingPercent
         self.resetDetail = resetDetail
         self.paceLabel = paceLabel
+        self.resetMinutes = resetMinutes
+        self.windowMinutes = windowMinutes
     }
 }
 

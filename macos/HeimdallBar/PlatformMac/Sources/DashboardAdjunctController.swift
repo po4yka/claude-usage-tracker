@@ -64,7 +64,7 @@ public actor DashboardAdjunctController: DashboardAdjunctLoading {
         guard let date = formatter.date(from: timestamp) else { return timestamp }
         let delta = max(0, Int(Date().timeIntervalSince(date)))
         if delta < 60 {
-            return "\(delta)s ago"
+            return "right now"
         }
         if delta < 3600 {
             return "\(delta / 60)m ago"

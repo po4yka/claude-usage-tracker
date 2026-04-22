@@ -191,7 +191,7 @@ enum WidgetRenderModelBuilder {
         }
         let seconds = max(0, Int(Date().timeIntervalSince(date)))
         if seconds < 60 {
-            return "\(seconds)s ago"
+            return "right now"
         }
         if seconds < 3600 {
             return "\(seconds / 60)m ago"

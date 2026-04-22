@@ -36,8 +36,11 @@ struct HistoryBarChart: View {
                     caption: "Daily spend, last 7 days."
                 )
             }
-            self.chart(entries: entries)
-                .frame(height: 48)
+            VStack(alignment: .leading, spacing: 8) {
+                self.chart(entries: entries)
+                    .frame(height: 122)
+                self.labels(entries: entries)
+            }
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Usage history, last \(entries.count) days")
@@ -62,7 +65,8 @@ struct HistoryBarChart: View {
             ForEach(entries) { entry in
                 BarMark(
                     x: .value("Day", entry.index),
-                    y: .value("Fraction", max(Self.minimumVisibleFraction, entry.fraction))
+                    y: .value("Fraction", max(Self.minimumVisibleFraction, entry.fraction)),
+                    width: .fixed(24)
                 )
                 .foregroundStyle(self.barTint(for: entry, in: entries))
                 .cornerRadius(ChartStyle.barCornerRadius)
@@ -85,24 +89,19 @@ struct HistoryBarChart: View {
                     }
             }
         }
+        .chartXScale(domain: -0.45...Double(max(entries.count - 1, 0)) + 0.45)
         .chartYScale(domain: 0...1)
         .chartYAxis(.hidden)
-        .chartXAxis {
-            AxisMarks(values: entries.map(\.index)) { value in
-                AxisValueLabel {
-                    if let index = value.as(Int.self),
-                       let entry = entries.first(where: { $0.index == index }) {
-                        let label = entry.label
-                        let today = entries.last?.label
-                        Text(label)
-                            .font(.system(size: 9, weight: label == today ? .semibold : .regular).monospacedDigit())
-                            .foregroundStyle(label == today ? .primary : .secondary)
-                    }
-                }
-            }
-        }
+        .chartXAxis(.hidden)
         .chartPlotStyle { plot in
-            plot.background(Color.clear)
+            plot
+                .padding(.horizontal, 12)
+                .padding(.top, 12)
+                .padding(.bottom, 10)
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(Color.primary.opacity(0.025))
+                )
         }
         .chartOverlay { proxy in
             GeometryReader { geometry in
@@ -143,6 +142,21 @@ struct HistoryBarChart: View {
         .help(Self.tooltip(for: entries))
         .animation(ChartStyle.animation, value: entries)
         .animation(ChartStyle.hoverAnimation, value: self.selectedIndex)
+    }
+
+    @ViewBuilder
+    private func labels(entries: [Entry]) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 0) {
+            ForEach(entries) { entry in
+                Text(entry.label)
+                    .font(.system(size: 11, weight: self.isToday(entry, in: entries) ? .semibold : .regular).monospacedDigit())
+                    .foregroundStyle(self.isToday(entry, in: entries) ? .primary : .secondary)
+                    .frame(maxWidth: .infinity)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(1)
+            }
+        }
+        .padding(.horizontal, 12)
     }
 
     private func isToday(_ entry: Entry, in entries: [Entry]) -> Bool {

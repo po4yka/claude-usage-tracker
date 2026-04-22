@@ -279,7 +279,9 @@ public enum MenuProjectionBuilder {
                 summary: "\(title): unavailable",
                 remainingPercent: nil,
                 resetDetail: nil,
-                paceLabel: nil
+                paceLabel: nil,
+                resetMinutes: nil,
+                windowMinutes: nil
             )
         }
 
@@ -303,7 +305,9 @@ public enum MenuProjectionBuilder {
             summary: "\(title): \(Int(value.rounded()))% \(modeLabel) · pace \(paceLabel.lowercased()) · \(resetLabel)",
             remainingPercent: remainingPercent,
             resetDetail: resetLabel,
-            paceLabel: paceLabel
+            paceLabel: paceLabel,
+            resetMinutes: window.resetsInMinutes,
+            windowMinutes: window.windowMinutes
         )
     }
 
@@ -311,7 +315,7 @@ public enum MenuProjectionBuilder {
         guard let date = parseISO8601(timestamp) else { return "just now" }
         let delta = max(0, Int(Date().timeIntervalSince(date)))
         if delta < 60 {
-            return "\(delta)s ago"
+            return "right now"
         }
         if delta < 3600 {
             return "\(delta / 60)m ago"

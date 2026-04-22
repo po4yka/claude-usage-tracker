@@ -189,6 +189,151 @@ struct AppShellViewTests {
     }
 
     @Test
+    func windowOverviewQuotaWindowsExposeSessionAndWeeklyRemainingState() {
+        let model = WindowOverviewQuotaWindowsModel.make(item: self.makeProjection(
+            laneDetails: [
+                LaneDetailProjection(
+                    title: "Session",
+                    summary: "Session: 98% left · pace stable · resets in 3h 59m",
+                    remainingPercent: 98,
+                    resetDetail: "resets in 3h 59m",
+                    paceLabel: "Stable",
+                    resetMinutes: 239,
+                    windowMinutes: 300
+                ),
+                LaneDetailProjection(
+                    title: "Weekly",
+                    summary: "Weekly: 81% left · pace stable · resets in 4d 2h",
+                    remainingPercent: 81,
+                    resetDetail: "resets in 4d 2h",
+                    paceLabel: "Stable",
+                    resetMinutes: 5_880,
+                    windowMinutes: 10_080
+                ),
+            ]
+        ))
+
+        #expect(model.lanes.map(\.title) == ["Session", "Weekly"])
+        #expect(model.primary?.remainingLabel == "98%")
+        #expect(model.secondary?.remainingLabel == "81%")
+        #expect(model.primary?.elapsedFraction == 0.20333333333333337)
+        #expect(model.secondary?.elapsedFraction == 0.41666666666666663)
+    }
+
+    @Test
+    func windowOverviewQuotaWindowsSkipUnavailableWindowsAndMissingTiming() {
+        let model = WindowOverviewQuotaWindowsModel.make(item: self.makeProjection(
+            laneDetails: [
+                LaneDetailProjection(
+                    title: "Session",
+                    summary: "Session: unavailable",
+                    remainingPercent: nil,
+                    resetDetail: nil,
+                    paceLabel: nil
+                ),
+                LaneDetailProjection(
+                    title: "Weekly",
+                    summary: "Weekly: 72% left",
+                    remainingPercent: 72,
+                    resetDetail: "resets in 3d",
+                    paceLabel: "Stable",
+                    resetMinutes: nil,
+                    windowMinutes: 10_080
+                ),
+            ]
+        ))
+
+        #expect(model.lanes.count == 1)
+        #expect(model.primary?.title == "Weekly")
+        #expect(model.chartLanes.isEmpty)
+    }
+
+    @Test
+    func windowOverviewHistorySummaryHighlightsPeakTodayAndActiveDays() {
+        let model = WindowOverviewHistorySummaryModel.make(fractions: [0.22, 0.0, 0.58, 0.11, 1.0, 0.34, 0.17])
+
+        #expect(model?.peakLabel == "Mon 100%")
+        #expect(model?.todayLabel == "17%")
+        #expect(model?.activeDaysLabel == "6/7")
+    }
+
+    @Test
+    func windowOverviewHistorySummaryPrefersTheFirstPeakWhenFractionsTie() {
+        let model = WindowOverviewHistorySummaryModel.make(fractions: [0.12, 1.0, 0.48, 1.0, 0.03, 0.0, 0.2])
+
+        #expect(model?.peakLabel == "Fri 100%")
+        #expect(model?.todayLabel == "20%")
+        #expect(model?.activeDaysLabel == "5/7")
+    }
+
+    @Test
+    func windowOverviewQuotaWindowsKeepOnlyThePrimaryTwoLanes() {
+        let model = WindowOverviewQuotaWindowsModel.make(item: self.makeProjection(
+            laneDetails: [
+                LaneDetailProjection(
+                    title: "Session",
+                    summary: "Session: 94% left",
+                    remainingPercent: 94,
+                    resetDetail: "resets in 4h",
+                    paceLabel: "Comfortable",
+                    resetMinutes: 240,
+                    windowMinutes: 300
+                ),
+                LaneDetailProjection(
+                    title: "Weekly",
+                    summary: "Weekly: 12% left",
+                    remainingPercent: 12,
+                    resetDetail: "resets in 1d 6h",
+                    paceLabel: "Critical",
+                    resetMinutes: 1_800,
+                    windowMinutes: 10_080
+                ),
+                LaneDetailProjection(
+                    title: "Monthly",
+                    summary: "Monthly: 88% left",
+                    remainingPercent: 88,
+                    resetDetail: "resets in 12d",
+                    paceLabel: "Stable",
+                    resetMinutes: 17_280,
+                    windowMinutes: 43_200
+                ),
+            ]
+        ))
+
+        #expect(model.lanes.map(\.title) == ["Session", "Weekly"])
+        #expect(model.secondary?.remainingLabel == "12%")
+    }
+
+    @Test
+    func windowOverviewQuotaWindowsClampElapsedFractionToBounds() {
+        let model = WindowOverviewQuotaWindowsModel.make(item: self.makeProjection(
+            laneDetails: [
+                LaneDetailProjection(
+                    title: "Session",
+                    summary: "Session: 91% left",
+                    remainingPercent: 91,
+                    resetDetail: "resets in 6h",
+                    paceLabel: "Stable",
+                    resetMinutes: 360,
+                    windowMinutes: 300
+                ),
+                LaneDetailProjection(
+                    title: "Weekly",
+                    summary: "Weekly: 63% left",
+                    remainingPercent: 63,
+                    resetDetail: "resets now",
+                    paceLabel: "Comfortable",
+                    resetMinutes: 0,
+                    windowMinutes: 10_080
+                ),
+            ]
+        ))
+
+        #expect(model.primary?.elapsedFraction == 0)
+        #expect(model.secondary?.elapsedFraction == 1)
+    }
+
+    @Test
     func providerStateBadgeDescriptorUsesIconsInsteadOfColorOnlyCues() {
         #expect(ProviderStateBadgeDescriptor.make(state: .healthy).symbolName == "checkmark.circle.fill")
         #expect(ProviderStateBadgeDescriptor.make(state: .degraded).symbolName == "exclamationmark.triangle.fill")
@@ -249,11 +394,24 @@ struct AppShellViewTests {
             historyFractions: [],
             claudeFactors: [],
             adjunct: nil,
+            historyBreakdowns: [],
             todayBreakdown: todayBreakdown,
             last30DaysBreakdown: last30DaysBreakdown,
             cacheHitRateToday: cacheHitRateToday,
             cacheHitRate30d: cacheHitRate30d,
-            cacheSavings30dUSD: cacheSavings30dUSD
+            cacheSavings30dUSD: cacheSavings30dUSD,
+            weeklyProjectedCostUSD: nil,
+            spendTrendDirection: nil,
+            dailyCosts: [],
+            byModel: [],
+            byProject: [],
+            byTool: [],
+            byMcp: [],
+            hourlyActivity: [],
+            activityHeatmap: [],
+            recentSessions: [],
+            subagentBreakdown: nil,
+            versionBreakdown: []
         )
     }
 }

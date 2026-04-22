@@ -2,6 +2,13 @@ import AppKit
 import HeimdallDomain
 import SwiftUI
 
+private enum AppShellLayout {
+    static let overviewMaxWidth: CGFloat = 1_380
+    static let sectionCardMinimumWidth: CGFloat = 420
+    static let analyticsCardMinimumWidth: CGFloat = 320
+    static let analyticsSplitMinimumWidth: CGFloat = 520
+}
+
 struct AppShellView: View {
     @Bindable var shell: AppShellModel
     @Bindable var overview: OverviewFeatureModel
@@ -27,7 +34,8 @@ struct AppShellView: View {
                     }
                 }
                 .padding(24)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(maxWidth: AppShellLayout.overviewMaxWidth, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .center)
             }
             .background(Color(nsColor: .windowBackgroundColor))
         }
@@ -168,7 +176,7 @@ private struct WindowOverviewProvidersSection: View {
                 subtitle: "Provider state, freshness, and current session quota"
             )
 
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 320), spacing: 16)], spacing: 16) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: AppShellLayout.sectionCardMinimumWidth), spacing: 16)], spacing: 16) {
                 ForEach(self.items) { item in
                     WindowOverviewProviderCard(
                         model: self.providerModel(item.provider),
@@ -187,20 +195,191 @@ private struct WindowOverviewActivitySection: View {
     let projection: OverviewMenuProjection
 
     var body: some View {
+        let analytics = WindowOverviewDesktopAnalyticsModel.make(projection: self.projection)
+
         VStack(alignment: .leading, spacing: 14) {
             WindowSectionHeader(
                 title: "Activity",
                 subtitle: "Combined usage and recent spend"
             )
 
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 320), spacing: 16)], spacing: 16) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: AppShellLayout.analyticsCardMinimumWidth), spacing: 16)], spacing: 16) {
                 WindowOverviewTotalsCard(projection: self.projection)
 
                 if !self.projection.historyFractions.isEmpty {
                     WindowOverviewHistoryCard(projection: self.projection)
                 }
+
+                if let weeklyProjection = analytics.weeklyProjection {
+                    WindowOverviewWeeklyProjectionCard(model: weeklyProjection)
+                }
+            }
+
+            if analytics.showsProviderComparison {
+                ProviderComparisonChart(items: analytics.providerComparisonItems)
+            }
+
+            if analytics.showsHeatmap || analytics.showsModelMix {
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .top, spacing: 16) {
+                        if analytics.showsHeatmap {
+                            ActivityHeatmap(cells: analytics.heatmapCells)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        if analytics.showsModelMix {
+                            ModelDistributionDonut(rows: analytics.modelRows)
+                                .frame(
+                                    minWidth: AppShellLayout.analyticsSplitMinimumWidth * 0.64,
+                                    maxWidth: AppShellLayout.analyticsSplitMinimumWidth * 0.82,
+                                    alignment: .leading
+                                )
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: 16) {
+                        if analytics.showsHeatmap {
+                            ActivityHeatmap(cells: analytics.heatmapCells)
+                        }
+                        if analytics.showsModelMix {
+                            ModelDistributionDonut(rows: analytics.modelRows)
+                        }
+                    }
+                }
+            }
+
+            if analytics.showsRecentSessions {
+                SessionsTable(sessions: analytics.recentSessions)
             }
         }
+    }
+}
+
+private struct WindowOverviewDesktopAnalyticsModel {
+    let providerComparisonItems: [ProviderMenuProjection]
+    let heatmapCells: [ProviderHeatmapCell]
+    let modelRows: [ProviderModelRow]
+    let recentSessions: [ProviderSession]
+    let weeklyProjection: WindowOverviewWeeklyProjectionModel?
+
+    var showsProviderComparison: Bool {
+        self.providerComparisonItems.filter { !$0.dailyCosts.isEmpty }.count >= 2
+    }
+
+    var showsHeatmap: Bool {
+        self.heatmapCells.contains { $0.turns > 0 }
+    }
+
+    var showsModelMix: Bool {
+        !self.modelRows.isEmpty
+    }
+
+    var showsRecentSessions: Bool {
+        !self.recentSessions.isEmpty
+    }
+
+    static func make(projection: OverviewMenuProjection) -> Self {
+        Self(
+            providerComparisonItems: projection.items,
+            heatmapCells: self.aggregateHeatmapCells(from: projection.items),
+            modelRows: self.aggregateModelRows(from: projection.items),
+            recentSessions: self.aggregateRecentSessions(from: projection.items),
+            weeklyProjection: WindowOverviewWeeklyProjectionModel.make(items: projection.items)
+        )
+    }
+
+    private static func aggregateHeatmapCells(from items: [ProviderMenuProjection]) -> [ProviderHeatmapCell] {
+        var grouped: [String: Int] = [:]
+        for item in items {
+            for cell in item.activityHeatmap {
+                let key = "\(cell.dayOfWeek)-\(cell.hour)"
+                grouped[key, default: 0] += cell.turns
+            }
+        }
+
+        return grouped.compactMap { key, turns in
+            let parts = key.split(separator: "-", maxSplits: 1).map(String.init)
+            guard
+                parts.count == 2,
+                let day = Int(parts[0]),
+                let hour = Int(parts[1])
+            else {
+                return nil
+            }
+            return ProviderHeatmapCell(dayOfWeek: day, hour: hour, turns: turns)
+        }
+        .sorted { lhs, rhs in
+            if lhs.dayOfWeek == rhs.dayOfWeek {
+                return lhs.hour < rhs.hour
+            }
+            return lhs.dayOfWeek < rhs.dayOfWeek
+        }
+    }
+
+    private static func aggregateModelRows(from items: [ProviderMenuProjection]) -> [ProviderModelRow] {
+        struct Aggregate {
+            var costUSD: Double = 0
+            var input: Int = 0
+            var output: Int = 0
+            var cacheRead: Int = 0
+            var cacheCreation: Int = 0
+            var reasoningOutput: Int = 0
+            var turns: Int = 0
+        }
+
+        var grouped: [String: Aggregate] = [:]
+        for item in items {
+            for row in item.byModel {
+                grouped[row.model, default: Aggregate()].costUSD += row.costUSD
+                grouped[row.model, default: Aggregate()].input += row.input
+                grouped[row.model, default: Aggregate()].output += row.output
+                grouped[row.model, default: Aggregate()].cacheRead += row.cacheRead
+                grouped[row.model, default: Aggregate()].cacheCreation += row.cacheCreation
+                grouped[row.model, default: Aggregate()].reasoningOutput += row.reasoningOutput
+                grouped[row.model, default: Aggregate()].turns += row.turns
+            }
+        }
+
+        return grouped.map { model, aggregate in
+            ProviderModelRow(
+                model: model,
+                costUSD: aggregate.costUSD,
+                input: aggregate.input,
+                output: aggregate.output,
+                cacheRead: aggregate.cacheRead,
+                cacheCreation: aggregate.cacheCreation,
+                reasoningOutput: aggregate.reasoningOutput,
+                turns: aggregate.turns
+            )
+        }
+        .sorted { lhs, rhs in
+            if lhs.costUSD == rhs.costUSD {
+                return lhs.model < rhs.model
+            }
+            return lhs.costUSD > rhs.costUSD
+        }
+    }
+
+    private static func aggregateRecentSessions(from items: [ProviderMenuProjection]) -> [ProviderSession] {
+        items
+            .flatMap { item in
+                item.recentSessions.map { session in
+                    ProviderSession(
+                        sessionID: "\(item.provider.rawValue)-\(session.sessionID)",
+                        displayName: "\(item.title) · \(session.displayName)",
+                        startedAt: session.startedAt,
+                        durationMinutes: session.durationMinutes,
+                        turns: session.turns,
+                        costUSD: session.costUSD,
+                        model: session.model
+                    )
+                }
+            }
+            .sorted { lhs, rhs in
+                if lhs.startedAt == rhs.startedAt {
+                    return lhs.costUSD > rhs.costUSD
+                }
+                return lhs.startedAt > rhs.startedAt
+            }
     }
 }
 
@@ -268,22 +447,233 @@ private struct WindowOverviewHistoryCard: View {
     let projection: OverviewMenuProjection
 
     var body: some View {
+        let summary = WindowOverviewHistorySummaryModel.make(fractions: self.projection.historyFractions)
+
         VStack(alignment: .leading, spacing: 12) {
-            Text("Last 7 days")
-                .font(.headline)
-            Text("Daily activity across providers.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Last 7 days")
+                    .font(.headline)
+                Text("Daily activity across providers.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
 
             HistoryBarChart(
                 fractions: self.projection.historyFractions,
                 showsHeader: false,
                 inset: true
             )
+
+            if let summary {
+                HStack(spacing: 10) {
+                    WindowOverviewHistoryStatRow(title: "Peak", value: summary.peakLabel)
+                    WindowOverviewHistoryStatRow(title: "Today", value: summary.todayLabel)
+                    WindowOverviewHistoryStatRow(title: "Active", value: summary.activeDaysLabel)
+                }
+            }
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
         .menuCardBackground(opacity: 0.04, cornerRadius: 16)
+    }
+}
+
+private struct WindowOverviewWeeklyProjectionModel: Equatable {
+    let actualCostUSD: Double
+    let projectedCostUSD: Double
+    let elapsedFraction: Double
+    let providerCount: Int
+    let leadProviderTitle: String?
+
+    var projectedLabel: String {
+        WindowOverviewProviderCostInsightsModel.currencyLabel(self.projectedCostUSD)
+    }
+
+    var actualLabel: String {
+        WindowOverviewProviderCostInsightsModel.currencyLabel(self.actualCostUSD)
+    }
+
+    var elapsedLabel: String {
+        "\(Int((self.elapsedFraction * 100).rounded()))% of week elapsed"
+    }
+
+    var progressFraction: Double {
+        guard self.projectedCostUSD > 0 else { return 0 }
+        return max(0, min(1, self.actualCostUSD / self.projectedCostUSD))
+    }
+
+    var providerLabel: String {
+        if let leadProviderTitle, !leadProviderTitle.isEmpty {
+            return "Led by \(leadProviderTitle)"
+        }
+        return "\(self.providerCount) provider\(self.providerCount == 1 ? "" : "s") contributing"
+    }
+
+    static func make(items: [ProviderMenuProjection]) -> Self? {
+        struct Entry {
+            let title: String
+            let projectedCostUSD: Double
+            let elapsedFraction: Double
+        }
+
+        let entries = items.compactMap { item -> Entry? in
+            guard
+                let projected = item.weeklyProjectedCostUSD,
+                projected > 0
+            else {
+                return nil
+            }
+
+            let weeklyLane = item.laneDetails.first {
+                $0.title.localizedCaseInsensitiveContains("week")
+            } ?? item.laneDetails.dropFirst().first
+            let elapsed = weeklyLane.flatMap { detail in
+                WindowOverviewQuotaWindowsModel.Lane.elapsedFraction(
+                    resetMinutes: detail.resetMinutes,
+                    windowMinutes: detail.windowMinutes
+                )
+            } ?? 0
+
+            return Entry(
+                title: item.title,
+                projectedCostUSD: projected,
+                elapsedFraction: elapsed
+            )
+        }
+
+        guard !entries.isEmpty else { return nil }
+
+        let projectedCostUSD = entries.reduce(0) { $0 + $1.projectedCostUSD }
+        let actualCostUSD = entries.reduce(0) { $0 + ($1.projectedCostUSD * $1.elapsedFraction) }
+        let weightedElapsed = projectedCostUSD > 0
+            ? entries.reduce(0) { $0 + ($1.projectedCostUSD * $1.elapsedFraction) } / projectedCostUSD
+            : 0
+        let leadProviderTitle = entries.max { lhs, rhs in
+            lhs.projectedCostUSD < rhs.projectedCostUSD
+        }?.title
+
+        return Self(
+            actualCostUSD: actualCostUSD,
+            projectedCostUSD: projectedCostUSD,
+            elapsedFraction: max(0, min(1, weightedElapsed)),
+            providerCount: entries.count,
+            leadProviderTitle: leadProviderTitle
+        )
+    }
+}
+
+private struct WindowOverviewWeeklyProjectionCard: View {
+    let model: WindowOverviewWeeklyProjectionModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Projected week")
+                    .font(.headline)
+                Text("Actual burn vs expected reset spend.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Text(self.model.projectedLabel)
+                    .font(.system(size: 28, weight: .bold, design: .rounded).monospacedDigit())
+                Spacer(minLength: 12)
+                Text(self.model.elapsedLabel)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .lastTextBaseline, spacing: 8) {
+                    Text("Actual so far")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.primary.opacity(0.68))
+                        .textCase(.uppercase)
+                        .tracking(0.4)
+                    Spacer(minLength: 8)
+                    Text(self.model.actualLabel)
+                        .font(.callout.monospacedDigit().weight(.semibold))
+                }
+
+                GeometryReader { geometry in
+                    let width = max(geometry.size.width, 1)
+                    let fillWidth = width * self.model.progressFraction
+                    ZStack(alignment: .leading) {
+                        Capsule(style: .continuous)
+                            .fill(Color.primary.opacity(0.08))
+                        Capsule(style: .continuous)
+                            .fill(Color.primary.opacity(0.72))
+                            .frame(width: max(fillWidth, 6))
+                    }
+                }
+                .frame(height: 8)
+            }
+
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(self.model.providerLabel)
+                    .font(.callout.weight(.medium))
+                Spacer(minLength: 8)
+                Text("\(self.model.providerCount) tracked")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .menuCardBackground(opacity: 0.04, cornerRadius: 16)
+    }
+}
+
+struct WindowOverviewHistorySummaryModel: Equatable {
+    let peakLabel: String
+    let todayLabel: String
+    let activeDaysLabel: String
+
+    static func make(fractions: [Double]) -> Self? {
+        let entries = HistoryBarChart.entries(from: fractions)
+        guard !entries.isEmpty else { return nil }
+        let peak = entries.max { lhs, rhs in
+            if lhs.fraction == rhs.fraction {
+                return lhs.index > rhs.index
+            }
+            return lhs.fraction < rhs.fraction
+        }
+        let today = entries.last
+        let activeDays = entries.filter { $0.fraction > 0.08 }.count
+
+        guard let peak, let today else { return nil }
+        return Self(
+            peakLabel: "\(peak.label) \(Self.percentLabel(peak.fraction))",
+            todayLabel: Self.percentLabel(today.fraction),
+            activeDaysLabel: "\(activeDays)/\(entries.count)"
+        )
+    }
+
+    private static func percentLabel(_ fraction: Double) -> String {
+        "\(Int((fraction * 100).rounded()))%"
+    }
+}
+
+private struct WindowOverviewHistoryStatRow: View {
+    let title: String
+    let value: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(self.title)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+                .tracking(0.4)
+            Text(self.value)
+                .font(.callout.monospacedDigit().weight(.semibold))
+                .foregroundStyle(.primary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .menuCardBackground(opacity: 0.03, cornerRadius: 10)
     }
 }
 
@@ -475,6 +865,53 @@ struct WindowOverviewProviderCostInsightsModel: Equatable {
     }
 }
 
+struct WindowOverviewQuotaWindowsModel: Equatable {
+    struct Lane: Equatable, Identifiable {
+        let title: String
+        let remainingPercent: Int
+        let resetDetail: String
+        let paceLabel: String?
+        let elapsedFraction: Double?
+
+        var id: String { self.title }
+        var remainingLabel: String { "\(self.remainingPercent)%" }
+        var remainingFraction: Double { Double(self.remainingPercent) / 100.0 }
+
+        fileprivate static func make(detail: LaneDetailProjection) -> Self? {
+            guard let remainingPercent = detail.remainingPercent else { return nil }
+            return Self(
+                title: detail.title,
+                remainingPercent: remainingPercent,
+                resetDetail: detail.resetDetail ?? detail.summary,
+                paceLabel: detail.paceLabel,
+                elapsedFraction: Self.elapsedFraction(
+                    resetMinutes: detail.resetMinutes,
+                    windowMinutes: detail.windowMinutes
+                )
+            )
+        }
+
+        fileprivate static func elapsedFraction(resetMinutes: Int?, windowMinutes: Int?) -> Double? {
+            guard
+                let resetMinutes,
+                let windowMinutes,
+                windowMinutes > 0
+            else { return nil }
+            return max(0, min(1, 1 - (Double(resetMinutes) / Double(windowMinutes))))
+        }
+    }
+
+    let lanes: [Lane]
+
+    var primary: Lane? { self.lanes.first }
+    var secondary: Lane? { self.lanes.dropFirst().first }
+    var chartLanes: [Lane] { self.lanes.filter { $0.elapsedFraction != nil } }
+
+    static func make(item: ProviderMenuProjection) -> Self {
+        Self(lanes: item.laneDetails.prefix(2).compactMap(Lane.make))
+    }
+}
+
 private struct WindowOverviewProviderCostInsights: View {
     let model: WindowOverviewProviderCostInsightsModel
 
@@ -521,6 +958,249 @@ private struct WindowOverviewProviderCostInsights: View {
     }
 }
 
+private struct WindowOverviewQuotaWindowsStrip: View {
+    let model: WindowOverviewQuotaWindowsModel
+
+    private let columns = [
+        GridItem(.flexible(minimum: 120), spacing: 8),
+        GridItem(.flexible(minimum: 120), spacing: 8),
+    ]
+
+    var body: some View {
+        if !self.model.lanes.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text("Limits")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.primary.opacity(0.72))
+                        .textCase(.uppercase)
+                        .tracking(0.4)
+                    Spacer(minLength: 8)
+                    Text("Session + weekly quota")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+
+                LazyVGrid(columns: self.columns, spacing: 8) {
+                    ForEach(self.model.lanes) { lane in
+                        WindowOverviewQuotaLaneCard(lane: lane)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct WindowOverviewQuotaLaneCard: View {
+    let lane: WindowOverviewQuotaWindowsModel.Lane
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(self.lane.title)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .textCase(.uppercase)
+                    .tracking(0.4)
+                Spacer(minLength: 8)
+                if let paceLabel = self.lane.paceLabel {
+                    Text(paceLabel.uppercased())
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(self.toneColor.opacity(0.9))
+                }
+            }
+
+            HStack(alignment: .lastTextBaseline, spacing: 8) {
+                Text(self.lane.remainingLabel)
+                    .font(.system(size: 22, weight: .bold, design: .rounded).monospacedDigit())
+                    .foregroundStyle(.primary)
+                Text("remaining")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+
+            GeometryReader { geometry in
+                let width = max(geometry.size.width, 1)
+                let fillWidth = width * self.lane.remainingFraction
+                ZStack(alignment: .leading) {
+                    Capsule(style: .continuous)
+                        .fill(Color.primary.opacity(0.08))
+                    Capsule(style: .continuous)
+                        .fill(self.toneColor)
+                        .frame(width: max(fillWidth, 6))
+                }
+            }
+            .frame(height: 8)
+
+            Text(self.lane.resetDetail)
+                .font(.caption)
+                .foregroundStyle(Color.primary.opacity(0.72))
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .menuCardBackground(opacity: 0.03, cornerRadius: 12)
+    }
+
+    private var toneColor: Color {
+        switch self.lane.remainingPercent {
+        case ..<15:
+            return .red.opacity(0.78)
+        case ..<35:
+            return .orange.opacity(0.76)
+        default:
+            return Color.primary.opacity(0.72)
+        }
+    }
+}
+
+private struct WindowOverviewQuotaBurnChart: View {
+    let model: WindowOverviewQuotaWindowsModel
+
+    var body: some View {
+        if !self.model.chartLanes.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text("Burn to reset")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.primary.opacity(0.72))
+                        .textCase(.uppercase)
+                        .tracking(0.4)
+                    Spacer(minLength: 8)
+                    Text("Remaining vs time left")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+
+                VStack(spacing: 10) {
+                    ForEach(self.model.chartLanes) { lane in
+                        WindowOverviewQuotaBurnRow(lane: lane)
+                    }
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 10)
+            .menuCardBackground(opacity: 0.03, cornerRadius: 10)
+        }
+    }
+}
+
+private struct WindowOverviewQuotaBurnRow: View {
+    let lane: WindowOverviewQuotaWindowsModel.Lane
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 18.0, paused: false)) { timeline in
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(self.lane.title)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .textCase(.uppercase)
+                        .tracking(0.4)
+                    Spacer(minLength: 8)
+                    Text(self.lane.remainingLabel)
+                        .font(.caption.monospacedDigit().weight(.semibold))
+                        .foregroundStyle(self.toneColor)
+                }
+
+                GeometryReader { geometry in
+                    let width = max(geometry.size.width, 1)
+                    let height = max(geometry.size.height, 1)
+                    let elapsed = self.lane.elapsedFraction ?? 0.0
+                    let remaining = self.lane.remainingFraction
+                    let point = CGPoint(
+                        x: width * elapsed,
+                        y: height * (1 - remaining)
+                    )
+                    let pulse = self.pulseScale(for: timeline.date)
+
+                    ZStack(alignment: .topLeading) {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(Color.primary.opacity(0.025))
+
+                        Path { path in
+                            path.move(to: CGPoint(x: 0, y: 0))
+                            path.addLine(to: CGPoint(x: width, y: height))
+                        }
+                        .stroke(Color.primary.opacity(0.14), style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+
+                        Path { path in
+                            path.move(to: CGPoint(x: 0, y: height))
+                            path.addLine(to: CGPoint(x: 0, y: 0))
+                            path.addLine(to: point)
+                            path.addLine(to: CGPoint(x: width, y: height))
+                            path.closeSubpath()
+                        }
+                        .fill(self.toneColor.opacity(0.08))
+
+                        Path { path in
+                            path.move(to: CGPoint(x: 0, y: 0))
+                            path.addLine(to: point)
+                            path.addLine(to: CGPoint(x: width, y: height))
+                        }
+                        .stroke(self.toneColor, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+
+                        Path { path in
+                            path.move(to: CGPoint(x: point.x, y: 0))
+                            path.addLine(to: CGPoint(x: point.x, y: height))
+                        }
+                        .stroke(self.toneColor.opacity(0.22), style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
+
+                        Circle()
+                            .stroke(self.toneColor.opacity(0.18), lineWidth: 8)
+                            .frame(width: 14, height: 14)
+                            .scaleEffect(pulse)
+                            .position(point)
+
+                        Circle()
+                            .fill(self.toneColor)
+                            .frame(width: 8, height: 8)
+                            .position(point)
+                    }
+                }
+                .frame(height: 34)
+
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(self.lane.resetDetail)
+                        .font(.caption2)
+                        .foregroundStyle(Color.primary.opacity(0.68))
+                    Spacer(minLength: 8)
+                    Text(self.burnLabel)
+                        .font(.caption2)
+                        .foregroundStyle(Color.primary.opacity(0.54))
+                    if let paceLabel = self.lane.paceLabel {
+                        Text("· \(paceLabel.lowercased())")
+                            .font(.caption2)
+                            .foregroundStyle(Color.primary.opacity(0.54))
+                    }
+                }
+            }
+        }
+    }
+
+    private var toneColor: Color {
+        switch self.lane.remainingPercent {
+        case ..<15:
+            return .red.opacity(0.78)
+        case ..<35:
+            return .orange.opacity(0.74)
+        default:
+            return Color.primary.opacity(0.78)
+        }
+    }
+
+    private func pulseScale(for date: Date) -> CGFloat {
+        let phase = (sin(date.timeIntervalSinceReferenceDate * 3.4) + 1) / 2
+        return 0.88 + CGFloat(phase) * 0.42
+    }
+
+    private var burnLabel: String {
+        guard let elapsed = self.lane.elapsedFraction else { return "Time window unknown" }
+        return "\(Int((elapsed * 100).rounded()))% of window elapsed"
+    }
+}
+
 private struct WindowOverviewProviderCard: View {
     @Bindable var model: ProviderFeatureModel
     let item: ProviderMenuProjection
@@ -541,8 +1221,8 @@ private struct WindowOverviewProviderCard: View {
         WindowOverviewProviderCostInsightsModel.make(item: self.item)
     }
 
-    private var showsTrailingMetric: Bool {
-        self.item.laneDetails.first?.remainingPercent != nil
+    private var quotaWindows: WindowOverviewQuotaWindowsModel {
+        WindowOverviewQuotaWindowsModel.make(item: self.item)
     }
 
     var body: some View {
@@ -565,38 +1245,27 @@ private struct WindowOverviewProviderCard: View {
                 }
 
                 Spacer(minLength: 12)
-                VStack(alignment: .trailing, spacing: 8) {
-                    Button("Open", action: self.openProvider)
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                    if self.showsTrailingMetric {
-                        VStack(alignment: .trailing, spacing: 4) {
-                            Text(self.metric.value)
-                                .font(.system(size: 30, weight: .bold, design: .rounded).monospacedDigit())
-                            Text(self.metric.qualifier)
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
+                Button("Open", action: self.openProvider)
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                Text(self.metric.title)
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(Color.primary.opacity(0.72))
-                if self.showsTrailingMetric {
-                    Text(self.metric.detail)
-                        .font(.body.weight(.medium))
-                        .foregroundStyle(.primary)
-                        .fixedSize(horizontal: false, vertical: true)
-                } else {
+                if self.quotaWindows.lanes.isEmpty {
+                    Text(self.metric.title)
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(Color.primary.opacity(0.72))
                     Text(self.metric.value)
                         .font(.callout.weight(.semibold))
                     Text(self.metric.detail)
                         .font(.caption)
                         .foregroundStyle(Color.primary.opacity(0.68))
                         .fixedSize(horizontal: false, vertical: true)
+                }
+
+                if !self.quotaWindows.lanes.isEmpty {
+                    WindowOverviewQuotaWindowsStrip(model: self.quotaWindows)
+                    WindowOverviewQuotaBurnChart(model: self.quotaWindows)
                 }
 
                 if !self.costInsights.stats.isEmpty || self.costInsights.mixLabel != nil {
