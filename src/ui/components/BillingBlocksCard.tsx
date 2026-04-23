@@ -51,6 +51,72 @@ function fmtUtcTime(iso: string): string {
   }
 }
 
+function QuotaSuggestionsSection({ data }: { data: BillingBlocksResponse }) {
+  const suggestions = data.quota_suggestions;
+  if (!suggestions || suggestions.levels.length === 0) {
+    return null;
+  }
+
+  return (
+    <div style={{ marginTop: '12px', display: 'grid', gap: '8px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'baseline' }}>
+        <span class="stat-sub" style={{ fontSize: '10px', letterSpacing: '0.08em' }}>
+          SUGGESTED QUOTAS
+        </span>
+        <span class="stat-sub" style={{ fontFamily: 'var(--font-mono)', fontSize: '11px' }}>
+          {suggestions.sample_count} completed blocks
+        </span>
+      </div>
+
+      {data.token_limit != null && (
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            gap: '12px',
+            alignItems: 'baseline',
+          }}
+        >
+          <span class="stat-sub">Configured</span>
+          <span class="stat-sub" style={{ fontFamily: 'var(--font-mono)', fontSize: '11px' }}>
+            {fmtTokens(data.token_limit)}
+          </span>
+        </div>
+      )}
+
+      <div style={{ display: 'grid', gap: '6px' }}>
+        {suggestions.levels.map(level => (
+          <div
+            key={level.key}
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              gap: '12px',
+              alignItems: 'baseline',
+            }}
+          >
+            <span class="stat-sub">
+              {level.label}
+              {level.key === suggestions.recommended_key && (
+                <span style={{ marginLeft: '6px', color: 'var(--success)' }}>[RECOMMENDED]</span>
+              )}
+            </span>
+            <span class="stat-sub" style={{ fontFamily: 'var(--font-mono)', fontSize: '11px' }}>
+              {fmtTokens(level.limit_tokens)}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {suggestions.note && (
+        <div class="stat-sub" style={{ fontStyle: 'italic' }}>
+          {suggestions.note}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Sub-components ───────────────────────────────────────────────────
 
 interface QuotaSectionProps {
@@ -188,6 +254,7 @@ export function BillingBlocksCard({ data }: BillingBlocksCardProps) {
             </span>{' '}
             tokens
           </div>
+          <QuotaSuggestionsSection data={data} />
         </div>
       </div>
     );
@@ -237,6 +304,7 @@ export function BillingBlocksCard({ data }: BillingBlocksCardProps) {
         )}
       </div>
       <QuotaSection block={activeBlock} />
+      <QuotaSuggestionsSection data={data} />
     </div>
   );
 }

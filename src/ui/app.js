@@ -7112,6 +7112,56 @@ ${row.project}` : row.project;
       return "--";
     }
   }
+  function QuotaSuggestionsSection({ data }) {
+    const suggestions = data.quota_suggestions;
+    if (!suggestions || suggestions.levels.length === 0) {
+      return null;
+    }
+    return /* @__PURE__ */ u4("div", { style: { marginTop: "12px", display: "grid", gap: "8px" }, children: [
+      /* @__PURE__ */ u4("div", { style: { display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "baseline" }, children: [
+        /* @__PURE__ */ u4("span", { class: "stat-sub", style: { fontSize: "10px", letterSpacing: "0.08em" }, children: "SUGGESTED QUOTAS" }),
+        /* @__PURE__ */ u4("span", { class: "stat-sub", style: { fontFamily: "var(--font-mono)", fontSize: "11px" }, children: [
+          suggestions.sample_count,
+          " completed blocks"
+        ] })
+      ] }),
+      data.token_limit != null && /* @__PURE__ */ u4(
+        "div",
+        {
+          style: {
+            display: "flex",
+            justifyContent: "space-between",
+            gap: "12px",
+            alignItems: "baseline"
+          },
+          children: [
+            /* @__PURE__ */ u4("span", { class: "stat-sub", children: "Configured" }),
+            /* @__PURE__ */ u4("span", { class: "stat-sub", style: { fontFamily: "var(--font-mono)", fontSize: "11px" }, children: fmtTokens(data.token_limit) })
+          ]
+        }
+      ),
+      /* @__PURE__ */ u4("div", { style: { display: "grid", gap: "6px" }, children: suggestions.levels.map((level) => /* @__PURE__ */ u4(
+        "div",
+        {
+          style: {
+            display: "flex",
+            justifyContent: "space-between",
+            gap: "12px",
+            alignItems: "baseline"
+          },
+          children: [
+            /* @__PURE__ */ u4("span", { class: "stat-sub", children: [
+              level.label,
+              level.key === suggestions.recommended_key && /* @__PURE__ */ u4("span", { style: { marginLeft: "6px", color: "var(--success)" }, children: "[RECOMMENDED]" })
+            ] }),
+            /* @__PURE__ */ u4("span", { class: "stat-sub", style: { fontFamily: "var(--font-mono)", fontSize: "11px" }, children: fmtTokens(level.limit_tokens) })
+          ]
+        },
+        level.key
+      )) }),
+      suggestions.note && /* @__PURE__ */ u4("div", { class: "stat-sub", style: { fontStyle: "italic" }, children: suggestions.note })
+    ] });
+  }
   function QuotaSection({ block }) {
     const { quota } = block;
     if (!quota) {
@@ -7241,7 +7291,8 @@ ${row.project}` : row.project;
           /* @__PURE__ */ u4("span", { style: { fontFamily: "var(--font-mono)" }, children: fmtTokens(data.historical_max_tokens) }),
           " ",
           "tokens"
-        ] })
+        ] }),
+        /* @__PURE__ */ u4(QuotaSuggestionsSection, { data })
       ] }) });
     }
     const totalTokens2 = activeBlock.tokens.input + activeBlock.tokens.output + activeBlock.tokens.cache_read + activeBlock.tokens.cache_creation + activeBlock.tokens.reasoning_output;
@@ -7284,7 +7335,8 @@ ${row.project}` : row.project;
           )
         ] })
       ] }),
-      /* @__PURE__ */ u4(QuotaSection, { block: activeBlock })
+      /* @__PURE__ */ u4(QuotaSection, { block: activeBlock }),
+      /* @__PURE__ */ u4(QuotaSuggestionsSection, { data })
     ] });
   }
 
@@ -9020,6 +9072,27 @@ ${row.project}` : row.project;
       session.model && /* @__PURE__ */ u4("div", { class: "stat-sub", children: session.model })
     ] }) });
   }
+  function QuotaSuggestionsPanel({ provider }) {
+    const suggestions = provider.quota_suggestions;
+    if (!suggestions || suggestions.levels.length === 0) {
+      return null;
+    }
+    return /* @__PURE__ */ u4("div", { class: "card stat-card", children: /* @__PURE__ */ u4("div", { class: "stat-content", children: [
+      /* @__PURE__ */ u4("div", { class: "stat-label", children: "Suggested Quotas" }),
+      /* @__PURE__ */ u4("div", { class: "stat-sub", children: [
+        suggestions.sample_count,
+        " completed blocks"
+      ] }),
+      /* @__PURE__ */ u4("div", { style: { display: "grid", gap: "8px", marginTop: "12px" }, children: suggestions.levels.map((level) => /* @__PURE__ */ u4("div", { style: { display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "baseline" }, children: [
+        /* @__PURE__ */ u4("span", { class: "stat-sub", children: [
+          level.label,
+          level.key === suggestions.recommended_key && /* @__PURE__ */ u4("span", { style: { marginLeft: "6px", color: "var(--success)" }, children: "[RECOMMENDED]" })
+        ] }),
+        /* @__PURE__ */ u4("span", { class: "stat-value", style: { fontSize: "18px" }, children: fmt(level.limit_tokens) })
+      ] }, level.key)) }),
+      suggestions.note && /* @__PURE__ */ u4("div", { class: "stat-sub", style: { marginTop: "10px", fontStyle: "italic" }, children: suggestions.note })
+    ] }) });
+  }
   function ProviderDetails({ provider }) {
     return /* @__PURE__ */ u4("section", { style: { display: "grid", gap: "14px" }, children: [
       /* @__PURE__ */ u4("div", { style: { display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "baseline", flexWrap: "wrap" }, children: [
@@ -9031,6 +9104,7 @@ ${row.project}` : row.project;
       ] }),
       /* @__PURE__ */ u4("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: "16px" }, children: [
         provider.active_block && /* @__PURE__ */ u4(BlockPanel, { block: provider.active_block }),
+        /* @__PURE__ */ u4(QuotaSuggestionsPanel, { provider }),
         provider.context_window && /* @__PURE__ */ u4(ContextPanel, { data: provider.context_window }),
         /* @__PURE__ */ u4(SessionPanel, { provider })
       ] }),

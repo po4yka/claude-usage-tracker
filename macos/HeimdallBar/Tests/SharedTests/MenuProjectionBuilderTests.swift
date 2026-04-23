@@ -177,6 +177,50 @@ struct MenuProjectionBuilderTests {
     }
 
     @Test
+    func projectionCarriesQuotaSuggestionsFromSnapshot() {
+        var snapshot = Self.codexSnapshot()
+        snapshot.quotaSuggestions = QuotaSuggestions(
+            sampleCount: 4,
+            recommendedKey: "p90",
+            levels: [
+                QuotaSuggestionLevel(key: "p90", label: "P90", limitTokens: 800_000),
+                QuotaSuggestionLevel(key: "p95", label: "P95", limitTokens: 900_000),
+                QuotaSuggestionLevel(key: "max", label: "Max", limitTokens: 950_000),
+            ],
+            note: "Based on fewer than 10 completed blocks."
+        )
+        let presentation = ProviderPresentationState(
+            provider: .codex,
+            snapshot: snapshot,
+            adjunct: nil,
+            resolution: ProviderSourceResolution(
+                provider: .codex,
+                requestedSource: .auto,
+                effectiveSource: .cli,
+                effectiveSourceDetail: "cli-rpc",
+                sourceLabel: "Source: auto",
+                explanation: "Using the latest successful live snapshot.",
+                warnings: [],
+                fallbackChain: ["auto", "cli-rpc"],
+                usageAvailable: true,
+                isUnsupported: false,
+                requiresLogin: false,
+                usesFallback: false
+            )
+        )
+
+        let projection = MenuProjectionBuilder.projection(
+            from: presentation,
+            config: HeimdallBarConfig.default,
+            isRefreshing: false,
+            lastGlobalError: nil
+        )
+
+        #expect(projection.quotaSuggestions?.recommendedKey == "p90")
+        #expect(projection.quotaSuggestions?.levels.count == 3)
+    }
+
+    @Test
     func menuTitleHonorsShowUsedValues() {
         let leftConfig = HeimdallBarConfig.default
         let usedConfig = HeimdallBarConfig(

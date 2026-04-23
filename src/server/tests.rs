@@ -187,6 +187,28 @@ mod tests {
                     auth: crate::models::LiveProviderAuth::default(),
                     cost_summary: crate::models::ProviderCostSummary::default(),
                     claude_usage: None,
+                    quota_suggestions: Some(crate::models::LiveQuotaSuggestions {
+                        sample_count: 3,
+                        recommended_key: "p90".into(),
+                        levels: vec![
+                            crate::models::LiveQuotaSuggestionLevel {
+                                key: "p90".into(),
+                                label: "P90".into(),
+                                limit_tokens: 800_000,
+                            },
+                            crate::models::LiveQuotaSuggestionLevel {
+                                key: "p95".into(),
+                                label: "P95".into(),
+                                limit_tokens: 900_000,
+                            },
+                            crate::models::LiveQuotaSuggestionLevel {
+                                key: "max".into(),
+                                label: "Max".into(),
+                                limit_tokens: 950_000,
+                            },
+                        ],
+                        note: Some("Based on fewer than 10 completed blocks.".into()),
+                    }),
                     last_refresh: "2026-04-21T09:00:00Z".into(),
                     stale: false,
                     error: None,
@@ -214,6 +236,7 @@ mod tests {
                     auth: crate::models::LiveProviderAuth::default(),
                     cost_summary: crate::models::ProviderCostSummary::default(),
                     claude_usage: None,
+                    quota_suggestions: None,
                     last_refresh: "2026-04-21T08:30:00Z".into(),
                     stale: stale_codex,
                     error: None,
@@ -961,6 +984,7 @@ mod tests {
                             auth: crate::models::LiveProviderAuth::default(),
                             cost_summary: crate::models::ProviderCostSummary::default(),
                             claude_usage: None,
+                            quota_suggestions: None,
                             last_refresh: "2026-01-01T00:00:00Z".into(),
                             stale: false,
                             error: None,
@@ -982,6 +1006,7 @@ mod tests {
                             auth: crate::models::LiveProviderAuth::default(),
                             cost_summary: crate::models::ProviderCostSummary::default(),
                             claude_usage: None,
+                            quota_suggestions: None,
                             last_refresh: "2026-01-01T00:00:00Z".into(),
                             stale: false,
                             error: None,
@@ -1019,6 +1044,48 @@ mod tests {
         assert_eq!(data["cache_hit"], true);
         assert_eq!(data["providers"].as_array().unwrap().len(), 1);
         assert_eq!(data["providers"][0]["provider"], "codex");
+    }
+
+    #[tokio::test]
+    async fn test_api_live_providers_exposes_quota_suggestions_only_for_claude() {
+        let tmp = TempDir::new().unwrap();
+        let (db_path, projects) = setup_test_db(&tmp);
+        let state = Arc::new(base_state(db_path, projects));
+        {
+            let mut cache = state.live_provider_cache.write().await;
+            *cache = Some((std::time::Instant::now(), cached_live_provider_response(false)));
+        }
+
+        let app = crate::server::build_router(state);
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/live-providers")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = resp.into_body().collect().await.unwrap().to_bytes();
+        let data: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+        let claude = data["providers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|provider| provider["provider"] == "claude")
+            .unwrap();
+        assert!(claude.get("quota_suggestions").is_some());
+
+        let codex = data["providers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|provider| provider["provider"] == "codex")
+            .unwrap();
+        assert!(codex.get("quota_suggestions").is_none());
     }
 
     #[tokio::test]
@@ -1098,6 +1165,7 @@ mod tests {
             .unwrap();
         assert!(claude.get("context_window").is_some());
         assert!(claude.get("recent_session").is_some());
+        assert!(claude.get("quota_suggestions").is_some());
 
         let codex = data["providers"]
             .as_array()
@@ -1107,6 +1175,7 @@ mod tests {
             .unwrap();
         assert!(codex.get("context_window").is_none());
         assert!(codex.get("active_block").is_none());
+        assert!(codex.get("quota_suggestions").is_none());
     }
 
     #[tokio::test]
@@ -2859,6 +2928,7 @@ mod tests {
         assert!(json.get("blocks").is_some());
         // token_limit should be null when not configured.
         assert!(json["token_limit"].is_null());
+        assert!(json.get("quota_suggestions").is_some());
         // blocks must be an array.
         assert!(json["blocks"].is_array());
         // At least one block from the seeded turn.

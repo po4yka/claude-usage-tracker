@@ -107,7 +107,17 @@ struct HeimdallAPIClientTests {
                       "last_refresh_label": "Updated just now",
                       "active_block": null,
                       "context_window": null,
-                      "recent_session": null
+                      "recent_session": null,
+                      "quota_suggestions": {
+                        "sample_count": 4,
+                        "recommended_key": "p90",
+                        "levels": [
+                          { "key": "p90", "label": "P90", "limit_tokens": 800000 },
+                          { "key": "p95", "label": "P95", "limit_tokens": 900000 },
+                          { "key": "max", "label": "Max", "limit_tokens": 950000 }
+                        ],
+                        "note": "Based on fewer than 10 completed blocks."
+                      }
                     }
                   ]
                 }
@@ -121,6 +131,7 @@ struct HeimdallAPIClientTests {
         #expect(envelope.contractVersion == LiveMonitorContract.version)
         #expect(envelope.defaultFocus == .all)
         #expect(envelope.providers.first?.providerID == .claude)
+        #expect(envelope.providers.first?.quotaSuggestions?.recommendedKey == "p90")
     }
 
     private static func makeClient() -> HeimdallAPIClient {

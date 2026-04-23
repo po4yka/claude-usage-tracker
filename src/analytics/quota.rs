@@ -2,6 +2,8 @@ use serde::Serialize;
 
 use crate::analytics::blocks::{BillingBlock, Projection};
 
+const LOW_HISTORY_THRESHOLD: usize = 10;
+
 /// Severity level for quota thresholds.
 ///
 /// Matches ccusage: <50% → Ok, 50–80% → Warn, >80% → Danger.
@@ -44,6 +46,22 @@ pub struct QuotaMeta {
     pub projected_severity: Severity,
 }
 
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct QuotaSuggestionLevel {
+    pub key: String,
+    pub label: String,
+    pub limit_tokens: i64,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct QuotaSuggestions {
+    pub sample_count: usize,
+    pub recommended_key: String,
+    pub levels: Vec<QuotaSuggestionLevel>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+}
+
 /// Compute quota metadata for `block` against `limit_tokens`.
 ///
 /// Returns `None` when `limit_tokens <= 0` (no valid quota configured).
@@ -74,6 +92,51 @@ pub fn compute_quota(
         current_severity: severity_for_pct(current_pct),
         projected_severity: severity_for_pct(projected_pct),
     })
+}
+
+pub fn compute_quota_suggestions(blocks: &[BillingBlock]) -> Option<QuotaSuggestions> {
+    let mut totals = blocks
+        .iter()
+        .filter(|block| !block.is_gap && !block.is_active)
+        .map(|block| block.tokens.total())
+        .collect::<Vec<_>>();
+
+    if totals.is_empty() {
+        return None;
+    }
+
+    totals.sort_unstable();
+    let sample_count = totals.len();
+
+    Some(QuotaSuggestions {
+        sample_count,
+        recommended_key: "p90".into(),
+        levels: vec![
+            QuotaSuggestionLevel {
+                key: "p90".into(),
+                label: "P90".into(),
+                limit_tokens: nearest_rank(&totals, 0.90),
+            },
+            QuotaSuggestionLevel {
+                key: "p95".into(),
+                label: "P95".into(),
+                limit_tokens: nearest_rank(&totals, 0.95),
+            },
+            QuotaSuggestionLevel {
+                key: "max".into(),
+                label: "Max".into(),
+                limit_tokens: *totals.last().unwrap_or(&0),
+            },
+        ],
+        note: (sample_count < LOW_HISTORY_THRESHOLD)
+            .then_some("Based on fewer than 10 completed blocks.".into()),
+    })
+}
+
+fn nearest_rank(sorted_values: &[i64], quantile: f64) -> i64 {
+    let len = sorted_values.len();
+    let rank = ((quantile * len as f64).ceil() as usize).clamp(1, len);
+    sorted_values[rank - 1]
 }
 
 // ── tests ─────────────────────────────────────────────────────────────────────
@@ -203,5 +266,93 @@ mod tests {
         assert_eq!(q.remaining_tokens, -200_000);
         assert!(q.current_pct > 1.0);
         assert_eq!(q.current_severity, Severity::Danger);
+    }
+
+    #[test]
+    fn compute_quota_suggestions_returns_none_without_completed_history() {
+        let active = make_block(400_000);
+        assert!(compute_quota_suggestions(&[active]).is_none());
+    }
+
+    #[test]
+    fn compute_quota_suggestions_single_completed_block_returns_identical_levels() {
+        let mut block = make_block(750_000);
+        block.is_active = false;
+
+        let suggestions = compute_quota_suggestions(&[block]).expect("suggestions");
+        assert_eq!(suggestions.sample_count, 1);
+        assert_eq!(suggestions.recommended_key, "p90");
+        assert_eq!(suggestions.levels.len(), 3);
+        assert!(suggestions.note.is_some());
+        assert_eq!(suggestions.levels[0].limit_tokens, 750_000);
+        assert_eq!(suggestions.levels[1].limit_tokens, 750_000);
+        assert_eq!(suggestions.levels[2].limit_tokens, 750_000);
+    }
+
+    #[test]
+    fn compute_quota_suggestions_uses_nearest_rank_for_p90_and_p95() {
+        let totals = [
+            100_000, 200_000, 300_000, 400_000, 500_000, 600_000, 700_000, 800_000, 900_000,
+            1_000_000,
+        ];
+        let blocks = totals
+            .iter()
+            .map(|total| {
+                let mut block = make_block(*total);
+                block.is_active = false;
+                block
+            })
+            .collect::<Vec<_>>();
+
+        let suggestions = compute_quota_suggestions(&blocks).expect("suggestions");
+        assert_eq!(suggestions.note, None);
+        assert_eq!(suggestions.levels[0].limit_tokens, 900_000);
+        assert_eq!(suggestions.levels[1].limit_tokens, 1_000_000);
+        assert_eq!(suggestions.levels[2].limit_tokens, 1_000_000);
+    }
+
+    #[test]
+    fn compute_quota_suggestions_excludes_active_and_gap_blocks() {
+        let mut historical = make_block(400_000);
+        historical.is_active = false;
+
+        let mut active = make_block(950_000);
+        active.is_active = true;
+
+        let mut gap = make_block(1_200_000);
+        gap.is_active = false;
+        gap.is_gap = true;
+
+        let suggestions =
+            compute_quota_suggestions(&[historical, active, gap]).expect("suggestions");
+        assert_eq!(suggestions.sample_count, 1);
+        assert_eq!(suggestions.levels[2].limit_tokens, 400_000);
+    }
+
+    #[test]
+    fn compute_quota_suggestions_note_only_appears_for_sparse_history() {
+        let sparse = (0..9)
+            .map(|idx| {
+                let mut block = make_block((idx + 1) as i64 * 100_000);
+                block.is_active = false;
+                block
+            })
+            .collect::<Vec<_>>();
+        let dense = (0..10)
+            .map(|idx| {
+                let mut block = make_block((idx + 1) as i64 * 100_000);
+                block.is_active = false;
+                block
+            })
+            .collect::<Vec<_>>();
+
+        assert!(compute_quota_suggestions(&sparse)
+            .expect("sparse suggestions")
+            .note
+            .is_some());
+        assert!(compute_quota_suggestions(&dense)
+            .expect("dense suggestions")
+            .note
+            .is_none());
     }
 }

@@ -84,6 +84,21 @@ export interface BlockQuota {
   projected_severity: QuotaSeverity;
 }
 
+export type QuotaSuggestionKey = 'p90' | 'p95' | 'max';
+
+export interface QuotaSuggestionLevel {
+  key: QuotaSuggestionKey | string;
+  label: string;
+  limit_tokens: number;
+}
+
+export interface QuotaSuggestions {
+  sample_count: number;
+  recommended_key: QuotaSuggestionKey | string;
+  levels: QuotaSuggestionLevel[];
+  note?: string | null;
+}
+
 export interface BlockTokens {
   input: number;
   output: number;
@@ -111,6 +126,7 @@ export interface BillingBlocksResponse {
   session_length_hours: number;
   token_limit: number | null;
   historical_max_tokens: number;
+  quota_suggestions?: QuotaSuggestions | null;
   blocks: BillingBlockView[];
 }
 

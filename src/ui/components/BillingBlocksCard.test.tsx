@@ -31,6 +31,16 @@ describe('BillingBlocksCard', () => {
       session_length_hours: 5,
       token_limit: null,
       historical_max_tokens: 123_000,
+      quota_suggestions: {
+        sample_count: 3,
+        recommended_key: 'p90',
+        levels: [
+          { key: 'p90', label: 'P90', limit_tokens: 500_000 },
+          { key: 'p95', label: 'P95', limit_tokens: 600_000 },
+          { key: 'max', label: 'Max', limit_tokens: 700_000 },
+        ],
+        note: 'Based on fewer than 10 completed blocks.',
+      },
       blocks: [],
     };
 
@@ -39,6 +49,9 @@ describe('BillingBlocksCard', () => {
 
     expect(text).toContain('NO ACTIVE BLOCK');
     expect(text).toContain('123.0K');
+    expect(text).toContain('SUGGESTED QUOTAS');
+    expect(text).toContain('P90');
+    expect(text).toContain('[RECOMMENDED]');
   });
 
   it('renders active block totals, burn rate, and quota summaries', () => {
@@ -46,6 +59,15 @@ describe('BillingBlocksCard', () => {
       session_length_hours: 5,
       token_limit: 1_000_000,
       historical_max_tokens: 0,
+      quota_suggestions: {
+        sample_count: 12,
+        recommended_key: 'p90',
+        levels: [
+          { key: 'p90', label: 'P90', limit_tokens: 800_000 },
+          { key: 'p95', label: 'P95', limit_tokens: 900_000 },
+          { key: 'max', label: 'Max', limit_tokens: 950_000 },
+        ],
+      },
       blocks: [
         {
           is_active: true,
@@ -87,6 +109,9 @@ describe('BillingBlocksCard', () => {
     expect(text).toContain('05:00 UTC');
     expect(text).toContain('2.5000');
     expect(text).toContain('[WARN]');
+    expect(text).toContain('Configured');
+    expect(text).toContain('1.0M');
+    expect(text).toContain('P95');
     expect(bars).toHaveLength(2);
     expect(bars[0]?.props['value']).toBe(300_000);
     expect(bars[0]?.props['status']).toBe('success');

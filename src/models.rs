@@ -568,6 +568,8 @@ pub struct LiveProviderSnapshot {
     pub cost_summary: ProviderCostSummary,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub claude_usage: Option<ClaudeUsageSnapshot>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub quota_suggestions: Option<LiveQuotaSuggestions>,
     pub last_refresh: String,
     pub stale: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -626,6 +628,22 @@ pub struct LiveMonitorQuota {
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
+pub struct LiveQuotaSuggestionLevel {
+    pub key: String,
+    pub label: String,
+    pub limit_tokens: i64,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct LiveQuotaSuggestions {
+    pub sample_count: usize,
+    pub recommended_key: String,
+    pub levels: Vec<LiveQuotaSuggestionLevel>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
 pub struct LiveMonitorBillingBlock {
     pub start: String,
     pub end: String,
@@ -678,6 +696,8 @@ pub struct LiveMonitorProvider {
     pub context_window: Option<LiveMonitorContextWindow>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub recent_session: Option<ProviderSession>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub quota_suggestions: Option<LiveQuotaSuggestions>,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]

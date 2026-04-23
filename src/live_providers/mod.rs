@@ -6,11 +6,14 @@ use std::time::{Duration, Instant};
 use anyhow::{Result, anyhow, bail};
 
 use crate::agent_status::models::ProviderStatus;
+use crate::analytics::blocks::identify_blocks;
+use crate::analytics::quota::compute_quota_suggestions;
 use crate::models::{
     LIVE_PROVIDERS_CONTRACT_VERSION, LiveProviderHistoryResponse, LiveProviderIdentity,
     LiveProviderSnapshot, LiveProviderSourceAttempt, LiveProviderStatus, LiveProvidersResponse,
     MOBILE_SNAPSHOT_CONTRACT_VERSION, MobileProviderHistorySeries, MobileSnapshotEnvelope,
-    MobileSnapshotFreshness, MobileSnapshotTotals, ProviderCostSummary,
+    MobileSnapshotFreshness, MobileSnapshotTotals, ProviderCostSummary, LiveQuotaSuggestionLevel,
+    LiveQuotaSuggestions,
 };
 use crate::oauth::credentials;
 use crate::oauth::models::{BudgetInfo, Identity, Plan, UsageWindowsResponse, WindowInfo};
@@ -307,6 +310,7 @@ async fn fetch_live_provider_response(
                     agent_status
                         .as_ref()
                         .and_then(|status| status.claude.as_ref()),
+                    state.session_length_hours,
                 )
                 .await?;
                 providers.push(snapshot);
@@ -467,6 +471,7 @@ async fn build_claude_snapshot(
     state: &Arc<AppState>,
     usage: &UsageWindowsResponse,
     status: Option<&ProviderStatus>,
+    session_length_hours: f64,
 ) -> Result<LiveProviderSnapshot> {
     let started_at = Instant::now();
     let db_path = state.db_path.clone();
@@ -481,6 +486,10 @@ async fn build_claude_snapshot(
         db::init_db(&conn)?;
         let claude_usage = db::get_latest_claude_usage_response(&conn)?.latest_snapshot;
         let cost_summary = provider_cost_summary(&conn, "claude")?;
+        let turns = db::load_all_turns(&conn)?;
+        let blocks = identify_blocks(&turns, session_length_hours);
+        let quota_suggestions =
+            compute_quota_suggestions(&blocks).map(live_quota_suggestions);
 
         let mut source_attempts = Vec::new();
         if usage_clone.available {
@@ -543,6 +552,7 @@ async fn build_claude_snapshot(
             auth,
             cost_summary,
             claude_usage,
+            quota_suggestions,
             last_refresh: chrono::Utc::now().to_rfc3339(),
             stale: !usage_clone.available,
             error: if source_used == "unavailable" {
@@ -644,10 +654,30 @@ async fn build_codex_snapshot(
         auth,
         cost_summary,
         claude_usage: None,
+        quota_suggestions: None,
         last_refresh: chrono::Utc::now().to_rfc3339(),
         stale: !resolution.available,
         error: resolution.error,
     })
+}
+
+fn live_quota_suggestions(
+    suggestions: crate::analytics::quota::QuotaSuggestions,
+) -> LiveQuotaSuggestions {
+    LiveQuotaSuggestions {
+        sample_count: suggestions.sample_count,
+        recommended_key: suggestions.recommended_key,
+        levels: suggestions
+            .levels
+            .into_iter()
+            .map(|level| LiveQuotaSuggestionLevel {
+                key: level.key,
+                label: level.label,
+                limit_tokens: level.limit_tokens,
+            })
+            .collect(),
+        note: suggestions.note,
+    }
 }
 
 async fn resolve_codex_live_data_with<FetchOauth, FetchRpc, FetchCli>(
@@ -973,6 +1003,7 @@ mod tests {
                 auth: LiveProviderAuth::default(),
                 cost_summary: ProviderCostSummary::default(),
                 claude_usage: None,
+                quota_suggestions: None,
                 last_refresh: "2026-01-01T00:00:00Z".into(),
                 stale: false,
                 error: None,

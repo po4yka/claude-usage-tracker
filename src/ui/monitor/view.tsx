@@ -188,6 +188,40 @@ function SessionPanel({ provider }: { provider: LiveMonitorProvider }) {
   );
 }
 
+function QuotaSuggestionsPanel({ provider }: { provider: LiveMonitorProvider }) {
+  const suggestions = provider.quota_suggestions;
+  if (!suggestions || suggestions.levels.length === 0) {
+    return null;
+  }
+
+  return (
+    <div class="card stat-card">
+      <div class="stat-content">
+        <div class="stat-label">Suggested Quotas</div>
+        <div class="stat-sub">{suggestions.sample_count} completed blocks</div>
+        <div style={{ display: 'grid', gap: '8px', marginTop: '12px' }}>
+          {suggestions.levels.map(level => (
+            <div key={level.key} style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'baseline' }}>
+              <span class="stat-sub">
+                {level.label}
+                {level.key === suggestions.recommended_key && (
+                  <span style={{ marginLeft: '6px', color: 'var(--success)' }}>[RECOMMENDED]</span>
+                )}
+              </span>
+              <span class="stat-value" style={{ fontSize: '18px' }}>{fmt(level.limit_tokens)}</span>
+            </div>
+          ))}
+        </div>
+        {suggestions.note && (
+          <div class="stat-sub" style={{ marginTop: '10px', fontStyle: 'italic' }}>
+            {suggestions.note}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ProviderDetails({ provider }: { provider: LiveMonitorProvider }) {
   return (
     <section style={{ display: 'grid', gap: '14px' }}>
@@ -197,6 +231,7 @@ function ProviderDetails({ provider }: { provider: LiveMonitorProvider }) {
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(240px,1fr))', gap: '16px' }}>
         {provider.active_block && <BlockPanel block={provider.active_block} />}
+        <QuotaSuggestionsPanel provider={provider} />
         {provider.context_window && <ContextPanel data={provider.context_window} />}
         <SessionPanel provider={provider} />
       </div>

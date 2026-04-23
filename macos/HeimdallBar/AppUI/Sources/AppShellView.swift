@@ -1,5 +1,6 @@
 import AppKit
 import HeimdallDomain
+import HeimdallServices
 import SwiftUI
 
 private enum AppShellLayout {
@@ -144,7 +145,7 @@ private struct WindowOverviewView: View {
             WindowHeader(
                 title: "Overview",
                 subtitle: projection.refreshedAtLabel,
-                issue: projection.globalIssueLabel,
+                issue: WindowHeaderIssuePresentation.make(message: projection.globalIssueLabel),
                 onRetry: {
                     Task { await self.overview.refreshAll() }
                 },
@@ -285,7 +286,7 @@ private struct WindowLiveMonitorView: View {
             WindowHeader(
                 title: "Live Monitor",
                 subtitle: self.model.envelope.map { "Updated \(Self.shortTime($0.generatedAt))" } ?? "Waiting for helper data",
-                issue: self.model.issue,
+                issue: WindowHeaderIssuePresentation.make(message: self.model.issue),
                 onRetry: {
                     Task { await self.model.refresh() }
                 },
@@ -498,6 +499,12 @@ private struct WindowLiveMonitorDetailSection: View {
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
+                    }
+                }
+
+                if let suggestions = WindowQuotaSuggestionsModel.make(suggestions: self.provider.quotaSuggestions) {
+                    WindowLiveMonitorDetailCard(title: "Suggested Quotas") {
+                        WindowQuotaSuggestionRows(model: suggestions)
                     }
                 }
 
@@ -1199,6 +1206,85 @@ struct WindowOverviewProviderCostInsightsModel: Equatable {
     }
 }
 
+struct WindowQuotaSuggestionsModel: Equatable {
+    struct Item: Equatable, Identifiable {
+        let key: String
+        let label: String
+        let value: String
+        let isRecommended: Bool
+
+        var id: String { self.key }
+    }
+
+    let sampleCount: Int
+    let items: [Item]
+    let note: String?
+
+    static func make(suggestions: QuotaSuggestions?) -> Self? {
+        guard let suggestions, !suggestions.levels.isEmpty else { return nil }
+        return Self(
+            sampleCount: suggestions.sampleCount,
+            items: suggestions.levels.map { level in
+                Item(
+                    key: level.key,
+                    label: level.label,
+                    value: Self.compactTokenCount(level.limitTokens),
+                    isRecommended: level.key == suggestions.recommendedKey
+                )
+            },
+            note: suggestions.note
+        )
+    }
+
+    private static func compactTokenCount(_ value: Int) -> String {
+        let absolute = abs(value)
+        if absolute >= 1_000_000 {
+            return String(format: "%.1fM", Double(value) / 1_000_000)
+        }
+        if absolute >= 1_000 {
+            return String(format: "%.1fK", Double(value) / 1_000)
+        }
+        return "\(value)"
+    }
+}
+
+private struct WindowQuotaSuggestionRows: View {
+    let model: WindowQuotaSuggestionsModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("\(self.model.sampleCount) completed blocks")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            VStack(spacing: 8) {
+                ForEach(self.model.items) { item in
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(item.label)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        if item.isRecommended {
+                            Text("RECOMMENDED")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(Color.primary.opacity(0.72))
+                        }
+                        Spacer(minLength: 8)
+                        Text(item.value)
+                            .font(.callout.monospacedDigit().weight(.semibold))
+                    }
+                }
+            }
+
+            if let note = self.model.note {
+                Text(note)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+}
+
 struct WindowOverviewQuotaWindowsModel: Equatable {
     struct Lane: Equatable, Identifiable {
         let title: String
@@ -1559,6 +1645,10 @@ private struct WindowOverviewProviderCard: View {
         WindowOverviewQuotaWindowsModel.make(item: self.item)
     }
 
+    private var quotaSuggestions: WindowQuotaSuggestionsModel? {
+        WindowQuotaSuggestionsModel.make(suggestions: self.item.quotaSuggestions)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 12) {
@@ -1600,6 +1690,10 @@ private struct WindowOverviewProviderCard: View {
                 if !self.quotaWindows.lanes.isEmpty {
                     WindowOverviewQuotaWindowsStrip(model: self.quotaWindows)
                     WindowOverviewQuotaBurnChart(model: self.quotaWindows)
+                }
+
+                if let quotaSuggestions = self.quotaSuggestions {
+                    WindowOverviewQuotaSuggestionStrip(model: quotaSuggestions)
                 }
 
                 if !self.costInsights.stats.isEmpty || self.costInsights.mixLabel != nil {
@@ -1644,6 +1738,57 @@ private struct WindowOverviewProviderCard: View {
             return 1
         default:
             return 1.5
+        }
+    }
+}
+
+private struct WindowOverviewQuotaSuggestionStrip: View {
+    let model: WindowQuotaSuggestionsModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("Suggested quotas")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.primary.opacity(0.72))
+                    .textCase(.uppercase)
+                    .tracking(0.4)
+                Spacer(minLength: 8)
+                Text("\(self.model.sampleCount) blocks")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            LazyVGrid(columns: [GridItem(.flexible(minimum: 90), spacing: 8)], spacing: 8) {
+                ForEach(self.model.items) { item in
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            Text(item.label)
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                            if item.isRecommended {
+                                Text("REC")
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundStyle(Color.primary.opacity(0.72))
+                            }
+                        }
+
+                        Text(item.value)
+                            .font(.callout.monospacedDigit().weight(.semibold))
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .menuCardBackground(opacity: 0.03, cornerRadius: 10)
+                }
+            }
+
+            if let note = self.model.note {
+                Text(note)
+                    .font(.caption2)
+                    .foregroundStyle(Color.primary.opacity(0.66))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 }
@@ -1722,14 +1867,41 @@ private struct WindowOverviewTotalsCard: View {
 private struct WindowProviderView: View {
     @Bindable var model: ProviderFeatureModel
 
-    /// If we have a weekly projection, append it to the refresh-status line
-    /// so the user sees the pace at a glance on every provider page.
-    static func headerSubtitle(_ projection: ProviderMenuProjection) -> String {
-        let status = projection.refreshStatusLabel
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            WindowHeader(
+                title: self.model.provider.title,
+                subtitle: WindowProviderHeaderSubtitle.make(
+                    projection: self.model.projection,
+                    issue: self.model.issue
+                ),
+                issue: WindowHeaderIssuePresentation.make(
+                    issue: self.model.issue,
+                    fallbackMessage: self.model.projection.globalIssueLabel
+                ),
+                onRetry: {
+                    Task { await self.model.refresh() }
+                },
+                isRetrying: self.model.isBusy
+            )
+
+            ProviderMenuCard(providerModel: self.model)
+
+            ProviderSessionDetails(model: self.model)
+        }
+    }
+}
+
+enum WindowProviderHeaderSubtitle {
+    static func make(
+        projection: ProviderMenuProjection,
+        issue: AppIssue?
+    ) -> String {
+        let status = issue?.kind == .helperStartup ? "Waiting for local server" : projection.refreshStatusLabel
         guard let projected = projection.weeklyProjectedCostUSD, projected > 0 else {
             return status
         }
-        return "\(status) · Projected this week: \(Self.currencyLabel(projected))"
+        return "\(status) · Projected this week: \(self.currencyLabel(projected))"
     }
 
     private static func currencyLabel(_ value: Double) -> String {
@@ -1744,30 +1916,12 @@ private struct WindowProviderView: View {
         formatter.negativeFormat = "-¤#,##0.00"
         return formatter.string(from: NSNumber(value: value)) ?? String(format: "$%.2f", value)
     }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            WindowHeader(
-                title: self.model.provider.title,
-                subtitle: Self.headerSubtitle(self.model.projection),
-                issue: self.model.issue?.message ?? self.model.projection.globalIssueLabel,
-                onRetry: {
-                    Task { await self.model.refresh() }
-                },
-                isRetrying: self.model.isBusy
-            )
-
-            ProviderMenuCard(providerModel: self.model)
-
-            ProviderSessionDetails(model: self.model)
-        }
-    }
 }
 
 private struct WindowHeader: View {
     let title: String
     let subtitle: String
-    let issue: String?
+    let issue: WindowHeaderIssuePresentation?
     var onRetry: (() -> Void)? = nil
     var isRetrying: Bool = false
 
@@ -1778,35 +1932,224 @@ private struct WindowHeader: View {
             Text(self.subtitle)
                 .font(.callout)
                 .foregroundStyle(.secondary)
-            if let issue, !issue.isEmpty {
-                HStack(alignment: .top, spacing: 10) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.orange)
-                    Text(issue)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.primary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Spacer(minLength: 8)
-                    if let onRetry {
-                        Button(self.isRetrying ? "Retrying…" : "Retry", action: onRetry)
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
-                            .disabled(self.isRetrying)
-                    }
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-                .background(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(Color.orange.opacity(0.12))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .stroke(Color.orange.opacity(0.28), lineWidth: 1)
+            if let issue {
+                WindowIssueBanner(
+                    issue: issue,
+                    onRetry: onRetry,
+                    isRetrying: self.isRetrying
                 )
             }
         }
+    }
+}
+
+enum WindowHeaderIssueTone: Equatable {
+    case pending
+    case warning
+    case critical
+
+    var tint: Color {
+        switch self {
+        case .pending:
+            return .accentColor
+        case .warning:
+            return .orange
+        case .critical:
+            return .red
+        }
+    }
+
+    var background: Color {
+        switch self {
+        case .pending:
+            return Color.accentColor.opacity(0.08)
+        case .warning:
+            return Color.orange.opacity(0.10)
+        case .critical:
+            return Color.red.opacity(0.10)
+        }
+    }
+
+    var border: Color {
+        switch self {
+        case .pending:
+            return Color.accentColor.opacity(0.22)
+        case .warning:
+            return Color.orange.opacity(0.28)
+        case .critical:
+            return Color.red.opacity(0.28)
+        }
+    }
+}
+
+struct WindowHeaderIssuePresentation: Equatable {
+    let tone: WindowHeaderIssueTone
+    let symbolName: String
+    let badge: String
+    let title: String
+    let detail: String?
+    let actionTitle: String
+    let progressTitle: String
+
+    static func make(
+        issue: AppIssue?,
+        fallbackMessage: String? = nil
+    ) -> Self? {
+        if let issue {
+            switch issue.kind {
+            case .helperStartup:
+                return Self(
+                    tone: .pending,
+                    symbolName: "clock.fill",
+                    badge: "Local server",
+                    title: "Starting local server",
+                    detail: "The embedded Heimdall helper is booting. Live data will appear automatically once it responds.",
+                    actionTitle: "Check again",
+                    progressTitle: "Checking…"
+                )
+            case .authRecovery:
+                return Self(
+                    tone: .warning,
+                    symbolName: "person.crop.circle.badge.exclamationmark",
+                    badge: "Authentication",
+                    title: "Action required",
+                    detail: issue.message,
+                    actionTitle: "Retry",
+                    progressTitle: "Retrying…"
+                )
+            default:
+                return Self.make(message: issue.message)
+            }
+        }
+
+        return Self.make(message: fallbackMessage)
+    }
+
+    static func make(message: String?) -> Self? {
+        guard let message else { return nil }
+        let normalized = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return nil }
+
+        let lowercased = normalized.lowercased()
+        if lowercased.contains("still starting") {
+            return Self(
+                tone: .pending,
+                symbolName: "clock.fill",
+                badge: "Local server",
+                title: "Starting local server",
+                detail: "The embedded Heimdall helper is booting. Live data will appear automatically once it responds.",
+                actionTitle: "Check again",
+                progressTitle: "Checking…"
+            )
+        }
+        if lowercased.contains("cannot reach the local heimdall server")
+            || lowercased.contains("failed to connect")
+            || lowercased.contains("connection refused")
+        {
+            return Self(
+                tone: .warning,
+                symbolName: "bolt.horizontal.circle.fill",
+                badge: "Local server",
+                title: "Can’t reach Heimdall",
+                detail: "Retry now, or wait for the next automatic refresh after the helper becomes reachable.",
+                actionTitle: "Retry",
+                progressTitle: "Retrying…"
+            )
+        }
+        if lowercased.contains("did not respond in time") || lowercased.contains("timed out") {
+            return Self(
+                tone: .warning,
+                symbolName: "hourglass.circle.fill",
+                badge: "Local server",
+                title: "Heimdall is taking too long to respond",
+                detail: "The helper is running but this refresh timed out. Retry now or wait for the next poll.",
+                actionTitle: "Retry",
+                progressTitle: "Retrying…"
+            )
+        }
+
+        return Self(
+            tone: .warning,
+            symbolName: "exclamationmark.triangle.fill",
+            badge: "Refresh issue",
+            title: normalized,
+            detail: nil,
+            actionTitle: "Retry",
+            progressTitle: "Retrying…"
+        )
+    }
+}
+
+private struct WindowIssueBanner: View {
+    let issue: WindowHeaderIssuePresentation
+    var onRetry: (() -> Void)? = nil
+    var isRetrying: Bool = false
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(issue.tone.tint.opacity(0.14))
+                Image(systemName: issue.symbolName)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(issue.tone.tint)
+            }
+            .frame(width: 30, height: 30)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(issue.badge.uppercased())
+                    .font(.system(size: 10, weight: .semibold))
+                    .tracking(0.6)
+                    .foregroundStyle(issue.tone.tint)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        Capsule()
+                            .fill(issue.tone.tint.opacity(0.10))
+                    )
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(issue.title)
+                        .font(.callout.weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let detail = issue.detail {
+                        Text(detail)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+
+            Spacer(minLength: 12)
+
+            if let onRetry {
+                Button(action: onRetry) {
+                    HStack(spacing: 6) {
+                        if self.isRetrying {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.caption.weight(.semibold))
+                        }
+                        Text(self.isRetrying ? issue.progressTitle : issue.actionTitle)
+                    }
+                }
+                .buttonStyle(SecondaryDashboardButtonStyle())
+                .disabled(self.isRetrying)
+            }
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(issue.tone.background)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(issue.tone.border, lineWidth: 1)
+        )
     }
 }
 

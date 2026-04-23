@@ -800,6 +800,7 @@ public struct ProviderSnapshot: Codable, Sendable, Identifiable {
     public var auth: ProviderAuthHealth
     public var costSummary: ProviderCostSummary
     public var claudeUsage: ClaudeUsageSnapshotPayload?
+    public var quotaSuggestions: QuotaSuggestions?
     public var lastRefresh: String
     public var stale: Bool
     public var error: String?
@@ -824,6 +825,7 @@ public struct ProviderSnapshot: Codable, Sendable, Identifiable {
         auth: ProviderAuthHealth,
         costSummary: ProviderCostSummary,
         claudeUsage: ClaudeUsageSnapshotPayload?,
+        quotaSuggestions: QuotaSuggestions? = nil,
         lastRefresh: String,
         stale: Bool,
         error: String?
@@ -844,6 +846,7 @@ public struct ProviderSnapshot: Codable, Sendable, Identifiable {
         self.auth = auth
         self.costSummary = costSummary
         self.claudeUsage = claudeUsage
+        self.quotaSuggestions = quotaSuggestions
         self.lastRefresh = lastRefresh
         self.stale = stale
         self.error = error
@@ -866,6 +869,7 @@ public struct ProviderSnapshot: Codable, Sendable, Identifiable {
         case auth
         case costSummary = "cost_summary"
         case claudeUsage = "claude_usage"
+        case quotaSuggestions = "quota_suggestions"
         case lastRefresh = "last_refresh"
         case stale
         case error
@@ -1031,6 +1035,52 @@ public struct LiveMonitorQuota: Codable, Sendable {
     }
 }
 
+public struct QuotaSuggestionLevel: Codable, Sendable, Identifiable, Equatable {
+    public var key: String
+    public var label: String
+    public var limitTokens: Int
+
+    public var id: String { self.key }
+
+    public init(key: String, label: String, limitTokens: Int) {
+        self.key = key
+        self.label = label
+        self.limitTokens = limitTokens
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case key
+        case label
+        case limitTokens = "limit_tokens"
+    }
+}
+
+public struct QuotaSuggestions: Codable, Sendable, Equatable {
+    public var sampleCount: Int
+    public var recommendedKey: String
+    public var levels: [QuotaSuggestionLevel]
+    public var note: String?
+
+    public init(
+        sampleCount: Int,
+        recommendedKey: String,
+        levels: [QuotaSuggestionLevel],
+        note: String? = nil
+    ) {
+        self.sampleCount = sampleCount
+        self.recommendedKey = recommendedKey
+        self.levels = levels
+        self.note = note
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case sampleCount = "sample_count"
+        case recommendedKey = "recommended_key"
+        case levels
+        case note
+    }
+}
+
 public struct LiveMonitorBlock: Codable, Sendable {
     public var start: String
     public var end: String
@@ -1131,6 +1181,7 @@ public struct LiveMonitorProvider: Codable, Sendable, Identifiable {
     public var activeBlock: LiveMonitorBlock?
     public var contextWindow: LiveMonitorContextWindow?
     public var recentSession: ProviderSession?
+    public var quotaSuggestions: QuotaSuggestions?
 
     public var id: String { self.provider }
     public var providerID: ProviderID? { ProviderID(rawValue: self.provider) }
@@ -1150,7 +1201,8 @@ public struct LiveMonitorProvider: Codable, Sendable, Identifiable {
         lastRefreshLabel: String,
         activeBlock: LiveMonitorBlock? = nil,
         contextWindow: LiveMonitorContextWindow? = nil,
-        recentSession: ProviderSession? = nil
+        recentSession: ProviderSession? = nil,
+        quotaSuggestions: QuotaSuggestions? = nil
     ) {
         self.provider = provider
         self.title = title
@@ -1167,6 +1219,7 @@ public struct LiveMonitorProvider: Codable, Sendable, Identifiable {
         self.activeBlock = activeBlock
         self.contextWindow = contextWindow
         self.recentSession = recentSession
+        self.quotaSuggestions = quotaSuggestions
     }
 
     enum CodingKeys: String, CodingKey {
@@ -1185,6 +1238,7 @@ public struct LiveMonitorProvider: Codable, Sendable, Identifiable {
         case activeBlock = "active_block"
         case contextWindow = "context_window"
         case recentSession = "recent_session"
+        case quotaSuggestions = "quota_suggestions"
     }
 }
 
@@ -1977,6 +2031,7 @@ public struct ProviderMenuProjection: Sendable, Identifiable {
     public var authSummaryLabel: String?
     public var authRecoveryActions: [AuthRecoveryAction]
     public var warningLabels: [String]
+    public var quotaSuggestions: QuotaSuggestions?
     public var visualState: ProviderVisualState
     public var stateLabel: String
     public var statusLabel: String?
@@ -2037,6 +2092,7 @@ public struct ProviderMenuProjection: Sendable, Identifiable {
         authSummaryLabel: String?,
         authRecoveryActions: [AuthRecoveryAction],
         warningLabels: [String],
+        quotaSuggestions: QuotaSuggestions? = nil,
         visualState: ProviderVisualState,
         stateLabel: String,
         statusLabel: String?,
@@ -2086,6 +2142,7 @@ public struct ProviderMenuProjection: Sendable, Identifiable {
         self.authSummaryLabel = authSummaryLabel
         self.authRecoveryActions = authRecoveryActions
         self.warningLabels = warningLabels
+        self.quotaSuggestions = quotaSuggestions
         self.visualState = visualState
         self.stateLabel = stateLabel
         self.statusLabel = statusLabel

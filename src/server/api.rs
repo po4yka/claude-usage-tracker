@@ -29,6 +29,8 @@ use crate::models::LiveMonitorProjection;
 use crate::models::LiveMonitorProvider;
 use crate::models::LiveMonitorQuota;
 use crate::models::LiveMonitorResponse;
+use crate::models::LiveQuotaSuggestionLevel;
+use crate::models::LiveQuotaSuggestions;
 use crate::models::LiveProviderHistoryResponse;
 use crate::models::LiveProvidersResponse;
 use crate::models::MobileSnapshotEnvelope;
@@ -109,6 +111,8 @@ pub(crate) struct BillingBlocksApiResponse {
     pub session_length_hours: f64,
     pub token_limit: Option<i64>,
     pub historical_max_tokens: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub quota_suggestions: Option<LiveQuotaSuggestions>,
     pub blocks: Vec<BillingBlockViewResponse>,
 }
 
@@ -539,6 +543,11 @@ fn build_live_monitor_response(
                     None
                 },
                 recent_session: snapshot.cost_summary.recent_sessions.first().cloned(),
+                quota_suggestions: if snapshot.provider == "claude" {
+                    billing_blocks.quota_suggestions.clone()
+                } else {
+                    None
+                },
             }
         })
         .collect::<Vec<_>>();
@@ -758,6 +767,25 @@ fn build_live_monitor_context_window(
         session_id: response.session_id.clone(),
         captured_at: response.captured_at.clone(),
     })
+}
+
+fn live_quota_suggestions(
+    suggestions: crate::analytics::quota::QuotaSuggestions,
+) -> LiveQuotaSuggestions {
+    LiveQuotaSuggestions {
+        sample_count: suggestions.sample_count,
+        recommended_key: suggestions.recommended_key,
+        levels: suggestions
+            .levels
+            .into_iter()
+            .map(|level| LiveQuotaSuggestionLevel {
+                key: level.key,
+                label: level.label,
+                limit_tokens: level.limit_tokens,
+            })
+            .collect(),
+        note: suggestions.note,
+    }
 }
 
 fn live_monitor_billing_block(block: BillingBlockViewResponse) -> LiveMonitorBillingBlock {
@@ -1106,7 +1134,7 @@ pub(crate) async fn load_billing_blocks_response(
         calculate_burn_rate, identify_blocks_with_gaps, project_block_usage,
     };
     use crate::analytics::burn_rate::{self as br, BurnRateConfig};
-    use crate::analytics::quota::compute_quota;
+    use crate::analytics::quota::{compute_quota, compute_quota_suggestions};
 
     let db_path = state.db_path.clone();
     let token_limit = state.blocks_token_limit;
@@ -1125,6 +1153,8 @@ pub(crate) async fn load_billing_blocks_response(
             .map(|block| block.tokens.total())
             .max()
             .unwrap_or(0);
+
+        let quota_suggestions = compute_quota_suggestions(&blocks).map(live_quota_suggestions);
 
         let blocks = blocks
             .iter()
@@ -1199,6 +1229,7 @@ pub(crate) async fn load_billing_blocks_response(
             session_length_hours: session_hours,
             token_limit,
             historical_max_tokens,
+            quota_suggestions,
             blocks,
         })
     })

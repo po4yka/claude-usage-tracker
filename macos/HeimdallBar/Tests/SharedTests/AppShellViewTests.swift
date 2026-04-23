@@ -1,9 +1,40 @@
 import Foundation
 import Testing
 import HeimdallDomain
+import HeimdallServices
 @testable import HeimdallAppUI
 
 struct AppShellViewTests {
+    @Test
+    func helperStartupIssuePresentationUsesPendingCopy() {
+        let presentation = WindowHeaderIssuePresentation.make(
+            issue: AppIssue(kind: .helperStartup, message: "The local Heimdall server is still starting.")
+        )
+
+        #expect(presentation == WindowHeaderIssuePresentation(
+            tone: .pending,
+            symbolName: "clock.fill",
+            badge: "Local server",
+            title: "Starting local server",
+            detail: "The embedded Heimdall helper is booting. Live data will appear automatically once it responds.",
+            actionTitle: "Check again",
+            progressTitle: "Checking…"
+        ))
+    }
+
+    @Test
+    func providerHeaderSubtitleUsesWaitingCopyForHelperStartup() {
+        let subtitle = WindowProviderHeaderSubtitle.make(
+            projection: self.makeProjection(
+                laneDetails: [],
+                weeklyProjectedCostUSD: 245
+            ),
+            issue: AppIssue(kind: .helperStartup, message: "The local Heimdall server is still starting.")
+        )
+
+        #expect(subtitle == "Waiting for local server · Projected this week: $245.00")
+    }
+
     @Test
     func windowProviderMetricSummaryUsesLeftQualifierForRemainingMode() {
         let summary = WindowProviderMetricSummary.make(
@@ -334,6 +365,28 @@ struct AppShellViewTests {
     }
 
     @Test
+    func windowQuotaSuggestionsModelMarksRecommendedQuotaAndCarriesNote() {
+        let model = WindowQuotaSuggestionsModel.make(
+            suggestions: QuotaSuggestions(
+                sampleCount: 4,
+                recommendedKey: "p90",
+                levels: [
+                    QuotaSuggestionLevel(key: "p90", label: "P90", limitTokens: 800_000),
+                    QuotaSuggestionLevel(key: "p95", label: "P95", limitTokens: 900_000),
+                    QuotaSuggestionLevel(key: "max", label: "Max", limitTokens: 950_000),
+                ],
+                note: "Based on fewer than 10 completed blocks."
+            )
+        )
+
+        #expect(model?.sampleCount == 4)
+        #expect(model?.items.first?.label == "P90")
+        #expect(model?.items.first?.isRecommended == true)
+        #expect(model?.items.first?.value == "800.0K")
+        #expect(model?.note == "Based on fewer than 10 completed blocks.")
+    }
+
+    @Test
     func windowOverviewWeeklyProjectionAggregatesProjectedAndActualBurnAcrossProviders() {
         let claude = self.makeProjection(
             laneDetails: [
@@ -540,6 +593,7 @@ struct AppShellViewTests {
         isShowingCachedData: Bool = false,
         authHeadline: String? = nil,
         warningLabels: [String] = [],
+        quotaSuggestions: QuotaSuggestions? = nil,
         incidentLabel: String? = nil,
         todayCostUSD: Double = 6.8,
         last30DaysCostUSD: Double = 42,
@@ -564,6 +618,7 @@ struct AppShellViewTests {
             authSummaryLabel: nil,
             authRecoveryActions: [],
             warningLabels: warningLabels,
+            quotaSuggestions: quotaSuggestions,
             visualState: .healthy,
             stateLabel: "Operational",
             statusLabel: nil,
