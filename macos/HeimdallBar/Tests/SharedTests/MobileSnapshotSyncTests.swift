@@ -25,7 +25,11 @@ struct MobileSnapshotSyncTests {
     func cloudKitSnapshotStoreRoundTripsAggregateThroughBackingStore() async throws {
         let backingStore = InMemoryCloudSnapshotBackingStore()
         let persistence = UserDefaultsCloudSyncStateStore(defaults: UserDefaults(suiteName: "MobileSnapshotSyncTests.roundtrip")!)
-        let store = CloudKitSnapshotSyncStore(backingStore: backingStore, persistence: persistence)
+        let store = CloudKitSnapshotSyncStore(
+            backingStore: backingStore,
+            persistence: persistence,
+            installationIDStore: InMemoryInstallationIDStore()
+        )
         let snapshot = MobileSnapshotEnvelope.fixture(sourceDevice: "studio")
 
         try await store.saveLatestSnapshot(snapshot)

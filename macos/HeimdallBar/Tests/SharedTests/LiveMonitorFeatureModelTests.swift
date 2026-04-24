@@ -10,7 +10,7 @@ struct LiveMonitorFeatureModelTests {
     func updateActivityStartsAndStopsFastPolling() async throws {
         let client = StubLiveMonitorClient(envelope: Self.sampleEnvelope(defaultFocus: .all))
         let model = LiveMonitorFeatureModel(
-            sessionStore: AppSessionStore(persistence: TestAppSessionStateStore()),
+            sessionStore: AppSessionStore(persistence: TestAppSessionStateStore(), installationIDStore: InMemoryInstallationIDStore()),
             clientFactory: { _ in client },
             pollInterval: .milliseconds(20),
             reconnectInitialDelayNanoseconds: 1_000_000,
@@ -38,7 +38,7 @@ struct LiveMonitorFeatureModelTests {
             failFirstStream: true
         )
         let model = LiveMonitorFeatureModel(
-            sessionStore: AppSessionStore(persistence: TestAppSessionStateStore()),
+            sessionStore: AppSessionStore(persistence: TestAppSessionStateStore(), installationIDStore: InMemoryInstallationIDStore()),
             clientFactory: { _ in client },
             pollInterval: .seconds(60),
             reconnectInitialDelayNanoseconds: 1_000_000,
@@ -74,7 +74,7 @@ struct LiveMonitorFeatureModelTests {
         )
         let client = StubLiveMonitorClient(envelope: Self.sampleEnvelope(defaultFocus: .all))
         let model = LiveMonitorFeatureModel(
-            sessionStore: AppSessionStore(persistence: persistence),
+            sessionStore: AppSessionStore(persistence: persistence, installationIDStore: InMemoryInstallationIDStore()),
             clientFactory: { _ in client }
         )
 
@@ -124,7 +124,7 @@ struct LiveMonitorFeatureModelTests {
             ]
         ))
         let model = LiveMonitorFeatureModel(
-            sessionStore: AppSessionStore(persistence: persistence),
+            sessionStore: AppSessionStore(persistence: persistence, installationIDStore: InMemoryInstallationIDStore()),
             clientFactory: { _ in client }
         )
 
@@ -139,7 +139,7 @@ struct LiveMonitorFeatureModelTests {
     func preferenceMutationsPersistDensityAndPanelVisibility() async {
         let persistence = TestAppSessionStateStore()
         let model = LiveMonitorFeatureModel(
-            sessionStore: AppSessionStore(persistence: persistence),
+            sessionStore: AppSessionStore(persistence: persistence, installationIDStore: InMemoryInstallationIDStore()),
             clientFactory: { _ in StubLiveMonitorClient(envelope: Self.sampleEnvelope(defaultFocus: .all)) }
         )
 
@@ -185,7 +185,7 @@ struct LiveMonitorFeatureModelTests {
             ]
         ))
         let model = LiveMonitorFeatureModel(
-            sessionStore: AppSessionStore(persistence: TestAppSessionStateStore()),
+            sessionStore: AppSessionStore(persistence: TestAppSessionStateStore(), installationIDStore: InMemoryInstallationIDStore()),
             clientFactory: { _ in client }
         )
 

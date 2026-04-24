@@ -12,7 +12,8 @@ struct AppShellModelTests {
                 config: .default,
                 selectedProvider: .claude,
                 selectedMergeTab: .overview,
-                persistence: TestAppSessionStateStore()
+                persistence: TestAppSessionStateStore(),
+                installationIDStore: InMemoryInstallationIDStore()
             )
         )
 
@@ -34,7 +35,8 @@ struct AppShellModelTests {
                     selectedMergeTab: .overview,
                     liveMonitorPreferences: persistedPreferences
                 )
-            )
+            ),
+            installationIDStore: InMemoryInstallationIDStore()
         )
 
         #expect(store.liveMonitorPreferences == persistedPreferences)
@@ -44,7 +46,7 @@ struct AppShellModelTests {
     @Test
     func appSessionStorePersistsLiveMonitorPreferencesAdditively() {
         let persistence = TestAppSessionStateStore()
-        let store = AppSessionStore(persistence: persistence)
+        let store = AppSessionStore(persistence: persistence, installationIDStore: InMemoryInstallationIDStore())
         let preferences = LiveMonitorPreferences(
             focus: .claude,
             density: .compact,

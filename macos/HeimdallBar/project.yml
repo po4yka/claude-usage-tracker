@@ -129,6 +129,7 @@ targets:
       properties:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CKSharingSupported: true
     entitlements:
       path: App/HeimdallBar.entitlements
       properties:
@@ -238,6 +239,8 @@ targets:
     platform: iOS
     info:
       path: iOS/App/Info.plist
+      properties:
+        CKSharingSupported: true
     entitlements:
       path: iOS/App/HeimdallMobile.entitlements
       properties:
@@ -245,6 +248,8 @@ targets:
           - iCloud.dev.heimdall.heimdallbar
         com.apple.developer.icloud-services:
           - CloudKit
+        com.apple.security.application-groups:
+          - group.dev.heimdall.heimdallbar
     sources:
       - path: iOS/App/Sources
       - path: iOS/App/Assets.xcassets

@@ -11,7 +11,8 @@ struct HeimdallMobileCompositionRoot {
             widgetSnapshotCoordinator: WidgetSnapshotCoordinator(
                 writer: AppGroupWidgetSnapshotStore(),
                 reloader: MobileWidgetCenterReloader()
-            )
+            ),
+            observesCloudKitAccount: true
         )
     }
 }

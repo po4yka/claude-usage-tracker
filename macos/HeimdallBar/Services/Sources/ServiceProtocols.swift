@@ -221,10 +221,10 @@ public protocol AppSessionStatePersisting: Sendable {
 }
 
 public protocol CloudSyncStatePersisting: Sendable {
-    func loadInstallationID() -> String?
-    func saveInstallationID(_ installationID: String)
     func loadCloudSyncSpaceState() -> CloudSyncSpaceState?
     func saveCloudSyncSpaceState(_ state: CloudSyncSpaceState)
+    func loadLegacyRecordMigrated() -> Bool
+    func setLegacyRecordMigrated(_ migrated: Bool)
 }
 
 public struct CachedSyncedAggregateEnvelope: Codable, Sendable {
@@ -246,6 +246,7 @@ public struct CachedSyncedAggregateEnvelope: Codable, Sendable {
 public protocol SyncedAggregateCaching: Sendable {
     func loadCachedAggregate() async throws -> CachedSyncedAggregateEnvelope?
     func saveCachedAggregate(_ cached: CachedSyncedAggregateEnvelope) async throws
+    func purgeCachedAggregate() async throws
 }
 
 public enum NotificationAuthorizationStatus: Sendable, Equatable {

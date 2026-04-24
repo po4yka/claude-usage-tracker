@@ -195,7 +195,7 @@ struct CloudKitSnapshotBackingStore: CloudSnapshotBackingStore {
             share = existingShare
         } else {
             let newShare = CKShare(recordZoneID: zoneID)
-            newShare.publicPermission = .readWrite
+            newShare.publicPermission = .readOnly
             newShare[CKShare.SystemFieldKey.title] = "Heimdall Sync" as CKRecordValue
             do {
                 let result = try await self.privateDatabase.modifyRecords(
@@ -343,23 +343,28 @@ public struct CloudKitSnapshotSyncStore: SnapshotSyncStore {
 
     private let backingStore: any CloudSnapshotBackingStore
     private let persistence: any CloudSyncStatePersisting
+    private let installationIDStore: any InstallationIDPersisting
 
     public init(
         containerIdentifier: String = Self.defaultContainerIdentifier,
-        persistence: any CloudSyncStatePersisting = UserDefaultsCloudSyncStateStore()
+        persistence: any CloudSyncStatePersisting = UserDefaultsCloudSyncStateStore(),
+        installationIDStore: any InstallationIDPersisting = KeychainInstallationIDStore()
     ) {
         self.init(
             backingStore: CloudKitSnapshotBackingStore(containerIdentifier: containerIdentifier),
-            persistence: persistence
+            persistence: persistence,
+            installationIDStore: installationIDStore
         )
     }
 
     init(
         backingStore: any CloudSnapshotBackingStore,
-        persistence: any CloudSyncStatePersisting = UserDefaultsCloudSyncStateStore()
+        persistence: any CloudSyncStatePersisting = UserDefaultsCloudSyncStateStore(),
+        installationIDStore: any InstallationIDPersisting = KeychainInstallationIDStore()
     ) {
         self.backingStore = backingStore
         self.persistence = persistence
+        self.installationIDStore = installationIDStore
     }
 
     public func loadLegacySnapshot() async throws -> MobileSnapshotEnvelope? {
@@ -403,7 +408,10 @@ public struct CloudKitSnapshotSyncStore: SnapshotSyncStore {
     }
 
     public func saveLatestSnapshot(_ snapshot: MobileSnapshotEnvelope) async throws -> SyncedAggregateEnvelope {
-        try await self.backingStore.saveLegacySnapshot(snapshot)
+        if !self.persistence.loadLegacyRecordMigrated() {
+            try await self.backingStore.saveLegacySnapshot(snapshot)
+            self.persistence.setLegacyRecordMigrated(true)
+        }
         let installationSnapshot = SyncedInstallationSnapshot.from(
             mobileSnapshot: snapshot,
             installationID: self.installationID
@@ -476,11 +484,11 @@ public struct CloudKitSnapshotSyncStore: SnapshotSyncStore {
     }
 
     private var installationID: String {
-        if let persisted = self.persistence.loadInstallationID(), !persisted.isEmpty {
+        if let persisted = self.installationIDStore.loadInstallationID(), !persisted.isEmpty {
             return persisted
         }
         let generated = UUID().uuidString.lowercased()
-        self.persistence.saveInstallationID(generated)
+        self.installationIDStore.saveInstallationID(generated)
         return generated
     }
 }

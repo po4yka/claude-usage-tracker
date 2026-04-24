@@ -664,6 +664,7 @@ final class MobileDashboardModel {
     private let now: @Sendable () -> Date
     private let foregroundRefreshThrottle: TimeInterval
     private let widgetRefreshIntervalSeconds: Int
+    @ObservationIgnored private var accountObserver: CloudKitAccountObserver?
 
     init(
         store: any SnapshotSyncStore,
@@ -672,7 +673,8 @@ final class MobileDashboardModel {
         widgetSnapshotCoordinator: WidgetSnapshotCoordinator? = nil,
         now: @escaping @Sendable () -> Date = Date.init,
         foregroundRefreshThrottle: TimeInterval = 60,
-        widgetRefreshIntervalSeconds: Int = 900
+        widgetRefreshIntervalSeconds: Int = 900,
+        observesCloudKitAccount: Bool = false
     ) {
         let persistedPreferences = preferencesStore.loadPreferences()
         let initialCompressionPreference = persistedPreferences?.compressionPreference ?? .compact
@@ -692,6 +694,16 @@ final class MobileDashboardModel {
             self.collapsedSectionIDs = Self.defaultCollapsedSectionIDs(for: initialCompressionPreference)
         } else {
             self.collapsedSectionIDs = Set(initialCollapsedSectionIDs)
+        }
+        self.accountObserver = nil
+        if observesCloudKitAccount {
+            let observer = CloudKitAccountObserver { [weak self] in
+                Task { @MainActor in
+                    await self?.handleAccountChanged()
+                }
+            }
+            observer.start()
+            self.accountObserver = observer
         }
     }
 
@@ -904,6 +916,14 @@ final class MobileDashboardModel {
         await self.refresh(reason: .shareAccepted)
     }
 
+    func handleAccountChanged() async {
+        self.aggregate = nil
+        self.lastSuccessfulRefreshAt = nil
+        self.projection = .empty
+        try? await self.cache.purgeCachedAggregate()
+        await self.refresh(reason: .startup)
+    }
+
     func selectProvider(_ provider: ProviderID) {
         self.selectedProvider = provider
         self.persistPreferences()
@@ -1088,6 +1108,14 @@ actor FileBackedSyncedAggregateCache: SyncedAggregateCaching {
         try data.write(to: url, options: .atomic)
     }
 
+    func purgeCachedAggregate() async throws {
+        let url = try self.cacheURL(createDirectory: false)
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            return
+        }
+        try FileManager.default.removeItem(at: url)
+    }
+
     private func cacheURL(createDirectory: Bool) throws -> URL {
         let baseURL = self.baseURLOverride ?? (
             FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
@@ -1108,4 +1136,6 @@ private actor NoopSyncedAggregateCache: SyncedAggregateCaching {
     }
 
     func saveCachedAggregate(_: CachedSyncedAggregateEnvelope) async throws {}
+
+    func purgeCachedAggregate() async throws {}
 }

@@ -832,6 +832,10 @@ private actor StubAggregateCache: SyncedAggregateCaching {
     func saveCachedAggregate(_ cached: CachedSyncedAggregateEnvelope) async throws {
         self.cached = cached
     }
+
+    func purgeCachedAggregate() async throws {
+        self.cached = nil
+    }
 }
 
 private final class StubMobileDashboardPreferencesStore: @unchecked Sendable, MobileDashboardPreferencesPersisting {

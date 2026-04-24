@@ -172,7 +172,7 @@ struct LocalNotificationIntegrationTests {
     func refreshCoordinatorProcessesNotificationsOnlyForGlobalRefreshes() async {
         let notificationCoordinator = LocalNotificationCoordinatorSpy()
         let coordinator = RefreshCoordinator(
-            sessionStore: AppSessionStore(persistence: NoopAppSessionStateStore()),
+            sessionStore: AppSessionStore(persistence: NoopAppSessionStateStore(), installationIDStore: InMemoryInstallationIDStore()),
             repository: ProviderRepository(),
             helperRuntime: ReadyHelperRuntime(),
             adjunctLoader: NoopAdjunctLoader(),

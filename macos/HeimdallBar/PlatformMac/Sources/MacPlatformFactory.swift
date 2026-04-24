@@ -78,7 +78,8 @@ public struct MacPlatformCompositionRoot: Sendable {
             credentialInspector: self.credentialInspector,
             liveMonitorClientFactory: self.liveMonitorClientFactory,
             localNotificationCoordinator: localNotificationCoordinator,
-            cloudSyncController: cloudSyncController
+            cloudSyncController: cloudSyncController,
+            observesCloudKitAccount: cloudSyncController != nil
         )
     }
 

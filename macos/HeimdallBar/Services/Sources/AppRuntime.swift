@@ -1,4 +1,5 @@
 import Foundation
+import HeimdallDomain
 
 @MainActor
 public final class HeimdallAppRuntime {
@@ -11,6 +12,7 @@ public final class HeimdallAppRuntime {
     public let liveMonitorClientFactory: @Sendable (Int) -> any LiveMonitorClient
     public let localNotificationCoordinator: any LocalNotificationCoordinating
     public let cloudSyncController: (any CloudSyncControlling)?
+    private let cloudKitAccountObserver: CloudKitAccountObserver?
 
     public init(
         sessionStore: AppSessionStore,
@@ -21,7 +23,8 @@ public final class HeimdallAppRuntime {
         credentialInspector: any ProviderCredentialInspecting,
         liveMonitorClientFactory: @escaping @Sendable (Int) -> any LiveMonitorClient,
         localNotificationCoordinator: any LocalNotificationCoordinating,
-        cloudSyncController: (any CloudSyncControlling)? = nil
+        cloudSyncController: (any CloudSyncControlling)? = nil,
+        observesCloudKitAccount: Bool = false
     ) {
         self.sessionStore = sessionStore
         self.providerRepository = providerRepository
@@ -32,5 +35,16 @@ public final class HeimdallAppRuntime {
         self.liveMonitorClientFactory = liveMonitorClientFactory
         self.localNotificationCoordinator = localNotificationCoordinator
         self.cloudSyncController = cloudSyncController
+        if observesCloudKitAccount, cloudSyncController != nil {
+            let observer = CloudKitAccountObserver { [weak sessionStore] in
+                Task { @MainActor in
+                    sessionStore?.cloudSyncState = CloudSyncSpaceState()
+                }
+            }
+            observer.start()
+            self.cloudKitAccountObserver = observer
+        } else {
+            self.cloudKitAccountObserver = nil
+        }
     }
 }
