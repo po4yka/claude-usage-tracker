@@ -8,14 +8,14 @@ import Testing
 struct MobileDashboardModelTests {
     @Test
     func startupLoadsCachedAggregateBeforeLiveRefresh() async {
-        let cachedAggregate = SyncedAggregateEnvelope.legacy(
+        let cachedAggregate = SyncedAggregateEnvelope.singleInstallation(
             mobileSnapshot: .fixture(
                 generatedAt: "2026-04-20T11:00:00Z",
                 providers: [.fixture(provider: .claude)]
             ),
             installationID: "cached-installation"
         )
-        let liveAggregate = SyncedAggregateEnvelope.legacy(
+        let liveAggregate = SyncedAggregateEnvelope.singleInstallation(
             mobileSnapshot: .fixture(
                 generatedAt: "2026-04-21T11:00:00Z",
                 providers: [.fixture(provider: .codex)]
@@ -52,7 +52,7 @@ struct MobileDashboardModelTests {
     @Test
     func foregroundRefreshRespectsThrottle() async {
         let clock = MutableNow(Date(timeIntervalSince1970: 1_000))
-        let aggregate = SyncedAggregateEnvelope.legacy(
+        let aggregate = SyncedAggregateEnvelope.singleInstallation(
             mobileSnapshot: .fixture(generatedAt: "2026-04-21T11:00:00Z"),
             installationID: "fixture-installation"
         )
@@ -73,7 +73,7 @@ struct MobileDashboardModelTests {
     @Test
     func manualRefreshBypassesThrottle() async {
         let clock = MutableNow(Date(timeIntervalSince1970: 1_000))
-        let aggregate = SyncedAggregateEnvelope.legacy(
+        let aggregate = SyncedAggregateEnvelope.singleInstallation(
             mobileSnapshot: .fixture(generatedAt: "2026-04-21T11:00:00Z"),
             installationID: "fixture-installation"
         )
@@ -93,7 +93,7 @@ struct MobileDashboardModelTests {
 
     @Test
     func shareAcceptanceForcesRefreshAndUpdatesCloudSyncState() async {
-        let aggregate = SyncedAggregateEnvelope.legacy(
+        let aggregate = SyncedAggregateEnvelope.singleInstallation(
             mobileSnapshot: .fixture(generatedAt: "2026-04-21T11:00:00Z"),
             installationID: "fixture-installation"
         )
@@ -117,7 +117,7 @@ struct MobileDashboardModelTests {
 
     @Test
     func failedLiveRefreshPreservesCachedDataAndShowsWarning() async {
-        let cachedAggregate = SyncedAggregateEnvelope.legacy(
+        let cachedAggregate = SyncedAggregateEnvelope.singleInstallation(
             mobileSnapshot: .fixture(generatedAt: "2026-04-21T10:00:00Z"),
             installationID: "cached-installation"
         )
@@ -150,27 +150,8 @@ struct MobileDashboardModelTests {
     }
 
     @Test
-    func legacyFallbackWorksWhenNoAggregateRecordsExist() async {
-        let legacy = MobileSnapshotEnvelope.fixture(
-            generatedAt: "2026-04-21T11:00:00Z",
-            providers: [.fixture(provider: .codex)]
-        )
-        let store = ControlledSnapshotStore(
-            liveAggregate: nil,
-            aggregateFallback: .legacy(mobileSnapshot: legacy, installationID: "legacy-installation"),
-            legacySnapshot: legacy
-        )
-        let model = MobileDashboardModel(store: store)
-
-        await model.refresh(reason: .startup)
-
-        #expect(model.aggregate?.generatedAt == legacy.generatedAt)
-        #expect(model.selectedProvider == .codex)
-    }
-
-    @Test
     func widgetSnapshotAdapterBuildsStableProviderPayloadsFromAggregate() {
-        let aggregate = SyncedAggregateEnvelope.legacy(
+        let aggregate = SyncedAggregateEnvelope.singleInstallation(
             mobileSnapshot: .fixture(
                 generatedAt: "2026-04-21T11:00:00Z",
                 providers: [
@@ -218,7 +199,7 @@ struct MobileDashboardModelTests {
         let writer = InMemoryWidgetSnapshotWriter()
         let reloader = CountingWidgetReloader()
         let coordinator = WidgetSnapshotCoordinator(writer: writer, reloader: reloader)
-        let aggregate = SyncedAggregateEnvelope.legacy(
+        let aggregate = SyncedAggregateEnvelope.singleInstallation(
             mobileSnapshot: .fixture(generatedAt: "2026-04-21T11:00:00Z"),
             installationID: "fixture-installation"
         )
@@ -738,8 +719,6 @@ private enum FixtureError: LocalizedError {
 
 private actor ControlledSnapshotStore: SnapshotSyncStore {
     let liveAggregate: SyncedAggregateEnvelope?
-    let aggregateFallback: SyncedAggregateEnvelope?
-    let legacySnapshot: MobileSnapshotEnvelope?
     let cloudSyncState: CloudSyncSpaceState
     let acceptShareState: CloudSyncSpaceState
     let liveError: Error?
@@ -751,8 +730,6 @@ private actor ControlledSnapshotStore: SnapshotSyncStore {
 
     init(
         liveAggregate: SyncedAggregateEnvelope? = nil,
-        aggregateFallback: SyncedAggregateEnvelope? = nil,
-        legacySnapshot: MobileSnapshotEnvelope? = nil,
         cloudSyncState: CloudSyncSpaceState = CloudSyncSpaceState(role: .participant, status: .participantJoined),
         acceptShareState: CloudSyncSpaceState = CloudSyncSpaceState(role: .participant, status: .participantJoined),
         liveError: Error? = nil,
@@ -760,8 +737,6 @@ private actor ControlledSnapshotStore: SnapshotSyncStore {
         liveDelayNanoseconds: UInt64 = 0
     ) {
         self.liveAggregate = liveAggregate
-        self.aggregateFallback = aggregateFallback
-        self.legacySnapshot = legacySnapshot
         self.cloudSyncState = cloudSyncState
         self.acceptShareState = acceptShareState
         self.liveError = liveError
@@ -780,28 +755,15 @@ private actor ControlledSnapshotStore: SnapshotSyncStore {
         return self.liveAggregate
     }
 
-    func loadLegacySnapshot() async throws -> MobileSnapshotEnvelope? {
-        self.legacySnapshot
-    }
-
     func saveLatestSnapshot(_ snapshot: MobileSnapshotEnvelope) async throws -> SyncedAggregateEnvelope {
-        SyncedAggregateEnvelope.legacy(mobileSnapshot: snapshot, installationID: "stub-installation")
+        SyncedAggregateEnvelope.singleInstallation(mobileSnapshot: snapshot, installationID: "stub-installation")
     }
 
     func loadAggregateSnapshot() async throws -> SyncedAggregateEnvelope? {
         if let aggregateError {
             throw aggregateError
         }
-        if let aggregateFallback {
-            return aggregateFallback
-        }
-        if let liveAggregate {
-            return liveAggregate
-        }
-        if let legacySnapshot {
-            return SyncedAggregateEnvelope.legacy(mobileSnapshot: legacySnapshot, installationID: "legacy-installation")
-        }
-        return nil
+        return self.liveAggregate
     }
 
     func loadCloudSyncSpaceState() async throws -> CloudSyncSpaceState {

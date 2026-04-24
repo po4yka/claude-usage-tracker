@@ -391,7 +391,7 @@ private actor SnapshotSyncerSpy: SnapshotSyncing {
 
     func syncLatestSnapshot() async throws -> SyncedAggregateEnvelope {
         self.callCount += 1
-        return SyncedAggregateEnvelope.legacy(
+        return SyncedAggregateEnvelope.singleInstallation(
             mobileSnapshot: MobileSnapshotEnvelope(
                 generatedAt: "2026-04-21T09:00:00Z",
                 sourceDevice: "test-device",

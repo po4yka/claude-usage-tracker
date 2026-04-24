@@ -7,8 +7,6 @@ private let snapshotCloudEngineLogger = Logger(subsystem: "dev.heimdall.heimdall
 
 public actor SnapshotCloudEngine: CloudSnapshotBackingStore, CKSyncEngineDelegate {
     public static let zoneName = "heimdall-sync-space"
-    public static let legacyRecordType = "MobileSnapshot"
-    public static let legacyRecordName = "latest"
 
     private let container: CKContainer
     private let privateDatabase: CKDatabase
@@ -49,56 +47,6 @@ public actor SnapshotCloudEngine: CloudSnapshotBackingStore, CKSyncEngineDelegat
                     continuation.resume(returning: status)
                 }
             }
-        }
-    }
-
-    public func loadLegacySnapshot() async throws -> MobileSnapshotEnvelope? {
-        let recordID = CKRecord.ID(recordName: Self.legacyRecordName)
-        do {
-            let record = try await self.privateDatabase.record(for: recordID)
-            let payload: Data?
-            if let encrypted = record.encryptedValues[SnapshotCloudRecord.Field.payload] as? Data {
-                payload = encrypted
-            } else if let plain = record[SnapshotCloudRecord.Field.payload] as? Data {
-                payload = plain
-            } else {
-                payload = nil
-            }
-            guard let payload else { return nil }
-            do {
-                return try self.decoder.decode(MobileSnapshotEnvelope.self, from: payload)
-            } catch {
-                throw SnapshotSyncStoreError.decodeFailed(error.localizedDescription)
-            }
-        } catch let error as CKError where error.code == .unknownItem {
-            return nil
-        } catch {
-            throw SnapshotSyncStoreError.transportFailed(error.localizedDescription)
-        }
-    }
-
-    public func saveLegacySnapshot(_ snapshot: MobileSnapshotEnvelope) async throws {
-        let payload: Data
-        do {
-            payload = try self.encoder.encode(snapshot)
-        } catch {
-            throw SnapshotSyncStoreError.encodeFailed(error.localizedDescription)
-        }
-        let recordID = CKRecord.ID(recordName: Self.legacyRecordName)
-        let record = CKRecord(recordType: Self.legacyRecordType, recordID: recordID)
-        record.encryptedValues[SnapshotCloudRecord.Field.payload] = payload as CKRecordValue
-        record[SnapshotCloudRecord.Field.contractVersion] = NSNumber(value: snapshot.contractVersion)
-        record["generatedAt"] = snapshot.generatedAt as CKRecordValue
-        record[SnapshotCloudRecord.Field.sourceDevice] = snapshot.sourceDevice as CKRecordValue
-        do {
-            _ = try await self.privateDatabase.modifyRecords(
-                saving: [record],
-                deleting: [],
-                savePolicy: .changedKeys,
-                atomically: true
-            )
-        } catch {
-            throw SnapshotSyncStoreError.transportFailed(error.localizedDescription)
         }
     }
 

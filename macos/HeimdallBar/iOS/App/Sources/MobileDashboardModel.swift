@@ -879,21 +879,11 @@ final class MobileDashboardModel {
                 return
             }
 
-            if let fallbackAggregate = try await self.store.loadAggregateSnapshot() {
-                await self.applyFreshAggregate(fallbackAggregate)
-                return
-            }
-
             self.aggregate = nil
             self.lastRefreshError = nil
         } catch {
             let message = error.localizedDescription
             if await self.restoreCachedAggregate(errorMessage: message) {
-                return
-            }
-            if let fallbackAggregate = try? await self.store.loadAggregateSnapshot() {
-                await self.applyFreshAggregate(fallbackAggregate)
-                self.lastRefreshError = message
                 return
             }
             self.lastRefreshError = message

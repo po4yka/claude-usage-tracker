@@ -85,7 +85,6 @@ public final class UserDefaultsAppSessionStateStore: @unchecked Sendable, AppSes
 public final class UserDefaultsCloudSyncStateStore: @unchecked Sendable, CloudSyncStatePersisting {
     private enum Keys {
         static let cloudSyncState = "heimdallbar.cloud_sync.state"
-        static let legacyRecordMigrated = "heimdallbar.cloud_sync.legacy_record_migrated"
     }
 
     private let defaults: UserDefaults
@@ -106,14 +105,6 @@ public final class UserDefaultsCloudSyncStateStore: @unchecked Sendable, CloudSy
     public func saveCloudSyncSpaceState(_ state: CloudSyncSpaceState) {
         guard let data = try? self.encoder.encode(state) else { return }
         self.defaults.set(data, forKey: Keys.cloudSyncState)
-    }
-
-    public func loadLegacyRecordMigrated() -> Bool {
-        self.defaults.bool(forKey: Keys.legacyRecordMigrated)
-    }
-
-    public func setLegacyRecordMigrated(_ migrated: Bool) {
-        self.defaults.set(migrated, forKey: Keys.legacyRecordMigrated)
     }
 }
 

@@ -223,8 +223,6 @@ public protocol AppSessionStatePersisting: Sendable {
 public protocol CloudSyncStatePersisting: Sendable {
     func loadCloudSyncSpaceState() -> CloudSyncSpaceState?
     func saveCloudSyncSpaceState(_ state: CloudSyncSpaceState)
-    func loadLegacyRecordMigrated() -> Bool
-    func setLegacyRecordMigrated(_ migrated: Bool)
 }
 
 public struct CachedSyncedAggregateEnvelope: Codable, Sendable {
@@ -335,16 +333,12 @@ public protocol CloudSyncControlling: Sendable {
 
 public protocol SnapshotSyncStore: CloudSyncControlling {
     func loadLiveAggregateSnapshot() async throws -> SyncedAggregateEnvelope?
-    func loadLegacySnapshot() async throws -> MobileSnapshotEnvelope?
     func saveLatestSnapshot(_ snapshot: MobileSnapshotEnvelope) async throws -> SyncedAggregateEnvelope
 }
 
 public extension SnapshotSyncStore {
     func loadLatestSnapshot() async throws -> MobileSnapshotEnvelope? {
-        if let aggregate = try await self.loadAggregateSnapshot() {
-            return aggregate.mobileSnapshotCompatibility
-        }
-        return try await self.loadLegacySnapshot()
+        try await self.loadAggregateSnapshot()?.mobileSnapshotCompatibility
     }
 }
 

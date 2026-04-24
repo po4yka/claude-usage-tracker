@@ -2456,7 +2456,7 @@ public struct SyncedAggregateEnvelope: Codable, Sendable {
         )
     }
 
-    public static func legacy(
+    public static func singleInstallation(
         mobileSnapshot: MobileSnapshotEnvelope,
         installationID: String
     ) -> SyncedAggregateEnvelope {

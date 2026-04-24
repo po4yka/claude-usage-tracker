@@ -218,21 +218,17 @@ private actor InMemorySnapshotSyncStore: SnapshotSyncStore {
         self.snapshot = snapshot
     }
 
-    func loadLegacySnapshot() async throws -> MobileSnapshotEnvelope? {
-        self.snapshot
-    }
-
     func loadLiveAggregateSnapshot() async throws -> SyncedAggregateEnvelope? {
-        self.snapshot.map { SyncedAggregateEnvelope.legacy(mobileSnapshot: $0, installationID: "test-installation") }
+        self.snapshot.map { SyncedAggregateEnvelope.singleInstallation(mobileSnapshot: $0, installationID: "test-installation") }
     }
 
     func saveLatestSnapshot(_ snapshot: MobileSnapshotEnvelope) async throws -> SyncedAggregateEnvelope {
         self.snapshot = snapshot
-        return SyncedAggregateEnvelope.legacy(mobileSnapshot: snapshot, installationID: "test-installation")
+        return SyncedAggregateEnvelope.singleInstallation(mobileSnapshot: snapshot, installationID: "test-installation")
     }
 
     func loadAggregateSnapshot() async throws -> SyncedAggregateEnvelope? {
-        self.snapshot.map { SyncedAggregateEnvelope.legacy(mobileSnapshot: $0, installationID: "test-installation") }
+        self.snapshot.map { SyncedAggregateEnvelope.singleInstallation(mobileSnapshot: $0, installationID: "test-installation") }
     }
 
     func loadCloudSyncSpaceState() async throws -> CloudSyncSpaceState {
@@ -249,19 +245,10 @@ private actor InMemorySnapshotSyncStore: SnapshotSyncStore {
 }
 
 private actor InMemoryCloudSnapshotBackingStore: CloudSnapshotBackingStore {
-    private var legacy: MobileSnapshotEnvelope?
     private var installations: [SyncedInstallationSnapshot] = []
 
     func accountStatus() async throws -> CKAccountStatus {
         .available
-    }
-
-    func loadLegacySnapshot() async throws -> MobileSnapshotEnvelope? {
-        self.legacy
-    }
-
-    func saveLegacySnapshot(_ snapshot: MobileSnapshotEnvelope) async throws {
-        self.legacy = snapshot
     }
 
     func fetchInstallationSnapshots(state _: CloudSyncSpaceState) async throws -> [SyncedInstallationSnapshot] {
