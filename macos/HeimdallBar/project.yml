@@ -141,6 +141,7 @@ targets:
           - CloudKit
     sources:
       - path: App/Sources
+      - path: CloudSync/Sources
       - path: App/AppIcon.icon
         buildPhase: resources
       - path: App/Assets.xcassets
@@ -254,6 +255,7 @@ targets:
           - group.dev.heimdall.heimdallbar
     sources:
       - path: iOS/App/Sources
+      - path: CloudSync/Sources
       - path: iOS/App/Assets.xcassets
         buildPhase: resources
     dependencies:
