@@ -223,6 +223,54 @@ struct MobileDashboardModelTests {
     }
 
     @Test
+    func handleRemotePushForcesWidgetReloadAndReportsNewData() async {
+        let writer = InMemoryWidgetSnapshotWriter()
+        let reloader = CountingWidgetReloader()
+        let coordinator = WidgetSnapshotCoordinator(writer: writer, reloader: reloader)
+        let aggregate = SyncedAggregateEnvelope.singleInstallation(
+            mobileSnapshot: .fixture(generatedAt: "2026-04-21T11:00:00Z"),
+            installationID: "fixture-installation"
+        )
+        let store = ControlledSnapshotStore(liveAggregate: aggregate)
+        let model = MobileDashboardModel(
+            store: store,
+            widgetSnapshotCoordinator: coordinator
+        )
+
+        await model.refresh(reason: .manual)
+        #expect(reloader.reloadCount == 1)
+
+        let firstResult = await model.handleRemotePush()
+        #expect(firstResult == .newData)
+        #expect(reloader.reloadCount == 2)
+
+        let secondResult = await model.handleRemotePush()
+        #expect(secondResult == .newData)
+        // Push-triggered refresh forces a timeline reload even when the
+        // persisted payload hasn't changed; the "last refreshed" chrome
+        // in the widget should tick on every push.
+        #expect(reloader.reloadCount == 3)
+    }
+
+    @Test
+    func handleRemotePushReportsFailureWhenRefreshErrorsAndNoAggregateAvailable() async {
+        let reloader = CountingWidgetReloader()
+        let coordinator = WidgetSnapshotCoordinator(
+            writer: InMemoryWidgetSnapshotWriter(),
+            reloader: reloader
+        )
+        let store = ControlledSnapshotStore(liveError: FixtureError.syncFailed)
+        let model = MobileDashboardModel(
+            store: store,
+            widgetSnapshotCoordinator: coordinator
+        )
+
+        let result = await model.handleRemotePush()
+        #expect(result == .failed)
+        #expect(reloader.reloadCount == 1)
+    }
+
+    @Test
     func cloudSyncStatusCopyMapsUnavailableStates() async {
         let unavailableModel = MobileDashboardModel(
             store: ControlledSnapshotStore(

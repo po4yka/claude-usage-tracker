@@ -10,6 +10,11 @@ enum MobileRefreshReason: Sendable, Equatable {
     case shareAccepted
 }
 
+enum RemotePushResult: Sendable, Equatable {
+    case newData
+    case failed
+}
+
 enum MobileAccountScope: Sendable, Equatable, Hashable, Codable {
     case all
     case account(String)
@@ -912,6 +917,15 @@ final class MobileDashboardModel {
         self.projection = .empty
         try? await self.cache.purgeCachedAggregate()
         await self.refresh(reason: .startup)
+    }
+
+    func handleRemotePush() async -> RemotePushResult {
+        let errorBefore = self.lastRefreshError
+        await self.refresh(reason: .manual)
+        self.widgetSnapshotCoordinator?.reloadTimelines()
+        let succeeded = self.lastRefreshError == nil
+            || self.lastRefreshError == errorBefore
+        return succeeded && self.aggregate != nil ? .newData : .failed
     }
 
     func selectProvider(_ provider: ProviderID) {

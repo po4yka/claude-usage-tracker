@@ -3,7 +3,7 @@ import SwiftUI
 
 final class MobileAppDelegate: NSObject, UIApplicationDelegate {
     var onAcceptedCloudShare: (@Sendable (URL) -> Void)?
-    var onRemoteNotification: (@Sendable () -> Void)?
+    var onRemoteNotification: (@Sendable () async -> RemotePushResult)?
 
     func application(
         _: UIApplication,
@@ -18,8 +18,19 @@ final class MobileAppDelegate: NSObject, UIApplicationDelegate {
         didReceiveRemoteNotification _: [AnyHashable: Any],
         fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
     ) {
-        self.onRemoteNotification?()
-        completionHandler(.newData)
+        guard let handler = self.onRemoteNotification else {
+            completionHandler(.noData)
+            return
+        }
+        Task {
+            let result = await handler()
+            switch result {
+            case .newData:
+                completionHandler(.newData)
+            case .failed:
+                completionHandler(.failed)
+            }
+        }
     }
 }
 
@@ -42,10 +53,8 @@ struct HeimdallMobileApp: App {
                             await self.model.acceptShareURL(url)
                         }
                     }
-                    self.appDelegate.onRemoteNotification = {
-                        Task { @MainActor in
-                            await self.model.refresh(reason: .manual)
-                        }
+                    self.appDelegate.onRemoteNotification = { [model = self.model] in
+                        await model.handleRemotePush()
                     }
                 }
         }

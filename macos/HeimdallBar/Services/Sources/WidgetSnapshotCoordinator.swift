@@ -24,4 +24,8 @@ public final class WidgetSnapshotCoordinator: Sendable {
     public func load() -> WidgetSnapshotLoadResult {
         self.writer.load()
     }
+
+    public func reloadTimelines() {
+        self.reloader.reloadAllTimelines()
+    }
 }
