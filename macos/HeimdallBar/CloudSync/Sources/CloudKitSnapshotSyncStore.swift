@@ -1,6 +1,7 @@
 import CloudKit
 import Foundation
 import HeimdallDomain
+import HeimdallServices
 
 public enum SnapshotSyncStoreError: Error, LocalizedError, Equatable, Sendable {
     case encodeFailed(String)

@@ -45,7 +45,8 @@ public final class AppModel {
             settingsStore: settingsStore,
             refreshCoordinator: refreshCoordinator,
             localNotificationCoordinator: localNotificationCoordinator,
-            cloudSyncController: cloudSyncController
+            cloudSyncController: cloudSyncController,
+            cloudSyncDiagnosticsContext: runtime.cloudSyncDiagnosticsContext
         )
         self.refreshCoordinator = refreshCoordinator
         self.providerRepository = providerRepository

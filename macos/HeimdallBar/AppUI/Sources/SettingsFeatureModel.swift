@@ -17,6 +17,7 @@ public final class SettingsFeatureModel {
     private let refreshCoordinator: RefreshCoordinator
     private let localNotificationCoordinator: any LocalNotificationCoordinating
     private let cloudSyncController: (any CloudSyncControlling)?
+    private let cloudSyncDiagnosticsContext: CloudSyncDiagnosticsContext?
 
     private static let logger = Logger(subsystem: "dev.heimdall.HeimdallBar", category: "SettingsFeatureModel")
 
@@ -26,7 +27,8 @@ public final class SettingsFeatureModel {
         settingsStore: any SettingsStore,
         refreshCoordinator: RefreshCoordinator,
         localNotificationCoordinator: any LocalNotificationCoordinating,
-        cloudSyncController: (any CloudSyncControlling)? = nil
+        cloudSyncController: (any CloudSyncControlling)? = nil,
+        cloudSyncDiagnosticsContext: CloudSyncDiagnosticsContext? = nil
     ) {
         self.sessionStore = sessionStore
         self.repository = repository
@@ -34,6 +36,7 @@ public final class SettingsFeatureModel {
         self.refreshCoordinator = refreshCoordinator
         self.localNotificationCoordinator = localNotificationCoordinator
         self.cloudSyncController = cloudSyncController
+        self.cloudSyncDiagnosticsContext = cloudSyncDiagnosticsContext
         self.onSettingsSaved = nil
         self.draftConfig = sessionStore.config
     }
@@ -144,16 +147,13 @@ public final class SettingsFeatureModel {
     }
 
     public var cloudSyncDiagnostics: CloudSyncDiagnostics {
-        let stateSize: Int? = {
-            guard let url = try? FileBackedCloudKitSyncEngineStateStore.defaultURL() else {
-                return nil
-            }
+        let stateSize = self.cloudSyncDiagnosticsContext?.stateFileURL.flatMap { url in
             let attrs = try? FileManager.default.attributesOfItem(atPath: url.path)
             return (attrs?[.size] as? NSNumber)?.intValue
-        }()
+        }
         return CloudSyncDiagnostics(
-            containerIdentifier: CloudKitSnapshotSyncStore.defaultContainerIdentifier,
-            zoneName: self.cloudSyncState.zoneName ?? SnapshotCloudEngine.zoneName,
+            containerIdentifier: self.cloudSyncDiagnosticsContext?.containerIdentifier ?? "Unavailable",
+            zoneName: self.cloudSyncState.zoneName ?? self.cloudSyncDiagnosticsContext?.defaultZoneName ?? "_defaultZone",
             zoneOwner: self.cloudSyncState.zoneOwnerName ?? "_defaultOwner",
             installationID: self.sessionStore.installationID,
             engineStateFileBytes: stateSize,

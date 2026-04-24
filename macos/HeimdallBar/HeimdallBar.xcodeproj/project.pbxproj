@@ -36,6 +36,25 @@
 		26DCEC4036CEB44A594CCC13 /* HeimdallCLI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B3E69C8ABD0E401A9CC79AAE /* HeimdallCLI.framework */; };
 		28372B1F4049585AFD711A43 /* VersionDistributionDonut.swift in Sources */ = {isa = PBXBuildFile; fileRef = 740486CF6AE09ED168C9B399 /* VersionDistributionDonut.swift */; };
 		29C19B7ED4DFED25A3BB3DCA /* MobileDashboardModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60B13957456DDC92CE830FB5 /* MobileDashboardModel.swift */; };
+		A1D60001A4B54F4A90010001 /* HeimdallBarAppCompositionRoot.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D60031A4B54F4A90010031 /* HeimdallBarAppCompositionRoot.swift */; };
+		A1D60002A4B54F4A90010002 /* CloudKitRetryPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EAAA417EA06A7440BD82B8C /* CloudKitRetryPolicy.swift */; };
+		A1D60003A4B54F4A90010003 /* CloudKitSnapshotSyncStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2F701A9CCF00C222BD2856 /* CloudKitSnapshotSyncStore.swift */; };
+		A1D60004A4B54F4A90010004 /* CloudKitSyncEngineStateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83E158EA0DA52F27B52A0867 /* CloudKitSyncEngineStateStore.swift */; };
+		A1D60005A4B54F4A90010005 /* SnapshotCloudEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = E72DD917A009160F6EEDD40A /* SnapshotCloudEngine.swift */; };
+		A1D60006A4B54F4A90010006 /* SnapshotCloudRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0062D417C24CE24EAF7DC166 /* SnapshotCloudRecord.swift */; };
+		A1D60007A4B54F4A90010007 /* UserDefaultsCloudSyncStateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D60032A4B54F4A90010032 /* UserDefaultsCloudSyncStateStore.swift */; };
+		A1D60008A4B54F4A90010008 /* CloudKitRetryPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EAAA417EA06A7440BD82B8C /* CloudKitRetryPolicy.swift */; };
+		A1D60009A4B54F4A90010009 /* CloudKitSnapshotSyncStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2F701A9CCF00C222BD2856 /* CloudKitSnapshotSyncStore.swift */; };
+		A1D6000AA4B54F4A9001000A /* CloudKitSyncEngineStateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83E158EA0DA52F27B52A0867 /* CloudKitSyncEngineStateStore.swift */; };
+		A1D6000BA4B54F4A9001000B /* SnapshotCloudEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = E72DD917A009160F6EEDD40A /* SnapshotCloudEngine.swift */; };
+		A1D6000CA4B54F4A9001000C /* SnapshotCloudRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0062D417C24CE24EAF7DC166 /* SnapshotCloudRecord.swift */; };
+		A1D6000DA4B54F4A9001000D /* UserDefaultsCloudSyncStateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D60032A4B54F4A90010032 /* UserDefaultsCloudSyncStateStore.swift */; };
+		A1D6000EA4B54F4A9001000E /* CloudKitRetryPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EAAA417EA06A7440BD82B8C /* CloudKitRetryPolicy.swift */; };
+		A1D6000FA4B54F4A9001000F /* CloudKitSnapshotSyncStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2F701A9CCF00C222BD2856 /* CloudKitSnapshotSyncStore.swift */; };
+		A1D60010A4B54F4A90010010 /* CloudKitSyncEngineStateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83E158EA0DA52F27B52A0867 /* CloudKitSyncEngineStateStore.swift */; };
+		A1D60011A4B54F4A90010011 /* SnapshotCloudEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = E72DD917A009160F6EEDD40A /* SnapshotCloudEngine.swift */; };
+		A1D60012A4B54F4A90010012 /* SnapshotCloudRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0062D417C24CE24EAF7DC166 /* SnapshotCloudRecord.swift */; };
+		A1D60013A4B54F4A90010013 /* UserDefaultsCloudSyncStateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D60032A4B54F4A90010032 /* UserDefaultsCloudSyncStateStore.swift */; };
 		A1D50011A4B54F4A90010001 /* MobileDashboardProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D50021A4B54F4A90010001 /* MobileDashboardProjection.swift */; };
 		A1D50012A4B54F4A90010002 /* MobileDashboardPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D50022A4B54F4A90010002 /* MobileDashboardPreferences.swift */; };
 		A1D50013A4B54F4A90010003 /* MobileSyncedAggregateCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D50023A4B54F4A90010003 /* MobileSyncedAggregateCache.swift */; };
@@ -56,7 +75,6 @@
 		3C3730F8B1859F6DB308A7B4 /* HeimdallHelperControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A2AA7CA8FC2E12F2D56875A /* HeimdallHelperControllerTests.swift */; };
 		3CB04F4FD242931508E092A1 /* HeimdallHelperController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1689E99DC4BD7AAC9D9BDE0 /* HeimdallHelperController.swift */; };
 		3DFFCC0390AF6A7F168C3A89 /* ProjectCostTable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D04298B834D39811A23F2B3 /* ProjectCostTable.swift */; };
-		3E4A327635DD22A26C6C3A18 /* SnapshotCloudRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0062D417C24CE24EAF7DC166 /* SnapshotCloudRecord.swift */; };
 		40017CA82D0DB77116983FC3 /* DashboardAdjunctController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E95B9D2ADD845A8526557E3F /* DashboardAdjunctController.swift */; };
 		440AA5A014275AA2C2D2886E /* MobileSnapshotSyncTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD43C8237537EBE19B51313E /* MobileSnapshotSyncTests.swift */; };
 		46388706675D41CD83A6E81F /* HeimdallBarWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = A71A863F89C4C63B9F91DAD1 /* HeimdallBarWidgetBundle.swift */; };
@@ -104,11 +122,9 @@
 		94BDDA89AD6C67EA2DFAA4F0 /* SourceResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C1216EBE96F9C4F739BC7F5 /* SourceResolver.swift */; };
 		96B2A589C842728CA19BAD57 /* CLIParity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DF69BFEB59C43FC07A17EAE /* CLIParity.swift */; };
 		9782E2C1DFC63A9D0A389AB5 /* HeimdallDomain.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 6B361431C8E1A60029FB1575 /* HeimdallDomain.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		A09A15D390FAB65B63E1EC1B /* CloudKitSnapshotSyncStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2F701A9CCF00C222BD2856 /* CloudKitSnapshotSyncStore.swift */; };
 		A524B848B0B2BBF1B8346358 /* SessionsTable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D6DBF13AFFE807A89EF0F9B /* SessionsTable.swift */; };
 		A538261C6CC42943271996CD /* HeimdallDomain.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6B361431C8E1A60029FB1575 /* HeimdallDomain.framework */; };
 		A678EE2C64FDA8F452BE612F /* HeimdallServices.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = CA7C2377DFAE3941FC632BCB /* HeimdallServices.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		A752EA902618D492AF588F4A /* CloudKitSyncEngineStateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83E158EA0DA52F27B52A0867 /* CloudKitSyncEngineStateStore.swift */; };
 		A9C132B82A68AC70FAF1ED0B /* HeimdallPlatformMac.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 649D6E9DE532A0FBB224FABD /* HeimdallPlatformMac.framework */; };
 		AD3830BC77BC4443B996B8A1 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 90508D1BC5C5CA9BB968E8F1 /* Assets.xcassets */; };
 		AD6E9F72A58181786AC77134 /* HeimdallAppUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 93D8505598174E5E61015BF0 /* HeimdallAppUI.framework */; };
@@ -150,7 +166,6 @@
 		DEAE8CB14A8C318A9F2EEBEE /* HeimdallMobileCompositionRoot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D740C5D01A8A4EC749DE80B /* HeimdallMobileCompositionRoot.swift */; };
 		E15FE2CB583326628A694C99 /* WidgetTimelineProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62518196343306440CB4365F /* WidgetTimelineProvider.swift */; };
 		E216D075BA24468C1EA41E2F /* HeimdallMobileRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C9691DC07EFA05CD441CE30 /* HeimdallMobileRootView.swift */; };
-		E45CBB97FC37AABA73C4AF5C /* CloudKitRetryPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EAAA417EA06A7440BD82B8C /* CloudKitRetryPolicy.swift */; };
 		E49821A8AF7F975D05688B0F /* LiveMonitorFeatureModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70D53B0B0DE5AA6C0C02EC5E /* LiveMonitorFeatureModel.swift */; };
 		E59AF8CEBA3FF9C52C7BE763 /* HeimdallDomain.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6B361431C8E1A60029FB1575 /* HeimdallDomain.framework */; };
 		E6CD448A67486BDD2739B6B1 /* HourlyActivityChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF97ABC1233945F9388E3872 /* HourlyActivityChart.swift */; };
@@ -162,7 +177,6 @@
 		EE639FD86CE58AB3ED1BE814 /* HeimdallPlatformMac.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 649D6E9DE532A0FBB224FABD /* HeimdallPlatformMac.framework */; };
 		F1318D8029885784164F2FFD /* WebDashboardScraperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93C23AA08097989749F1C32A /* WebDashboardScraperTests.swift */; };
 		F38988A7CBAEBD8B4A7284FB /* TokenStackChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1129C69995746E8921AC41B /* TokenStackChart.swift */; };
-		F397F44A9F38662A6D0CD0C0 /* SnapshotCloudEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = E72DD917A009160F6EEDD40A /* SnapshotCloudEngine.swift */; };
 		F460FB96292CBF7AD39FBB6E /* BrowserSessionController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 986D35B5A22C250DF11349A6 /* BrowserSessionController.swift */; };
 		F53EFBAB874D717917F434D4 /* HeimdallDomain.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6B361431C8E1A60029FB1575 /* HeimdallDomain.framework */; };
 		F5D70497CC1CC10E59A67285 /* ProviderCredentialInspectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5C6BB1C31F47DD8E7EDB93E /* ProviderCredentialInspectorTests.swift */; };
@@ -510,6 +524,8 @@
 		32195DE8DB04DAE9A92267B7 /* HistoryWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryWidgetView.swift; sourceTree = "<group>"; };
 		38A96F043A5A2E6C7684CFF1 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		3B0EFD41727782F69CB2B3D3 /* HeimdallBarApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeimdallBarApp.swift; sourceTree = "<group>"; };
+		A1D60031A4B54F4A90010031 /* HeimdallBarAppCompositionRoot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeimdallBarAppCompositionRoot.swift; sourceTree = "<group>"; };
+		A1D60032A4B54F4A90010032 /* UserDefaultsCloudSyncStateStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserDefaultsCloudSyncStateStore.swift; sourceTree = "<group>"; };
 		3B834075DA5AC38266E8FB30 /* WidgetIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetIntents.swift; sourceTree = "<group>"; };
 		3C18E4382965D0C920FFDB2F /* HeimdallMobileTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = HeimdallMobileTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		3D04298B834D39811A23F2B3 /* ProjectCostTable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectCostTable.swift; sourceTree = "<group>"; };
@@ -825,17 +841,12 @@
 				2120AF6A2ED97BE28AF034CF /* AppSessionStore.swift */,
 				271BF478681AF1588ADE812F /* AuthCoordinator.swift */,
 				8E5BB9E5782B0A24527C6453 /* CloudKitAccountObserver.swift */,
-				6EAAA417EA06A7440BD82B8C /* CloudKitRetryPolicy.swift */,
-				7E2F701A9CCF00C222BD2856 /* CloudKitSnapshotSyncStore.swift */,
-				83E158EA0DA52F27B52A0867 /* CloudKitSyncEngineStateStore.swift */,
 				F19E9552E0F31BFA811C1E4C /* InstallationIDStore.swift */,
 				178159AF4E2083DDAECCA083 /* LocalNotificationCoordinator.swift */,
 				5CD49122C12EE482D41E2AC8 /* ProviderDataSource.swift */,
 				EB837251A9F1D27248168A2A /* ProviderRepository.swift */,
 				811E88DB0C179EFEABCA5938 /* RefreshCoordinator.swift */,
 				F35A5E8E3CE093B89D14CF22 /* ServiceProtocols.swift */,
-				E72DD917A009160F6EEDD40A /* SnapshotCloudEngine.swift */,
-				0062D417C24CE24EAF7DC166 /* SnapshotCloudRecord.swift */,
 				72BE104ADB32D2440982D8AB /* SnapshotStoreSyncProviderClient.swift */,
 				4F37A0F2D8F1F3633D69F57F /* SnapshotSyncCoordinator.swift */,
 				67D1830CBA3EFC81E95DCB4F /* WidgetSnapshotCoordinator.swift */,
@@ -961,6 +972,7 @@
 				F59EACF3E74671C6CB38A5E0 /* Sources */,
 				38B572FEA8BF559D57ADDFA6 /* Sources */,
 				794B8D493B4A2D49BC4A2A99 /* Sources */,
+				A1D60030A4B54F4A90010030 /* Sources */,
 				3E0E5B3162881B867BBAB556 /* Sources */,
 				FFA2CA9560F511124D384A3F /* Sources */,
 				7A66CD83040DCC9D3D86957D /* Sources */,
@@ -972,9 +984,24 @@
 			isa = PBXGroup;
 			children = (
 				3B0EFD41727782F69CB2B3D3 /* HeimdallBarApp.swift */,
+				A1D60031A4B54F4A90010031 /* HeimdallBarAppCompositionRoot.swift */,
 			);
 			name = Sources;
 			path = App/Sources;
+			sourceTree = "<group>";
+		};
+		A1D60030A4B54F4A90010030 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				6EAAA417EA06A7440BD82B8C /* CloudKitRetryPolicy.swift */,
+				7E2F701A9CCF00C222BD2856 /* CloudKitSnapshotSyncStore.swift */,
+				83E158EA0DA52F27B52A0867 /* CloudKitSyncEngineStateStore.swift */,
+				E72DD917A009160F6EEDD40A /* SnapshotCloudEngine.swift */,
+				0062D417C24CE24EAF7DC166 /* SnapshotCloudRecord.swift */,
+				A1D60032A4B54F4A90010032 /* UserDefaultsCloudSyncStateStore.swift */,
+			);
+			name = Sources;
+			path = CloudSync/Sources;
 			sourceTree = "<group>";
 		};
 		D239E3B64DF06C624D882379 /* iOSTests */ = {
@@ -1416,6 +1443,9 @@
 				C35248DFD3BBC8D91414EA9C /* CloudKitAccountObserverTests.swift in Sources */,
 				0D4971D4AD761950F80D82CE /* CloudKitRetryPolicyTests.swift in Sources */,
 				32FF99E2665D288ED72345B7 /* CloudKitSyncEngineStateStoreTests.swift in Sources */,
+				A1D6000EA4B54F4A9001000E /* CloudKitRetryPolicy.swift in Sources */,
+				A1D6000FA4B54F4A9001000F /* CloudKitSnapshotSyncStore.swift in Sources */,
+				A1D60010A4B54F4A90010010 /* CloudKitSyncEngineStateStore.swift in Sources */,
 				1177F2CBA94191B809B37DB7 /* FixtureLoader.swift in Sources */,
 				37DBECD99E9E1A436A5758DF /* HeimdallAPIClientTests.swift in Sources */,
 				3C3730F8B1859F6DB308A7B4 /* HeimdallHelperControllerTests.swift in Sources */,
@@ -1427,9 +1457,12 @@
 				440AA5A014275AA2C2D2886E /* MobileSnapshotSyncTests.swift in Sources */,
 				F5D70497CC1CC10E59A67285 /* ProviderCredentialInspectorTests.swift in Sources */,
 				115AE75AAE62113966711B52 /* ProviderDataSourceTests.swift in Sources */,
+				A1D60011A4B54F4A90010011 /* SnapshotCloudEngine.swift in Sources */,
+				A1D60012A4B54F4A90010012 /* SnapshotCloudRecord.swift in Sources */,
 				02E178A78A00B327D64ABC29 /* SnapshotCloudRecordTests.swift in Sources */,
 				0FF75C3DFFB5F85D3C3FAE6F /* SourceResolverTests.swift in Sources */,
 				D94847BE87D87A44753D3BC5 /* TerminalAuthCommandRunnerTests.swift in Sources */,
+				A1D60013A4B54F4A90010013 /* UserDefaultsCloudSyncStateStore.swift in Sources */,
 				8CDD190E8060A4EE6FB0F415 /* VersionAlignmentTests.swift in Sources */,
 				F1318D8029885784164F2FFD /* WebDashboardScraperTests.swift in Sources */,
 				714C0D40F05909318B40751E /* WidgetProjectionTests.swift in Sources */,
@@ -1453,17 +1486,12 @@
 				D97A3CBF56DEFD68A82F4586 /* AppSessionStore.swift in Sources */,
 				6EEFB3121F3B1467D23048DF /* AuthCoordinator.swift in Sources */,
 				5E37D57FC03451C9F9E165F1 /* CloudKitAccountObserver.swift in Sources */,
-				E45CBB97FC37AABA73C4AF5C /* CloudKitRetryPolicy.swift in Sources */,
-				A09A15D390FAB65B63E1EC1B /* CloudKitSnapshotSyncStore.swift in Sources */,
-				A752EA902618D492AF588F4A /* CloudKitSyncEngineStateStore.swift in Sources */,
 				B9F6C2E7256B971335F606D9 /* InstallationIDStore.swift in Sources */,
 				56850FDA8E4EA5978E08B0A4 /* LocalNotificationCoordinator.swift in Sources */,
 				60F9ADFD062D3421D90F2C21 /* ProviderDataSource.swift in Sources */,
 				163315B2A5D39D41125E20A2 /* ProviderRepository.swift in Sources */,
 				807824E411C1A8B7D1187601 /* RefreshCoordinator.swift in Sources */,
 				BB9E10B44EDDC4B23ABDE669 /* ServiceProtocols.swift in Sources */,
-				F397F44A9F38662A6D0CD0C0 /* SnapshotCloudEngine.swift in Sources */,
-				3E4A327635DD22A26C6C3A18 /* SnapshotCloudRecord.swift in Sources */,
 				229FD06569718ABE9737E9D9 /* SnapshotStoreSyncProviderClient.swift in Sources */,
 				63D9D6BD52DC8EA4C7318D53 /* SnapshotSyncCoordinator.swift in Sources */,
 				64DD309B39AB98A5ECB4BD06 /* WidgetSnapshotCoordinator.swift in Sources */,
@@ -1486,7 +1514,14 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A1D60002A4B54F4A90010002 /* CloudKitRetryPolicy.swift in Sources */,
+				A1D60003A4B54F4A90010003 /* CloudKitSnapshotSyncStore.swift in Sources */,
+				A1D60004A4B54F4A90010004 /* CloudKitSyncEngineStateStore.swift in Sources */,
 				576679A3BDDFC42B08B15143 /* HeimdallBarApp.swift in Sources */,
+				A1D60001A4B54F4A90010001 /* HeimdallBarAppCompositionRoot.swift in Sources */,
+				A1D60005A4B54F4A90010005 /* SnapshotCloudEngine.swift in Sources */,
+				A1D60006A4B54F4A90010006 /* SnapshotCloudRecord.swift in Sources */,
+				A1D60007A4B54F4A90010007 /* UserDefaultsCloudSyncStateStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1580,6 +1615,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A1D60008A4B54F4A90010008 /* CloudKitRetryPolicy.swift in Sources */,
+				A1D60009A4B54F4A90010009 /* CloudKitSnapshotSyncStore.swift in Sources */,
+				A1D6000AA4B54F4A9001000A /* CloudKitSyncEngineStateStore.swift in Sources */,
 				90A90DB7C5A11836AFCE9A57 /* HeimdallMobileApp.swift in Sources */,
 				DEAE8CB14A8C318A9F2EEBEE /* HeimdallMobileCompositionRoot.swift in Sources */,
 				E216D075BA24468C1EA41E2F /* HeimdallMobileRootView.swift in Sources */,
@@ -1587,6 +1625,9 @@
 				A1D50011A4B54F4A90010001 /* MobileDashboardProjection.swift in Sources */,
 				A1D50012A4B54F4A90010002 /* MobileDashboardPreferences.swift in Sources */,
 				A1D50013A4B54F4A90010003 /* MobileSyncedAggregateCache.swift in Sources */,
+				A1D6000BA4B54F4A9001000B /* SnapshotCloudEngine.swift in Sources */,
+				A1D6000CA4B54F4A9001000C /* SnapshotCloudRecord.swift in Sources */,
+				A1D6000DA4B54F4A9001000D /* UserDefaultsCloudSyncStateStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -82,30 +82,14 @@ public final class UserDefaultsAppSessionStateStore: @unchecked Sendable, AppSes
     }
 }
 
-public final class UserDefaultsCloudSyncStateStore: @unchecked Sendable, CloudSyncStatePersisting {
-    private enum Keys {
-        static let cloudSyncState = "heimdallbar.cloud_sync.state"
-    }
-
-    private let defaults: UserDefaults
-    private let encoder = JSONEncoder()
-    private let decoder = JSONDecoder()
-
-    public init(defaults: UserDefaults = .standard) {
-        self.defaults = defaults
-    }
+public struct NoopCloudSyncStateStore: CloudSyncStatePersisting {
+    public init() {}
 
     public func loadCloudSyncSpaceState() -> CloudSyncSpaceState? {
-        guard let data = self.defaults.data(forKey: Keys.cloudSyncState) else {
-            return nil
-        }
-        return try? self.decoder.decode(CloudSyncSpaceState.self, from: data)
+        nil
     }
 
-    public func saveCloudSyncSpaceState(_ state: CloudSyncSpaceState) {
-        guard let data = try? self.encoder.encode(state) else { return }
-        self.defaults.set(data, forKey: Keys.cloudSyncState)
-    }
+    public func saveCloudSyncSpaceState(_: CloudSyncSpaceState) {}
 }
 
 @MainActor
@@ -148,7 +132,7 @@ public final class AppSessionStore {
         selectedMergeTab: MergeMenuTab = .overview,
         liveMonitorPreferences: LiveMonitorPreferences? = nil,
         persistence: any AppSessionStatePersisting = UserDefaultsAppSessionStateStore(),
-        cloudSyncStatePersistence: any CloudSyncStatePersisting = UserDefaultsCloudSyncStateStore(),
+        cloudSyncStatePersistence: any CloudSyncStatePersisting = NoopCloudSyncStateStore(),
         installationIDStore: any InstallationIDPersisting = KeychainInstallationIDStore()
     ) {
         self.config = config

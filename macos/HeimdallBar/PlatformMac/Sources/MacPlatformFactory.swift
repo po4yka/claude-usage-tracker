@@ -40,8 +40,16 @@ public struct MacPlatformCompositionRoot: Sendable {
     }
 
     @MainActor
-    public func appRuntime() -> HeimdallAppRuntime {
-        let sessionStore = AppSessionStore(config: self.settingsStore.load())
+    public func appRuntime(
+        cloudSyncStore: (any SnapshotSyncStore)? = nil,
+        cloudSyncStatePersistence: any CloudSyncStatePersisting = NoopCloudSyncStateStore(),
+        cloudSyncDiagnosticsContext: CloudSyncDiagnosticsContext? = nil,
+        observesCloudKitAccount: Bool = false
+    ) -> HeimdallAppRuntime {
+        let sessionStore = AppSessionStore(
+            config: self.settingsStore.load(),
+            cloudSyncStatePersistence: cloudSyncStatePersistence
+        )
         let providerRepository = ProviderRepository()
         let localNotificationCoordinator = LocalNotificationCoordinator(
             authorizationManager: UserNotificationAuthorizationManager(),
@@ -49,8 +57,7 @@ public struct MacPlatformCompositionRoot: Sendable {
             stateStore: UserDefaultsLocalNotificationStateStore()
         )
         let liveProviderClient = HeimdallAPIClient(port: sessionStore.config.helperPort)
-        let cloudSyncController = Self.makeCloudSyncController()
-        let snapshotSyncer = cloudSyncController.map {
+        let snapshotSyncer = cloudSyncStore.map {
             SnapshotSyncCoordinator(client: liveProviderClient, store: $0)
         }
         let refreshCoordinator = RefreshCoordinator(
@@ -78,21 +85,13 @@ public struct MacPlatformCompositionRoot: Sendable {
             credentialInspector: self.credentialInspector,
             liveMonitorClientFactory: self.liveMonitorClientFactory,
             localNotificationCoordinator: localNotificationCoordinator,
-            cloudSyncController: cloudSyncController,
-            observesCloudKitAccount: cloudSyncController != nil
+            cloudSyncController: cloudSyncStore,
+            cloudSyncDiagnosticsContext: cloudSyncDiagnosticsContext,
+            observesCloudKitAccount: observesCloudKitAccount
         )
     }
 
-    static func makeCloudSyncController(
-        bundleURL: URL = Bundle.main.bundleURL
-    ) -> CloudKitSnapshotSyncStore? {
-        guard Self.shouldEnableCloudKitSnapshotSync(bundleURL: bundleURL) else {
-            return nil
-        }
-        return CloudKitSnapshotSyncStore()
-    }
-
-    static func shouldEnableCloudKitSnapshotSync(
+    public static func shouldEnableCloudKitSnapshotSync(
         bundleURL: URL = Bundle.main.bundleURL
     ) -> Bool {
         let path = bundleURL.path
