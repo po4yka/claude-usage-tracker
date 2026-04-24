@@ -15,6 +15,7 @@ public actor SnapshotCloudEngine: CloudSnapshotBackingStore, CKSyncEngineDelegat
     private let zoneID: CKRecordZone.ID
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
+    private let retryPolicy: CloudKitRetryPolicy
 
     private var engine: CKSyncEngine?
     private var cachedSnapshots: [String: SyncedInstallationSnapshot] = [:]
@@ -23,7 +24,8 @@ public actor SnapshotCloudEngine: CloudSnapshotBackingStore, CKSyncEngineDelegat
 
     public init(
         containerIdentifier: String,
-        stateStore: any CloudKitSyncEngineStatePersisting
+        stateStore: any CloudKitSyncEngineStatePersisting,
+        retryPolicy: CloudKitRetryPolicy = .default
     ) {
         let container = CKContainer(identifier: containerIdentifier)
         self.container = container
@@ -35,6 +37,7 @@ public actor SnapshotCloudEngine: CloudSnapshotBackingStore, CKSyncEngineDelegat
         encoder.outputFormatting = [.sortedKeys]
         self.encoder = encoder
         self.decoder = JSONDecoder()
+        self.retryPolicy = retryPolicy
         snapshotCloudEngineLogger.info("SnapshotCloudEngine created for container \(containerIdentifier, privacy: .public) zone \(Self.zoneName, privacy: .public)")
     }
 
@@ -138,19 +141,23 @@ public actor SnapshotCloudEngine: CloudSnapshotBackingStore, CKSyncEngineDelegat
             let newShare = CKShare(recordZoneID: zoneID)
             newShare.publicPermission = .readOnly
             newShare[CKShare.SystemFieldKey.title] = "Heimdall Sync" as CKRecordValue
+            let database = self.privateDatabase
             do {
-                let result = try await self.privateDatabase.modifyRecords(
-                    saving: [newShare],
-                    deleting: [],
-                    savePolicy: .ifServerRecordUnchanged,
-                    atomically: true
-                )
+                let result = try await withCloudKitRetry(policy: self.retryPolicy) {
+                    try await database.modifyRecords(
+                        saving: [newShare],
+                        deleting: [],
+                        savePolicy: .ifServerRecordUnchanged,
+                        atomically: true
+                    )
+                }
                 if case .success(let savedShare as CKShare)? = result.saveResults[newShare.recordID] {
                     share = savedShare
                 } else {
                     share = newShare
                 }
             } catch {
+                Self.logCKError("prepareOwnerShare save failed", error)
                 throw SnapshotSyncStoreError.transportFailed(error.localizedDescription)
             }
         }
@@ -168,12 +175,17 @@ public actor SnapshotCloudEngine: CloudSnapshotBackingStore, CKSyncEngineDelegat
     }
 
     public func acceptShareURL(_ url: URL, state: CloudSyncSpaceState) async throws -> CloudSyncSpaceState {
+        let container = self.container
         do {
-            let metadataResults = try await self.container.shareMetadatas(for: [url])
+            let metadataResults = try await withCloudKitRetry(policy: self.retryPolicy) {
+                try await container.shareMetadatas(for: [url])
+            }
             guard case .success(let metadata)? = metadataResults[url] else {
                 throw SnapshotSyncStoreError.transportFailed("The CloudKit share metadata could not be loaded.")
             }
-            _ = try await self.container.accept([metadata])
+            _ = try await withCloudKitRetry(policy: self.retryPolicy) {
+                try await container.accept([metadata])
+            }
             let zoneID = (metadata.hierarchicalRootRecordID ?? metadata.rootRecordID).zoneID
             return CloudSyncSpaceState(
                 role: .participant,
@@ -186,6 +198,7 @@ public actor SnapshotCloudEngine: CloudSnapshotBackingStore, CKSyncEngineDelegat
                 statusMessage: "Joined the shared Heimdall sync space."
             )
         } catch {
+            Self.logCKError("acceptShareURL failed", error)
             throw SnapshotSyncStoreError.transportFailed(error.localizedDescription)
         }
     }
@@ -281,22 +294,29 @@ public actor SnapshotCloudEngine: CloudSnapshotBackingStore, CKSyncEngineDelegat
         record[SnapshotCloudRecord.Field.installationID] = snapshot.installationID as CKRecordValue
         record[SnapshotCloudRecord.Field.sourceDevice] = snapshot.sourceDevice as CKRecordValue
         record[SnapshotCloudRecord.Field.publishedAt] = snapshot.publishedAt as CKRecordValue
+        let database = self.sharedDatabase
         do {
-            _ = try await self.sharedDatabase.modifyRecords(
-                saving: [record],
-                deleting: [],
-                savePolicy: .changedKeys,
-                atomically: true
-            )
+            _ = try await withCloudKitRetry(policy: self.retryPolicy) {
+                try await database.modifyRecords(
+                    saving: [record],
+                    deleting: [],
+                    savePolicy: .changedKeys,
+                    atomically: true
+                )
+            }
         } catch {
+            Self.logCKError("saveSharedZoneSnapshot failed", error)
             throw SnapshotSyncStoreError.transportFailed(error.localizedDescription)
         }
     }
 
     private func ensurePrivateZone(zoneName: String) async throws -> CKRecordZone.ID {
         let zoneID = CKRecordZone.ID(zoneName: zoneName, ownerName: CKCurrentUserDefaultName)
+        let database = self.privateDatabase
         do {
-            let existing = try await self.privateDatabase.recordZones(for: [zoneID])
+            let existing = try await withCloudKitRetry(policy: self.retryPolicy) {
+                try await database.recordZones(for: [zoneID])
+            }
             if case .success = existing[zoneID] {
                 return zoneID
             }
@@ -304,12 +324,15 @@ public actor SnapshotCloudEngine: CloudSnapshotBackingStore, CKSyncEngineDelegat
             // Fall through to create the zone.
         }
         do {
-            _ = try await self.privateDatabase.modifyRecordZones(
-                saving: [CKRecordZone(zoneID: zoneID)],
-                deleting: []
-            )
+            _ = try await withCloudKitRetry(policy: self.retryPolicy) {
+                try await database.modifyRecordZones(
+                    saving: [CKRecordZone(zoneID: zoneID)],
+                    deleting: []
+                )
+            }
             return zoneID
         } catch {
+            Self.logCKError("ensurePrivateZone failed", error)
             throw SnapshotSyncStoreError.transportFailed(error.localizedDescription)
         }
     }
@@ -330,12 +353,14 @@ public actor SnapshotCloudEngine: CloudSnapshotBackingStore, CKSyncEngineDelegat
     ) async throws -> [CKRecord] {
         var records: [CKRecord] = []
         var cursor: CKQueryOperation.Cursor?
+        let policy = self.retryPolicy
         repeat {
-            let result: (matchResults: [(CKRecord.ID, Result<CKRecord, Error>)], queryCursor: CKQueryOperation.Cursor?)
-            if let cursor {
-                result = try await database.records(continuingMatchFrom: cursor)
-            } else {
-                result = try await database.records(
+            let cursorCopy = cursor
+            let result = try await withCloudKitRetry(policy: policy) { () -> (matchResults: [(CKRecord.ID, Result<CKRecord, Error>)], queryCursor: CKQueryOperation.Cursor?) in
+                if let cursorCopy {
+                    return try await database.records(continuingMatchFrom: cursorCopy)
+                }
+                return try await database.records(
                     matching: CKQuery(recordType: recordType, predicate: NSPredicate(value: true)),
                     inZoneWith: zoneID
                 )

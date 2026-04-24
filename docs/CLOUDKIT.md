@@ -76,6 +76,25 @@ can break older clients indefinitely.
 Field names currently in use: see
 `SnapshotCloudRecord.Field` in `SnapshotCloudRecord.swift`.
 
+## Retry policy on raw-CloudKit paths
+
+`CKSyncEngine` handles retries automatically on the owner's private-zone
+engine path. Everything else — participant reads from the shared
+database, CKShare creation, share acceptance, zone bootstrapping, and
+the query pagination in `allRecords` — goes through
+`withCloudKitRetry(policy:)` from
+`macos/HeimdallBar/Services/Sources/CloudKitRetryPolicy.swift`.
+
+Defaults: 3 attempts, 1 s → 2 s → 4 s exponential backoff capped at
+8 s, ±100 ms jitter. Retries only on `CKError.networkFailure`,
+`.networkUnavailable`, `.serviceUnavailable`, `.requestRateLimited`,
+and `.zoneBusy`. All other errors fast-fail on the first attempt.
+When the server supplies a `CKErrorRetryAfterKey` in the error's
+`userInfo`, the policy honours that wait instead of its own backoff.
+
+Tune the policy per `SnapshotCloudEngine(containerIdentifier:
+stateStore: retryPolicy:)` for tests or special deployments.
+
 ## Expected event flow
 
 ```
