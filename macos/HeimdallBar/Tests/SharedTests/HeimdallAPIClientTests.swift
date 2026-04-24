@@ -82,7 +82,7 @@ struct HeimdallAPIClientTests {
         StubURLProtocol.handler = { request, attempt in
             #expect(request.httpMethod == "POST")
             #expect(request.url?.query?.contains("provider=codex") == true)
-            #expect(request.timeoutInterval == 12)
+            #expect(request.timeoutInterval == 45)
             if attempt == 1 {
                 throw URLError(.timedOut)
             }

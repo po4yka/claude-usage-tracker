@@ -8,7 +8,7 @@ public struct HeimdallAPIClient: LiveProviderClient, LiveMonitorClient, MobileSn
     private let retryPolicy: RetryPolicy
     private static let defaultRequestTimeout: TimeInterval = 3
     private static let startupRequestTimeout: TimeInterval = 1.5
-    private static let forcedRefreshTimeout: TimeInterval = 12
+    private static let forcedRefreshTimeout: TimeInterval = 45
 
     struct RetryPolicy: Sendable, Equatable {
         let attempts: Int
@@ -19,7 +19,7 @@ public struct HeimdallAPIClient: LiveProviderClient, LiveMonitorClient, MobileSn
         self.baseURL = URL(string: "http://127.0.0.1:\(port)")!
         let configuration = URLSessionConfiguration.ephemeral
         configuration.timeoutIntervalForRequest = Self.defaultRequestTimeout
-        configuration.timeoutIntervalForResource = 8
+        configuration.timeoutIntervalForResource = 30
         self.session = URLSession(configuration: configuration)
         self.retryPolicy = Self.localhostRetryPolicy
     }

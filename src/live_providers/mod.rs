@@ -147,18 +147,72 @@ where
         ));
     }
 
-    let mut waited_for_refresh = false;
-    let _refresh_guard = match state.live_provider_refresh_lock.try_lock() {
-        Ok(guard) => guard,
-        Err(_) => {
-            if !force_refresh && let Some(cached) = cached_response_any(state).await {
+    // Stale-while-revalidate: if we have any cached entry (even expired) and no
+    // refresh is already in flight, return the stale response immediately and
+    // kick off a background refresh so the *next* request sees fresh data.
+    if !force_refresh && let Some(stale) = cached_response_any(state).await {
+        match state.live_provider_refresh_lock.try_lock() {
+            Ok(_guard) => {
+                // Lock acquired; drop the guard and let the background task
+                // re-acquire it so it serialises correctly with any future
+                // concurrent foreground requests.
+                drop(_guard);
+                let bg_state = Arc::clone(state);
+                let bg_provider = requested_provider.clone();
+                tokio::spawn(async move {
+                    let _guard = bg_state.live_provider_refresh_lock.lock().await;
+                    // Re-check: another task may have refreshed while we waited.
+                    if cached_response(&bg_state).await.is_some() {
+                        return;
+                    }
+                    match fetch_live_provider_response(
+                        &bg_state,
+                        bg_provider.as_deref(),
+                        scope,
+                        false,
+                        false,
+                    )
+                    .await
+                    {
+                        Ok(response) => {
+                            update_cache_after_fetch(
+                                &bg_state,
+                                bg_provider.as_deref(),
+                                scope,
+                                &response,
+                            )
+                            .await;
+                        }
+                        Err(err) => {
+                            tracing::warn!("background live-provider refresh failed: {:#}", err);
+                        }
+                    }
+                });
                 return Ok(filter_response(
-                    &cached,
+                    &stale,
                     requested_provider.as_deref(),
                     scope,
                     true,
                 ));
             }
+            Err(_) => {
+                // A refresh is already in flight; return stale immediately
+                // rather than blocking the caller.
+                return Ok(filter_response(
+                    &stale,
+                    requested_provider.as_deref(),
+                    scope,
+                    true,
+                ));
+            }
+        }
+    }
+
+    // Cold cache (no entry at all) — foreground fetch.
+    let mut waited_for_refresh = false;
+    let _refresh_guard = match state.live_provider_refresh_lock.try_lock() {
+        Ok(guard) => guard,
+        Err(_) => {
             waited_for_refresh = true;
             state.live_provider_refresh_lock.lock().await
         }
@@ -1890,6 +1944,72 @@ mod tests {
                 .source_attempts
                 .iter()
                 .any(|attempt| attempt.source == "cli-pty" && attempt.outcome == "success")
+        );
+    }
+
+    #[tokio::test]
+    async fn stale_cache_returns_immediately_and_triggers_background_refresh() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        let state = test_state();
+
+        // Stale timestamp: 120s old, well past LIVE_PROVIDER_CACHE_SECS (60s).
+        {
+            let mut cache = state.live_provider_cache.write().await;
+            *cache = Some((Instant::now() - Duration::from_secs(120), {
+                let mut response = fixture_response("claude");
+                response.response_scope = "all".into();
+                response.requested_provider = None;
+                response
+            }));
+        }
+
+        // Counter incremented if the *foreground* fetcher path is accidentally
+        // invoked. In the stale-while-revalidate path it must stay zero.
+        let foreground_calls = Arc::new(AtomicUsize::new(0));
+
+        let started = Instant::now();
+        let response =
+            load_snapshots_with_fetcher(&state, None, ResponseScope::All, false, false, {
+                let foreground_calls = foreground_calls.clone();
+                move |_, _, _, _| {
+                    let foreground_calls = foreground_calls.clone();
+                    async move {
+                        foreground_calls.fetch_add(1, Ordering::SeqCst);
+                        // Return a valid response so the test doesn't error if
+                        // this path is ever reached during debugging.
+                        let mut r = fixture_response("claude");
+                        r.response_scope = "all".into();
+                        r.requested_provider = None;
+                        Ok(r)
+                    }
+                }
+            })
+            .await
+            .unwrap();
+
+        // The stale response must come back immediately — the foreground path
+        // must never block on the background fetch.
+        assert!(
+            started.elapsed() < Duration::from_millis(50),
+            "stale response took too long: {:?}",
+            started.elapsed()
+        );
+        assert!(
+            response.cache_hit,
+            "stale response must be reported as a cache hit"
+        );
+        assert_eq!(
+            foreground_calls.load(Ordering::SeqCst),
+            0,
+            "foreground fetcher must not be called when a stale cache entry exists"
+        );
+
+        // The cache entry must still exist (stale entry was not evicted).
+        let cache = state.live_provider_cache.read().await;
+        assert!(
+            cache.is_some(),
+            "cache must not be cleared by the stale-while-revalidate path"
         );
     }
 }

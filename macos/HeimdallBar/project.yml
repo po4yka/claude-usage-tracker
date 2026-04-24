@@ -223,6 +223,7 @@ targets:
     platform: macOS
     sources:
       - path: Tests/SharedTests
+      - path: CloudSync/Sources
     dependencies:
       - target: HeimdallDomain
       - target: HeimdallServices
@@ -272,6 +273,7 @@ targets:
     platform: iOS
     sources:
       - path: Tests/iOSTests
+      - path: CloudSync/Sources
     dependencies:
       - target: HeimdallDomain
       - target: HeimdallServices
