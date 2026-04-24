@@ -1224,6 +1224,10 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let (db_path, projects) = setup_test_db(&tmp);
         let mut raw_state = base_state(db_path, projects);
+        // Enable oauth so the non-startup fetcher path consults oauth_cache via
+        // its TTL fast-path; with oauth_enabled=false `refresh_usage_windows`
+        // short-circuits to `unavailable()` and skips the test fixture entirely.
+        raw_state.oauth_enabled = true;
         raw_state.aggregator_config.enabled = true;
         raw_state.webhook_config.cost_threshold = Some(50.0);
         let state = Arc::new(raw_state);
@@ -1287,11 +1291,14 @@ mod tests {
             ));
         }
 
+        // NOTE: this asserts non-startup synthesis — `startup=true` is a
+        // readiness-gate fast path that intentionally skips the fetcher, so
+        // it never populates `local_notification_state`.
         let app = crate::server::build_router(state);
         let resp = app
             .oneshot(
                 Request::builder()
-                    .uri("/api/live-providers?startup=true")
+                    .uri("/api/live-providers")
                     .body(Body::empty())
                     .unwrap(),
             )

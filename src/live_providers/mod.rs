@@ -103,6 +103,14 @@ where
     Fut: Future<Output = Result<LiveProvidersResponse>>,
 {
     if startup {
+        // Readiness gate: `startup=true` is contracted as a fast probe. It
+        // returns any full cached response (fresh or stale) when one exists,
+        // and otherwise a synthetic empty envelope — never the fetcher path.
+        // The fetcher's `build_claude_snapshot` performs `load_all_turns` and
+        // analytics that routinely take 5-30 seconds on a populated DB; that's
+        // fine for background refresh but unacceptable for a 5-second probe
+        // timeout. Subsequent (non-startup) requests walk the full path and
+        // populate `live_provider_cache` for the next readiness probe.
         if let Some(cached) = cached_response(state).await {
             return Ok(filter_response(
                 &cached,
@@ -120,7 +128,14 @@ where
             ));
         }
 
-        return fetcher(requested_provider, scope, force_refresh, true).await;
+        return Ok(LiveProvidersResponse {
+            contract_version: LIVE_PROVIDERS_CONTRACT_VERSION,
+            fetched_at: chrono::Utc::now().to_rfc3339(),
+            requested_provider,
+            response_scope: scope.as_str().to_string(),
+            cache_hit: true,
+            ..Default::default()
+        });
     }
 
     if !force_refresh && let Some(cached) = cached_response(state).await {
@@ -1740,6 +1755,35 @@ mod tests {
         assert!(response.cache_hit);
         assert_eq!(response.providers.len(), 1);
         assert_eq!(response.providers[0].provider, "claude");
+    }
+
+    #[tokio::test]
+    async fn startup_mode_with_cold_caches_returns_synthetic_response_without_fetch() {
+        let state = test_state();
+        let counter = Arc::new(AtomicUsize::new(0));
+
+        let response =
+            load_snapshots_with_fetcher(&state, None, ResponseScope::All, false, true, {
+                let counter = counter.clone();
+                move |_, _, _, _| {
+                    let counter = counter.clone();
+                    async move {
+                        counter.fetch_add(1, Ordering::SeqCst);
+                        Ok(fixture_response("claude"))
+                    }
+                }
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(
+            counter.load(Ordering::SeqCst),
+            0,
+            "cold-cache startup must not invoke fetcher"
+        );
+        assert_eq!(response.contract_version, LIVE_PROVIDERS_CONTRACT_VERSION);
+        assert!(response.providers.is_empty());
+        assert!(response.cache_hit);
     }
 
     #[tokio::test]

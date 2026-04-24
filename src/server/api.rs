@@ -567,7 +567,10 @@ pub async fn api_live_providers(
         query.startup.unwrap_or(false),
     )
     .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .map_err(|e| {
+        tracing::error!(error = ?e, "api_live_providers load_snapshots failed");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
     Ok(Json(response))
 }
 
@@ -585,7 +588,10 @@ pub async fn api_live_provider_refresh(
     let response =
         live_providers::load_snapshots(&state, query.provider.as_deref(), scope, true, false)
             .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            .map_err(|e| {
+                tracing::error!(error = ?e, "api_live_provider_refresh load_snapshots failed");
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
     Ok(Json(response))
 }
 
@@ -598,7 +604,10 @@ pub async fn api_live_provider_history(
     let provider = query.provider.unwrap_or_else(|| "claude".into());
     let summary = live_providers::load_provider_history(&state, &provider)
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|e| {
+            tracing::error!(error = ?e, provider = %provider, "api_live_provider_history failed");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
     Ok(Json(summary))
 }
 
@@ -609,7 +618,10 @@ pub async fn api_mobile_snapshot(
     enforce_loopback_request(&request)?;
     let snapshot = live_providers::load_mobile_snapshot(&state)
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|e| {
+            tracing::error!(error = ?e, "api_mobile_snapshot load_mobile_snapshot failed");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
     Ok(Json(snapshot))
 }
 
@@ -626,7 +638,10 @@ pub async fn api_live_monitor(
         false,
     )
     .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .map_err(|e| {
+        tracing::error!(error = ?e, "api_live_monitor load_snapshots failed");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
     let billing_blocks = load_billing_blocks_response(&state).await?;
     let context_window = load_context_window_response(&state).await?;
     Ok(Json(build_live_monitor_response(

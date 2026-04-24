@@ -695,8 +695,15 @@ fn main() -> Result<()> {
             let db = default_db(db_path);
             let dirs = default_dirs(projects_dir);
 
-            eprintln!("Running scan first...");
-            scanner::scan(dirs.clone(), &db, true)?;
+            // In interactive mode (no --background-poll) we block until the
+            // initial scan completes so the browser opens to populated data.
+            // In background mode (menu-bar app), defer the scan so the HTTP
+            // listener comes up immediately — readiness probes cannot wait
+            // for a multi-second JSONL walk.
+            if !background_poll {
+                eprintln!("Running scan first...");
+                scanner::scan(dirs.clone(), &db, true)?;
+            }
 
             let host_env = std::env::var("HOST")
                 .ok()
@@ -714,30 +721,42 @@ fn main() -> Result<()> {
             }
 
             let rt = tokio::runtime::Runtime::new()?;
-            rt.block_on(server::serve(server::ServeOptions {
-                host: host_env,
-                port: port_env,
-                db_path: db,
-                projects_dirs: dirs,
-                oauth_enabled: cfg_oauth_enabled,
-                oauth_refresh_interval: cfg_oauth_refresh,
-                claude_admin_enabled: cfg_claude_admin_enabled,
-                claude_admin_key_env: cfg_claude_admin_key_env,
-                claude_admin_refresh_interval: cfg_claude_admin_refresh_interval,
-                claude_admin_lookback_days: cfg_claude_admin_lookback_days,
-                openai_enabled: cfg_openai_enabled,
-                openai_admin_key_env: cfg_openai_admin_key_env,
-                openai_refresh_interval: cfg_openai_refresh_interval,
-                openai_lookback_days: cfg_openai_lookback_days,
-                webhook_config: cfg_webhooks,
-                watch,
-                background_poll,
-                agent_status_config: cfg_agent_status,
-                aggregator_config: cfg_aggregator,
-                blocks_token_limit: cfg_blocks_token_limit,
-                session_length_hours: cfg_blocks_session_length,
-                project_aliases: cfg_project_aliases.clone(),
-            }))?;
+            let scan_dirs = dirs.clone();
+            let scan_db = db.clone();
+            rt.block_on(async move {
+                if background_poll {
+                    tokio::task::spawn_blocking(move || {
+                        if let Err(e) = scanner::scan(scan_dirs, &scan_db, true) {
+                            tracing::warn!(error = ?e, "background initial scan failed");
+                        }
+                    });
+                }
+                server::serve(server::ServeOptions {
+                    host: host_env,
+                    port: port_env,
+                    db_path: db,
+                    projects_dirs: dirs,
+                    oauth_enabled: cfg_oauth_enabled,
+                    oauth_refresh_interval: cfg_oauth_refresh,
+                    claude_admin_enabled: cfg_claude_admin_enabled,
+                    claude_admin_key_env: cfg_claude_admin_key_env,
+                    claude_admin_refresh_interval: cfg_claude_admin_refresh_interval,
+                    claude_admin_lookback_days: cfg_claude_admin_lookback_days,
+                    openai_enabled: cfg_openai_enabled,
+                    openai_admin_key_env: cfg_openai_admin_key_env,
+                    openai_refresh_interval: cfg_openai_refresh_interval,
+                    openai_lookback_days: cfg_openai_lookback_days,
+                    webhook_config: cfg_webhooks,
+                    watch,
+                    background_poll,
+                    agent_status_config: cfg_agent_status,
+                    aggregator_config: cfg_aggregator,
+                    blocks_token_limit: cfg_blocks_token_limit,
+                    session_length_hours: cfg_blocks_session_length,
+                    project_aliases: cfg_project_aliases.clone(),
+                })
+                .await
+            })?;
         }
         Commands::Export {
             db_path,
