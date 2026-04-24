@@ -3,6 +3,7 @@ import SwiftUI
 
 final class MobileAppDelegate: NSObject, UIApplicationDelegate {
     var onAcceptedCloudShare: (@Sendable (URL) -> Void)?
+    var onRemoteNotification: (@Sendable () -> Void)?
 
     func application(
         _: UIApplication,
@@ -10,6 +11,15 @@ final class MobileAppDelegate: NSObject, UIApplicationDelegate {
     ) {
         guard let url = metadata.share.url else { return }
         self.onAcceptedCloudShare?(url)
+    }
+
+    func application(
+        _: UIApplication,
+        didReceiveRemoteNotification _: [AnyHashable: Any],
+        fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
+    ) {
+        self.onRemoteNotification?()
+        completionHandler(.newData)
     }
 }
 
@@ -30,6 +40,11 @@ struct HeimdallMobileApp: App {
                     self.appDelegate.onAcceptedCloudShare = { url in
                         Task { @MainActor in
                             await self.model.acceptShareURL(url)
+                        }
+                    }
+                    self.appDelegate.onRemoteNotification = {
+                        Task { @MainActor in
+                            await self.model.refresh(reason: .manual)
                         }
                     }
                 }

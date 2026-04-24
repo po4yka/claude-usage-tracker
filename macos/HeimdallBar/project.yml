@@ -241,6 +241,8 @@ targets:
       path: iOS/App/Info.plist
       properties:
         CKSharingSupported: true
+        UIBackgroundModes:
+          - remote-notification
     entitlements:
       path: iOS/App/HeimdallMobile.entitlements
       properties:
