@@ -104,6 +104,8 @@ For dashboard changes that can't be unit-tested, manually verify in a browser ag
 
 See [AGENTS.md](AGENTS.md) for the full "Adding X" playbook — including new models, new JSONL fields, new API endpoints, and database schema migrations.
 
+When you touch a heuristic — a waste detector under `src/optimizer/`, a pricing tier or fallback path in `src/pricing.rs`, or a regex-driven classifier — also append a row to (or create) the matching file in [`regressions/`](regressions/). That directory holds per-heuristic iteration logs with measured leak counts per release; see [`regressions/README.md`](regressions/README.md) for the file format and rationale.
+
 ## Reporting security issues
 
 **Do not open a public GitHub issue.** Please follow [SECURITY.md](SECURITY.md) — private vulnerability reporting via GitHub Security Advisories or email to the maintainer.
