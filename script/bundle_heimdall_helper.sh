@@ -25,4 +25,6 @@ esac
 cargo "${CARGO_ARGS[@]}" --manifest-path "$ROOT_DIR/Cargo.toml" >/dev/null
 
 mkdir -p "$HELPERS_DIR"
-install -m 755 "$HELPER_SOURCE" "$HELPERS_DIR/claude-usage-tracker"
+# Bundled helper is named `heimdall` so macOS notifications attribute the
+# background daemon to "heimdall" rather than the cargo crate name.
+install -m 755 "$HELPER_SOURCE" "$HELPERS_DIR/heimdall"

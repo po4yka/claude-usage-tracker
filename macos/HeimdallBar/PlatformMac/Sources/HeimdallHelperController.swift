@@ -188,20 +188,39 @@ public actor HeimdallHelperController: HelperRuntime {
             return nil
         }
 
-        for path in pathEnv.split(separator: ":") {
-            let candidate = URL(fileURLWithPath: String(path)).appendingPathComponent("claude-usage-tracker")
-            if FileManager.default.isExecutableFile(atPath: candidate.path) {
-                return candidate
+        // Prefer the rebranded `heimdall` filename; fall back to the legacy
+        // `claude-usage-tracker` so existing cargo-install paths still
+        // resolve while the rename rolls out.
+        for filename in Self.helperBinaryFilenames {
+            for path in pathEnv.split(separator: ":") {
+                let candidate = URL(fileURLWithPath: String(path)).appendingPathComponent(filename)
+                if FileManager.default.isExecutableFile(atPath: candidate.path) {
+                    return candidate
+                }
             }
         }
         return nil
     }
 
+    /// Filenames probed when locating the helper binary. `heimdall` is the
+    /// current bundled name (so macOS notifications attribute the background
+    /// daemon to "heimdall"); `claude-usage-tracker` is the legacy crate
+    /// binary name retained for cargo-install fallback.
+    static let helperBinaryFilenames = ["heimdall", "claude-usage-tracker"]
+
     static func bundledHelperURL(bundleURL: URL = Bundle.main.bundleURL) -> URL {
-        bundleURL
+        let helpersDir = bundleURL
             .appendingPathComponent("Contents", isDirectory: true)
             .appendingPathComponent("Helpers", isDirectory: true)
-            .appendingPathComponent("claude-usage-tracker", isDirectory: false)
+        for filename in Self.helperBinaryFilenames {
+            let candidate = helpersDir.appendingPathComponent(filename, isDirectory: false)
+            if FileManager.default.isExecutableFile(atPath: candidate.path) {
+                return candidate
+            }
+        }
+        // Default to the canonical name when neither file exists yet — callers
+        // (e.g. validation scripts) check existence themselves.
+        return helpersDir.appendingPathComponent(Self.helperBinaryFilenames.first ?? "heimdall", isDirectory: false)
     }
 
     static func shouldAllowPATHFallback(bundleURL: URL = Bundle.main.bundleURL) -> Bool {

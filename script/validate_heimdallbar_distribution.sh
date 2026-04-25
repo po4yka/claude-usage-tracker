@@ -9,7 +9,7 @@ fi
 STAGING_DIR="$1"
 APP_BUNDLE="$STAGING_DIR/HeimdallBar.app"
 APP_BINARY="$APP_BUNDLE/Contents/MacOS/HeimdallBar"
-HELPER_BINARY="$APP_BUNDLE/Contents/Helpers/claude-usage-tracker"
+HELPER_BINARY="$APP_BUNDLE/Contents/Helpers/heimdall"
 WIDGET_BUNDLE="$APP_BUNDLE/Contents/PlugIns/HeimdallBarWidget.appex"
 CLI_BINARY="$STAGING_DIR/bin/heimdallbar"
 FRAMEWORK_DIR="$STAGING_DIR/Frameworks"
