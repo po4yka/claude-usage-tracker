@@ -1,11 +1,13 @@
 import SwiftUI
 
-extension Color {
-    static let accentInteractive = Color.accentColor
-    static let warning = Color("AccentWarning", bundle: .main)
-    static let success = Color("AccentSuccess", bundle: .main)
-    static let accentError = Color("AccentError", bundle: .main)
+extension ShapeStyle where Self == Color {
+    static var accentInteractive: Color { Color.accentColor }
+    static var warning: Color { Color("AccentWarning", bundle: .main) }
+    static var success: Color { Color("AccentSuccess", bundle: .main) }
+    static var accentError: Color { Color("AccentError", bundle: .main) }
+}
 
+extension Color {
     static func severity(usedPercent: Double) -> Color {
         if usedPercent >= 80 { return .accentError }
         if usedPercent >= 50 { return .warning }
