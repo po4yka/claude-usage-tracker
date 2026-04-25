@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/icons/app-icon-256.png" width="128" alt="Heimdall icon" />
+</p>
+
 # Heimdall – Claude Usage Tracker
 
 A fast, local analytics platform for Claude Code, Codex, Cursor, OpenCode, Pi, Copilot, Xcode CodingAssistant, Cowork, and Amp sessions. Built in Rust.
