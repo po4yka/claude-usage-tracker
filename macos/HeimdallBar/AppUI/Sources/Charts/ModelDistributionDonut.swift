@@ -17,11 +17,13 @@ struct ModelDistributionDonut: View {
     enum DonutMetric: String, Equatable {
         case cost
         case calls
+        case tokens
 
         var captionLabel: String {
             switch self {
             case .cost: return "Cost share"
             case .calls: return "Call share"
+            case .tokens: return "Token share"
             }
         }
 
@@ -29,6 +31,7 @@ struct ModelDistributionDonut: View {
             switch self {
             case .cost: return "cost"
             case .calls: return "calls"
+            case .tokens: return "tokens"
             }
         }
     }
@@ -42,7 +45,7 @@ struct ModelDistributionDonut: View {
         VStack(alignment: .leading, spacing: 6) {
             ChartHeader(
                 title: "Model mix · 30 days",
-                caption: "\(capped.count) model\(capped.count == 1 ? "" : "s") · cost vs. calls."
+                caption: "\(capped.count) model\(capped.count == 1 ? "" : "s") · cost vs. calls vs. tokens."
             )
             if capped.isEmpty {
                 Text("No model data yet.")
@@ -62,6 +65,11 @@ struct ModelDistributionDonut: View {
                         colorMap: colorMap,
                         metric: .calls
                     )
+                    self.captionedDonut(
+                        families: families,
+                        colorMap: colorMap,
+                        metric: .tokens
+                    )
                     Spacer(minLength: 0)
                 }
             }
@@ -72,7 +80,7 @@ struct ModelDistributionDonut: View {
             cornerRadius: ChartStyle.cardCornerRadius
         )
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Model mix donut, \(rows.count) models, by cost and calls")
+        .accessibilityLabel("Model mix donut, \(rows.count) models, by cost, calls, and tokens")
     }
 
     @ViewBuilder
@@ -190,6 +198,7 @@ struct ModelDistributionDonut: View {
         let label: String
         let costUSD: Double
         let turns: Int
+        let tokens: Int
 
         var id: String { self.label }
 
@@ -197,22 +206,33 @@ struct ModelDistributionDonut: View {
             switch metric {
             case .cost: return self.costUSD
             case .calls: return Double(self.turns)
+            case .tokens: return Double(self.tokens)
             }
         }
     }
 
     /// Collapse individual models into family groups, sorted by cost descending.
     nonisolated static func families(from rows: [ProviderModelRow]) -> [FamilyEntry] {
-        var grouped: [String: (cost: Double, turns: Int)] = [:]
+        var grouped: [String: (cost: Double, turns: Int, tokens: Int)] = [:]
         for row in rows {
             let label = modelFamilyLabel(row.model)
-            var entry = grouped[label] ?? (cost: 0, turns: 0)
+            var entry = grouped[label] ?? (cost: 0, turns: 0, tokens: 0)
             entry.cost += row.costUSD
             entry.turns += row.turns
+            entry.tokens += row.input + row.output
+                + row.cacheRead + row.cacheCreation
+                + row.reasoningOutput
             grouped[label] = entry
         }
         return grouped
-            .map { FamilyEntry(label: $0.key, costUSD: $0.value.cost, turns: $0.value.turns) }
+            .map {
+                FamilyEntry(
+                    label: $0.key,
+                    costUSD: $0.value.cost,
+                    turns: $0.value.turns,
+                    tokens: $0.value.tokens
+                )
+            }
             .sorted { $0.costUSD > $1.costUSD }
     }
 
@@ -302,5 +322,5 @@ struct ModelDistributionDonut: View {
     ]
     ModelDistributionDonut(rows: rows)
         .padding()
-        .frame(width: 480)
+        .frame(width: 600)
 }
