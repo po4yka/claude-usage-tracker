@@ -427,6 +427,10 @@ pub struct ProviderCostSummary {
     /// Top versions by cost for the 30-day window.
     #[serde(default)]
     pub version_breakdown: Vec<ProviderVersionRow>,
+    /// Per-day per-model rows over the 30-day window for this provider.
+    /// Powers the model-mix history chart in the macOS menubar app.
+    #[serde(default)]
+    pub daily_by_model: Vec<ProviderDailyModelRow>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -479,6 +483,22 @@ pub struct ProviderVersionRow {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub struct ProviderModelRow {
+    pub model: String,
+    pub cost_usd: f64,
+    pub input: u64,
+    pub output: u64,
+    pub cache_read: u64,
+    pub cache_creation: u64,
+    pub reasoning_output: u64,
+    pub turns: u64,
+}
+
+/// One per-day per-model bucket scoped to a single provider; powers the
+/// model-mix history chart in the macOS menubar.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub struct ProviderDailyModelRow {
+    pub day: String,
     pub model: String,
     pub cost_usd: f64,
     pub input: u64,

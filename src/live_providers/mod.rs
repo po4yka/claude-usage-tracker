@@ -1531,6 +1531,8 @@ fn provider_cost_summary(
     };
 
     let by_model = db::get_provider_model_rows(conn, provider, &start_date, 10).unwrap_or_default();
+    let daily_by_model =
+        db::get_provider_daily_by_model(conn, provider, &start_date).unwrap_or_default();
     let by_project =
         db::get_provider_project_rows(conn, provider, &start_date, 10).unwrap_or_default();
     let by_tool = db::get_provider_tool_rows(conn, provider, &start_date, 15).unwrap_or_default();
@@ -1567,6 +1569,7 @@ fn provider_cost_summary(
         recent_sessions,
         subagent_breakdown,
         version_breakdown,
+        daily_by_model,
     })
 }
 

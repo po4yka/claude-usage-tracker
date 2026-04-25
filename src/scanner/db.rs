@@ -2789,6 +2789,44 @@ pub fn get_provider_daily_cost_history_since(
         .map_err(Into::into)
 }
 
+pub fn get_provider_daily_by_model(
+    conn: &Connection,
+    provider: &str,
+    start_date: &str,
+) -> Result<Vec<crate::models::ProviderDailyModelRow>> {
+    let mut stmt = conn.prepare(
+        "SELECT substr(timestamp, 1, 10) as day,
+                COALESCE(model, 'unknown') as model,
+                COALESCE(SUM(estimated_cost_nanos), 0) as cost_nanos,
+                COALESCE(SUM(input_tokens), 0) as input,
+                COALESCE(SUM(output_tokens), 0) as output,
+                COALESCE(SUM(cache_read_tokens), 0) as cache_read,
+                COALESCE(SUM(cache_creation_tokens), 0) as cache_creation,
+                COALESCE(SUM(reasoning_output_tokens), 0) as reasoning_output,
+                COUNT(*) as turns
+         FROM turns
+         WHERE provider = ?1 AND substr(timestamp, 1, 10) >= ?2
+         GROUP BY day, model
+         ORDER BY day ASC, cost_nanos DESC",
+    )?;
+    let rows = stmt.query_map(rusqlite::params![provider, start_date], |row| {
+        let cost_nanos: i64 = row.get(2)?;
+        Ok(crate::models::ProviderDailyModelRow {
+            day: row.get(0)?,
+            model: row.get(1)?,
+            cost_usd: cost_nanos as f64 / 1_000_000_000.0,
+            input: row.get::<_, i64>(3)? as u64,
+            output: row.get::<_, i64>(4)? as u64,
+            cache_read: row.get::<_, i64>(5)? as u64,
+            cache_creation: row.get::<_, i64>(6)? as u64,
+            reasoning_output: row.get::<_, i64>(7)? as u64,
+            turns: row.get::<_, i64>(8)? as u64,
+        })
+    })?;
+    rows.collect::<rusqlite::Result<Vec<_>>>()
+        .map_err(Into::into)
+}
+
 pub fn get_provider_model_rows(
     conn: &Connection,
     provider: &str,
