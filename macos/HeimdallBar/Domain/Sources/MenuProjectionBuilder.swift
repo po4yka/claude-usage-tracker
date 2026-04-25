@@ -174,7 +174,8 @@ public enum MenuProjectionBuilder {
             activityHeatmap: snapshot?.costSummary.activityHeatmap ?? [],
             recentSessions: snapshot?.costSummary.recentSessions ?? [],
             subagentBreakdown: snapshot?.costSummary.subagentBreakdown,
-            versionBreakdown: snapshot?.costSummary.versionBreakdown ?? []
+            versionBreakdown: snapshot?.costSummary.versionBreakdown ?? [],
+            dailyByModel: snapshot?.costSummary.dailyByModel ?? []
         )
     }
 

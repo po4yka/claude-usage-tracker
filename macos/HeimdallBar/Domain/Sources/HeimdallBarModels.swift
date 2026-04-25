@@ -471,6 +471,7 @@ public struct ProviderCostSummary: Codable, Sendable {
     public var recentSessions: [ProviderSession]
     public var subagentBreakdown: ProviderSubagentBreakdown?
     public var versionBreakdown: [ProviderVersionRow]
+    public var dailyByModel: [ProviderDailyModelRow]
 
     public init(
         todayTokens: Int,
@@ -491,7 +492,8 @@ public struct ProviderCostSummary: Codable, Sendable {
         activityHeatmap: [ProviderHeatmapCell] = [],
         recentSessions: [ProviderSession] = [],
         subagentBreakdown: ProviderSubagentBreakdown? = nil,
-        versionBreakdown: [ProviderVersionRow] = []
+        versionBreakdown: [ProviderVersionRow] = [],
+        dailyByModel: [ProviderDailyModelRow] = []
     ) {
         self.todayTokens = todayTokens
         self.todayCostUSD = todayCostUSD
@@ -512,6 +514,7 @@ public struct ProviderCostSummary: Codable, Sendable {
         self.recentSessions = recentSessions
         self.subagentBreakdown = subagentBreakdown
         self.versionBreakdown = versionBreakdown
+        self.dailyByModel = dailyByModel
     }
 
     public init(from decoder: Decoder) throws {
@@ -535,6 +538,7 @@ public struct ProviderCostSummary: Codable, Sendable {
         self.recentSessions = try container.decodeIfPresent([ProviderSession].self, forKey: .recentSessions) ?? []
         self.subagentBreakdown = try container.decodeIfPresent(ProviderSubagentBreakdown.self, forKey: .subagentBreakdown)
         self.versionBreakdown = try container.decodeIfPresent([ProviderVersionRow].self, forKey: .versionBreakdown) ?? []
+        self.dailyByModel = try container.decodeIfPresent([ProviderDailyModelRow].self, forKey: .dailyByModel) ?? []
     }
 
     enum CodingKeys: String, CodingKey {
@@ -557,6 +561,7 @@ public struct ProviderCostSummary: Codable, Sendable {
         case recentSessions = "recent_sessions"
         case subagentBreakdown = "subagent_breakdown"
         case versionBreakdown = "version_breakdown"
+        case dailyByModel = "daily_by_model"
     }
 }
 
@@ -616,7 +621,8 @@ public extension ProviderCostSummary {
             activityHeatmap: ProviderCostSummaryMerge.heatmap(self.activityHeatmap, other.activityHeatmap),
             recentSessions: mergedRecentSessionsByID,
             subagentBreakdown: ProviderCostSummaryMerge.subagents(self.subagentBreakdown, other.subagentBreakdown),
-            versionBreakdown: ProviderCostSummaryMerge.versions(self.versionBreakdown, other.versionBreakdown)
+            versionBreakdown: ProviderCostSummaryMerge.versions(self.versionBreakdown, other.versionBreakdown),
+            dailyByModel: ProviderCostSummaryMerge.dailyByModel(self.dailyByModel, other.dailyByModel)
         )
     }
 }
@@ -777,6 +783,38 @@ private enum ProviderCostSummaryMerge {
         return mergedRows.sorted(by: sortVersions)
     }
 
+    static func dailyByModel(
+        _ lhs: [ProviderDailyModelRow],
+        _ rhs: [ProviderDailyModelRow]
+    ) -> [ProviderDailyModelRow] {
+        let grouped = Dictionary(grouping: lhs + rhs) { row in
+            "\(row.day)|\(row.model)"
+        }
+        let merged: [ProviderDailyModelRow] = grouped.values.compactMap { rows in
+            guard let first = rows.first else { return nil }
+            return ProviderDailyModelRow(
+                day: first.day,
+                model: first.model,
+                costUSD: rows.reduce(0.0) { $0 + $1.costUSD },
+                input: rows.reduce(0) { $0 + $1.input },
+                output: rows.reduce(0) { $0 + $1.output },
+                cacheRead: rows.reduce(0) { $0 + $1.cacheRead },
+                cacheCreation: rows.reduce(0) { $0 + $1.cacheCreation },
+                reasoningOutput: rows.reduce(0) { $0 + $1.reasoningOutput },
+                turns: rows.reduce(0) { $0 + $1.turns }
+            )
+        }
+        return merged.sorted { lhs, rhs in
+            if lhs.day == rhs.day {
+                if lhs.costUSD == rhs.costUSD {
+                    return lhs.model < rhs.model
+                }
+                return lhs.costUSD > rhs.costUSD
+            }
+            return lhs.day < rhs.day
+        }
+    }
+
     private static func sortModels(_ lhs: ProviderModelRow, _ rhs: ProviderModelRow) -> Bool {
         if lhs.costUSD == rhs.costUSD {
             return lhs.model < rhs.model
@@ -853,6 +891,60 @@ public struct ProviderModelRow: Codable, Sendable, Hashable, Identifiable {
     }
 
     enum CodingKeys: String, CodingKey {
+        case model
+        case costUSD = "cost_usd"
+        case input
+        case output
+        case cacheRead = "cache_read"
+        case cacheCreation = "cache_creation"
+        case reasoningOutput = "reasoning_output"
+        case turns
+    }
+}
+
+/// Per-day per-model bucket within a provider's 30-day window. Mirrors Rust
+/// `ProviderDailyModelRow` (`src/models.rs`).
+public struct ProviderDailyModelRow: Codable, Sendable, Hashable, Identifiable {
+    public let day: String
+    public let model: String
+    public let costUSD: Double
+    public let input: Int
+    public let output: Int
+    public let cacheRead: Int
+    public let cacheCreation: Int
+    public let reasoningOutput: Int
+    public let turns: Int
+
+    public var id: String { "\(self.day)|\(self.model)" }
+
+    public var totalTokens: Int {
+        self.input + self.output + self.cacheRead + self.cacheCreation + self.reasoningOutput
+    }
+
+    public init(
+        day: String,
+        model: String,
+        costUSD: Double,
+        input: Int,
+        output: Int,
+        cacheRead: Int,
+        cacheCreation: Int,
+        reasoningOutput: Int,
+        turns: Int
+    ) {
+        self.day = day
+        self.model = model
+        self.costUSD = costUSD
+        self.input = input
+        self.output = output
+        self.cacheRead = cacheRead
+        self.cacheCreation = cacheCreation
+        self.reasoningOutput = reasoningOutput
+        self.turns = turns
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case day
         case model
         case costUSD = "cost_usd"
         case input
@@ -3135,6 +3227,7 @@ public struct ProviderMenuProjection: Sendable, Identifiable {
     public var recentSessions: [ProviderSession]
     public var subagentBreakdown: ProviderSubagentBreakdown?
     public var versionBreakdown: [ProviderVersionRow]
+    public var dailyByModel: [ProviderDailyModelRow]
 
     public var id: String { self.provider.rawValue }
 
@@ -3189,7 +3282,8 @@ public struct ProviderMenuProjection: Sendable, Identifiable {
         activityHeatmap: [ProviderHeatmapCell] = [],
         recentSessions: [ProviderSession] = [],
         subagentBreakdown: ProviderSubagentBreakdown? = nil,
-        versionBreakdown: [ProviderVersionRow] = []
+        versionBreakdown: [ProviderVersionRow] = [],
+        dailyByModel: [ProviderDailyModelRow] = []
     ) {
         self.provider = provider
         self.title = title
@@ -3242,6 +3336,7 @@ public struct ProviderMenuProjection: Sendable, Identifiable {
         self.recentSessions = recentSessions
         self.subagentBreakdown = subagentBreakdown
         self.versionBreakdown = versionBreakdown
+        self.dailyByModel = dailyByModel
     }
 }
 

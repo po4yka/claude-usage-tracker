@@ -329,12 +329,15 @@ private struct WindowOverviewActivitySection: View {
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         if analytics.showsModelMix {
-                            ModelDistributionDonut(rows: analytics.modelRows)
-                                .frame(
-                                    minWidth: AppShellLayout.analyticsSplitMinimumWidth * 0.64,
-                                    maxWidth: AppShellLayout.analyticsSplitMinimumWidth * 0.82,
-                                    alignment: .leading
-                                )
+                            ModelDistributionDonut(
+                                rows: analytics.modelRows,
+                                dailyByModel: analytics.dailyModelRows
+                            )
+                            .frame(
+                                minWidth: AppShellLayout.analyticsSplitMinimumWidth * 0.64,
+                                maxWidth: AppShellLayout.analyticsSplitMinimumWidth * 0.82,
+                                alignment: .leading
+                            )
                         }
                     }
 
@@ -343,7 +346,10 @@ private struct WindowOverviewActivitySection: View {
                             ActivityHeatmap(cells: analytics.heatmapCells)
                         }
                         if analytics.showsModelMix {
-                            ModelDistributionDonut(rows: analytics.modelRows)
+                            ModelDistributionDonut(
+                                rows: analytics.modelRows,
+                                dailyByModel: analytics.dailyModelRows
+                            )
                         }
                     }
                 }
@@ -746,6 +752,7 @@ struct WindowOverviewDesktopAnalyticsModel {
     let providerComparisonItems: [ProviderMenuProjection]
     let heatmapCells: [ProviderHeatmapCell]
     let modelRows: [ProviderModelRow]
+    let dailyModelRows: [ProviderDailyModelRow]
     let recentSessions: [ProviderSession]
     let weeklyProjection: WindowOverviewWeeklyProjectionModel?
 
@@ -770,6 +777,7 @@ struct WindowOverviewDesktopAnalyticsModel {
             providerComparisonItems: projection.items,
             heatmapCells: self.aggregateHeatmapCells(from: projection.items),
             modelRows: self.aggregateModelRows(from: projection.items),
+            dailyModelRows: self.aggregateDailyModelRows(from: projection.items),
             recentSessions: self.aggregateRecentSessions(from: projection.items),
             weeklyProjection: WindowOverviewWeeklyProjectionModel.make(items: projection.items)
         )
@@ -844,6 +852,61 @@ struct WindowOverviewDesktopAnalyticsModel {
                 return lhs.model < rhs.model
             }
             return lhs.costUSD > rhs.costUSD
+        }
+    }
+
+    private static func aggregateDailyModelRows(
+        from items: [ProviderMenuProjection]
+    ) -> [ProviderDailyModelRow] {
+        struct Aggregate {
+            var costUSD: Double = 0
+            var input: Int = 0
+            var output: Int = 0
+            var cacheRead: Int = 0
+            var cacheCreation: Int = 0
+            var reasoningOutput: Int = 0
+            var turns: Int = 0
+        }
+
+        var grouped: [String: Aggregate] = [:]
+        for item in items {
+            for row in item.dailyByModel {
+                let key = "\(row.day)|\(row.model)"
+                var entry = grouped[key, default: Aggregate()]
+                entry.costUSD += row.costUSD
+                entry.input += row.input
+                entry.output += row.output
+                entry.cacheRead += row.cacheRead
+                entry.cacheCreation += row.cacheCreation
+                entry.reasoningOutput += row.reasoningOutput
+                entry.turns += row.turns
+                grouped[key] = entry
+            }
+        }
+
+        return grouped.compactMap { key, aggregate -> ProviderDailyModelRow? in
+            let parts = key.split(separator: "|", maxSplits: 1).map(String.init)
+            guard parts.count == 2 else { return nil }
+            return ProviderDailyModelRow(
+                day: parts[0],
+                model: parts[1],
+                costUSD: aggregate.costUSD,
+                input: aggregate.input,
+                output: aggregate.output,
+                cacheRead: aggregate.cacheRead,
+                cacheCreation: aggregate.cacheCreation,
+                reasoningOutput: aggregate.reasoningOutput,
+                turns: aggregate.turns
+            )
+        }
+        .sorted { lhs, rhs in
+            if lhs.day == rhs.day {
+                if lhs.costUSD == rhs.costUSD {
+                    return lhs.model < rhs.model
+                }
+                return lhs.costUSD > rhs.costUSD
+            }
+            return lhs.day < rhs.day
         }
     }
 
