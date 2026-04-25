@@ -1,9 +1,39 @@
-/// Compose the output status line from computed stats.
+//! Compose the output status line from computed stats.
+//!
+//! # Char budget
+//!
+//! Claude Code's status bar is length-capped by the medium (terminal width
+//! and Claude Code's status-bar UI). The full output is bounded by
+//! [`STATUSLINE_MAX_CHARS`] (180), which is enforced by
+//! `tests::render_fits_budget_worst_case` against a fixture exercising every
+//! optional segment simultaneously: long model name, dual-cost session
+//! segment with drift warn, active block with `Both`-style burn-rate tier
+//! (emoji + bracket), and a CRIT context window.
+//!
+//! Defense-in-depth: the model name is also runtime-truncated to 24 chars
+//! (Unicode scalar values, not bytes — see `model_truncation_unicode_no_panic`)
+//! so a runaway model alias cannot single-handedly bust the budget. The 180
+//! ceiling is the second line of defense.
+//!
+//! Pattern borrowed from talk-normal's `prompt-chatgpt.md` budget convention:
+//! when output overflows, either compress the content or bump the budget
+//! here with rationale. Never silently truncate the rendered line at
+//! runtime — segments downstream of a truncation point lose information
+//! the user paid for.
+
 use crate::analytics::burn_rate::{self, BurnRateConfig, BurnRateTier};
 use crate::analytics::quota::Severity;
 use crate::pricing::{fmt_cost, fmt_tokens};
 use crate::statusline::VisualBurnRate;
 use crate::statusline::compute::{ComputedStats, CostSource};
+
+/// Maximum chars in the rendered statusline (Unicode scalar values).
+///
+/// Sized to accommodate the worst realistic combination of segments:
+/// model (24-char truncation cap) + dual-cost session with drift warn +
+/// active block with emoji+bracket tier + CRIT context window. Asserted in
+/// `tests::render_fits_budget_worst_case`.
+pub const STATUSLINE_MAX_CHARS: usize = 180;
 
 /// Options controlling how the status line is rendered.
 pub struct RenderOpts {
@@ -373,6 +403,69 @@ mod tests {
     }
 
     // ── Severity-band tests ───────────────────────────────────────────────────
+
+    // ── Char-budget test (see module docblock § "Char budget") ───────────────
+
+    /// Worst-realistic statusline output fits STATUSLINE_MAX_CHARS.
+    ///
+    /// Builds a fixture exercising every optional segment simultaneously:
+    /// long model name (truncated to 24 chars), dual-cost session segment
+    /// in `Both` mode with cost-drift WARN, active block with high-tier
+    /// burn rate rendered as emoji+bracket, and a CRIT context window.
+    /// If a future segment is added without budget consideration, this
+    /// test fails before the change ships.
+    #[test]
+    fn render_fits_budget_worst_case() {
+        let block_end = Utc::now() + chrono::Duration::minutes(192);
+        let stats = ComputedStats {
+            // Long alias — runtime-truncated to 24 chars by render.
+            model: "claude-opus-4-5-with-very-long-versioned-suffix".to_string(),
+            local_session_cost_nanos: 9_999_900_000, // $9.9999
+            // Hook is 15% above local → triggers `[WARN: cost drift]`.
+            hook_session_cost_nanos: Some(11_499_885_000),
+            session_cost_nanos: 9_999_900_000,
+            today_cost_nanos: 99_999_900_000, // $99.9999
+            active_block: Some(ActiveBlockInfo {
+                cost_nanos: 99_999_900_000, // $99.9999
+                block_end,
+                burn_rate: Some(BurnRate {
+                    tokens_per_min: 500.0, // > moderate_max=250 → High tier
+                    cost_per_hour_nanos: 9_999_900_000,
+                }),
+            }),
+            // ~100% fill → CRIT context marker (worst-case render width).
+            context_tokens: Some(199_900),
+            context_size: Some(200_000),
+        };
+
+        let opts = RenderOpts {
+            cost_source: CostSource::Both,
+            visual_burn_rate: VisualBurnRate::Both,
+            ..RenderOpts::default()
+        };
+        let line = render_status_line_with_opts(&stats, &opts);
+
+        // Sanity: every load-bearing segment is present (otherwise the
+        // budget assertion below would be testing a degraded fixture).
+        assert!(
+            line.contains("[WARN: cost drift]"),
+            "fixture missing drift warn: {line:?}"
+        );
+        assert!(
+            line.contains("🚨"),
+            "fixture missing high-tier emoji: {line:?}"
+        );
+        assert!(
+            line.contains("[CRIT]"),
+            "fixture missing CRIT marker: {line:?}"
+        );
+
+        let len = line.chars().count();
+        assert!(
+            len <= STATUSLINE_MAX_CHARS,
+            "statusline overflowed budget: {len} chars > {STATUSLINE_MAX_CHARS}\n  line: {line:?}"
+        );
+    }
 
     /// Below low threshold (22% fill) → no severity marker.
     #[test]

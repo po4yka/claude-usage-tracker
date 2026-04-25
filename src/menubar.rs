@@ -8,12 +8,45 @@
 //! Security: any user-controlled text (project names, session titles, etc.)
 //! must pass through `sanitize_swiftbar_text` before being included in the
 //! output. This prevents injection of SwiftBar control sequences.
+//!
+//! # Char budgets
+//!
+//! The menu bar surface is length-capped by the medium (macOS menu bar clips
+//! long titles; submenu rows look ragged on small screens). Two budgets are
+//! enforced as `pub const` and asserted in unit tests so future edits cannot
+//! silently bust them:
+//!
+//! - [`MENUBAR_TITLE_MAX_CHARS`] (30): title line shown in the menu bar.
+//!   Worst realistic case `$99999.99 · 9999` is 18 chars, giving ~12-char
+//!   headroom for future title content.
+//! - [`MENUBAR_ROW_MAX_CHARS`] (80): submenu content rows (Cost, Sessions,
+//!   One-shot rate, etc.). Action rows containing SwiftBar param keywords
+//!   (`href=`, `bash=`) are excluded from this budget — those are by-design
+//!   long.
+//!
+//! Pattern borrowed from talk-normal's `prompt-chatgpt.md` budget convention:
+//! when output overflows, either compress the content or bump the budget with
+//! rationale documented here. Never silently truncate at runtime — UTF-8
+//! truncation can split codepoints and break the security sanitizer.
 
 use std::path::Path;
 
 use anyhow::Result;
 
 use crate::scanner::db::open_db;
+
+/// Maximum chars in the menu bar title line (Unicode scalar values).
+///
+/// macOS clips long titles in the menu bar; 30 chars holds the worst
+/// realistic case (`$99999.99 · 9999` = 18 chars) with margin. Asserted in
+/// `tests::test_title_fits_budget`.
+pub const MENUBAR_TITLE_MAX_CHARS: usize = 30;
+
+/// Maximum chars per submenu content row (Unicode scalar values).
+///
+/// Excludes SwiftBar action rows (`href=`, `bash=` keywords) which are
+/// by-design long. Asserted in `tests::test_submenu_rows_fit_budget`.
+pub const MENUBAR_ROW_MAX_CHARS: usize = 80;
 
 /// Data extracted from the DB for the menubar display.
 #[derive(Debug, Default)]
@@ -353,6 +386,81 @@ mod tests {
     }
 
     /// Seeded DB with two turns produces a title with '$' and non-zero cost.
+    // -----------------------------------------------------------------------
+    // Char-budget tests (see module docblock § "Char budgets")
+    // -----------------------------------------------------------------------
+
+    /// The menu-bar title fits MENUBAR_TITLE_MAX_CHARS across realistic ranges.
+    ///
+    /// macOS clips long titles silently; busting the budget leaves users
+    /// staring at a chopped cost number with no error. Failing CI here is
+    /// the early warning.
+    #[test]
+    fn test_title_fits_budget() {
+        // Default (zero) fixture.
+        let small = MenubarData::default();
+        let title = format_title(&small);
+        assert!(
+            title.chars().count() <= MENUBAR_TITLE_MAX_CHARS,
+            "default title overflowed budget: {:?} ({} chars > {})",
+            title,
+            title.chars().count(),
+            MENUBAR_TITLE_MAX_CHARS,
+        );
+
+        // Worst realistic case: large daily cost, many sessions.
+        let huge = MenubarData {
+            today_cost_usd: 99_999.99,
+            today_sessions: 9_999,
+            one_shot_rate: None,
+        };
+        let title = format_title(&huge);
+        assert!(
+            title.chars().count() <= MENUBAR_TITLE_MAX_CHARS,
+            "worst-case title overflowed budget: {:?} ({} chars > {})",
+            title,
+            title.chars().count(),
+            MENUBAR_TITLE_MAX_CHARS,
+        );
+    }
+
+    /// Each submenu content row fits MENUBAR_ROW_MAX_CHARS. Action rows
+    /// containing SwiftBar param keywords (`href=`, `bash=`) are by-design
+    /// long and excluded from this budget.
+    #[test]
+    fn test_submenu_rows_fit_budget() {
+        let data = MenubarData {
+            today_cost_usd: 99_999.99,
+            today_sessions: 9_999,
+            one_shot_rate: Some(0.99),
+        };
+        let output = render(&data);
+
+        // SwiftBar layout: <title>\n---\n<content>\n---\n<actions>
+        // Split on the separator and pick the content section (index 1).
+        let sections: Vec<&str> = output.split("\n---\n").collect();
+        assert!(
+            sections.len() >= 2,
+            "render output missing SwiftBar separator: {output:?}"
+        );
+        let content = sections[1];
+
+        for line in content.lines() {
+            // Skip any line that contains a SwiftBar param keyword — those
+            // are action rows, not content rows.
+            if line.contains("href=") || line.contains("bash=") {
+                continue;
+            }
+            assert!(
+                line.chars().count() <= MENUBAR_ROW_MAX_CHARS,
+                "submenu row overflowed budget: {:?} ({} chars > {})",
+                line,
+                line.chars().count(),
+                MENUBAR_ROW_MAX_CHARS,
+            );
+        }
+    }
+
     #[test]
     fn test_run_menubar_with_seeded_db() {
         use crate::scanner::db::{init_db, open_db};
