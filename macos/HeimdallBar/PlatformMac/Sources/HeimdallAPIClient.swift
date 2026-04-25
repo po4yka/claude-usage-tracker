@@ -8,6 +8,7 @@ public struct HeimdallAPIClient: LiveProviderClient, LiveMonitorClient, MobileSn
     private let retryPolicy: RetryPolicy
     private static let defaultRequestTimeout: TimeInterval = 3
     private static let startupRequestTimeout: TimeInterval = 1.5
+    private static let liveMonitorRequestTimeout: TimeInterval = 30
     private static let forcedRefreshTimeout: TimeInterval = 45
 
     struct RetryPolicy: Sendable, Equatable {
@@ -77,7 +78,13 @@ public struct HeimdallAPIClient: LiveProviderClient, LiveMonitorClient, MobileSn
     }
 
     public func fetchLiveMonitor() async throws -> LiveMonitorEnvelope {
-        try self.validate(try await self.fetch(path: "/api/live-monitor", as: LiveMonitorEnvelope.self))
+        var request = URLRequest(url: self.baseURL.appendingPathComponent("/api/live-monitor"))
+        request.timeoutInterval = Self.liveMonitorRequestTimeout
+        let (data, response) = try await self.data(for: request)
+        guard let http = response as? HTTPURLResponse, 200..<300 ~= http.statusCode else {
+            throw URLError(.badServerResponse)
+        }
+        return try self.validate(try JSONDecoder().decode(LiveMonitorEnvelope.self, from: data))
     }
 
     public func liveMonitorEvents() -> AsyncThrowingStream<String, Error> {

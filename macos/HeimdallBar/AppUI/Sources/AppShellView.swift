@@ -214,10 +214,7 @@ private struct WindowOverviewCloudSyncSection: View {
                         .foregroundStyle(.secondary)
                 }
                 .padding(18)
-                .background(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(Color(nsColor: .controlBackgroundColor))
-                )
+                .menuCardBackground(opacity: 0.04, cornerRadius: 16)
 
                 ForEach(self.aggregate.installations) { installation in
                     VStack(alignment: .leading, spacing: 8) {
@@ -235,14 +232,11 @@ private struct WindowOverviewCloudSyncSection: View {
                         if installation.isStale {
                             Text("Stale provider data")
                                 .font(.caption.weight(.semibold))
-                                .foregroundStyle(.orange)
+                                .foregroundStyle(.warning)
                         }
                     }
                     .padding(18)
-                    .background(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .fill(Color(nsColor: .controlBackgroundColor))
-                    )
+                    .menuCardBackground(opacity: 0.04, cornerRadius: 16)
                 }
             }
         }
@@ -268,8 +262,7 @@ private struct WindowOverviewCloudSyncSection: View {
     }
 
     private func displayTimestamp(_ raw: String) -> String {
-        guard let date = ISO8601DateFormatter().date(from: raw) else { return raw }
-        return date.formatted(date: .abbreviated, time: .shortened)
+        liveMonitorAbbreviatedTimestamp(raw)
     }
 }
 
@@ -366,6 +359,7 @@ private struct WindowOverviewActivitySection: View {
 private struct WindowLiveMonitorView: View {
     @Bindable var model: LiveMonitorFeatureModel
     let helperPort: Int
+    @State private var isPreferencesPopoverPresented = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
@@ -377,53 +371,17 @@ private struct WindowLiveMonitorView: View {
                     Task { await self.model.refresh() }
                 },
                 isRetrying: self.model.isRefreshing
-            )
-
-            VStack(alignment: .leading, spacing: 14) {
-                WindowSectionHeader(
-                    title: "Focus",
-                    subtitle: "Merged provider lanes with fast switching"
-                )
-                Picker("Provider focus", selection: Binding(
-                    get: { self.model.focus },
-                    set: { self.model.setFocus($0) }
-                )) {
-                    ForEach(LiveMonitorFocus.allCases) { focus in
-                        Text(focus.title).tag(focus)
-                    }
+            ) {
+                Button {
+                    self.isPreferencesPopoverPresented.toggle()
+                } label: {
+                    Image(systemName: "slider.horizontal.3")
+                        .font(.body.weight(.medium))
                 }
-                .pickerStyle(.segmented)
-                .frame(maxWidth: 320)
-            }
-
-            VStack(alignment: .leading, spacing: 14) {
-                WindowSectionHeader(
-                    title: "Preferences",
-                    subtitle: "Persisted locally for this Mac app"
-                )
-
-                Picker("Detail density", selection: Binding(
-                    get: { self.model.density },
-                    set: { self.model.setDensity($0) }
-                )) {
-                    ForEach(LiveMonitorDensity.allCases) { density in
-                        Text(density.title).tag(density)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .frame(maxWidth: 320)
-
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 180), spacing: 12)], spacing: 12) {
-                    ForEach(LiveMonitorPanelID.allCases) { panel in
-                        Toggle(
-                            panel.title,
-                            isOn: Binding(
-                                get: { !self.model.isPanelHidden(panel) },
-                                set: { self.model.setPanelVisibility(panel, isVisible: $0) }
-                            )
-                        )
-                        .toggleStyle(.switch)
-                    }
+                .buttonStyle(SecondaryDashboardButtonStyle())
+                .accessibilityLabel("Live Monitor preferences")
+                .popover(isPresented: self.$isPreferencesPopoverPresented, arrowEdge: .top) {
+                    LiveMonitorPreferencesPopover(model: self.model)
                 }
             }
 
@@ -477,8 +435,65 @@ private struct WindowLiveMonitorView: View {
     }
 
     private static func shortTime(_ iso: String) -> String {
-        guard let date = ISO8601DateFormatter().date(from: iso) else { return iso }
-        return date.formatted(date: .omitted, time: .shortened)
+        liveMonitorShortTime(iso)
+    }
+}
+
+private struct LiveMonitorPreferencesPopover: View {
+    @Bindable var model: LiveMonitorFeatureModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Provider focus")
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Picker("Provider focus", selection: Binding(
+                    get: { self.model.focus },
+                    set: { self.model.setFocus($0) }
+                )) {
+                    ForEach(LiveMonitorFocus.allCases) { focus in
+                        Text(focus.title).tag(focus)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Detail density")
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Picker("Detail density", selection: Binding(
+                    get: { self.model.density },
+                    set: { self.model.setDensity($0) }
+                )) {
+                    ForEach(LiveMonitorDensity.allCases) { density in
+                        Text(density.title).tag(density)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+            }
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Show panels")
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                ForEach(LiveMonitorPanelID.allCases) { panel in
+                    Toggle(panel.title, isOn: Binding(
+                        get: { !self.model.isPanelHidden(panel) },
+                        set: { self.model.setPanelVisibility(panel, isVisible: $0) }
+                    ))
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                }
+            }
+        }
+        .padding(18)
+        .frame(minWidth: 280)
     }
 }
 
@@ -490,8 +505,8 @@ private struct WindowLiveMonitorProviderCard: View {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(self.provider.title)
                     .font(.title3.weight(.semibold))
-                Text(self.provider.visualState.uppercased())
-                    .font(.caption2.weight(.bold))
+                Text(self.provider.visualState.capitalized)
+                    .font(.caption2.weight(.semibold))
                     .padding(.horizontal, 7)
                     .padding(.vertical, 3)
                     .background(
@@ -522,7 +537,7 @@ private struct WindowLiveMonitorProviderCard: View {
                                 .foregroundStyle(.secondary)
                         }
                         ProgressView(value: min(max(window.usedPercent, 0), 100), total: 100)
-                            .tint(window.usedPercent >= 80 ? .red : window.usedPercent >= 50 ? .orange : .primary)
+                            .tint(Color.severity(usedPercent: window.usedPercent))
                         Text(window.resetsInMinutes.map { "Resets in \(Self.resetLabel(minutes: $0))" } ?? "No reset time available")
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -564,16 +579,13 @@ private struct WindowLiveMonitorProviderCard: View {
             }
         }
         .padding(18)
-        .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor))
-        )
+        .menuCardBackground(opacity: 0.04, cornerRadius: 16)
     }
 
     private var stateColor: Color {
         switch self.provider.visualState {
-        case "error": return .red
-        case "incident", "degraded": return .orange
+        case "error": return .accentError
+        case "incident", "degraded": return .warning
         case "stale": return .secondary
         default: return .primary
         }
@@ -617,7 +629,7 @@ private struct WindowLiveMonitorDetailSection: View {
                             .foregroundStyle(.secondary)
                         if let quota = block.quota {
                             ProgressView(value: min(quota.projectedPercent, 1.0), total: 1.0)
-                                .tint(quota.projectedSeverity == "danger" ? .red : quota.projectedSeverity == "warn" ? .orange : .primary)
+                                .tint(Color.severity(code: quota.projectedSeverity))
                             Text("\(Int(quota.projectedPercent * 100))% projected · \(Self.compactNumber(quota.remainingTokens)) tokens left")
                                 .font(self.density == .compact ? .caption2 : .caption)
                                 .foregroundStyle(.secondary)
@@ -653,7 +665,7 @@ private struct WindowLiveMonitorDetailSection: View {
                             .font(self.density == .compact ? .caption2 : .caption)
                             .foregroundStyle(.secondary)
                         ProgressView(value: context.pct, total: 1.0)
-                            .tint(context.severity == "danger" ? .red : context.severity == "warn" ? .orange : .primary)
+                            .tint(Color.severity(code: context.severity))
                     }
                 }
 
@@ -685,8 +697,7 @@ private struct WindowLiveMonitorDetailSection: View {
     }
 
     private static func shortTime(_ iso: String) -> String {
-        guard let date = ISO8601DateFormatter().date(from: iso) else { return iso }
-        return date.formatted(date: .omitted, time: .shortened)
+        liveMonitorShortTime(iso)
     }
 
     private static func compactNumber(_ value: Int) -> String {
@@ -727,10 +738,7 @@ private struct WindowLiveMonitorDetailCard<Content: View>: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(self.density == .compact ? 14 : 18)
-        .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor))
-        )
+        .menuCardBackground(opacity: 0.04, cornerRadius: 16)
     }
 }
 
@@ -1649,8 +1657,7 @@ struct WindowDepletionForecastModel: Equatable {
     }
 
     private static func shortTime(_ iso: String) -> String {
-        guard let date = ISO8601DateFormatter().date(from: iso) else { return iso }
-        return date.formatted(date: .omitted, time: .shortened)
+        liveMonitorShortTime(iso)
     }
 }
 
@@ -1671,8 +1678,9 @@ private struct WindowDepletionForecastCardBody: View {
                     Text(self.model.primary.valueLabel)
                         .font(.callout.monospacedDigit().weight(.semibold))
                     if let paceLabel = self.model.primary.paceLabel {
-                        Text(paceLabel.uppercased())
+                        Text(paceLabel)
                             .font(.caption2.weight(.semibold))
+                            .textCase(.uppercase)
                             .foregroundStyle(self.toneColor.opacity(0.9))
                     }
                 }
@@ -1727,9 +1735,9 @@ private struct WindowDepletionForecastCardBody: View {
     private var toneColor: Color {
         switch self.model.severity {
         case "danger":
-            return .red
+            return .accentError
         case "warn":
-            return .orange
+            return .warning
         default:
             return .primary
         }
@@ -1900,8 +1908,9 @@ private struct WindowOverviewQuotaLaneCard: View {
                     .tracking(0.4)
                 Spacer(minLength: 8)
                 if let paceLabel = self.lane.paceLabel {
-                    Text(paceLabel.uppercased())
+                    Text(paceLabel)
                         .font(.caption2.weight(.semibold))
+                        .textCase(.uppercase)
                         .foregroundStyle(self.toneColor.opacity(0.9))
                 }
             }
@@ -1942,9 +1951,9 @@ private struct WindowOverviewQuotaLaneCard: View {
     private var toneColor: Color {
         switch self.lane.remainingPercent {
         case ..<15:
-            return .red.opacity(0.78)
+            return Color.accentError.opacity(0.78)
         case ..<35:
-            return .orange.opacity(0.76)
+            return Color.warning.opacity(0.76)
         default:
             return Color.primary.opacity(0.72)
         }
@@ -2078,9 +2087,9 @@ private struct WindowOverviewQuotaBurnRow: View {
     private var toneColor: Color {
         switch self.lane.remainingPercent {
         case ..<15:
-            return .red.opacity(0.78)
+            return Color.accentError.opacity(0.78)
         case ..<35:
-            return .orange.opacity(0.74)
+            return Color.warning.opacity(0.74)
         default:
             return Color.primary.opacity(0.78)
         }
@@ -2212,11 +2221,11 @@ private struct WindowOverviewProviderCard: View {
     private var borderColor: Color {
         switch self.item.visualState {
         case .error:
-            return .red.opacity(0.42)
+            return Color.accentError.opacity(0.42)
         case .incident:
-            return .red.opacity(0.34)
+            return Color.accentError.opacity(0.34)
         case .degraded, .stale:
-            return .orange.opacity(0.38)
+            return Color.warning.opacity(0.38)
         case .refreshing:
             return Color.primary.opacity(0.18)
         case .healthy:
@@ -2303,8 +2312,9 @@ private struct WindowOverviewPredictiveInsightsStrip: View {
                     .tracking(0.4)
                 Spacer(minLength: 8)
                 if let analysis = self.model.limitHitAnalysis {
-                    Text(analysis.riskLevel.uppercased())
+                    Text(analysis.riskLevel)
                         .font(.caption2.weight(.semibold))
+                        .textCase(.uppercase)
                         .foregroundStyle(self.riskColor(for: analysis.riskLevel))
                 }
             }
@@ -2346,9 +2356,9 @@ private struct WindowOverviewPredictiveInsightsStrip: View {
     private func riskColor(for riskLevel: String) -> Color {
         switch riskLevel.lowercased() {
         case "critical", "high":
-            return .red
+            return .accentError
         case "warn", "warning", "medium", "moderate":
-            return .orange
+            return .warning
         default:
             return Color.primary.opacity(0.8)
         }
@@ -2401,9 +2411,9 @@ private struct WindowPredictiveInsightsCardBody: View {
     private func riskColor(for riskLevel: String) -> Color {
         switch riskLevel.lowercased() {
         case "critical", "high":
-            return .red
+            return .accentError
         case "warn", "warning", "medium", "moderate":
-            return .orange
+            return .warning
         default:
             return Color.primary.opacity(0.8)
         }
@@ -2456,9 +2466,10 @@ private struct PredictiveInsightsDetailSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: self.density == .compact ? 5 : 6) {
-            Text(self.title.uppercased())
+            Text(self.title)
                 .font((self.density == .compact ? Font.caption2 : .caption2).weight(.semibold))
                 .foregroundStyle(.secondary)
+                .textCase(.uppercase)
                 .tracking(0.4)
 
             Text(self.value)
@@ -2614,17 +2625,38 @@ enum WindowProviderHeaderSubtitle {
     }
 }
 
-private struct WindowHeader: View {
+private struct WindowHeader<Trailing: View>: View {
     let title: String
     let subtitle: String
     let issue: WindowHeaderIssuePresentation?
     var onRetry: (() -> Void)? = nil
     var isRetrying: Bool = false
+    let trailing: Trailing
+
+    init(
+        title: String,
+        subtitle: String,
+        issue: WindowHeaderIssuePresentation? = nil,
+        onRetry: (() -> Void)? = nil,
+        isRetrying: Bool = false,
+        @ViewBuilder trailing: () -> Trailing
+    ) {
+        self.title = title
+        self.subtitle = subtitle
+        self.issue = issue
+        self.onRetry = onRetry
+        self.isRetrying = isRetrying
+        self.trailing = trailing()
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(self.title)
-                .font(.system(size: 24, weight: .semibold))
+            HStack(alignment: .firstTextBaseline) {
+                Text(self.title)
+                    .font(.system(size: 24, weight: .semibold))
+                Spacer(minLength: 12)
+                self.trailing
+            }
             Text(self.subtitle)
                 .font(.callout)
                 .foregroundStyle(.secondary)
@@ -2639,6 +2671,25 @@ private struct WindowHeader: View {
     }
 }
 
+extension WindowHeader where Trailing == EmptyView {
+    init(
+        title: String,
+        subtitle: String,
+        issue: WindowHeaderIssuePresentation? = nil,
+        onRetry: (() -> Void)? = nil,
+        isRetrying: Bool = false
+    ) {
+        self.init(
+            title: title,
+            subtitle: subtitle,
+            issue: issue,
+            onRetry: onRetry,
+            isRetrying: isRetrying,
+            trailing: { EmptyView() }
+        )
+    }
+}
+
 enum WindowHeaderIssueTone: Equatable {
     case pending
     case warning
@@ -2647,33 +2698,33 @@ enum WindowHeaderIssueTone: Equatable {
     var tint: Color {
         switch self {
         case .pending:
-            return .accentColor
+            return .accentInteractive
         case .warning:
-            return .orange
+            return .warning
         case .critical:
-            return .red
+            return .accentError
         }
     }
 
     var background: Color {
         switch self {
         case .pending:
-            return Color.accentColor.opacity(0.08)
+            return Color.accentInteractive.opacity(0.08)
         case .warning:
-            return Color.orange.opacity(0.10)
+            return Color.warning.opacity(0.10)
         case .critical:
-            return Color.red.opacity(0.10)
+            return Color.accentError.opacity(0.10)
         }
     }
 
     var border: Color {
         switch self {
         case .pending:
-            return Color.accentColor.opacity(0.22)
+            return Color.accentInteractive.opacity(0.22)
         case .warning:
-            return Color.orange.opacity(0.28)
+            return Color.warning.opacity(0.28)
         case .critical:
-            return Color.red.opacity(0.28)
+            return Color.accentError.opacity(0.28)
         }
     }
 }
@@ -2793,9 +2844,8 @@ private struct WindowIssueBanner: View {
             .frame(width: 30, height: 30)
 
             VStack(alignment: .leading, spacing: 6) {
-                Text(issue.badge.uppercased())
-                    .font(.system(size: 10, weight: .semibold))
-                    .tracking(0.6)
+                Text(issue.badge)
+                    .font(.caption2.weight(.semibold))
                     .foregroundStyle(issue.tone.tint)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
@@ -2915,9 +2965,9 @@ private struct WindowCardNote: View {
         case .neutral:
             return Color.primary.opacity(0.78)
         case .warning:
-            return .orange
+            return .warning
         case .critical:
-            return .red
+            return .accentError
         }
     }
 
@@ -2926,9 +2976,9 @@ private struct WindowCardNote: View {
         case .neutral:
             return Color.primary.opacity(0.06)
         case .warning:
-            return Color.orange.opacity(0.12)
+            return Color.warning.opacity(0.12)
         case .critical:
-            return Color.red.opacity(0.12)
+            return Color.accentError.opacity(0.12)
         }
     }
 
@@ -2937,9 +2987,9 @@ private struct WindowCardNote: View {
         case .neutral:
             return Color.primary.opacity(0.14)
         case .warning:
-            return Color.orange.opacity(0.24)
+            return Color.warning.opacity(0.24)
         case .critical:
-            return Color.red.opacity(0.24)
+            return Color.accentError.opacity(0.24)
         }
     }
 }

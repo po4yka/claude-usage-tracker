@@ -630,20 +630,23 @@ pub async fn api_live_monitor(
     request: Request,
 ) -> Result<Json<LiveMonitorResponse>, StatusCode> {
     enforce_loopback_request(&request)?;
-    let snapshots = live_providers::load_snapshots(
-        &state,
-        None,
-        live_providers::ResponseScope::All,
-        false,
-        false,
-    )
-    .await
-    .map_err(|e| {
+    let (snapshots_result, billing_blocks_result, context_window_result) = tokio::join!(
+        live_providers::load_snapshots(
+            &state,
+            None,
+            live_providers::ResponseScope::All,
+            false,
+            false,
+        ),
+        load_billing_blocks_response(&state),
+        load_context_window_response(&state),
+    );
+    let snapshots = snapshots_result.map_err(|e| {
         tracing::error!(error = ?e, "api_live_monitor load_snapshots failed");
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
-    let billing_blocks = load_billing_blocks_response(&state).await?;
-    let context_window = load_context_window_response(&state).await?;
+    let billing_blocks = billing_blocks_result?;
+    let context_window = context_window_result?;
     Ok(Json(build_live_monitor_response(
         snapshots,
         billing_blocks,
@@ -932,9 +935,10 @@ fn monitor_global_issue(providers: &[LiveMonitorProvider]) -> Option<String> {
         .count();
     if error_count > 0 {
         return Some(format!(
-            "{} provider{} need attention",
+            "{} provider{} {} attention",
             error_count,
-            if error_count == 1 { "" } else { "s" }
+            if error_count == 1 { "" } else { "s" },
+            if error_count == 1 { "needs" } else { "need" }
         ));
     }
     let stale_count = providers
@@ -2115,5 +2119,44 @@ async fn maybe_send_community_spike_webhooks(state: &Arc<AppState>, signal: &Com
         openai_official_major,
     ) {
         webhooks::notify_if_configured(&state.webhook_config, event);
+    }
+}
+
+#[cfg(test)]
+mod monitor_global_issue_tests {
+    use super::*;
+
+    fn provider_in_state(state: &str) -> LiveMonitorProvider {
+        LiveMonitorProvider {
+            visual_state: state.into(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn singular_error_uses_needs() {
+        let providers = vec![provider_in_state("error")];
+        assert_eq!(
+            monitor_global_issue(&providers),
+            Some("1 provider needs attention".into())
+        );
+    }
+
+    #[test]
+    fn plural_errors_use_need() {
+        let providers = vec![provider_in_state("error"), provider_in_state("error")];
+        assert_eq!(
+            monitor_global_issue(&providers),
+            Some("2 providers need attention".into())
+        );
+    }
+
+    #[test]
+    fn singular_stale_message_unchanged() {
+        let providers = vec![provider_in_state("stale")];
+        assert_eq!(
+            monitor_global_issue(&providers),
+            Some("1 provider using stale data".into())
+        );
     }
 }

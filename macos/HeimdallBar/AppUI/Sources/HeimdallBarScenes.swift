@@ -87,6 +87,7 @@ public struct HeimdallBarScenes: Scene {
             )
                 .frame(minWidth: 900, idealWidth: 1080, minHeight: 620, idealHeight: 720)
                 .background(MainWindowIdentityTagger(sceneID: HeimdallBarSceneID.mainWindow))
+                .tint(Color.accentInteractive)
                 .onAppear { self.appDelegate.attach(model: self.model) }
                 .onOpenURL { url in
                     Task { await self.model.handleIncomingCloudShare(url: url) }
@@ -101,6 +102,7 @@ public struct HeimdallBarScenes: Scene {
                 helperPort: self.model.config.helperPort,
                 onQuit: self.quit
             )
+                .tint(Color.accentInteractive)
                 .onAppear { self.appDelegate.attach(model: self.model) }
         } label: {
             let overview = self.model.overview.projection
@@ -118,6 +120,7 @@ public struct HeimdallBarScenes: Scene {
                 helperPort: self.model.config.helperPort,
                 onQuit: self.quit
             )
+                .tint(Color.accentInteractive)
                 .onAppear { self.appDelegate.attach(model: self.model) }
         } label: {
             let providerModel = self.model.providerModel(for: .claude)
@@ -135,6 +138,7 @@ public struct HeimdallBarScenes: Scene {
                 helperPort: self.model.config.helperPort,
                 onQuit: self.quit
             )
+                .tint(Color.accentInteractive)
                 .onAppear { self.appDelegate.attach(model: self.model) }
         } label: {
             let providerModel = self.model.providerModel(for: .codex)
@@ -152,6 +156,7 @@ public struct HeimdallBarScenes: Scene {
                 providerModel: self.model.providerModel(for:)
             )
                 .frame(width: 480, height: 360)
+                .tint(Color.accentInteractive)
                 .onAppear { self.appDelegate.attach(model: self.model) }
                 .onOpenURL { url in
                     Task { await self.model.handleIncomingCloudShare(url: url) }

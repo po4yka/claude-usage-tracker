@@ -224,8 +224,9 @@ struct ProviderMenuCard: View {
                     .font(.system(size: 13, weight: .semibold))
                 StateBadge(state: self.projection.visualState, label: self.projection.stateLabel)
                 if let plan = self.planBadgeLabel {
-                    Text(plan.uppercased())
-                        .font(.caption2.weight(.bold))
+                    Text(plan)
+                        .font(.caption2.weight(.semibold))
+                        .textCase(.uppercase)
                         .tracking(0.5)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
@@ -259,7 +260,7 @@ struct ProviderMenuCard: View {
             ForEach(projection.warningLabels.prefix(2), id: \.self) { warning in
                 Label(warning, systemImage: "exclamationmark.triangle.fill")
                     .font(.caption2.weight(.medium))
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(.warning)
             }
             // Only render identityLabel when it carries more than just the
             // plan tier (which is already shown as a header badge). An
@@ -368,7 +369,7 @@ struct ProviderMenuCard: View {
             if let incidentLabel = projection.incidentLabel {
                 Label(incidentLabel, systemImage: "exclamationmark.octagon.fill")
                     .font(.caption.weight(.medium))
-                    .foregroundStyle(.red)
+                    .foregroundStyle(.accentError)
             }
             if !projection.claudeFactors.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
@@ -487,9 +488,9 @@ struct ProviderMenuCard: View {
 
     private static func trendTint(_ trend: TrendDirection) -> Color {
         switch trend {
-        case .up: return .orange
+        case .up: return .warning
         case .flat: return .secondary
-        case .down: return .green
+        case .down: return .success
         }
     }
 
@@ -525,8 +526,9 @@ private struct PredictiveInsightsMenuSection: View {
                     .foregroundStyle(.secondary)
                 Spacer(minLength: 8)
                 if let analysis = self.model.limitHitAnalysis {
-                    Text(analysis.riskLevel.uppercased())
+                    Text(analysis.riskLevel)
                         .font(.caption2.weight(.semibold))
+                        .textCase(.uppercase)
                         .foregroundStyle(self.riskColor(for: analysis.riskLevel))
                 }
             }
@@ -567,9 +569,9 @@ private struct PredictiveInsightsMenuSection: View {
     private func riskColor(for riskLevel: String) -> Color {
         switch riskLevel.lowercased() {
         case "critical", "high":
-            return .red
+            return .accentError
         case "warn", "warning", "medium", "moderate":
-            return .orange
+            return .warning
         default:
             return Color.primary.opacity(0.82)
         }
@@ -586,9 +588,10 @@ private struct PredictiveInsightsMenuRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(self.title.uppercased())
+                Text(self.title)
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.secondary)
+                    .textCase(.uppercase)
                     .tracking(0.4)
                 Spacer(minLength: 8)
                 Text(self.value)
@@ -701,7 +704,7 @@ private struct OverviewSummaryCard: View {
                 Divider()
                 Label(warningSummary, systemImage: "exclamationmark.triangle.fill")
                     .font(.caption.weight(.medium))
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(.warning)
             }
         }
         .padding(10)
@@ -765,7 +768,7 @@ private struct MenuChromeHeader: View {
     }
 
     private var attentionColor: Color {
-        self.attentionLabel == nil ? .secondary : .orange
+        self.attentionLabel == nil ? .secondary : .warning
     }
 }
 
@@ -833,29 +836,29 @@ struct ProviderStateBadgeDescriptor {
             return Self(
                 symbolName: "clock.badge.exclamationmark.fill",
                 foregroundColor: .primary,
-                backgroundColor: Color.orange.opacity(0.16),
-                borderColor: Color.orange.opacity(0.42)
+                backgroundColor: Color.warning.opacity(0.16),
+                borderColor: Color.warning.opacity(0.42)
             )
         case .degraded:
             return Self(
                 symbolName: "exclamationmark.triangle.fill",
                 foregroundColor: .primary,
-                backgroundColor: Color.orange.opacity(0.2),
-                borderColor: Color.orange.opacity(0.46)
+                backgroundColor: Color.warning.opacity(0.2),
+                borderColor: Color.warning.opacity(0.46)
             )
         case .incident:
             return Self(
                 symbolName: "exclamationmark.octagon.fill",
                 foregroundColor: .white,
-                backgroundColor: Color.red.opacity(0.9),
-                borderColor: Color.red.opacity(0.34)
+                backgroundColor: Color.accentError.opacity(0.9),
+                borderColor: Color.accentError.opacity(0.34)
             )
         case .error:
             return Self(
                 symbolName: "xmark.octagon.fill",
                 foregroundColor: .white,
-                backgroundColor: Color.red,
-                borderColor: Color.red.opacity(0.4)
+                backgroundColor: Color.accentError,
+                borderColor: Color.accentError.opacity(0.4)
             )
         }
     }
@@ -944,9 +947,9 @@ private struct LaneStatusCard: View {
     /// used in MenuProjectionBuilder.
     private static func paceTint(remainingPercent: Int) -> Color {
         switch remainingPercent {
-        case ..<15: return .red
-        case ..<35: return .orange
-        default: return .green
+        case ..<15: return .accentError
+        case ..<35: return .warning
+        default: return .success
         }
     }
 }
@@ -1183,8 +1186,8 @@ struct CacheEfficiencyCard: View {
     /// not its color — carries the signal.
     private static func tint(for rate: Double) -> Color {
         switch rate {
-        case ..<0.3: return .red
-        case ..<0.6: return .orange
+        case ..<0.3: return .accentError
+        case ..<0.6: return .warning
         default: return Color.primary.opacity(0.82)
         }
     }
@@ -1475,9 +1478,9 @@ struct OverviewProviderCard: View {
     private var highlightColor: Color {
         switch self.item.visualState {
         case .error:
-            return .red.opacity(0.45)
+            return Color.accentError.opacity(0.45)
         case .incident, .degraded, .stale:
-            return .orange.opacity(0.45)
+            return Color.warning.opacity(0.45)
         default:
             return .clear
         }
@@ -1598,7 +1601,7 @@ private struct GlobalIssueBanner: View {
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(.orange)
+                .foregroundStyle(.warning)
             VStack(alignment: .leading, spacing: 2) {
                 Text(self.message)
                     .font(.caption.weight(.semibold))
@@ -1615,11 +1618,11 @@ private struct GlobalIssueBanner: View {
         .padding(.vertical, 8)
         .background(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color.orange.opacity(0.12))
+                .fill(Color.warning.opacity(0.12))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(Color.orange.opacity(0.28), lineWidth: 1)
+                .stroke(Color.warning.opacity(0.28), lineWidth: 1)
         )
     }
 }
@@ -1708,9 +1711,9 @@ struct SessionHealthDescriptor {
     static func make(subtitle: String) -> Self {
         switch subtitle.lowercased() {
         case "connected":
-            return Self(systemImage: "checkmark.circle.fill", color: .green)
+            return Self(systemImage: "checkmark.circle.fill", color: .success)
         case "login required", "expired":
-            return Self(systemImage: "exclamationmark.triangle.fill", color: .orange)
+            return Self(systemImage: "exclamationmark.triangle.fill", color: .warning)
         default:
             return Self(systemImage: "circle.dashed", color: .secondary.opacity(0.8))
         }
