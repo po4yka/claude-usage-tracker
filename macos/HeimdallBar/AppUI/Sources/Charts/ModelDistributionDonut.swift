@@ -8,9 +8,17 @@ struct ModelDistributionDonut: View {
     let rows: [ProviderModelRow]
 
     private static let displayCap = 8
+    private static let donutSize: CGFloat = 96
+    private static let donutInnerRatio: CGFloat = 0.62
+    private static let donutOuterRatio: CGFloat = 0.98
+    private static let dimMultiplier: Double = 0.45
+
+    @State private var hoveredFamily: String?
 
     var body: some View {
         let capped = Array(self.rows.prefix(Self.displayCap))
+        let families = Self.families(from: capped)
+        let colorMap = Self.colorMap(for: families.map(\.label))
         VStack(alignment: .leading, spacing: 6) {
             ChartHeader(
                 title: "Model mix · 30 days",
@@ -22,48 +30,10 @@ struct ModelDistributionDonut: View {
                     .foregroundStyle(.secondary)
                     .padding(.vertical, 8)
             } else {
-                let families = Self.families(from: capped)
-                let colorMap = Self.colorMap(for: families.map(\.label))
                 HStack(alignment: .center, spacing: 12) {
-                    Chart {
-                        ForEach(families) { family in
-                            SectorMark(
-                                angle: .value("Cost", family.costUSD),
-                                innerRadius: .ratio(0.62),
-                                outerRadius: .ratio(0.98)
-                            )
-                            .foregroundStyle(by: .value("Model", family.label))
-                        }
-                    }
-                    .chartForegroundStyleScale(
-                        domain: families.map(\.label),
-                        range: families.map { colorMap[$0.label] ?? Color.primary.opacity(0.14) }
-                    )
-                    .chartLegend(.hidden)
-                    .frame(width: 96, height: 96)
-                    .help(Self.tooltip(for: families))
-                    .animation(ChartStyle.animation, value: families)
-
-                    // Inline legend
-                    VStack(alignment: .leading, spacing: 4) {
-                        ForEach(families) { family in
-                            HStack(spacing: 5) {
-                                RoundedRectangle(cornerRadius: 1.5, style: .continuous)
-                                    .fill(colorMap[family.label] ?? Color.primary.opacity(0.14))
-                                    .frame(width: 10, height: 4)
-                                Text(family.label)
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(1)
-                                    .help("\(family.label): \(Self.formatCost(family.costUSD))")
-                                Spacer(minLength: 2)
-                                Text(Self.formatCost(family.costUSD))
-                                    .font(.caption2.monospacedDigit().weight(.semibold))
-                                    .foregroundStyle(.primary)
-                            }
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    self.donut(families: families, colorMap: colorMap)
+                    self.legend(families: families, colorMap: colorMap)
+                    Spacer(minLength: 0)
                 }
             }
         }
@@ -74,6 +44,95 @@ struct ModelDistributionDonut: View {
         )
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Model mix donut, \(rows.count) models")
+    }
+
+    @ViewBuilder
+    private func donut(families: [FamilyEntry], colorMap: [String: Color]) -> some View {
+        let displayRange: [Color] = families.map { family in
+            let base = colorMap[family.label] ?? Color.primary.opacity(0.14)
+            if let hovered = self.hoveredFamily, hovered != family.label {
+                return base.opacity(Self.dimMultiplier)
+            }
+            return base
+        }
+        Chart {
+            ForEach(families) { family in
+                SectorMark(
+                    angle: .value("Cost", family.costUSD),
+                    innerRadius: .ratio(Self.donutInnerRatio),
+                    outerRadius: .ratio(Self.donutOuterRatio)
+                )
+                .foregroundStyle(by: .value("Model", family.label))
+            }
+        }
+        .chartForegroundStyleScale(
+            domain: families.map(\.label),
+            range: displayRange
+        )
+        .chartLegend(.hidden)
+        .frame(width: Self.donutSize, height: Self.donutSize)
+        .chartOverlay { _ in
+            GeometryReader { geo in
+                Rectangle()
+                    .fill(Color.clear)
+                    .contentShape(Rectangle())
+                    .onContinuousHover { phase in
+                        switch phase {
+                        case .active(let location):
+                            let next = Self.familyAt(
+                                point: location,
+                                in: geo.size,
+                                families: families
+                            )
+                            ChartStyle.updateHoverSelection(&self.hoveredFamily, to: next)
+                        case .ended:
+                            ChartStyle.updateHoverSelection(&self.hoveredFamily, to: nil)
+                        }
+                    }
+            }
+        }
+        .animation(ChartStyle.animation, value: families)
+        .animation(ChartStyle.hoverAnimation, value: self.hoveredFamily)
+    }
+
+    @ViewBuilder
+    private func legend(families: [FamilyEntry], colorMap: [String: Color]) -> some View {
+        let total = families.reduce(0) { $0 + $1.costUSD }
+        Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 8, verticalSpacing: 4) {
+            ForEach(families) { family in
+                let isActive = self.hoveredFamily == family.label
+                let isDim = self.hoveredFamily != nil && !isActive
+                let percent = total > 0 ? family.costUSD / total * 100 : 0
+                GridRow {
+                    RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+                        .fill(colorMap[family.label] ?? Color.primary.opacity(0.14))
+                        .frame(width: 10, height: 4)
+                        .opacity(isDim ? Self.dimMultiplier : 1)
+                    Text(family.label)
+                        .font(.caption2.weight(isActive ? .semibold : .regular))
+                        .foregroundStyle(isActive ? Color.primary : Color.secondary)
+                        .lineLimit(1)
+                        .opacity(isDim ? 0.6 : 1)
+                    Text(String(format: "%.1f%%", percent))
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(Color.primary.opacity(0.55))
+                        .opacity(isDim ? 0.6 : 1)
+                        .gridColumnAlignment(.trailing)
+                    Text(Self.formatCost(family.costUSD))
+                        .font(.caption2.monospacedDigit().weight(.semibold))
+                        .foregroundStyle(isActive ? Color.primary : Color.primary.opacity(0.85))
+                        .opacity(isDim ? 0.6 : 1)
+                        .gridColumnAlignment(.trailing)
+                }
+                .onHover { hovering in
+                    ChartStyle.updateHoverSelection(
+                        &self.hoveredFamily,
+                        to: hovering ? family.label : nil
+                    )
+                }
+            }
+        }
+        .animation(ChartStyle.hoverAnimation, value: self.hoveredFamily)
     }
 
     // MARK: - Helpers
@@ -126,17 +185,46 @@ struct ModelDistributionDonut: View {
         return map
     }
 
-    nonisolated static func tooltip(for families: [FamilyEntry]) -> String {
-        families.map { family in
-            "\(family.label): \(Self.formatCost(family.costUSD))"
-        }
-        .joined(separator: "\n")
-    }
-
     nonisolated static func formatCost(_ usd: Double) -> String {
         if usd >= 1000 { return String(format: "$%.0f", usd) }
         if usd >= 10   { return String(format: "$%.1f", usd) }
         return String(format: "$%.2f", usd)
+    }
+
+    /// Hit-test a pointer location against the donut ring; returns the family
+    /// label whose sector contains the cursor, or nil if outside the ring.
+    nonisolated static func familyAt(
+        point: CGPoint,
+        in size: CGSize,
+        families: [FamilyEntry]
+    ) -> String? {
+        guard !families.isEmpty else { return nil }
+        let cx = size.width / 2
+        let cy = size.height / 2
+        let dx = point.x - cx
+        let dy = point.y - cy
+        let dist = sqrt(dx * dx + dy * dy)
+        let halfMin = min(size.width, size.height) / 2
+        let inner = halfMin * Self.donutInnerRatio
+        let outer = halfMin * Self.donutOuterRatio
+        guard dist >= inner, dist <= outer else { return nil }
+
+        // Angle measured from 12 o'clock, clockwise, in [0, 2π).
+        var angle = atan2(dx, -dy)
+        if angle < 0 { angle += 2 * .pi }
+
+        let total = families.reduce(0) { $0 + $1.costUSD }
+        guard total > 0 else { return nil }
+
+        let normalized = angle / (2 * .pi)
+        var cumulative = 0.0
+        for family in families {
+            cumulative += family.costUSD / total
+            if normalized <= cumulative + 1e-9 {
+                return family.label
+            }
+        }
+        return families.last?.label
     }
 }
 
