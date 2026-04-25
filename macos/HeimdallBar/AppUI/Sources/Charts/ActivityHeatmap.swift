@@ -14,7 +14,7 @@ struct ActivityHeatmap: View {
     private static let cellSpacing: CGFloat = 2
     private static let tooltipWidth: CGFloat = 150
     private static let tooltipHeight: CGFloat = 64
-    private static let dimMultiplier: Double = 0.55
+    nonisolated private static let dimMultiplier: Double = 0.55
 
     @State private var hoveredCell: HoveredCell?
     @State private var cellFrames: [CellKey: CGRect] = [:]
@@ -93,7 +93,6 @@ struct ActivityHeatmap: View {
             opacity: ChartStyle.cardBackgroundOpacity,
             cornerRadius: ChartStyle.cardCornerRadius
         )
-        .help(Self.tooltip(grid: grid, summary: summary))
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Activity heatmap, 7 days by 24 hours")
     }
@@ -381,25 +380,6 @@ struct ActivityHeatmap: View {
             peakDay: peakDay,
             peakHour: peakHour
         )
-    }
-
-    nonisolated static func tooltip(grid: [[Int]], summary: Summary?) -> String {
-        var lines: [String] = []
-        if let summary {
-            lines.append("Peak: \(Self.dayLabels[summary.peakDay]) \(Self.hourLabel(summary.peakHour)) · \(summary.peakTurns) turns")
-            lines.append("Active cells: \(summary.activeCells)")
-            lines.append("Total turns: \(summary.totalTurns)")
-        }
-        for day in 0..<min(7, grid.count) {
-            let activeHours = grid[day].enumerated().compactMap { hour, turns -> String? in
-                guard turns > 0 else { return nil }
-                return "\(Self.hourLabel(hour)) \(turns)"
-            }
-            if !activeHours.isEmpty {
-                lines.append("\(Self.dayLabels[day]): \(activeHours.joined(separator: " · "))")
-            }
-        }
-        return lines.joined(separator: "\n")
     }
 
     /// Build a 7×24 matrix (day × hour) of turn counts from sparse cells.
