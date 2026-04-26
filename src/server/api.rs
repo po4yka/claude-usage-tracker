@@ -135,6 +135,23 @@ pub(crate) struct BillingBlocksApiResponse {
     pub blocks: Vec<BillingBlockViewResponse>,
 }
 
+impl BillingBlocksApiResponse {
+    /// Empty response shaped to match the live wire format. Used as a
+    /// best-effort fallback when the database read fails so the rest of the
+    /// live-monitor response can still ship.
+    pub(crate) fn empty(session_length_hours: f64, token_limit: Option<i64>) -> Self {
+        Self {
+            session_length_hours,
+            token_limit,
+            historical_max_tokens: 0,
+            quota_suggestions: None,
+            depletion_forecast: None,
+            predictive_insights: None,
+            blocks: Vec::new(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default, Serialize)]
 pub(crate) struct ContextWindowApiResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -641,12 +658,34 @@ pub async fn api_live_monitor(
         load_billing_blocks_response(&state),
         load_context_window_response(&state),
     );
+    // Snapshots are the load-bearing payload. If they fail, the whole
+    // response is meaningless, so propagate as 500.
     let snapshots = snapshots_result.map_err(|e| {
         tracing::error!(error = ?e, "api_live_monitor load_snapshots failed");
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
-    let billing_blocks = billing_blocks_result?;
-    let context_window = context_window_result?;
+    // Auxiliary data: a transient failure here used to take down the whole
+    // /api/live-monitor response and surface to the user as "Refresh issue".
+    // Now we log the failure for diagnosis and fall back to empty defaults so
+    // the dashboard still renders provider lanes, just without active-block
+    // and context-window panels until the next refresh.
+    let billing_blocks = billing_blocks_result.unwrap_or_else(|status| {
+        tracing::warn!(
+            ?status,
+            "api_live_monitor billing-blocks load failed; falling back to empty response"
+        );
+        BillingBlocksApiResponse::empty(state.session_length_hours, state.blocks_token_limit)
+    });
+    let context_window = context_window_result.unwrap_or_else(|status| {
+        tracing::warn!(
+            ?status,
+            "api_live_monitor context-window load failed; falling back to disabled response"
+        );
+        ContextWindowApiResponse {
+            enabled: Some(false),
+            ..Default::default()
+        }
+    });
     Ok(Json(build_live_monitor_response(
         snapshots,
         billing_blocks,
@@ -903,10 +942,19 @@ fn monitor_visual_state(
     snapshot: &crate::models::LiveProviderSnapshot,
     warnings: &[String],
 ) -> &'static str {
-    if snapshot.error.is_some()
-        || snapshot.auth.requires_relogin
-        || !snapshot.auth.is_source_compatible
-    {
+    // Auth is *broken* when the user must re-authenticate before usage data can
+    // flow (no creds, expired refresh, explicit relogin signal). That maps to
+    // the red "error" lane.
+    let auth_broken = !snapshot.auth.is_authenticated || snapshot.auth.requires_relogin;
+    // Auth is *misconfigured* when the user is signed in and data flows, but the
+    // active source doesn't unlock subscription/quota features (e.g. Codex with
+    // OPENAI_API_KEY in the env, or any "authenticated-incompatible-source"
+    // diagnostic). The provider still produces usable usage signal — surface as
+    // "degraded" so the dashboard warns without raising the global red banner.
+    let auth_misconfigured =
+        snapshot.auth.is_authenticated && !snapshot.auth.is_source_compatible;
+
+    if snapshot.error.is_some() || auth_broken {
         return "error";
     }
     if let Some(status) = snapshot.status.as_ref()
@@ -917,7 +965,8 @@ fn monitor_visual_state(
     if snapshot.stale {
         return "stale";
     }
-    if !warnings.is_empty()
+    if auth_misconfigured
+        || !warnings.is_empty()
         || snapshot
             .status
             .as_ref()
@@ -2158,5 +2207,82 @@ mod monitor_global_issue_tests {
             monitor_global_issue(&providers),
             Some("1 provider using stale data".into())
         );
+    }
+}
+
+#[cfg(test)]
+mod monitor_visual_state_tests {
+    use super::*;
+    use crate::models::{LiveProviderAuth, LiveProviderSnapshot};
+
+    fn snapshot_with_auth(auth: LiveProviderAuth) -> LiveProviderSnapshot {
+        LiveProviderSnapshot {
+            auth,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn missing_credentials_classifies_as_error() {
+        // Claude with no creds: is_authenticated=false, requires_relogin=true,
+        // is_source_compatible=false. Must remain "error" so the user sees the
+        // global "needs attention" banner and the red provider lane.
+        let snapshot = snapshot_with_auth(LiveProviderAuth {
+            is_authenticated: false,
+            requires_relogin: true,
+            is_source_compatible: false,
+            ..Default::default()
+        });
+        assert_eq!(monitor_visual_state(&snapshot, &[]), "error");
+    }
+
+    #[test]
+    fn requires_relogin_classifies_as_error() {
+        let snapshot = snapshot_with_auth(LiveProviderAuth {
+            is_authenticated: true,
+            requires_relogin: true,
+            is_source_compatible: true,
+            ..Default::default()
+        });
+        assert_eq!(monitor_visual_state(&snapshot, &[]), "error");
+    }
+
+    #[test]
+    fn env_override_classifies_as_degraded_not_error() {
+        // Codex with OPENAI_API_KEY set: authenticated and producing data, but
+        // running in API-key mode rather than ChatGPT subscription mode. The
+        // provider is functional, so it must NOT raise the global "needs
+        // attention" banner — only show as degraded with a warning.
+        let snapshot = snapshot_with_auth(LiveProviderAuth {
+            is_authenticated: true,
+            requires_relogin: false,
+            is_source_compatible: false,
+            diagnostic_code: Some("env-override".into()),
+            ..Default::default()
+        });
+        assert_eq!(monitor_visual_state(&snapshot, &[]), "degraded");
+    }
+
+    #[test]
+    fn healthy_auth_with_no_warnings_classifies_as_healthy() {
+        let snapshot = snapshot_with_auth(LiveProviderAuth {
+            is_authenticated: true,
+            requires_relogin: false,
+            is_source_compatible: true,
+            ..Default::default()
+        });
+        assert_eq!(monitor_visual_state(&snapshot, &[]), "healthy");
+    }
+
+    #[test]
+    fn refresh_error_string_classifies_as_error() {
+        let mut snapshot = snapshot_with_auth(LiveProviderAuth {
+            is_authenticated: true,
+            requires_relogin: false,
+            is_source_compatible: true,
+            ..Default::default()
+        });
+        snapshot.error = Some("upstream timeout".into());
+        assert_eq!(monitor_visual_state(&snapshot, &[]), "error");
     }
 }
