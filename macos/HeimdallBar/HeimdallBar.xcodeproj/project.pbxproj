@@ -67,6 +67,7 @@
 		46388706675D41CD83A6E81F /* HeimdallBarWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = A71A863F89C4C63B9F91DAD1 /* HeimdallBarWidgetBundle.swift */; };
 		48B4EBB885E396C4E15B03A6 /* HeimdallAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 080E76F40A2F0062FBDFC99B /* HeimdallAPIClient.swift */; };
 		48C78814B897D777CDB44524 /* AppShellModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E67AEA1FEA4074A97E4B1BBF /* AppShellModel.swift */; };
+		494505875DCB41DDB70E0235 /* KeychainAndSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F27EFE96629211EC32C4114C /* KeychainAndSessionTests.swift */; };
 		4BCEB412C95192EF0F577014 /* HeimdallBarScenes.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7E64EF761EFC29ACD504758 /* HeimdallBarScenes.swift */; };
 		4D54280BEFECB15BC4BFE8D8 /* HeimdallCLIRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = E23CC50437892FFEB8FD194F /* HeimdallCLIRunner.swift */; };
 		4E078BE5A4E33EE01A8893BE /* CloudKitSnapshotSyncStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2F701A9CCF00C222BD2856 /* CloudKitSnapshotSyncStore.swift */; };
@@ -644,6 +645,7 @@
 		EB837251A9F1D27248168A2A /* ProviderRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderRepository.swift; sourceTree = "<group>"; };
 		F0A391A1CC14D68FA26E1B99 /* WidgetSnapshotStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotStoreTests.swift; sourceTree = "<group>"; };
 		F19E9552E0F31BFA811C1E4C /* InstallationIDStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstallationIDStore.swift; sourceTree = "<group>"; };
+		F27EFE96629211EC32C4114C /* KeychainAndSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainAndSessionTests.swift; sourceTree = "<group>"; };
 		F33CB00C4CF2C900846A4323 /* OverviewFeatureModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverviewFeatureModel.swift; sourceTree = "<group>"; };
 		F35A5E8E3CE093B89D14CF22 /* ServiceProtocols.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServiceProtocols.swift; sourceTree = "<group>"; };
 		F58A309CB82BFFDE4178E611 /* CloudKitSyncEngineStateStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitSyncEngineStateStoreTests.swift; sourceTree = "<group>"; };
@@ -830,6 +832,7 @@
 				93D10ABE187B3E2182573300 /* HeimdallAPIClientTests.swift */,
 				4A2AA7CA8FC2E12F2D56875A /* HeimdallHelperControllerTests.swift */,
 				AF769AEE39709D2093E9BF73 /* InstallationIDStoreTests.swift */,
+				F27EFE96629211EC32C4114C /* KeychainAndSessionTests.swift */,
 				4298E5835BA635AE4E33A789 /* LiveMonitorFeatureModelTests.swift */,
 				0A3EAB0A40A631F35D511F50 /* LiveMonitorPresentationTests.swift */,
 				1F805D2061DF673DE18D66ED /* LocalNotificationCoordinatorTests.swift */,
@@ -1471,6 +1474,7 @@
 				37DBECD99E9E1A436A5758DF /* HeimdallAPIClientTests.swift in Sources */,
 				3C3730F8B1859F6DB308A7B4 /* HeimdallHelperControllerTests.swift in Sources */,
 				01CB21DB071A7FA1F0B737EB /* InstallationIDStoreTests.swift in Sources */,
+				494505875DCB41DDB70E0235 /* KeychainAndSessionTests.swift in Sources */,
 				F87F978347B34265A273C9A8 /* LiveMonitorFeatureModelTests.swift in Sources */,
 				53CBA41660587F70BA7F120E /* LiveMonitorPresentationTests.swift in Sources */,
 				0D30239CB1D2D3585D2918F6 /* LocalNotificationCoordinatorTests.swift in Sources */,
