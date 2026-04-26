@@ -5861,17 +5861,174 @@
     return /* @__PURE__ */ u4(DataTable, { columns: makeColumns2(data), data, title: "MCP Server Usage", sectionKey: "mcp-summary" });
   }
 
+  // src/ui/components/charts/MetricDonut.tsx
+  var SLICE_OPACITY_LADDER = [1, 0.64, 0.46, 0.34, 0.24, 0.16];
+  var TOP_N = 5;
+  function formatShare(share) {
+    if (share >= 99.5) return "100%";
+    if (share >= 10) return `${share.toFixed(0)}%`;
+    if (share >= 0.1) return `${share.toFixed(1)}%`;
+    if (share > 0) return "<0.1%";
+    return "0%";
+  }
+  function MetricDonut({
+    rows,
+    metric,
+    metricOptions,
+    metricLabel,
+    metricValue,
+    metricFormat,
+    rowLabel,
+    rowCost,
+    rowCalls,
+    rowTokens,
+    id,
+    centerKickerPrefix = "",
+    onMetricChange,
+    isMetricDisabled,
+    showLegend = false,
+    onSelectRow,
+    onSliceClick,
+    formatCost,
+    formatCalls,
+    formatTokens
+  }) {
+    if (!rows.length) return null;
+    const sorted = rows.map((row) => ({ row, value: metricValue(row, metric) })).filter((entry) => entry.value > 0).sort((a4, b4) => b4.value - a4.value);
+    if (!sorted.length) return null;
+    const top = sorted.slice(0, TOP_N);
+    const rest = sorted.slice(TOP_N);
+    const total = sorted.reduce((sum2, entry) => sum2 + entry.value, 0);
+    const donutRows = top.map((entry, index) => ({
+      label: rowLabel(entry.row),
+      value: entry.value,
+      share: total > 0 ? entry.value / total * 100 : 0,
+      cost: rowCost(entry.row),
+      calls: rowCalls(entry.row),
+      tokens: rowTokens(entry.row),
+      color: withAlpha("--text-display", SLICE_OPACITY_LADDER[Math.min(index, SLICE_OPACITY_LADDER.length - 1)] ?? 0.16),
+      isOther: false
+    }));
+    const otherValue = rest.reduce((sum2, entry) => sum2 + entry.value, 0);
+    const hasOther = otherValue > 0;
+    if (hasOther) {
+      donutRows.push({
+        label: `Other (${rest.length})`,
+        value: otherValue,
+        share: total > 0 ? otherValue / total * 100 : 0,
+        cost: rest.reduce((sum2, entry) => sum2 + rowCost(entry.row), 0),
+        calls: rest.reduce((sum2, entry) => sum2 + rowCalls(entry.row), 0),
+        tokens: rest.reduce((sum2, entry) => sum2 + rowTokens(entry.row), 0),
+        color: withAlpha("--text-display", SLICE_OPACITY_LADDER[Math.min(donutRows.length, SLICE_OPACITY_LADDER.length - 1)] ?? 0.16),
+        isOther: true
+      });
+    }
+    const base = dashboardChartOptions("donut");
+    const options = {
+      ...base,
+      chart: {
+        ...base.chart,
+        type: "donut",
+        ...onSliceClick ? {
+          events: {
+            dataPointSelection: (_event, _ctx, config) => {
+              const row = donutRows[config.dataPointIndex];
+              if (row && !row.isOther) onSliceClick(row.label);
+            }
+          }
+        } : {}
+      },
+      series: donutRows.map((row) => row.value),
+      labels: donutRows.map((row) => row.label),
+      colors: donutRows.map((row) => row.color),
+      stroke: { width: 2, colors: [cssVar("--surface")] },
+      legend: { ...base.legend, show: false },
+      states: {
+        hover: { filter: { type: "none", value: 0 } },
+        active: { filter: { type: "none", value: 0 } }
+      },
+      tooltip: {
+        ...base.tooltip,
+        custom: ({ seriesIndex }) => {
+          const row = donutRows[seriesIndex];
+          if (!row) return "";
+          return `<div style="padding:8px 12px;font-family:var(--font-mono,'Geist Mono',ui-monospace,monospace);font-size:11px;line-height:1.6"><strong>${esc(row.label)}</strong><br/>${esc(metricLabel(metric))}: ${esc(metricFormat(row.value, metric))} (${esc(formatShare(row.share))} share)<br/>Cost: ${esc(formatCost(row.cost))} &nbsp;&bull;&nbsp; Calls: ${esc(formatCalls(row.calls))} &nbsp;&bull;&nbsp; Tokens: ${esc(formatTokens(row.tokens))}</div>`;
+        }
+      },
+      plotOptions: {
+        pie: {
+          expandOnClick: false,
+          donut: {
+            size: "72%",
+            labels: { show: false }
+          }
+        }
+      }
+    };
+    const kicker = centerKickerPrefix ? `${centerKickerPrefix} ${metricLabel(metric)}` : metricLabel(metric);
+    return /* @__PURE__ */ u4("div", { class: "model-chart-panel", children: [
+      /* @__PURE__ */ u4("div", { class: "range-group", "aria-label": `${id} metric`, children: metricOptions.map((m4) => /* @__PURE__ */ u4(
+        "button",
+        {
+          type: "button",
+          class: `range-btn${metric === m4 ? " active" : ""}`,
+          disabled: isMetricDisabled ? isMetricDisabled(m4) : false,
+          "aria-pressed": metric === m4,
+          onClick: () => onMetricChange?.(m4),
+          children: metricLabel(m4)
+        },
+        m4
+      )) }),
+      /* @__PURE__ */ u4("div", { class: "model-chart-ring", children: [
+        /* @__PURE__ */ u4(ApexChart, { options, id }),
+        /* @__PURE__ */ u4("div", { class: "model-chart-center", "aria-hidden": "true", children: /* @__PURE__ */ u4("div", { class: "model-chart-center-inner", children: [
+          /* @__PURE__ */ u4("div", { class: "model-chart-center-kicker", children: kicker }),
+          /* @__PURE__ */ u4("div", { class: "model-chart-center-total", children: metricFormat(total, metric, true) }),
+          hasOther ? /* @__PURE__ */ u4("div", { class: "model-chart-center-meta", children: [
+            "Top ",
+            TOP_N,
+            " + Other"
+          ] }) : null
+        ] }) })
+      ] }),
+      showLegend && /* @__PURE__ */ u4("div", { class: "model-share-list", children: donutRows.map((row) => /* @__PURE__ */ u4(
+        "button",
+        {
+          type: "button",
+          class: `model-share-row${onSelectRow && !row.isOther ? " interactive" : ""}`,
+          onClick: onSelectRow && !row.isOther ? () => onSelectRow(row.label) : void 0,
+          disabled: !onSelectRow || row.isOther,
+          "aria-label": row.isOther ? `${row.label} ${metricLabel(metric)} summary` : `Filter to ${row.label}`,
+          children: [
+            /* @__PURE__ */ u4("div", { class: "model-share-row-head", children: [
+              /* @__PURE__ */ u4("div", { class: "model-share-label", children: [
+                /* @__PURE__ */ u4("span", { class: "model-share-swatch", style: { background: row.color }, "aria-hidden": "true" }),
+                /* @__PURE__ */ u4("span", { title: row.label, children: row.label })
+              ] }),
+              /* @__PURE__ */ u4("div", { class: "model-share-value", children: metricFormat(row.value, metric) })
+            ] }),
+            /* @__PURE__ */ u4("div", { class: "model-share-row-meta", children: [
+              /* @__PURE__ */ u4("div", { class: "model-share-bar", "aria-label": `${row.label} ${metricLabel(metric)} share`, children: /* @__PURE__ */ u4("div", { class: "model-share-bar-fill", style: { width: `${Math.min(100, row.share)}%`, background: row.color } }) }),
+              /* @__PURE__ */ u4("div", { class: "model-share-percent", children: formatShare(row.share) })
+            ] })
+          ]
+        },
+        row.label
+      )) })
+    ] });
+  }
+
   // src/ui/components/charts/ModelChart.tsx
   var METRIC_LABELS2 = {
     cost: "Cost",
     tokens: "Tokens",
     calls: "Calls"
   };
-  var SLICE_OPACITY_LADDER = [1, 0.64, 0.46, 0.34, 0.24, 0.16];
+  var METRIC_OPTIONS = ["cost", "tokens", "calls"];
   function totalTokens(row) {
     return row.input + row.output + row.cache_read + row.cache_creation + row.reasoning_output;
   }
-  function metricValue(row, metric) {
+  function getMetricValue(row, metric) {
     switch (metric) {
       case "cost":
         return row.cost;
@@ -5890,13 +6047,6 @@
         return fmt(value);
     }
   }
-  function formatShare(share) {
-    if (share >= 99.5) return "100%";
-    if (share >= 10) return `${share.toFixed(0)}%`;
-    if (share >= 0.1) return `${share.toFixed(1)}%`;
-    if (share > 0) return "<0.1%";
-    return "0%";
-  }
   function ModelChart({
     byModel,
     onSelectModel
@@ -5908,130 +6058,29 @@
       tokens: byModel.reduce((sum2, row) => sum2 + totalTokens(row), 0),
       calls: byModel.reduce((sum2, row) => sum2 + row.turns, 0)
     };
-    const enabledMetrics = Object.keys(METRIC_LABELS2).filter((metric2) => totals[metric2] > 0);
+    const enabledMetrics = METRIC_OPTIONS.filter((metric2) => totals[metric2] > 0);
     const metric = enabledMetrics.includes(selectedMetric) ? selectedMetric : enabledMetrics[0] ?? "cost";
-    const sorted = [...byModel].map((row) => ({
-      row,
-      value: metricValue(row, metric),
-      tokens: totalTokens(row)
-    })).filter((entry) => entry.value > 0).sort((a4, b4) => b4.value - a4.value);
-    if (!sorted.length) return null;
-    const TOP_N2 = 5;
-    const top = sorted.slice(0, TOP_N2);
-    const rest = sorted.slice(TOP_N2);
-    const total = sorted.reduce((sum2, entry) => sum2 + entry.value, 0);
-    const rows = top.map((entry, index) => ({
-      label: entry.row.model,
-      value: entry.value,
-      share: total > 0 ? entry.value / total * 100 : 0,
-      cost: entry.row.cost,
-      calls: entry.row.turns,
-      tokens: entry.tokens,
-      color: withAlpha("--text-display", SLICE_OPACITY_LADDER[Math.min(index, SLICE_OPACITY_LADDER.length - 1)] ?? 0.16),
-      isOther: false
-    }));
-    const otherValue = rest.reduce((sum2, entry) => sum2 + entry.value, 0);
-    const hasOther = otherValue > 0;
-    if (hasOther) {
-      rows.push({
-        label: `Other (${rest.length})`,
-        value: otherValue,
-        share: total > 0 ? otherValue / total * 100 : 0,
-        cost: rest.reduce((sum2, entry) => sum2 + entry.row.cost, 0),
-        calls: rest.reduce((sum2, entry) => sum2 + entry.row.turns, 0),
-        tokens: rest.reduce((sum2, entry) => sum2 + entry.tokens, 0),
-        color: withAlpha("--text-display", SLICE_OPACITY_LADDER[Math.min(rows.length, SLICE_OPACITY_LADDER.length - 1)] ?? 0.16),
-        isOther: true
-      });
-    }
-    const base = dashboardChartOptions("donut");
-    const options = {
-      ...base,
-      chart: {
-        ...base.chart,
-        type: "donut",
-        ...onSelectModel ? {
-          events: {
-            dataPointSelection: (_event, _ctx, config) => {
-              const row = rows[config.dataPointIndex];
-              if (row && !row.isOther) onSelectModel(row.label);
-            }
-          }
-        } : {}
-      },
-      series: rows.map((row) => row.value),
-      labels: rows.map((row) => row.label),
-      colors: rows.map((row) => row.color),
-      stroke: { width: 2, colors: [cssVar("--surface")] },
-      legend: { ...base.legend, show: false },
-      states: {
-        hover: { filter: { type: "none", value: 0 } },
-        active: { filter: { type: "none", value: 0 } }
-      },
-      tooltip: {
-        ...base.tooltip,
-        custom: ({ seriesIndex }) => {
-          const row = rows[seriesIndex];
-          if (!row) return "";
-          return `<div style="padding:8px 12px;font-family:var(--font-mono,'Geist Mono',ui-monospace,monospace);font-size:11px;line-height:1.6"><strong>${esc(row.label)}</strong><br/>${esc(METRIC_LABELS2[metric])}: ${esc(formatMetricValue(row.value, metric))} (${esc(formatShare(row.share))} share)<br/>Cost: ${esc(formatMetricValue(row.cost, "cost"))} &nbsp;&bull;&nbsp; Calls: ${esc(formatMetricValue(row.calls, "calls"))} &nbsp;&bull;&nbsp; Tokens: ${esc(formatMetricValue(row.tokens, "tokens"))}</div>`;
-        }
-      },
-      plotOptions: {
-        pie: {
-          expandOnClick: false,
-          donut: {
-            size: "72%",
-            labels: { show: false }
-          }
-        }
-      }
-    };
-    return /* @__PURE__ */ u4("div", { class: "model-chart-panel", children: [
-      /* @__PURE__ */ u4("div", { class: "range-group", "aria-label": "Model metric", children: Object.keys(METRIC_LABELS2).map((nextMetric) => /* @__PURE__ */ u4(
-        "button",
-        {
-          type: "button",
-          class: `range-btn${metric === nextMetric ? " active" : ""}`,
-          disabled: totals[nextMetric] <= 0,
-          "aria-pressed": metric === nextMetric,
-          onClick: () => setSelectedMetric(nextMetric),
-          children: METRIC_LABELS2[nextMetric]
-        },
-        nextMetric
-      )) }),
-      /* @__PURE__ */ u4("div", { class: "model-chart-ring", children: [
-        /* @__PURE__ */ u4(ApexChart, { options, id: "chart-model-apex" }),
-        /* @__PURE__ */ u4("div", { class: "model-chart-center", "aria-hidden": "true", children: /* @__PURE__ */ u4("div", { class: "model-chart-center-inner", children: [
-          /* @__PURE__ */ u4("div", { class: "model-chart-center-kicker", children: METRIC_LABELS2[metric] }),
-          /* @__PURE__ */ u4("div", { class: "model-chart-center-total", children: formatMetricValue(total, metric, true) }),
-          hasOther ? /* @__PURE__ */ u4("div", { class: "model-chart-center-meta", children: "Top 5 + Other" }) : null
-        ] }) })
-      ] }),
-      /* @__PURE__ */ u4("div", { class: "model-share-list", children: rows.map((row) => /* @__PURE__ */ u4(
-        "button",
-        {
-          type: "button",
-          class: `model-share-row${onSelectModel && !row.isOther ? " interactive" : ""}`,
-          onClick: onSelectModel && !row.isOther ? () => onSelectModel(row.label) : void 0,
-          disabled: !onSelectModel || row.isOther,
-          "aria-label": row.isOther ? `${row.label} ${METRIC_LABELS2[metric]} summary` : `Filter to ${row.label}`,
-          children: [
-            /* @__PURE__ */ u4("div", { class: "model-share-row-head", children: [
-              /* @__PURE__ */ u4("div", { class: "model-share-label", children: [
-                /* @__PURE__ */ u4("span", { class: "model-share-swatch", style: { background: row.color }, "aria-hidden": "true" }),
-                /* @__PURE__ */ u4("span", { title: row.label, children: row.label })
-              ] }),
-              /* @__PURE__ */ u4("div", { class: "model-share-value", children: formatMetricValue(row.value, metric) })
-            ] }),
-            /* @__PURE__ */ u4("div", { class: "model-share-row-meta", children: [
-              /* @__PURE__ */ u4("div", { class: "model-share-bar", "aria-label": `${row.label} ${METRIC_LABELS2[metric]} share`, children: /* @__PURE__ */ u4("div", { class: "model-share-bar-fill", style: { width: `${Math.min(100, row.share)}%`, background: row.color } }) }),
-              /* @__PURE__ */ u4("div", { class: "model-share-percent", children: formatShare(row.share) })
-            ] })
-          ]
-        },
-        row.label
-      )) })
-    ] });
+    return MetricDonut({
+      rows: byModel,
+      metric,
+      metricOptions: METRIC_OPTIONS,
+      metricLabel: (m4) => METRIC_LABELS2[m4],
+      metricValue: getMetricValue,
+      metricFormat: formatMetricValue,
+      rowLabel: (row) => row.model,
+      rowCost: (row) => row.cost,
+      rowCalls: (row) => row.turns,
+      rowTokens: totalTokens,
+      id: "chart-model-apex",
+      onMetricChange: setSelectedMetric,
+      isMetricDisabled: (m4) => totals[m4] <= 0,
+      showLegend: true,
+      onSelectRow: onSelectModel,
+      onSliceClick: onSelectModel,
+      formatCost: (v4) => fmtCost(v4),
+      formatCalls: (v4) => fmt(v4),
+      formatTokens: (v4) => fmt(v4)
+    });
   }
 
   // src/ui/components/tables/cells.tsx
@@ -7830,9 +7879,8 @@ ${row.project}` : row.project;
     calls: "Calls",
     tokens: "Tokens"
   };
-  var SLICE_OPACITY_LADDER2 = [1, 0.64, 0.46, 0.34, 0.24, 0.16];
-  var TOP_N = 5;
-  function metricValue2(row, metric) {
+  var METRIC_OPTIONS2 = ["cost", "calls", "tokens"];
+  function getMetricValue2(row, metric) {
     switch (metric) {
       case "cost":
         return row.cost;
@@ -7851,107 +7899,30 @@ ${row.project}` : row.project;
         return fmt(value);
     }
   }
-  function formatShare2(share) {
-    if (share >= 99.5) return "100%";
-    if (share >= 10) return `${share.toFixed(0)}%`;
-    if (share >= 0.1) return `${share.toFixed(1)}%`;
-    if (share > 0) return "<0.1%";
-    return "0%";
-  }
   function VersionDonut({ rows, metric, onMetricChange }) {
-    if (!rows.length) return null;
     const normalized = rows.map((r4) => ({
       ...r4,
       version: r4.version === "" || r4.version === "unknown" ? "(unknown)" : r4.version
     }));
-    const sorted = normalized.map((r4) => ({ row: r4, value: metricValue2(r4, metric) })).filter((entry) => entry.value > 0).sort((a4, b4) => b4.value - a4.value);
-    if (!sorted.length) return null;
-    const top = sorted.slice(0, TOP_N);
-    const rest = sorted.slice(TOP_N);
-    const total = sorted.reduce((s4, e4) => s4 + e4.value, 0);
-    const donutRows = top.map((entry, index) => ({
-      label: entry.row.version,
-      value: entry.value,
-      share: total > 0 ? entry.value / total * 100 : 0,
-      cost: entry.row.cost,
-      calls: entry.row.turns,
-      tokens: entry.row.tokens,
-      color: withAlpha("--text-display", SLICE_OPACITY_LADDER2[Math.min(index, SLICE_OPACITY_LADDER2.length - 1)] ?? 0.16),
-      isOther: false
-    }));
-    const otherValue = rest.reduce((s4, e4) => s4 + e4.value, 0);
-    const hasOther = otherValue > 0;
-    if (hasOther) {
-      donutRows.push({
-        label: `Other (${rest.length})`,
-        value: otherValue,
-        share: total > 0 ? otherValue / total * 100 : 0,
-        cost: rest.reduce((s4, e4) => s4 + e4.row.cost, 0),
-        calls: rest.reduce((s4, e4) => s4 + e4.row.turns, 0),
-        tokens: rest.reduce((s4, e4) => s4 + e4.row.tokens, 0),
-        color: withAlpha("--text-display", SLICE_OPACITY_LADDER2[Math.min(donutRows.length, SLICE_OPACITY_LADDER2.length - 1)] ?? 0.16),
-        isOther: true
-      });
-    }
-    const base = dashboardChartOptions("donut");
-    const options = {
-      ...base,
-      chart: { ...base.chart, type: "donut" },
-      series: donutRows.map((r4) => r4.value),
-      labels: donutRows.map((r4) => r4.label),
-      colors: donutRows.map((r4) => r4.color),
-      stroke: { width: 2, colors: [cssVar("--surface")] },
-      legend: { ...base.legend, show: false },
-      states: {
-        hover: { filter: { type: "none", value: 0 } },
-        active: { filter: { type: "none", value: 0 } }
-      },
-      tooltip: {
-        ...base.tooltip,
-        custom: ({ seriesIndex }) => {
-          const r4 = donutRows[seriesIndex];
-          if (!r4) return "";
-          return `<div style="padding:8px 12px;font-family:var(--font-mono,'Geist Mono',ui-monospace,monospace);font-size:11px;line-height:1.6"><strong>${esc(r4.label)}</strong><br/>${esc(METRIC_LABELS3[metric])}: ${esc(formatMetricValue2(r4.value, metric))} (${esc(formatShare2(r4.share))} share)<br/>Cost: ${esc(fmtCost(r4.cost))} &nbsp;&bull;&nbsp; Calls: ${esc(fmt(r4.calls))} &nbsp;&bull;&nbsp; Tokens: ${esc(fmt(r4.tokens))}</div>`;
-        }
-      },
-      plotOptions: {
-        pie: {
-          expandOnClick: false,
-          donut: {
-            size: "72%",
-            labels: { show: false }
-          }
-        }
-      }
-    };
-    return /* @__PURE__ */ u4("div", { class: "model-chart-panel", children: [
-      /* @__PURE__ */ u4("div", { class: "range-group", "aria-label": "Version metric", children: Object.keys(METRIC_LABELS3).map((m4) => /* @__PURE__ */ u4(
-        "button",
-        {
-          type: "button",
-          class: `range-btn${metric === m4 ? " active" : ""}`,
-          "aria-pressed": metric === m4,
-          onClick: () => onMetricChange(m4),
-          children: METRIC_LABELS3[m4]
-        },
-        m4
-      )) }),
-      /* @__PURE__ */ u4("div", { class: "model-chart-ring", children: [
-        /* @__PURE__ */ u4(ApexChart, { options, id: "chart-version-donut" }),
-        /* @__PURE__ */ u4("div", { class: "model-chart-center", "aria-hidden": "true", children: /* @__PURE__ */ u4("div", { class: "model-chart-center-inner", children: [
-          /* @__PURE__ */ u4("div", { class: "model-chart-center-kicker", children: [
-            "Total ",
-            METRIC_LABELS3[metric]
-          ] }),
-          /* @__PURE__ */ u4("div", { class: "model-chart-center-total", children: formatMetricValue2(total, metric, true) }),
-          hasOther ? /* @__PURE__ */ u4("div", { class: "model-chart-center-meta", children: [
-            "Top ",
-            TOP_N,
-            " + Other"
-          ] }) : null
-        ] }) })
-      ] })
-    ] });
+    return MetricDonut({
+      rows: normalized,
+      metric,
+      metricOptions: METRIC_OPTIONS2,
+      metricLabel: (m4) => METRIC_LABELS3[m4],
+      metricValue: getMetricValue2,
+      metricFormat: formatMetricValue2,
+      rowLabel: (row) => row.version,
+      rowCost: (row) => row.cost,
+      rowCalls: (row) => row.turns,
+      rowTokens: (row) => row.tokens,
+      id: "chart-version-donut",
+      centerKickerPrefix: "Total",
+      onMetricChange,
+      showLegend: false,
+      formatCost: (v4) => fmtCost(v4),
+      formatCalls: (v4) => fmt(v4),
+      formatTokens: (v4) => fmt(v4)
+    });
   }
 
   // src/ui/components/tables/VersionTable.tsx
@@ -8284,6 +8255,12 @@ ${row.project}` : row.project;
     const visibleInTab = SECTION_TAB_MAP[sectionId] === activeDashboardTab.value;
     container.style.display = hasContent && visibleInTab ? displayMode : "none";
   }
+  function renderSection(mountId, hasContent, element, displayMode) {
+    const container = $2(mountId);
+    if (!container) return;
+    setSectionVisibility(mountId, hasContent, displayMode ?? "");
+    R(hasContent ? element : null, container);
+  }
   function refreshSectionVisibility() {
     for (const [sectionId, tab] of Object.entries(SECTION_TAB_MAP)) {
       const container = $2(sectionId);
@@ -8315,95 +8292,40 @@ ${row.project}` : row.project;
     );
   }
   function renderOpenAiReconciliation(reconciliation) {
-    const container = $2("openai-reconciliation");
-    if (!container) return;
-    if (!reconciliation) {
-      setSectionVisibility("openai-reconciliation", false);
-      R(null, container);
-      return;
-    }
-    setSectionVisibility("openai-reconciliation", true);
-    R(/* @__PURE__ */ u4(ReconciliationBlock, { reconciliation }), container);
+    renderSection(
+      "openai-reconciliation",
+      !!reconciliation,
+      /* @__PURE__ */ u4(ReconciliationBlock, { reconciliation })
+    );
   }
   function renderOfficialSync(summary) {
-    const container = $2("official-sync");
-    if (!container) return;
-    if (!summary?.available) {
-      setSectionVisibility("official-sync", false);
-      R(null, container);
-      return;
-    }
-    setSectionVisibility("official-sync", true);
-    R(
-      /* @__PURE__ */ u4(OfficialSyncPanel, { summary, providerFilter: selectedProvider.value }),
-      container
+    renderSection(
+      "official-sync",
+      !!summary?.available,
+      /* @__PURE__ */ u4(OfficialSyncPanel, { summary, providerFilter: selectedProvider.value })
     );
   }
   function renderSubagentSummary(summary) {
-    const container = $2("subagent-summary");
-    if (!container) return;
-    if (summary.subagent_turns === 0) {
-      setSectionVisibility("subagent-summary", false);
-      R(null, container);
-      return;
-    }
-    setSectionVisibility("subagent-summary", true);
-    R(/* @__PURE__ */ u4(SubagentSummary, { summary }), container);
+    renderSection(
+      "subagent-summary",
+      summary.subagent_turns > 0,
+      /* @__PURE__ */ u4(SubagentSummary, { summary })
+    );
   }
   function renderEntrypointBreakdown(data) {
-    const container = $2("entrypoint-breakdown");
-    if (!container) return;
-    if (!data.length) {
-      setSectionVisibility("entrypoint-breakdown", false);
-      R(null, container);
-      return;
-    }
-    setSectionVisibility("entrypoint-breakdown", true);
-    R(/* @__PURE__ */ u4(EntrypointTable, { data }), container);
+    renderSection("entrypoint-breakdown", data.length > 0, /* @__PURE__ */ u4(EntrypointTable, { data }));
   }
   function renderServiceTiers(data) {
-    const container = $2("service-tiers");
-    if (!container) return;
-    if (!data.length) {
-      setSectionVisibility("service-tiers", false);
-      R(null, container);
-      return;
-    }
-    setSectionVisibility("service-tiers", true);
-    R(/* @__PURE__ */ u4(ServiceTiersTable, { data }), container);
+    renderSection("service-tiers", data.length > 0, /* @__PURE__ */ u4(ServiceTiersTable, { data }));
   }
   function renderToolSummary(data) {
-    const container = $2("tool-summary");
-    if (!container) return;
-    if (!data.length) {
-      setSectionVisibility("tool-summary", false);
-      R(null, container);
-      return;
-    }
-    setSectionVisibility("tool-summary", true);
-    R(/* @__PURE__ */ u4(ToolUsageTable, { data }), container);
+    renderSection("tool-summary", data.length > 0, /* @__PURE__ */ u4(ToolUsageTable, { data }));
   }
   function renderMcpSummary(data) {
-    const container = $2("mcp-summary");
-    if (!container) return;
-    if (!data.length) {
-      setSectionVisibility("mcp-summary", false);
-      R(null, container);
-      return;
-    }
-    setSectionVisibility("mcp-summary", true);
-    R(/* @__PURE__ */ u4(McpSummaryTable, { data }), container);
+    renderSection("mcp-summary", data.length > 0, /* @__PURE__ */ u4(McpSummaryTable, { data }));
   }
   function renderBranchSummary(data) {
-    const container = $2("branch-summary");
-    if (!container) return;
-    if (!data.length) {
-      setSectionVisibility("branch-summary", false);
-      R(null, container);
-      return;
-    }
-    setSectionVisibility("branch-summary", true);
-    R(/* @__PURE__ */ u4(BranchTable, { data }), container);
+    renderSection("branch-summary", data.length > 0, /* @__PURE__ */ u4(BranchTable, { data }));
   }
   function renderVersionSummary(data) {
     const container = $2("version-summary");
@@ -8470,15 +8392,7 @@ ${row.project}` : row.project;
     );
   }
   function renderHourlyChart(data) {
-    const container = $2("hourly-chart");
-    if (!container) return;
-    if (!data.length) {
-      setSectionVisibility("hourly-chart", false);
-      R(null, container);
-      return;
-    }
-    setSectionVisibility("hourly-chart", true);
-    R(/* @__PURE__ */ u4(HourlyChart, { data }), container);
+    renderSection("hourly-chart", data.length > 0, /* @__PURE__ */ u4(HourlyChart, { data }));
   }
   function renderUsageWindows(data, previousSessionPercent, setPreviousSessionPercent, setStatusMessage, clearStatusMessage) {
     const container = $2("usage-windows");
@@ -8540,15 +8454,7 @@ ${row.project}` : row.project;
     planBadge.value = data.identity?.plan ? data.identity.plan.charAt(0).toUpperCase() + data.identity.plan.slice(1) : "";
   }
   function renderClaudeUsage(data) {
-    const container = $2("claude-usage");
-    if (!container) return;
-    if (!data.last_run && !data.latest_snapshot) {
-      setSectionVisibility("claude-usage", false);
-      R(null, container);
-      return;
-    }
-    setSectionVisibility("claude-usage", true);
-    R(/* @__PURE__ */ u4(ClaudeUsagePanel, { data }), container);
+    renderSection("claude-usage", !!(data.last_run || data.latest_snapshot), /* @__PURE__ */ u4(ClaudeUsagePanel, { data }));
   }
   function renderAgentStatus(snapshot, communitySignal) {
     const container = $2("agent-status");

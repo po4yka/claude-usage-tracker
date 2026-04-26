@@ -115,6 +115,18 @@ export function setSectionVisibility(
   container.style.display = hasContent && visibleInTab ? displayMode : 'none';
 }
 
+function renderSection(
+  mountId: string,
+  hasContent: boolean,
+  element: import('preact').VNode,
+  displayMode?: string,
+): void {
+  const container = $(mountId);
+  if (!container) return;
+  setSectionVisibility(mountId, hasContent, displayMode ?? '');
+  render(hasContent ? element : null, container);
+}
+
 export function refreshSectionVisibility(): void {
   for (const [sectionId, tab] of Object.entries(SECTION_TAB_MAP)) {
     const container = $(sectionId);
@@ -150,102 +162,47 @@ function renderEstimationMeta(
 }
 
 function renderOpenAiReconciliation(reconciliation: DashboardData['openai_reconciliation']): void {
-  const container = $('openai-reconciliation');
-  if (!container) return;
-  if (!reconciliation) {
-    setSectionVisibility('openai-reconciliation', false);
-    render(null, container);
-    return;
-  }
-  setSectionVisibility('openai-reconciliation', true);
-  render(<ReconciliationBlock reconciliation={reconciliation} />, container);
+  renderSection(
+    'openai-reconciliation',
+    !!reconciliation,
+    <ReconciliationBlock reconciliation={reconciliation!} />,
+  );
 }
 
 function renderOfficialSync(summary: DashboardData['official_sync']): void {
-  const container = $('official-sync');
-  if (!container) return;
-  if (!summary?.available) {
-    setSectionVisibility('official-sync', false);
-    render(null, container);
-    return;
-  }
-  setSectionVisibility('official-sync', true);
-  render(
-    <OfficialSyncPanel summary={summary} providerFilter={selectedProvider.value} />,
-    container
+  renderSection(
+    'official-sync',
+    !!summary?.available,
+    <OfficialSyncPanel summary={summary!} providerFilter={selectedProvider.value} />,
   );
 }
 
 function renderSubagentSummary(summary: DashboardData['subagent_summary']): void {
-  const container = $('subagent-summary');
-  if (!container) return;
-  if (summary.subagent_turns === 0) {
-    setSectionVisibility('subagent-summary', false);
-    render(null, container);
-    return;
-  }
-  setSectionVisibility('subagent-summary', true);
-  render(<SubagentSummaryComponent summary={summary} />, container);
+  renderSection(
+    'subagent-summary',
+    summary.subagent_turns > 0,
+    <SubagentSummaryComponent summary={summary} />,
+  );
 }
 
 function renderEntrypointBreakdown(data: DashboardData['entrypoint_breakdown']): void {
-  const container = $('entrypoint-breakdown');
-  if (!container) return;
-  if (!data.length) {
-    setSectionVisibility('entrypoint-breakdown', false);
-    render(null, container);
-    return;
-  }
-  setSectionVisibility('entrypoint-breakdown', true);
-  render(<EntrypointTable data={data} />, container);
+  renderSection('entrypoint-breakdown', data.length > 0, <EntrypointTable data={data} />);
 }
 
 function renderServiceTiers(data: DashboardData['service_tiers']): void {
-  const container = $('service-tiers');
-  if (!container) return;
-  if (!data.length) {
-    setSectionVisibility('service-tiers', false);
-    render(null, container);
-    return;
-  }
-  setSectionVisibility('service-tiers', true);
-  render(<ServiceTiersTable data={data} />, container);
+  renderSection('service-tiers', data.length > 0, <ServiceTiersTable data={data} />);
 }
 
 function renderToolSummary(data: DashboardData['tool_summary']): void {
-  const container = $('tool-summary');
-  if (!container) return;
-  if (!data.length) {
-    setSectionVisibility('tool-summary', false);
-    render(null, container);
-    return;
-  }
-  setSectionVisibility('tool-summary', true);
-  render(<ToolUsageTable data={data} />, container);
+  renderSection('tool-summary', data.length > 0, <ToolUsageTable data={data} />);
 }
 
 function renderMcpSummary(data: DashboardData['mcp_summary']): void {
-  const container = $('mcp-summary');
-  if (!container) return;
-  if (!data.length) {
-    setSectionVisibility('mcp-summary', false);
-    render(null, container);
-    return;
-  }
-  setSectionVisibility('mcp-summary', true);
-  render(<McpSummaryTable data={data} />, container);
+  renderSection('mcp-summary', data.length > 0, <McpSummaryTable data={data} />);
 }
 
 function renderBranchSummary(data: DashboardData['git_branch_summary']): void {
-  const container = $('branch-summary');
-  if (!container) return;
-  if (!data.length) {
-    setSectionVisibility('branch-summary', false);
-    render(null, container);
-    return;
-  }
-  setSectionVisibility('branch-summary', true);
-  render(<BranchTable data={data} />, container);
+  renderSection('branch-summary', data.length > 0, <BranchTable data={data} />);
 }
 
 function renderVersionSummary(data: DashboardData['version_summary']): void {
@@ -317,15 +274,7 @@ function renderVersionSummary(data: DashboardData['version_summary']): void {
 }
 
 function renderHourlyChart(data: DashboardData['hourly_distribution']): void {
-  const container = $('hourly-chart');
-  if (!container) return;
-  if (!data.length) {
-    setSectionVisibility('hourly-chart', false);
-    render(null, container);
-    return;
-  }
-  setSectionVisibility('hourly-chart', true);
-  render(<HourlyChart data={data} />, container);
+  renderSection('hourly-chart', data.length > 0, <HourlyChart data={data} />);
 }
 
 export function renderUsageWindows(
@@ -404,15 +353,7 @@ export function renderUsageWindows(
 }
 
 export function renderClaudeUsage(data: ClaudeUsageResponse): void {
-  const container = $('claude-usage');
-  if (!container) return;
-  if (!data.last_run && !data.latest_snapshot) {
-    setSectionVisibility('claude-usage', false);
-    render(null, container);
-    return;
-  }
-  setSectionVisibility('claude-usage', true);
-  render(<ClaudeUsagePanel data={data} />, container);
+  renderSection('claude-usage', !!(data.last_run || data.latest_snapshot), <ClaudeUsagePanel data={data} />);
 }
 
 export function renderAgentStatus(
