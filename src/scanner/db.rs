@@ -520,16 +520,10 @@ pub fn upsert_processed_file(
 
 pub fn list_processed_files(conn: &Connection) -> Result<Vec<String>> {
     let mut stmt = conn.prepare("SELECT path FROM processed_files")?;
-    let paths = stmt
-        .query_map([], |row| row.get(0))?
-        .filter_map(|r| match r {
-            Ok(val) => Some(val),
-            Err(e) => {
-                warn!("Failed to read row: {}", e);
-                None
-            }
-        })
-        .collect();
+    let paths = collect_warn(
+        stmt.query_map([], |row| row.get(0))?,
+        "Failed to read processed_files row",
+    );
     Ok(paths)
 }
 
@@ -1979,18 +1973,12 @@ pub fn get_rate_window_history(
          WHERE window_type = ?1 AND timestamp >= ?2
          ORDER BY timestamp ASC",
     )?;
-    let rows = stmt
-        .query_map(rusqlite::params![window_type, cutoff], |row| {
+    let rows = collect_warn(
+        stmt.query_map(rusqlite::params![window_type, cutoff], |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, f64>(1)?))
-        })?
-        .filter_map(|r| match r {
-            Ok(val) => Some(val),
-            Err(e) => {
-                warn!("Failed to read row: {}", e);
-                None
-            }
-        })
-        .collect();
+        })?,
+        "Failed to read rate_window_history row",
+    );
     Ok(rows)
 }
 
@@ -2384,8 +2372,8 @@ fn get_claude_usage_factors(conn: &Connection, run_id: i64) -> Result<Vec<Claude
          WHERE run_id = ?1
          ORDER BY display_order ASC, id ASC",
     )?;
-    let rows = stmt
-        .query_map([run_id], |row| {
+    let rows = collect_warn(
+        stmt.query_map([run_id], |row| {
             Ok(ClaudeUsageFactor {
                 factor_key: row.get(0)?,
                 display_label: row.get(1)?,
@@ -2394,15 +2382,9 @@ fn get_claude_usage_factors(conn: &Connection, run_id: i64) -> Result<Vec<Claude
                 advice_text: row.get(4)?,
                 display_order: row.get(5)?,
             })
-        })?
-        .filter_map(|r| match r {
-            Ok(val) => Some(val),
-            Err(e) => {
-                warn!("Failed to read Claude usage factor row: {}", e);
-                None
-            }
-        })
-        .collect();
+        })?,
+        "Failed to read Claude usage factor row",
+    );
     Ok(rows)
 }
 
@@ -2494,23 +2476,17 @@ pub fn get_heatmap(
     sql.push_str(" GROUP BY dow, hour ORDER BY dow, hour");
 
     let mut stmt = conn.prepare(&sql)?;
-    let non_zero: Vec<(i64, i64, i64, i64)> = stmt
-        .query_map(rusqlite::params_from_iter(params.iter()), |row| {
+    let non_zero: Vec<(i64, i64, i64, i64)> = collect_warn(
+        stmt.query_map(rusqlite::params_from_iter(params.iter()), |row| {
             Ok((
                 row.get::<_, i64>(0)?,
                 row.get::<_, i64>(1)?,
                 row.get::<_, i64>(2)?,
                 row.get::<_, i64>(3)?,
             ))
-        })?
-        .filter_map(|r| match r {
-            Ok(v) => Some(v),
-            Err(e) => {
-                warn!("heatmap row error: {e}");
-                None
-            }
-        })
-        .collect();
+        })?,
+        "heatmap row error",
+    );
 
     // Build a lookup map and fill all 168 cells.
     let mut lookup: std::collections::HashMap<(i64, i64), (i64, i64)> =
@@ -2752,6 +2728,24 @@ pub fn get_provider_daily_by_model(
     rows.collect::<rusqlite::Result<Vec<_>>>()
         .map_err(Into::into)
 }
+
+// ── Provider-scoped row queries ─────────────────────────────────────
+//
+// The `get_provider_*_rows` family below shares a fixed shape:
+//
+//   (conn, provider, start_date, limit) ->
+//     SELECT ... FROM turns
+//     WHERE provider = ?1 AND substr(timestamp, 1, 10) >= ?2
+//     GROUP BY <key> ORDER BY <metric> DESC LIMIT ?3
+//
+// followed by a typed `query_map` closure and
+// `rows.collect::<rusqlite::Result<Vec<_>>>().map_err(Into::into)`.
+//
+// New provider-scoped queries should follow the same signature and the same
+// **strict** collect — not the `collect_warn` helper used by the dashboard
+// fns above. Strict collect is right here because these endpoints surface
+// errors directly to the caller via `?`; silently dropping rows would be a
+// regression for provider-scoped data the user is actively inspecting.
 
 pub fn get_provider_model_rows(
     conn: &Connection,
@@ -3306,8 +3300,8 @@ pub fn query_today_model_rows(
          FROM turns WHERE substr(timestamp, 1, 10) = ?1
          GROUP BY provider, model ORDER BY inp + out DESC",
     )?;
-    let rows = stmt
-        .query_map([today], |row| {
+    let rows = collect_warn(
+        stmt.query_map([today], |row| {
             Ok((
                 row.get(0)?,
                 row.get(1)?,
@@ -3321,15 +3315,9 @@ pub fn query_today_model_rows(
                 row.get(9)?,
                 row.get(10)?,
             ))
-        })?
-        .filter_map(|r| match r {
-            Ok(val) => Some(val),
-            Err(e) => {
-                tracing::warn!("Failed to read today_model row: {}", e);
-                None
-            }
-        })
-        .collect();
+        })?,
+        "Failed to read today_model row",
+    );
     Ok(rows)
 }
 
@@ -3459,8 +3447,8 @@ pub fn query_stats_by_model(conn: &Connection) -> rusqlite::Result<Vec<StatsMode
                 END as billing_mode
          FROM turns GROUP BY provider, model ORDER BY SUM(input_tokens+output_tokens) DESC",
     )?;
-    let rows = stmt
-        .query_map([], |row| {
+    let rows = collect_warn(
+        stmt.query_map([], |row| {
             Ok((
                 row.get(0)?,
                 row.get(1)?,
@@ -3475,15 +3463,9 @@ pub fn query_stats_by_model(conn: &Connection) -> rusqlite::Result<Vec<StatsMode
                 row.get(10)?,
                 row.get(11)?,
             ))
-        })?
-        .filter_map(|r| match r {
-            Ok(val) => Some(val),
-            Err(e) => {
-                tracing::warn!("Failed to read stats_model row: {}", e);
-                None
-            }
-        })
-        .collect();
+        })?,
+        "Failed to read stats_model row",
+    );
     Ok(rows)
 }
 
