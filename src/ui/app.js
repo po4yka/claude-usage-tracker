@@ -1742,7 +1742,7 @@
   }
   function csvTimestamp() {
     const d5 = /* @__PURE__ */ new Date();
-    return d5.getFullYear() + "-" + String(d5.getMonth() + 1).padStart(2, "0") + "-" + String(d5.getDate()).padStart(2, "0") + "_" + String(d5.getHours()).padStart(2, "0") + String(d5.getMinutes()).padStart(2, "0");
+    return d5.getUTCFullYear() + "-" + String(d5.getUTCMonth() + 1).padStart(2, "0") + "-" + String(d5.getUTCDate()).padStart(2, "0") + "_" + String(d5.getUTCHours()).padStart(2, "0") + String(d5.getUTCMinutes()).padStart(2, "0");
   }
   function downloadCSV(reportType, header, rows) {
     const lines = [header.map(csvField).join(",")];

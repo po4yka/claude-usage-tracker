@@ -29,14 +29,14 @@ describe('csv helpers', () => {
     vi.stubGlobal('document', { createElement });
     vi.stubGlobal('URL', { createObjectURL, revokeObjectURL });
 
-    expect(csvTimestamp()).toBe('2026-04-20_1407');
+    expect(csvTimestamp()).toBe('2026-04-20_1007');
 
     downloadCSV('sessions', ['Project', 'Value'], [['alpha', '=1+1']]);
 
     expect(createElement).toHaveBeenCalledWith('a');
     expect(createObjectURL).toHaveBeenCalledTimes(1);
     expect(anchor.href).toBe('blob:csv-download');
-    expect(anchor.download).toBe('sessions_2026-04-20_1407.csv');
+    expect(anchor.download).toBe('sessions_2026-04-20_1007.csv');
     expect(click).toHaveBeenCalledTimes(1);
 
     vi.advanceTimersByTime(1_000);

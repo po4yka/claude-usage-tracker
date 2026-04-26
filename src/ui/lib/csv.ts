@@ -12,9 +12,11 @@ export function csvField(val: unknown): string {
 }
 
 export function csvTimestamp(): string {
+  // UTC for export filenames so the same export produces the same filename
+  // across timezones (and so the test is TZ-stable).
   const d = new Date();
-  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0')
-    + '_' + String(d.getHours()).padStart(2, '0') + String(d.getMinutes()).padStart(2, '0');
+  return d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0') + '-' + String(d.getUTCDate()).padStart(2, '0')
+    + '_' + String(d.getUTCHours()).padStart(2, '0') + String(d.getUTCMinutes()).padStart(2, '0');
 }
 
 export function downloadCSV(reportType: string, header: string[], rows: unknown[][]): void {
