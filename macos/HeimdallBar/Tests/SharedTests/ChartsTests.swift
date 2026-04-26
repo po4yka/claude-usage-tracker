@@ -147,11 +147,18 @@ struct ChartsTests {
         ]
 
         let movingAverage = CacheHitTrendChart.movingAverageEntries(from: entries, windowSize: 2)
+        let tolerance: Double = 0.0001
 
-        #expect(abs(movingAverage[0].rate - 0.2) < 0.0001)
-        #expect(abs(movingAverage[1].rate - 0.3) < 0.0001)
-        #expect(abs(movingAverage[2].rate - 0.6) < 0.0001)
-        #expect(abs((CacheHitTrendChart.averageRate(from: entries) ?? 0) - ((0.2 + 0.4 + 0.8) / 3.0)) < 0.0001)
+        let delta0: Double = movingAverage[0].rate - 0.2
+        let delta1: Double = movingAverage[1].rate - 0.3
+        let delta2: Double = movingAverage[2].rate - 0.6
+        #expect(abs(delta0) < tolerance)
+        #expect(abs(delta1) < tolerance)
+        #expect(abs(delta2) < tolerance)
+
+        let averageRate: Double = CacheHitTrendChart.averageRate(from: entries) ?? 0
+        let expectedAverage: Double = (0.2 + 0.4 + 0.8) / 3.0
+        #expect(abs(averageRate - expectedAverage) < tolerance)
     }
 
     @Test
