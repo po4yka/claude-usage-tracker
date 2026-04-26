@@ -1,6 +1,7 @@
 use crate::agent_status::models::ProviderStatus;
 use crate::config::AgentStatusConfig;
 use serde::Serialize;
+use strum::IntoStaticStr;
 
 pub const STATUS_SUCCESS: &str = "success";
 pub const STATUS_FETCH_ERROR: &str = "fetch_error";
@@ -15,264 +16,252 @@ pub struct PricingSourceDef {
     pub priority: i64,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, IntoStaticStr)]
 pub enum OfficialSourceKind {
+    #[strum(serialize = "pricing")]
     Pricing,
+    #[strum(serialize = "model_catalog")]
     ModelCatalog,
+    #[strum(serialize = "release_notes")]
     ReleaseNotes,
+    #[strum(serialize = "status_summary")]
     StatusSummary,
+    #[strum(serialize = "status_incidents")]
     StatusIncidents,
+    #[strum(serialize = "exchange_rates")]
     ExchangeRates,
+    #[strum(serialize = "usage_reconciliation")]
     UsageReconciliation,
 }
 
 impl OfficialSourceKind {
-    pub const fn as_str(&self) -> &'static str {
-        match self {
-            Self::Pricing => "pricing",
-            Self::ModelCatalog => "model_catalog",
-            Self::ReleaseNotes => "release_notes",
-            Self::StatusSummary => "status_summary",
-            Self::StatusIncidents => "status_incidents",
-            Self::ExchangeRates => "exchange_rates",
-            Self::UsageReconciliation => "usage_reconciliation",
-        }
+    pub fn as_str(&self) -> &'static str {
+        self.into()
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, IntoStaticStr)]
 pub enum OfficialSourceFormat {
+    #[strum(serialize = "html")]
     Html,
+    #[strum(serialize = "json")]
     Json,
+    #[strum(serialize = "markdown")]
     Markdown,
+    #[strum(serialize = "xml")]
     Xml,
 }
 
 impl OfficialSourceFormat {
-    pub const fn as_str(&self) -> &'static str {
-        match self {
-            Self::Html => "html",
-            Self::Json => "json",
-            Self::Markdown => "markdown",
-            Self::Xml => "xml",
-        }
+    pub fn as_str(&self) -> &'static str {
+        self.into()
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, IntoStaticStr)]
 pub enum OfficialSourceAuthority {
+    #[strum(serialize = "provider_docs")]
     ProviderDocs,
+    #[strum(serialize = "provider_marketing")]
     ProviderMarketing,
+    #[strum(serialize = "provider_status")]
     ProviderStatus,
+    #[strum(serialize = "provider_release_notes")]
     ProviderReleaseNotes,
+    #[strum(serialize = "aggregator_api")]
     AggregatorApi,
+    #[strum(serialize = "upstream_reference")]
     UpstreamReference,
 }
 
 impl OfficialSourceAuthority {
-    pub const fn as_str(&self) -> &'static str {
-        match self {
-            Self::ProviderDocs => "provider_docs",
-            Self::ProviderMarketing => "provider_marketing",
-            Self::ProviderStatus => "provider_status",
-            Self::ProviderReleaseNotes => "provider_release_notes",
-            Self::AggregatorApi => "aggregator_api",
-            Self::UpstreamReference => "upstream_reference",
-        }
+    pub fn as_str(&self) -> &'static str {
+        self.into()
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, IntoStaticStr)]
 pub enum OfficialSourceCadence {
+    #[strum(serialize = "realtime")]
     Realtime,
+    #[strum(serialize = "hourly")]
     Hourly,
+    #[strum(serialize = "daily")]
     Daily,
+    #[strum(serialize = "weekly")]
     Weekly,
+    #[strum(serialize = "ad_hoc")]
     AdHoc,
 }
 
 impl OfficialSourceCadence {
-    pub const fn as_str(&self) -> &'static str {
-        match self {
-            Self::Realtime => "realtime",
-            Self::Hourly => "hourly",
-            Self::Daily => "daily",
-            Self::Weekly => "weekly",
-            Self::AdHoc => "ad_hoc",
-        }
+    pub fn as_str(&self) -> &'static str {
+        self.into()
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, IntoStaticStr)]
 pub enum StatusVendor {
+    #[strum(serialize = "statuspage")]
     Statuspage,
+    #[strum(serialize = "incident_io")]
     IncidentIo,
+    #[strum(serialize = "custom")]
     Custom,
 }
 
 impl StatusVendor {
-    pub const fn as_str(&self) -> &'static str {
-        match self {
-            Self::Statuspage => "statuspage",
-            Self::IncidentIo => "incident_io",
-            Self::Custom => "custom",
-        }
+    pub fn as_str(&self) -> &'static str {
+        self.into()
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, IntoStaticStr)]
 #[serde(rename_all = "snake_case")]
 pub enum ModelLifecycleStage {
+    #[strum(serialize = "preview")]
     Preview,
+    #[strum(serialize = "generally_available")]
     GenerallyAvailable,
+    #[strum(serialize = "legacy")]
     Legacy,
+    #[strum(serialize = "deprecated")]
     Deprecated,
+    #[strum(serialize = "sunset")]
     Sunset,
+    #[strum(serialize = "retired")]
     Retired,
 }
 
 impl ModelLifecycleStage {
-    pub const fn as_str(&self) -> &'static str {
-        match self {
-            Self::Preview => "preview",
-            Self::GenerallyAvailable => "generally_available",
-            Self::Legacy => "legacy",
-            Self::Deprecated => "deprecated",
-            Self::Sunset => "sunset",
-            Self::Retired => "retired",
-        }
+    pub fn as_str(&self) -> &'static str {
+        self.into()
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, IntoStaticStr)]
 #[serde(rename_all = "snake_case")]
 pub enum TokenizerFamily {
+    #[strum(serialize = "cl100k_o200k")]
     Cl100kO200k,
+    #[strum(serialize = "sentencepiece")]
     SentencePiece,
+    #[strum(serialize = "bpe")]
     Bpe,
+    #[strum(serialize = "provider_specific")]
     ProviderSpecific,
 }
 
 impl TokenizerFamily {
-    pub const fn as_str(&self) -> &'static str {
-        match self {
-            Self::Cl100kO200k => "cl100k_o200k",
-            Self::SentencePiece => "sentencepiece",
-            Self::Bpe => "bpe",
-            Self::ProviderSpecific => "provider_specific",
-        }
+    pub fn as_str(&self) -> &'static str {
+        self.into()
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, IntoStaticStr)]
 #[serde(rename_all = "snake_case")]
 pub enum ProcessingMode {
+    #[strum(serialize = "standard")]
     Standard,
+    #[strum(serialize = "batch")]
     Batch,
+    #[strum(serialize = "priority")]
     Priority,
+    #[strum(serialize = "flex")]
     Flex,
+    #[strum(serialize = "regional")]
     Regional,
 }
 
 impl ProcessingMode {
-    pub const fn as_str(&self) -> &'static str {
-        match self {
-            Self::Standard => "standard",
-            Self::Batch => "batch",
-            Self::Priority => "priority",
-            Self::Flex => "flex",
-            Self::Regional => "regional",
-        }
+    pub fn as_str(&self) -> &'static str {
+        self.into()
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, IntoStaticStr)]
 #[serde(rename_all = "snake_case")]
 pub enum ToolBillingUnit {
+    #[strum(serialize = "per_call")]
     PerCall,
+    #[strum(serialize = "per_minute")]
     PerMinute,
+    #[strum(serialize = "per_image")]
     PerImage,
+    #[strum(serialize = "per_session")]
     PerSession,
+    #[strum(serialize = "per_1k_calls")]
     Per1KCalls,
+    #[strum(serialize = "per_1m_tokens")]
     Per1MTokens,
 }
 
 impl ToolBillingUnit {
-    pub const fn as_str(&self) -> &'static str {
-        match self {
-            Self::PerCall => "per_call",
-            Self::PerMinute => "per_minute",
-            Self::PerImage => "per_image",
-            Self::PerSession => "per_session",
-            Self::Per1KCalls => "per_1k_calls",
-            Self::Per1MTokens => "per_1m_tokens",
-        }
+    pub fn as_str(&self) -> &'static str {
+        self.into()
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, IntoStaticStr)]
 #[serde(rename_all = "snake_case")]
 pub enum ReleaseNoteKind {
+    #[strum(serialize = "launch")]
     Launch,
+    #[strum(serialize = "update")]
     Update,
+    #[strum(serialize = "deprecation")]
     Deprecation,
+    #[strum(serialize = "pricing")]
     Pricing,
+    #[strum(serialize = "capability")]
     Capability,
+    #[strum(serialize = "context_window")]
     ContextWindow,
+    #[strum(serialize = "tooling")]
     Tooling,
+    #[strum(serialize = "reliability")]
     Reliability,
 }
 
 impl ReleaseNoteKind {
-    pub const fn as_str(&self) -> &'static str {
-        match self {
-            Self::Launch => "launch",
-            Self::Update => "update",
-            Self::Deprecation => "deprecation",
-            Self::Pricing => "pricing",
-            Self::Capability => "capability",
-            Self::ContextWindow => "context_window",
-            Self::Tooling => "tooling",
-            Self::Reliability => "reliability",
-        }
+    pub fn as_str(&self) -> &'static str {
+        self.into()
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, IntoStaticStr)]
 #[serde(rename_all = "snake_case")]
 pub enum IntegrityHashAlgorithm {
+    #[strum(serialize = "sha256")]
     Sha256,
+    #[strum(serialize = "sha512")]
     Sha512,
+    #[strum(serialize = "blake3")]
     Blake3,
 }
 
 impl IntegrityHashAlgorithm {
-    pub const fn as_str(&self) -> &'static str {
-        match self {
-            Self::Sha256 => "sha256",
-            Self::Sha512 => "sha512",
-            Self::Blake3 => "blake3",
-        }
+    pub fn as_str(&self) -> &'static str {
+        self.into()
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, IntoStaticStr)]
 #[serde(rename_all = "snake_case")]
 pub enum IntegrityPayloadScope {
+    #[strum(serialize = "raw_body")]
     RawBody,
+    #[strum(serialize = "normalized_body")]
     NormalizedBody,
+    #[strum(serialize = "extracted_metadata")]
     ExtractedMetadata,
+    #[strum(serialize = "extracted_pricing_rows")]
     ExtractedPricingRows,
 }
 
 impl IntegrityPayloadScope {
-    pub const fn as_str(&self) -> &'static str {
-        match self {
-            Self::RawBody => "raw_body",
-            Self::NormalizedBody => "normalized_body",
-            Self::ExtractedMetadata => "extracted_metadata",
-            Self::ExtractedPricingRows => "extracted_pricing_rows",
-        }
+    pub fn as_str(&self) -> &'static str {
+        self.into()
     }
 }
 
