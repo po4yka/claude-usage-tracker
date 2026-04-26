@@ -941,27 +941,27 @@ struct WindowOverviewDesktopAnalyticsModel {
         }
     }
 
-    private static func aggregateModelRows(from items: [ProviderMenuProjection]) -> [ProviderModelRow] {
-        struct Aggregate {
-            var costUSD: Double = 0
-            var input: Int = 0
-            var output: Int = 0
-            var cacheRead: Int = 0
-            var cacheCreation: Int = 0
-            var reasoningOutput: Int = 0
-            var turns: Int = 0
-        }
+    private struct TokenAggregate {
+        var costUSD: Double = 0
+        var input: Int = 0
+        var output: Int = 0
+        var cacheRead: Int = 0
+        var cacheCreation: Int = 0
+        var reasoningOutput: Int = 0
+        var turns: Int = 0
+    }
 
-        var grouped: [String: Aggregate] = [:]
+    private static func aggregateModelRows(from items: [ProviderMenuProjection]) -> [ProviderModelRow] {
+        var grouped: [String: TokenAggregate] = [:]
         for item in items {
             for row in item.byModel {
-                grouped[row.model, default: Aggregate()].costUSD += row.costUSD
-                grouped[row.model, default: Aggregate()].input += row.input
-                grouped[row.model, default: Aggregate()].output += row.output
-                grouped[row.model, default: Aggregate()].cacheRead += row.cacheRead
-                grouped[row.model, default: Aggregate()].cacheCreation += row.cacheCreation
-                grouped[row.model, default: Aggregate()].reasoningOutput += row.reasoningOutput
-                grouped[row.model, default: Aggregate()].turns += row.turns
+                grouped[row.model, default: TokenAggregate()].costUSD += row.costUSD
+                grouped[row.model, default: TokenAggregate()].input += row.input
+                grouped[row.model, default: TokenAggregate()].output += row.output
+                grouped[row.model, default: TokenAggregate()].cacheRead += row.cacheRead
+                grouped[row.model, default: TokenAggregate()].cacheCreation += row.cacheCreation
+                grouped[row.model, default: TokenAggregate()].reasoningOutput += row.reasoningOutput
+                grouped[row.model, default: TokenAggregate()].turns += row.turns
             }
         }
 
@@ -988,21 +988,11 @@ struct WindowOverviewDesktopAnalyticsModel {
     private static func aggregateDailyModelRows(
         from items: [ProviderMenuProjection]
     ) -> [ProviderDailyModelRow] {
-        struct Aggregate {
-            var costUSD: Double = 0
-            var input: Int = 0
-            var output: Int = 0
-            var cacheRead: Int = 0
-            var cacheCreation: Int = 0
-            var reasoningOutput: Int = 0
-            var turns: Int = 0
-        }
-
-        var grouped: [String: Aggregate] = [:]
+        var grouped: [String: TokenAggregate] = [:]
         for item in items {
             for row in item.dailyByModel {
                 let key = "\(row.day)|\(row.model)"
-                var entry = grouped[key, default: Aggregate()]
+                var entry = grouped[key, default: TokenAggregate()]
                 entry.costUSD += row.costUSD
                 entry.input += row.input
                 entry.output += row.output
