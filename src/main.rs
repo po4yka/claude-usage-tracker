@@ -693,71 +693,33 @@ fn main() -> Result<()> {
             no_open,
             background_poll,
         } => {
-            let db = default_db(db_path);
-            let dirs = default_dirs(projects_dir);
-
-            // In interactive mode (no --background-poll) we block until the
-            // initial scan completes so the browser opens to populated data.
-            // In background mode (menu-bar app), defer the scan so the HTTP
-            // listener comes up immediately — readiness probes cannot wait
-            // for a multi-second JSONL walk.
-            if !background_poll {
-                eprintln!("Running scan first...");
-                scanner::scan(dirs.clone(), &db, true)?;
-            }
-
-            let host_env = std::env::var("HOST")
-                .ok()
-                .or_else(|| cfg_host.clone())
-                .unwrap_or(host);
-            let port_env = std::env::var("PORT")
-                .ok()
-                .and_then(|p| p.parse().ok())
-                .or(cfg_port)
-                .unwrap_or(port);
-
-            let url = format!("http://{}:{}", host_env, port_env);
-            if !no_open {
-                let _ = open::that(&url);
-            }
-
-            let rt = tokio::runtime::Runtime::new()?;
-            let scan_dirs = dirs.clone();
-            let scan_db = db.clone();
-            rt.block_on(async move {
-                if background_poll {
-                    tokio::task::spawn_blocking(move || {
-                        if let Err(e) = scanner::scan(scan_dirs, &scan_db, true) {
-                            tracing::warn!(error = ?e, "background initial scan failed");
-                        }
-                    });
-                }
-                server::serve(server::ServeOptions {
-                    host: host_env,
-                    port: port_env,
-                    db_path: db,
-                    projects_dirs: dirs,
-                    oauth_enabled: cfg_oauth_enabled,
-                    oauth_refresh_interval: cfg_oauth_refresh,
-                    claude_admin_enabled: cfg_claude_admin_enabled,
-                    claude_admin_key_env: cfg_claude_admin_key_env,
-                    claude_admin_refresh_interval: cfg_claude_admin_refresh_interval,
-                    claude_admin_lookback_days: cfg_claude_admin_lookback_days,
-                    openai_enabled: cfg_openai_enabled,
-                    openai_admin_key_env: cfg_openai_admin_key_env,
-                    openai_refresh_interval: cfg_openai_refresh_interval,
-                    openai_lookback_days: cfg_openai_lookback_days,
-                    webhook_config: cfg_webhooks,
-                    watch,
-                    background_poll,
-                    agent_status_config: cfg_agent_status,
-                    aggregator_config: cfg_aggregator,
-                    blocks_token_limit: cfg_blocks_token_limit,
-                    session_length_hours: cfg_blocks_session_length,
-                    project_aliases: cfg_project_aliases.clone(),
-                })
-                .await
-            })?;
+            cmd_dashboard(
+                default_db(db_path),
+                default_dirs(projects_dir),
+                host,
+                port,
+                watch,
+                no_open,
+                background_poll,
+                cfg_host,
+                cfg_port,
+                cfg_oauth_enabled,
+                cfg_oauth_refresh,
+                cfg_claude_admin_enabled,
+                cfg_claude_admin_key_env,
+                cfg_claude_admin_refresh_interval,
+                cfg_claude_admin_lookback_days,
+                cfg_openai_enabled,
+                cfg_openai_admin_key_env,
+                cfg_openai_refresh_interval,
+                cfg_openai_lookback_days,
+                cfg_webhooks,
+                cfg_agent_status,
+                cfg_aggregator,
+                cfg_blocks_token_limit,
+                cfg_blocks_session_length,
+                cfg_project_aliases.clone(),
+            )?;
         }
         Commands::Export {
             db_path,
@@ -1173,6 +1135,96 @@ fn cmd_scheduler(action: SchedulerAction, default_db: &std::path::Path) -> Resul
             }
         },
     }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn cmd_dashboard(
+    db: std::path::PathBuf,
+    dirs: Option<Vec<std::path::PathBuf>>,
+    host: String,
+    port: u16,
+    watch: bool,
+    no_open: bool,
+    background_poll: bool,
+    cfg_host: Option<String>,
+    cfg_port: Option<u16>,
+    cfg_oauth_enabled: bool,
+    cfg_oauth_refresh: u64,
+    cfg_claude_admin_enabled: bool,
+    cfg_claude_admin_key_env: String,
+    cfg_claude_admin_refresh_interval: u64,
+    cfg_claude_admin_lookback_days: i64,
+    cfg_openai_enabled: bool,
+    cfg_openai_admin_key_env: String,
+    cfg_openai_refresh_interval: u64,
+    cfg_openai_lookback_days: i64,
+    cfg_webhooks: config::WebhookConfig,
+    cfg_agent_status: config::AgentStatusConfig,
+    cfg_aggregator: config::AggregatorConfig,
+    cfg_blocks_token_limit: Option<i64>,
+    cfg_blocks_session_length: f64,
+    cfg_project_aliases: std::collections::HashMap<String, String>,
+) -> Result<()> {
+    // In interactive mode (no --background-poll) we block until the
+    // initial scan completes so the browser opens to populated data.
+    // In background mode (menu-bar app), defer the scan so the HTTP
+    // listener comes up immediately — readiness probes cannot wait
+    // for a multi-second JSONL walk.
+    if !background_poll {
+        eprintln!("Running scan first...");
+        scanner::scan(dirs.clone(), &db, true)?;
+    }
+
+    let host_env = std::env::var("HOST").ok().or(cfg_host).unwrap_or(host);
+    let port_env = std::env::var("PORT")
+        .ok()
+        .and_then(|p| p.parse().ok())
+        .or(cfg_port)
+        .unwrap_or(port);
+
+    let url = format!("http://{}:{}", host_env, port_env);
+    if !no_open {
+        let _ = open::that(&url);
+    }
+
+    let rt = tokio::runtime::Runtime::new()?;
+    let scan_dirs = dirs.clone();
+    let scan_db = db.clone();
+    rt.block_on(async move {
+        if background_poll {
+            tokio::task::spawn_blocking(move || {
+                if let Err(e) = scanner::scan(scan_dirs, &scan_db, true) {
+                    tracing::warn!(error = ?e, "background initial scan failed");
+                }
+            });
+        }
+        server::serve(server::ServeOptions {
+            host: host_env,
+            port: port_env,
+            db_path: db,
+            projects_dirs: dirs,
+            oauth_enabled: cfg_oauth_enabled,
+            oauth_refresh_interval: cfg_oauth_refresh,
+            claude_admin_enabled: cfg_claude_admin_enabled,
+            claude_admin_key_env: cfg_claude_admin_key_env,
+            claude_admin_refresh_interval: cfg_claude_admin_refresh_interval,
+            claude_admin_lookback_days: cfg_claude_admin_lookback_days,
+            openai_enabled: cfg_openai_enabled,
+            openai_admin_key_env: cfg_openai_admin_key_env,
+            openai_refresh_interval: cfg_openai_refresh_interval,
+            openai_lookback_days: cfg_openai_lookback_days,
+            webhook_config: cfg_webhooks,
+            watch,
+            background_poll,
+            agent_status_config: cfg_agent_status,
+            aggregator_config: cfg_aggregator,
+            blocks_token_limit: cfg_blocks_token_limit,
+            session_length_hours: cfg_blocks_session_length,
+            project_aliases: cfg_project_aliases,
+        })
+        .await
+    })?;
     Ok(())
 }
 

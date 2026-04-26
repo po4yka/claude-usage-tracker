@@ -772,29 +772,31 @@ pub(crate) fn merge_session_meta(
 }
 
 /// Aggregate turn data into session-level stats.
-pub fn aggregate_sessions(metas: &[SessionMeta], turns: &[Turn]) -> Vec<Session> {
-    struct Stats {
-        total_input: i64,
-        total_output: i64,
-        total_cache_read: i64,
-        total_cache_creation: i64,
-        total_reasoning_output: i64,
-        total_estimated_cost_nanos: i64,
-        turn_count: i64,
-        model: Option<String>,
-        pricing_version: String,
-        billing_mode: String,
-        cost_confidence: String,
-        /// Accumulated credits (Amp only); `None` when no turn in the session has credits.
-        total_credits: Option<f64>,
-        /// Turns belonging to this session in chronological order,
-        /// used for one-shot classification after all turns are collected.
-        session_turns: Vec<Turn>,
-    }
+/// Per-session aggregated token/cost/model counters built by `group_turns_by_session`.
+struct SessionStats {
+    total_input: i64,
+    total_output: i64,
+    total_cache_read: i64,
+    total_cache_creation: i64,
+    total_reasoning_output: i64,
+    total_estimated_cost_nanos: i64,
+    turn_count: i64,
+    model: Option<String>,
+    pricing_version: String,
+    billing_mode: String,
+    cost_confidence: String,
+    /// Accumulated credits (Amp only); `None` when no turn in the session has credits.
+    total_credits: Option<f64>,
+    /// Turns belonging to this session in chronological order,
+    /// used for one-shot classification after all turns are collected.
+    session_turns: Vec<Turn>,
+}
 
-    let mut stats_map: HashMap<&str, Stats> = HashMap::new();
+/// Phase A: group raw turns into per-session aggregates keyed by session_id.
+fn group_turns_by_session(turns: &[Turn]) -> HashMap<&str, SessionStats> {
+    let mut stats_map: HashMap<&str, SessionStats> = HashMap::new();
     for t in turns {
-        let entry = stats_map.entry(&t.session_id).or_insert(Stats {
+        let entry = stats_map.entry(&t.session_id).or_insert(SessionStats {
             total_input: 0,
             total_output: 0,
             total_cache_read: 0,
@@ -828,33 +830,35 @@ pub fn aggregate_sessions(metas: &[SessionMeta], turns: &[Turn]) -> Vec<Session>
         }
         entry.session_turns.push(t.clone());
     }
+    stats_map
+}
+
+pub fn aggregate_sessions(metas: &[SessionMeta], turns: &[Turn]) -> Vec<Session> {
+    let stats_map = group_turns_by_session(turns);
+
+    let empty_stats = SessionStats {
+        total_input: 0,
+        total_output: 0,
+        total_cache_read: 0,
+        total_cache_creation: 0,
+        total_reasoning_output: 0,
+        total_estimated_cost_nanos: 0,
+        turn_count: 0,
+        model: None,
+        pricing_version: String::new(),
+        billing_mode: "estimated_local".into(),
+        cost_confidence: pricing::COST_CONFIDENCE_LOW.into(),
+        total_credits: None,
+        session_turns: Vec::new(),
+    };
 
     metas
         .iter()
         .map(|meta| {
-            let empty_turns: Vec<Turn> = Vec::new();
-            let empty = Stats {
-                total_input: 0,
-                total_output: 0,
-                total_cache_read: 0,
-                total_cache_creation: 0,
-                total_reasoning_output: 0,
-                total_estimated_cost_nanos: 0,
-                turn_count: 0,
-                model: None,
-                pricing_version: String::new(),
-                billing_mode: "estimated_local".into(),
-                cost_confidence: pricing::COST_CONFIDENCE_LOW.into(),
-                total_credits: None,
-                session_turns: Vec::new(),
-            };
-            let s = stats_map.get(meta.session_id.as_str()).unwrap_or(&empty);
-            let session_turns_ref = if s.session_turns.is_empty() {
-                empty_turns.as_slice()
-            } else {
-                s.session_turns.as_slice()
-            };
-            let one_shot = crate::scanner::oneshot::classify_one_shot(session_turns_ref);
+            let s = stats_map
+                .get(meta.session_id.as_str())
+                .unwrap_or(&empty_stats);
+            let one_shot = crate::scanner::oneshot::classify_one_shot(s.session_turns.as_slice());
             Session {
                 session_id: meta.session_id.clone(),
                 provider: meta.provider.clone(),
