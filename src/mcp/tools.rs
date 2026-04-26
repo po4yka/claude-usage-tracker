@@ -176,7 +176,8 @@ impl HeimdallMcpServer {
             .0
             .session_length_hours
             .unwrap_or(self.default_session_length_hours);
-        match tokio::task::spawn_blocking(move || query_active_block(&db, hours)).await {
+        let burn_cfg = self.burn_rate_config;
+        match tokio::task::spawn_blocking(move || query_active_block(&db, hours, burn_cfg)).await {
             Ok(Ok(v)) => json_ok(v),
             Ok(Err(e)) => json_err(e),
             Err(e) => json_err(e),
@@ -547,7 +548,11 @@ fn session_row_to_json(row: &rusqlite::Row<'_>) -> rusqlite::Result<serde_json::
     }))
 }
 
-fn query_active_block(db_path: &Path, session_hours: f64) -> Result<serde_json::Value> {
+fn query_active_block(
+    db_path: &Path,
+    session_hours: f64,
+    burn_rate_config: BurnRateConfig,
+) -> Result<serde_json::Value> {
     let conn = open_conn(db_path)?;
     let turns = sdb::load_all_turns(&conn)?;
     let blocks = identify_blocks(&turns, session_hours);
@@ -563,7 +568,7 @@ fn query_active_block(db_path: &Path, session_hours: f64) -> Result<serde_json::
             let burn = match rate {
                 Some(r) => {
                     use crate::analytics::burn_rate as br;
-                    let tier = br::tier(r.tokens_per_min, &self.burn_rate_config);
+                    let tier = br::tier(r.tokens_per_min, &burn_rate_config);
                     serde_json::json!({
                         "tokens_per_min": r.tokens_per_min,
                         "cost_per_hour_nanos": r.cost_per_hour_nanos,
