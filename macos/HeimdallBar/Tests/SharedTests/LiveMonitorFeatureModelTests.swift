@@ -18,7 +18,10 @@ struct LiveMonitorFeatureModelTests {
         )
 
         model.updateActivity(isSelected: true, appIsActive: true)
-        try await Task.sleep(nanoseconds: 70_000_000)
+        let deadline = Date().addingTimeInterval(2.0)
+        while client.fetchCount < 2, Date() < deadline {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
         let activeFetches = client.fetchCount
         #expect(activeFetches >= 2)
 
