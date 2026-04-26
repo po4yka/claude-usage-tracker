@@ -391,9 +391,11 @@ struct HeimdallAPIClientTests {
 }
 
 private final class StubURLProtocol: URLProtocol, @unchecked Sendable {
+    // TODO(safety): mutable static; no lock guards `handler` — callers must synchronise externally.
     nonisolated(unsafe) static var handler: (@Sendable (URLRequest, Int) throws -> (HTTPURLResponse, Data))?
 
     private static let lock = NSLock()
+    // TODO(safety): mutable static guarded by `lock`; Swift cannot verify lock discipline statically.
     nonisolated(unsafe) private static var requests: [URLRequest] = []
 
     static var requestCount: Int {
