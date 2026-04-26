@@ -3246,6 +3246,333 @@ pub fn load_all_turns(conn: &Connection) -> Result<Vec<crate::analytics::blocks:
     Ok(out)
 }
 
+// ---------------------------------------------------------------------------
+// Phase 1A: cmd_today / cmd_stats query functions
+// ---------------------------------------------------------------------------
+
+/// Row type returned by [`query_today_provider_breakdown`].
+pub type TodayProviderRow = (String, i64, i64, i64, i64, i64, i64, i64);
+
+/// Row type returned by [`query_stats_token_totals`].
+pub type StatsTokenTotals = (i64, i64, i64, i64, i64, i64, Option<f64>);
+
+/// Row type returned by [`query_stats_by_provider`].
+pub type StatsByProviderRow = (String, i64, i64, i64, i64, i64, i64, i64, i64);
+
+/// Row type returned by [`query_today_model_rows`].
+pub type TodayModelRow = (
+    String, // provider
+    String, // model
+    i64,    // input_tokens
+    i64,    // output_tokens
+    i64,    // cache_read_tokens
+    i64,    // cache_creation_tokens
+    i64,    // reasoning_output_tokens
+    i64,    // turns
+    i64,    // cost_nanos
+    String, // cost_confidence
+    String, // billing_mode
+);
+
+/// Row type returned by [`query_stats_by_model`].
+pub type StatsModelRow = (
+    String, // provider
+    String, // model
+    i64,    // input_tokens
+    i64,    // output_tokens
+    i64,    // cache_read_tokens
+    i64,    // cache_creation_tokens
+    i64,    // reasoning_output_tokens
+    i64,    // turns
+    i64,    // sessions
+    i64,    // cost_nanos
+    String, // cost_confidence
+    String, // billing_mode
+);
+
+/// Site 1 – per-model breakdown for a single calendar day.
+pub fn query_today_model_rows(
+    conn: &Connection,
+    today: &str,
+) -> rusqlite::Result<Vec<TodayModelRow>> {
+    let mut stmt = conn.prepare(
+        "SELECT provider, COALESCE(model, 'unknown') as model,
+                SUM(input_tokens) as inp, SUM(output_tokens) as out,
+                SUM(cache_read_tokens) as cr, SUM(cache_creation_tokens) as cc,
+                SUM(reasoning_output_tokens) as ro,
+                COUNT(*) as turns,
+                COALESCE(SUM(estimated_cost_nanos), 0) as cost_nanos,
+                CASE
+                    WHEN SUM(CASE WHEN cost_confidence = 'low' THEN 1 ELSE 0 END) > 0 THEN 'low'
+                    WHEN SUM(CASE WHEN cost_confidence = 'medium' THEN 1 ELSE 0 END) > 0 THEN 'medium'
+                    ELSE 'high'
+                END as cost_confidence,
+                CASE
+                    WHEN COUNT(DISTINCT billing_mode) = 1 THEN MAX(billing_mode)
+                    ELSE 'mixed'
+                END as billing_mode
+         FROM turns WHERE substr(timestamp, 1, 10) = ?1
+         GROUP BY provider, model ORDER BY inp + out DESC",
+    )?;
+    let rows = stmt
+        .query_map([today], |row| {
+            Ok((
+                row.get(0)?,
+                row.get(1)?,
+                row.get(2)?,
+                row.get(3)?,
+                row.get(4)?,
+                row.get(5)?,
+                row.get(6)?,
+                row.get(7)?,
+                row.get(8)?,
+                row.get(9)?,
+                row.get(10)?,
+            ))
+        })?
+        .filter_map(|r| match r {
+            Ok(val) => Some(val),
+            Err(e) => {
+                tracing::warn!("Failed to read today_model row: {}", e);
+                None
+            }
+        })
+        .collect();
+    Ok(rows)
+}
+
+/// Site 2 – per-provider token/cost totals for a single calendar day (JSON output).
+pub fn query_today_provider_breakdown(
+    conn: &Connection,
+    today: &str,
+) -> rusqlite::Result<Vec<TodayProviderRow>> {
+    let mut stmt = conn.prepare(
+        "SELECT provider, COUNT(*) as turns,
+                COALESCE(SUM(input_tokens), 0), COALESCE(SUM(output_tokens), 0),
+                COALESCE(SUM(cache_read_tokens), 0), COALESCE(SUM(cache_creation_tokens), 0),
+                COALESCE(SUM(reasoning_output_tokens), 0),
+                COALESCE(SUM(estimated_cost_nanos), 0)
+         FROM turns
+         WHERE substr(timestamp, 1, 10) = ?1
+         GROUP BY provider
+         ORDER BY turns DESC",
+    )?;
+    let rows = stmt
+        .query_map([today], |row| {
+            Ok((
+                row.get(0)?,
+                row.get(1)?,
+                row.get(2)?,
+                row.get(3)?,
+                row.get(4)?,
+                row.get(5)?,
+                row.get(6)?,
+                row.get(7)?,
+            ))
+        })?
+        .filter_map(|r| r.ok())
+        .collect();
+    Ok(rows)
+}
+
+/// Site 3 – confidence-level breakdown for a single calendar day (JSON output).
+pub fn query_today_confidence_breakdown(
+    conn: &Connection,
+    today: &str,
+) -> rusqlite::Result<Vec<(String, i64, i64)>> {
+    let mut stmt = conn.prepare(
+        "SELECT COALESCE(cost_confidence, 'low') as cost_confidence,
+                COUNT(*) as turns,
+                COALESCE(SUM(estimated_cost_nanos), 0) as cost_nanos
+         FROM turns
+         WHERE substr(timestamp, 1, 10) = ?1
+         GROUP BY cost_confidence
+         ORDER BY turns DESC",
+    )?;
+    let rows = stmt
+        .query_map([today], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?
+        .filter_map(|r| r.ok())
+        .collect();
+    Ok(rows)
+}
+
+/// Site 4 – billing-mode breakdown for a single calendar day (JSON output).
+pub fn query_today_billing_mode_breakdown(
+    conn: &Connection,
+    today: &str,
+) -> rusqlite::Result<Vec<(String, i64, i64)>> {
+    let mut stmt = conn.prepare(
+        "SELECT COALESCE(billing_mode, 'estimated_local') as billing_mode,
+                COUNT(*) as turns,
+                COALESCE(SUM(estimated_cost_nanos), 0) as cost_nanos
+         FROM turns
+         WHERE substr(timestamp, 1, 10) = ?1
+         GROUP BY billing_mode
+         ORDER BY turns DESC",
+    )?;
+    let rows = stmt
+        .query_map([today], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?
+        .filter_map(|r| r.ok())
+        .collect();
+    Ok(rows)
+}
+
+/// Site 5 – session count + first/last timestamp window.
+pub fn query_stats_session_window(
+    conn: &Connection,
+) -> rusqlite::Result<(i64, Option<String>, Option<String>)> {
+    conn.query_row(
+        "SELECT COUNT(*), MIN(first_timestamp), MAX(last_timestamp) FROM sessions",
+        [],
+        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+    )
+}
+
+/// Site 6 – all-time token and credits totals across all turns.
+pub fn query_stats_token_totals(conn: &Connection) -> rusqlite::Result<StatsTokenTotals> {
+    conn.query_row(
+        "SELECT COALESCE(SUM(input_tokens),0), COALESCE(SUM(output_tokens),0),
+                COALESCE(SUM(cache_read_tokens),0), COALESCE(SUM(cache_creation_tokens),0),
+                COALESCE(SUM(reasoning_output_tokens),0), COUNT(*),
+                SUM(credits) FROM turns",
+        [],
+        |row| {
+            Ok((
+                row.get(0)?,
+                row.get(1)?,
+                row.get(2)?,
+                row.get(3)?,
+                row.get(4)?,
+                row.get(5)?,
+                row.get(6)?,
+            ))
+        },
+    )
+}
+
+/// Site 7 – all-time per-model breakdown.
+pub fn query_stats_by_model(conn: &Connection) -> rusqlite::Result<Vec<StatsModelRow>> {
+    let mut stmt = conn.prepare(
+        "SELECT provider, COALESCE(model,'unknown'), SUM(input_tokens), SUM(output_tokens),
+                SUM(cache_read_tokens), SUM(cache_creation_tokens), SUM(reasoning_output_tokens), COUNT(*),
+                COUNT(DISTINCT session_id), COALESCE(SUM(estimated_cost_nanos), 0),
+                CASE
+                    WHEN SUM(CASE WHEN cost_confidence = 'low' THEN 1 ELSE 0 END) > 0 THEN 'low'
+                    WHEN SUM(CASE WHEN cost_confidence = 'medium' THEN 1 ELSE 0 END) > 0 THEN 'medium'
+                    ELSE 'high'
+                END as cost_confidence,
+                CASE
+                    WHEN COUNT(DISTINCT billing_mode) = 1 THEN MAX(billing_mode)
+                    ELSE 'mixed'
+                END as billing_mode
+         FROM turns GROUP BY provider, model ORDER BY SUM(input_tokens+output_tokens) DESC",
+    )?;
+    let rows = stmt
+        .query_map([], |row| {
+            Ok((
+                row.get(0)?,
+                row.get(1)?,
+                row.get(2)?,
+                row.get(3)?,
+                row.get(4)?,
+                row.get(5)?,
+                row.get(6)?,
+                row.get(7)?,
+                row.get(8)?,
+                row.get(9)?,
+                row.get(10)?,
+                row.get(11)?,
+            ))
+        })?
+        .filter_map(|r| match r {
+            Ok(val) => Some(val),
+            Err(e) => {
+                tracing::warn!("Failed to read stats_model row: {}", e);
+                None
+            }
+        })
+        .collect();
+    Ok(rows)
+}
+
+/// Site 8 – all-time per-provider summary (JSON output).
+pub fn query_stats_by_provider(conn: &Connection) -> rusqlite::Result<Vec<StatsByProviderRow>> {
+    let mut stmt = conn.prepare(
+        "SELECT provider,
+                COUNT(DISTINCT session_id), COUNT(*),
+                COALESCE(SUM(input_tokens),0), COALESCE(SUM(output_tokens),0),
+                COALESCE(SUM(cache_read_tokens),0), COALESCE(SUM(cache_creation_tokens),0),
+                COALESCE(SUM(reasoning_output_tokens),0), COALESCE(SUM(estimated_cost_nanos),0)
+         FROM turns
+         GROUP BY provider
+         ORDER BY COUNT(*) DESC",
+    )?;
+    let rows = stmt
+        .query_map([], |row| {
+            Ok((
+                row.get(0)?,
+                row.get(1)?,
+                row.get(2)?,
+                row.get(3)?,
+                row.get(4)?,
+                row.get(5)?,
+                row.get(6)?,
+                row.get(7)?,
+                row.get(8)?,
+            ))
+        })?
+        .filter_map(|r| r.ok())
+        .collect();
+    Ok(rows)
+}
+
+/// Site 9 – all-time confidence-level breakdown (JSON output).
+pub fn query_stats_confidence_breakdown(
+    conn: &Connection,
+) -> rusqlite::Result<Vec<(String, i64, i64)>> {
+    let mut stmt = conn.prepare(
+        "SELECT COALESCE(cost_confidence, 'low') as cost_confidence,
+                COUNT(*) as turns,
+                COALESCE(SUM(estimated_cost_nanos), 0) as cost_nanos
+         FROM turns
+         GROUP BY cost_confidence
+         ORDER BY turns DESC",
+    )?;
+    let rows = stmt
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?
+        .filter_map(|r| r.ok())
+        .collect();
+    Ok(rows)
+}
+
+/// Site 10 – all-time billing-mode breakdown (JSON output).
+pub fn query_stats_billing_mode_breakdown(
+    conn: &Connection,
+) -> rusqlite::Result<Vec<(String, i64, i64)>> {
+    let mut stmt = conn.prepare(
+        "SELECT COALESCE(billing_mode, 'estimated_local') as billing_mode,
+                COUNT(*) as turns,
+                COALESCE(SUM(estimated_cost_nanos), 0) as cost_nanos
+         FROM turns
+         GROUP BY billing_mode
+         ORDER BY turns DESC",
+    )?;
+    let rows = stmt
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?
+        .filter_map(|r| r.ok())
+        .collect();
+    Ok(rows)
+}
+
+/// Site 11 – average one-shot rate across classifiable sessions.
+pub fn query_stats_oneshot_avg(conn: &Connection) -> rusqlite::Result<Option<f64>> {
+    conn.query_row(
+        "SELECT AVG(CAST(one_shot AS REAL)) FROM sessions WHERE one_shot IS NOT NULL",
+        [],
+        |row| row.get(0),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -1617,33 +1617,7 @@ fn cmd_config(action: ConfigAction) -> Result<()> {
 #[cfg(test)]
 mod cli_tests;
 
-type TodayModelRow = (
-    String,
-    String,
-    i64,
-    i64,
-    i64,
-    i64,
-    i64,
-    i64,
-    i64,
-    String,
-    String,
-);
-type StatsModelRow = (
-    String,
-    String,
-    i64,
-    i64,
-    i64,
-    i64,
-    i64,
-    i64,
-    i64,
-    i64,
-    String,
-    String,
-);
+use scanner::db::{StatsModelRow, TodayModelRow};
 type ProviderRollup = (i64, i64, i64, i64, i64, i64, i64);
 
 pub(crate) fn cmd_today(
@@ -1661,120 +1635,47 @@ pub(crate) fn cmd_today(
     let conn = scanner::db::open_db(db_path)?;
     let today = chrono::Local::now().format("%Y-%m-%d").to_string();
 
-    let mut stmt = conn.prepare(
-        "SELECT provider, COALESCE(model, 'unknown') as model,
-                SUM(input_tokens) as inp, SUM(output_tokens) as out,
-                SUM(cache_read_tokens) as cr, SUM(cache_creation_tokens) as cc,
-                SUM(reasoning_output_tokens) as ro,
-                COUNT(*) as turns,
-                COALESCE(SUM(estimated_cost_nanos), 0) as cost_nanos,
-                CASE
-                    WHEN SUM(CASE WHEN cost_confidence = 'low' THEN 1 ELSE 0 END) > 0 THEN 'low'
-                    WHEN SUM(CASE WHEN cost_confidence = 'medium' THEN 1 ELSE 0 END) > 0 THEN 'medium'
-                    ELSE 'high'
-                END as cost_confidence,
-                CASE
-                    WHEN COUNT(DISTINCT billing_mode) = 1 THEN MAX(billing_mode)
-                    ELSE 'mixed'
-                END as billing_mode
-         FROM turns WHERE substr(timestamp, 1, 10) = ?1
-         GROUP BY provider, model ORDER BY inp + out DESC",
-    )?;
-
-    let rows: Vec<TodayModelRow> = stmt
-        .query_map([&today], |row| {
-            Ok((
-                row.get(0)?,
-                row.get(1)?,
-                row.get(2)?,
-                row.get(3)?,
-                row.get(4)?,
-                row.get(5)?,
-                row.get(6)?,
-                row.get(7)?,
-                row.get(8)?,
-                row.get(9)?,
-                row.get(10)?,
-            ))
-        })?
-        .filter_map(|r| match r {
-            Ok(val) => Some(val),
-            Err(e) => {
-                tracing::warn!("Failed to read row: {}", e);
-                None
-            }
-        })
-        .collect();
+    let rows: Vec<TodayModelRow> = scanner::db::query_today_model_rows(&conn, &today)?;
 
     if json_output || jq.is_some() {
-        let by_provider: Vec<serde_json::Value> = {
-            let mut stmt = conn.prepare(
-                "SELECT provider, COUNT(*) as turns,
-                        COALESCE(SUM(input_tokens), 0), COALESCE(SUM(output_tokens), 0),
-                        COALESCE(SUM(cache_read_tokens), 0), COALESCE(SUM(cache_creation_tokens), 0),
-                        COALESCE(SUM(reasoning_output_tokens), 0),
-                        COALESCE(SUM(estimated_cost_nanos), 0)
-                 FROM turns
-                 WHERE substr(timestamp, 1, 10) = ?1
-                 GROUP BY provider
-                 ORDER BY turns DESC",
-            )?;
-            stmt.query_map([&today], |row| {
-                let provider: String = row.get(0)?;
-                Ok(serde_json::json!({
-                    "provider": provider,
-                    "turns": row.get::<_, i64>(1)?,
-                    "input_tokens": row.get::<_, i64>(2)?,
-                    "output_tokens": row.get::<_, i64>(3)?,
-                    "cache_read_tokens": row.get::<_, i64>(4)?,
-                    "cache_creation_tokens": row.get::<_, i64>(5)?,
-                    "reasoning_output_tokens": row.get::<_, i64>(6)?,
-                    "estimated_cost": row.get::<_, i64>(7)? as f64 / 1_000_000_000.0,
-                }))
-            })?
-            .filter_map(|r| r.ok())
-            .collect()
-        };
-        let confidence_breakdown: Vec<serde_json::Value> = {
-            let mut stmt = conn.prepare(
-                "SELECT COALESCE(cost_confidence, 'low') as cost_confidence,
-                        COUNT(*) as turns,
-                        COALESCE(SUM(estimated_cost_nanos), 0) as cost_nanos
-                 FROM turns
-                 WHERE substr(timestamp, 1, 10) = ?1
-                 GROUP BY cost_confidence
-                 ORDER BY turns DESC",
-            )?;
-            stmt.query_map([&today], |row| {
-                Ok(serde_json::json!({
-                    "cost_confidence": row.get::<_, String>(0)?,
-                    "turns": row.get::<_, i64>(1)?,
-                    "estimated_cost": row.get::<_, i64>(2)? as f64 / 1_000_000_000.0,
-                }))
-            })?
-            .filter_map(|r| r.ok())
-            .collect()
-        };
-        let billing_mode_breakdown: Vec<serde_json::Value> = {
-            let mut stmt = conn.prepare(
-                "SELECT COALESCE(billing_mode, 'estimated_local') as billing_mode,
-                        COUNT(*) as turns,
-                        COALESCE(SUM(estimated_cost_nanos), 0) as cost_nanos
-                 FROM turns
-                 WHERE substr(timestamp, 1, 10) = ?1
-                 GROUP BY billing_mode
-                 ORDER BY turns DESC",
-            )?;
-            stmt.query_map([&today], |row| {
-                Ok(serde_json::json!({
-                    "billing_mode": row.get::<_, String>(0)?,
-                    "turns": row.get::<_, i64>(1)?,
-                    "estimated_cost": row.get::<_, i64>(2)? as f64 / 1_000_000_000.0,
-                }))
-            })?
-            .filter_map(|r| r.ok())
-            .collect()
-        };
+        let by_provider: Vec<serde_json::Value> =
+            scanner::db::query_today_provider_breakdown(&conn, &today)?
+                .into_iter()
+                .map(|(provider, turns, inp, out, cr, cc, ro, cost_nanos)| {
+                    serde_json::json!({
+                        "provider": provider,
+                        "turns": turns,
+                        "input_tokens": inp,
+                        "output_tokens": out,
+                        "cache_read_tokens": cr,
+                        "cache_creation_tokens": cc,
+                        "reasoning_output_tokens": ro,
+                        "estimated_cost": cost_nanos as f64 / 1_000_000_000.0,
+                    })
+                })
+                .collect();
+        let confidence_breakdown: Vec<serde_json::Value> =
+            scanner::db::query_today_confidence_breakdown(&conn, &today)?
+                .into_iter()
+                .map(|(conf, turns, cost_nanos)| {
+                    serde_json::json!({
+                        "cost_confidence": conf,
+                        "turns": turns,
+                        "estimated_cost": cost_nanos as f64 / 1_000_000_000.0,
+                    })
+                })
+                .collect();
+        let billing_mode_breakdown: Vec<serde_json::Value> =
+            scanner::db::query_today_billing_mode_breakdown(&conn, &today)?
+                .into_iter()
+                .map(|(mode, turns, cost_nanos)| {
+                    serde_json::json!({
+                        "billing_mode": mode,
+                        "turns": turns,
+                        "estimated_cost": cost_nanos as f64 / 1_000_000_000.0,
+                    })
+                })
+                .collect();
         let models: Vec<serde_json::Value> = rows
             .iter()
             .map(
@@ -2267,79 +2168,12 @@ pub(crate) fn cmd_stats(
     }
     let conn = scanner::db::open_db(db_path)?;
 
-    let (sessions, first, last): (i64, Option<String>, Option<String>) = conn.query_row(
-        "SELECT COUNT(*), MIN(first_timestamp), MAX(last_timestamp) FROM sessions",
-        [],
-        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
-    )?;
+    let (sessions, first, last) = scanner::db::query_stats_session_window(&conn)?;
 
-    let (inp, out, cr, cc, ro, turns, total_credits_opt): (
-        i64,
-        i64,
-        i64,
-        i64,
-        i64,
-        i64,
-        Option<f64>,
-    ) = conn.query_row(
-        "SELECT COALESCE(SUM(input_tokens),0), COALESCE(SUM(output_tokens),0),
-                COALESCE(SUM(cache_read_tokens),0), COALESCE(SUM(cache_creation_tokens),0),
-                COALESCE(SUM(reasoning_output_tokens),0), COUNT(*),
-                SUM(credits) FROM turns",
-        [],
-        |row| {
-            Ok((
-                row.get(0)?,
-                row.get(1)?,
-                row.get(2)?,
-                row.get(3)?,
-                row.get(4)?,
-                row.get(5)?,
-                row.get(6)?,
-            ))
-        },
-    )?;
+    let (inp, out, cr, cc, ro, turns, total_credits_opt) =
+        scanner::db::query_stats_token_totals(&conn)?;
 
-    let mut stmt = conn.prepare(
-        "SELECT provider, COALESCE(model,'unknown'), SUM(input_tokens), SUM(output_tokens),
-                SUM(cache_read_tokens), SUM(cache_creation_tokens), SUM(reasoning_output_tokens), COUNT(*),
-                COUNT(DISTINCT session_id), COALESCE(SUM(estimated_cost_nanos), 0),
-                CASE
-                    WHEN SUM(CASE WHEN cost_confidence = 'low' THEN 1 ELSE 0 END) > 0 THEN 'low'
-                    WHEN SUM(CASE WHEN cost_confidence = 'medium' THEN 1 ELSE 0 END) > 0 THEN 'medium'
-                    ELSE 'high'
-                END as cost_confidence,
-                CASE
-                    WHEN COUNT(DISTINCT billing_mode) = 1 THEN MAX(billing_mode)
-                    ELSE 'mixed'
-                END as billing_mode
-         FROM turns GROUP BY provider, model ORDER BY SUM(input_tokens+output_tokens) DESC",
-    )?;
-    let by_model: Vec<StatsModelRow> = stmt
-        .query_map([], |row| {
-            Ok((
-                row.get(0)?,
-                row.get(1)?,
-                row.get(2)?,
-                row.get(3)?,
-                row.get(4)?,
-                row.get(5)?,
-                row.get(6)?,
-                row.get(7)?,
-                row.get(8)?,
-                row.get(9)?,
-                row.get(10)?,
-                row.get(11)?,
-            ))
-        })?
-        .filter_map(|r| match r {
-            Ok(val) => Some(val),
-            Err(e) => {
-                tracing::warn!("Failed to read row: {}", e);
-                None
-            }
-        })
-        .collect();
+    let by_model: Vec<StatsModelRow> = scanner::db::query_stats_by_model(&conn)?;
 
     let total_cost: f64 = by_model
         .iter()
@@ -2347,71 +2181,46 @@ pub(crate) fn cmd_stats(
         .sum();
 
     if json_output || jq.is_some() {
-        let by_provider: Vec<serde_json::Value> = {
-            let mut stmt = conn.prepare(
-                "SELECT provider,
-                        COUNT(DISTINCT session_id), COUNT(*),
-                        COALESCE(SUM(input_tokens),0), COALESCE(SUM(output_tokens),0),
-                        COALESCE(SUM(cache_read_tokens),0), COALESCE(SUM(cache_creation_tokens),0),
-                        COALESCE(SUM(reasoning_output_tokens),0), COALESCE(SUM(estimated_cost_nanos),0)
-                 FROM turns
-                 GROUP BY provider
-                 ORDER BY COUNT(*) DESC",
-            )?;
-            stmt.query_map([], |row| {
-                Ok(serde_json::json!({
-                    "provider": row.get::<_, String>(0)?,
-                    "sessions": row.get::<_, i64>(1)?,
-                    "turns": row.get::<_, i64>(2)?,
-                    "input_tokens": row.get::<_, i64>(3)?,
-                    "output_tokens": row.get::<_, i64>(4)?,
-                    "cache_read_tokens": row.get::<_, i64>(5)?,
-                    "cache_creation_tokens": row.get::<_, i64>(6)?,
-                    "reasoning_output_tokens": row.get::<_, i64>(7)?,
-                    "estimated_cost": row.get::<_, i64>(8)? as f64 / 1_000_000_000.0,
-                }))
-            })?
-            .filter_map(|r| r.ok())
-            .collect()
-        };
-        let confidence_breakdown: Vec<serde_json::Value> = {
-            let mut stmt = conn.prepare(
-                "SELECT COALESCE(cost_confidence, 'low') as cost_confidence,
-                        COUNT(*) as turns,
-                        COALESCE(SUM(estimated_cost_nanos), 0) as cost_nanos
-                 FROM turns
-                 GROUP BY cost_confidence
-                 ORDER BY turns DESC",
-            )?;
-            stmt.query_map([], |row| {
-                Ok(serde_json::json!({
-                    "cost_confidence": row.get::<_, String>(0)?,
-                    "turns": row.get::<_, i64>(1)?,
-                    "estimated_cost": row.get::<_, i64>(2)? as f64 / 1_000_000_000.0,
-                }))
-            })?
-            .filter_map(|r| r.ok())
-            .collect()
-        };
-        let billing_mode_breakdown: Vec<serde_json::Value> = {
-            let mut stmt = conn.prepare(
-                "SELECT COALESCE(billing_mode, 'estimated_local') as billing_mode,
-                        COUNT(*) as turns,
-                        COALESCE(SUM(estimated_cost_nanos), 0) as cost_nanos
-                 FROM turns
-                 GROUP BY billing_mode
-                 ORDER BY turns DESC",
-            )?;
-            stmt.query_map([], |row| {
-                Ok(serde_json::json!({
-                    "billing_mode": row.get::<_, String>(0)?,
-                    "turns": row.get::<_, i64>(1)?,
-                    "estimated_cost": row.get::<_, i64>(2)? as f64 / 1_000_000_000.0,
-                }))
-            })?
-            .filter_map(|r| r.ok())
-            .collect()
-        };
+        let by_provider: Vec<serde_json::Value> = scanner::db::query_stats_by_provider(&conn)?
+            .into_iter()
+            .map(
+                |(provider, sessions_n, turns_n, inp_n, out_n, cr_n, cc_n, ro_n, cost_nanos)| {
+                    serde_json::json!({
+                        "provider": provider,
+                        "sessions": sessions_n,
+                        "turns": turns_n,
+                        "input_tokens": inp_n,
+                        "output_tokens": out_n,
+                        "cache_read_tokens": cr_n,
+                        "cache_creation_tokens": cc_n,
+                        "reasoning_output_tokens": ro_n,
+                        "estimated_cost": cost_nanos as f64 / 1_000_000_000.0,
+                    })
+                },
+            )
+            .collect();
+        let confidence_breakdown: Vec<serde_json::Value> =
+            scanner::db::query_stats_confidence_breakdown(&conn)?
+                .into_iter()
+                .map(|(conf, turns_n, cost_nanos)| {
+                    serde_json::json!({
+                        "cost_confidence": conf,
+                        "turns": turns_n,
+                        "estimated_cost": cost_nanos as f64 / 1_000_000_000.0,
+                    })
+                })
+                .collect();
+        let billing_mode_breakdown: Vec<serde_json::Value> =
+            scanner::db::query_stats_billing_mode_breakdown(&conn)?
+                .into_iter()
+                .map(|(mode, turns_n, cost_nanos)| {
+                    serde_json::json!({
+                        "billing_mode": mode,
+                        "turns": turns_n,
+                        "estimated_cost": cost_nanos as f64 / 1_000_000_000.0,
+                    })
+                })
+                .collect();
         let models: Vec<serde_json::Value> = by_model
             .iter()
             .map(
@@ -2443,13 +2252,8 @@ pub(crate) fn cmd_stats(
             .collect();
         // one_shot_rate: AVG(one_shot) across sessions where one_shot IS NOT NULL.
         // Returns None when no classifiable sessions exist (all NULL).
-        let one_shot_rate: Option<f64> = conn
-            .query_row(
-                "SELECT AVG(CAST(one_shot AS REAL)) FROM sessions WHERE one_shot IS NOT NULL",
-                [],
-                |row| row.get(0),
-            )
-            .unwrap_or(None);
+        let one_shot_rate: Option<f64> =
+            scanner::db::query_stats_oneshot_avg(&conn).unwrap_or(None);
 
         let f = |s: &Option<String>| {
             s.as_deref()
