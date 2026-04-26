@@ -129,6 +129,7 @@ src/
       opencode.rs      -- OpenCode (SQLite)
       pi.rs            -- Pi (JSONL, responseId last-wins)
       copilot.rs       -- GitHub Copilot (mixed-format best-effort probe)
+      amp.rs           -- Amp Code (JSONL threads, credits-based billing; nullable USD)
 
   hook/
     main.rs            -- heimdall-hook binary entry (thin wrapper)

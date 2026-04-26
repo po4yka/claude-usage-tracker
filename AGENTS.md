@@ -333,10 +333,11 @@ Always use additive migrations (ALTER TABLE ADD COLUMN). Check for column existe
 
 When editing dashboard files (`src/ui/`), follow the design skill at `.agents/skills/industrial-design/SKILL.md`. Key rules:
 
-- Monochrome canvas; single red accent (`#D71921`) per screen for urgent/destructive only.
-- Numbers in Space Mono (tabular numerals); body in Space Grotesk; Doto for hero display.
-- No gradients, no shadows, no toast popups — use inline `[SAVED]` / `[ERROR: ...]` status.
-- Dark (OLED `#000`) and light (warm off-white `#F5F5F5`) both first-class via CSS variables.
+- Monochrome canvas; primary affordance via `--accent-interactive` blue-gray (`#4A7FA5`); single red accent (`#D71921`) reserved for semantic error / destructive / over-limit only.
+- Inter for UI, headings, body. Geist Mono for numbers, code, tabular columns (`font-feature-settings: "tnum"`). No Space Grotesk, no Space Mono, no Doto.
+- Sentence-case throughout; ALL-CAPS monospace only for `<th>` table column headers.
+- No gradients, no shadows on content surfaces (Liquid Glass translucency acceptable on sticky header only), no toast popups — use inline `[SAVED]` / `[ERROR: ...]` status near trigger.
+- Dark (`#0A0A0A`) and light (warm off-white `#F5F5F5`) both first-class via CSS variables; never hardcode hex.
 - XSS protection: all dynamic text through `esc()` in `src/ui/lib/format.ts`.
 - Recompile after changes: `npm run build:ui`. Commit `app.js` + `style.css` alongside the source.
 - Heatmap and card intensity use opacity on `--color-text-primary`, never a color ramp.

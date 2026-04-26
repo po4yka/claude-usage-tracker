@@ -184,7 +184,6 @@ Reach practical feature parity with CodexBar for **Claude Code** and **Codex** i
 
 **Outcome:** native menu UI matches the intended CodexBar-like behavior, not just the data model.
 
-- [ ] Refine menu bar icon rendering.
 - [x] Refine menu bar icon rendering.
   - [x] top/bottom lane rendering
   - [x] stale dimming
