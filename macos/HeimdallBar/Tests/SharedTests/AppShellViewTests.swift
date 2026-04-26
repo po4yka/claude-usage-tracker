@@ -764,3 +764,19 @@ struct AppShellViewTests {
         )
     }
 }
+
+struct SettingsDisplayNameTests {
+    @Test
+    func usageSourcePreferenceTitleRendersHumanCasing() {
+        #expect(UsageSourcePreference.auto.title == "Automatic")
+        #expect(UsageSourcePreference.oauth.title == "OAuth")
+        #expect(UsageSourcePreference.web.title == "Web")
+        #expect(UsageSourcePreference.cli.title == "CLI")
+    }
+
+    @Test
+    func resetDisplayModeTitleRendersHumanCasing() {
+        #expect(ResetDisplayMode.countdown.title == "Countdown")
+        #expect(ResetDisplayMode.absolute.title == "Absolute time")
+    }
+}

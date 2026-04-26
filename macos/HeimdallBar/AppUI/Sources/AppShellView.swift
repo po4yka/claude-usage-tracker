@@ -3030,7 +3030,7 @@ struct WindowHeaderIssuePresentation: Equatable {
     }
 }
 
-private struct WindowIssueBanner: View {
+struct WindowIssueBanner: View {
     let issue: WindowHeaderIssuePresentation
     var onRetry: (() -> Void)? = nil
     var isRetrying: Bool = false

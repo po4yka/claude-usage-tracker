@@ -5,12 +5,22 @@ import Observation
 import AppKit
 import os.log
 
+public enum SettingsSaveStatus: Equatable, Sendable {
+    case idle
+    case saving
+    case saved
+    case error(String)
+}
+
 @MainActor
 @Observable
 public final class SettingsFeatureModel {
     public let sessionStore: AppSessionStore
     public var onSettingsSaved: (() -> Void)?
     public var draftConfig: HeimdallBarConfig
+    public var saveStatus: SettingsSaveStatus = .idle
+
+    private var saveStatusClearTask: Task<Void, Never>?
 
     private let repository: ProviderRepository
     private let settingsStore: any SettingsStore
@@ -82,6 +92,8 @@ public final class SettingsFeatureModel {
     public func save() async {
         let draftConfig = self.draftConfig
         let previousConfig = self.sessionStore.config
+        self.saveStatusClearTask?.cancel()
+        self.saveStatus = .saving
         do {
             try self.settingsStore.save(draftConfig)
             self.sessionStore.config = draftConfig
@@ -98,10 +110,24 @@ public final class SettingsFeatureModel {
                 }
             }
             self.onSettingsSaved?()
+            self.saveStatus = .saved
+            self.scheduleSaveStatusClear(after: .seconds(2.5))
         } catch {
+            let message = error.localizedDescription
             self.repository.setIssue(
-                AppIssue(kind: .settingsSave, message: error.localizedDescription)
+                AppIssue(kind: .settingsSave, message: message)
             )
+            self.saveStatus = .error(message)
+            self.scheduleSaveStatusClear(after: .seconds(6))
+        }
+    }
+
+    private func scheduleSaveStatusClear(after duration: Duration) {
+        self.saveStatusClearTask?.cancel()
+        self.saveStatusClearTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: duration)
+            guard let self, !Task.isCancelled else { return }
+            self.saveStatus = .idle
         }
     }
 

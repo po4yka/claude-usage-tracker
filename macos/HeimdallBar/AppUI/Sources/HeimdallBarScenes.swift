@@ -155,7 +155,7 @@ public struct HeimdallBarScenes: Scene {
                 model: self.model.settings,
                 providerModel: self.model.providerModel(for:)
             )
-                .frame(width: 480, height: 360)
+                .frame(minWidth: 640, idealWidth: 640, minHeight: 520, idealHeight: 600)
                 .tint(Color.accentInteractive)
                 .onAppear { self.appDelegate.attach(model: self.model) }
                 .onOpenURL { url in
