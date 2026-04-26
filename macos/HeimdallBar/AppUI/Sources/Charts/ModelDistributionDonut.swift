@@ -2,6 +2,55 @@ import Charts
 import HeimdallDomain
 import SwiftUI
 
+/// Pure-geometry constants and hit-test logic for `ModelDistributionDonut`.
+/// Using a caseless enum makes the namespace implicitly `Sendable` and
+/// `nonisolated`, so these values are safe to reference from any isolation
+/// domain without extra annotations.
+enum DonutGeometry {
+    static let displayCap = 8
+    static let size: CGFloat = 80
+    static let innerRatio: CGFloat = 0.62
+    static let outerRatio: CGFloat = 0.98
+    static let dimMultiplier: Double = 0.45
+
+    /// Hit-test a pointer location against the donut ring; returns the family
+    /// label whose sector contains the cursor, or nil if outside the ring.
+    static func familyAt(
+        point: CGPoint,
+        in size: CGSize,
+        families: [ModelDistributionDonut.FamilyEntry],
+        metric: ModelDistributionDonut.DonutMetric
+    ) -> String? {
+        guard !families.isEmpty else { return nil }
+        let cx = size.width / 2
+        let cy = size.height / 2
+        let dx = point.x - cx
+        let dy = point.y - cy
+        let dist = sqrt(dx * dx + dy * dy)
+        let halfMin = min(size.width, size.height) / 2
+        let inner = halfMin * DonutGeometry.innerRatio
+        let outer = halfMin * DonutGeometry.outerRatio
+        guard dist >= inner, dist <= outer else { return nil }
+
+        // Angle measured from 12 o'clock, clockwise, in [0, 2π).
+        var angle = atan2(dx, -dy)
+        if angle < 0 { angle += 2 * .pi }
+
+        let total = families.reduce(0) { $0 + $1.value(for: metric) }
+        guard total > 0 else { return nil }
+
+        let normalized = angle / (2 * .pi)
+        var cumulative = 0.0
+        for family in families {
+            cumulative += family.value(for: metric) / total
+            if normalized <= cumulative + 1e-9 {
+                return family.label
+            }
+        }
+        return families.last?.label
+    }
+}
+
 /// Model-mix donut chart: cost share by model family on the left, call-share
 /// donut on the right, shared legend in the middle. Both donuts share a single
 /// hover state so highlighting cascades across all three views.
@@ -13,12 +62,6 @@ struct ModelDistributionDonut: View {
         self.rows = rows
         self.dailyByModel = dailyByModel
     }
-
-    private static let displayCap = 8
-    private static let donutSize: CGFloat = 80
-    nonisolated private static let donutInnerRatio: CGFloat = 0.62
-    nonisolated private static let donutOuterRatio: CGFloat = 0.98
-    private static let dimMultiplier: Double = 0.45
 
     enum DonutMetric: String, Equatable {
         case cost
@@ -45,7 +88,7 @@ struct ModelDistributionDonut: View {
     @State private var hoveredFamily: String?
 
     var body: some View {
-        let capped = Array(self.rows.prefix(Self.displayCap))
+        let capped = Array(self.rows.prefix(DonutGeometry.displayCap))
         let families = Self.families(from: capped)
         let colorMap = Self.colorMap(for: families.map(\.label))
         VStack(alignment: .leading, spacing: 6) {
@@ -124,7 +167,7 @@ struct ModelDistributionDonut: View {
         let displayRange: [Color] = families.map { family in
             let base = colorMap[family.label] ?? Color.primary.opacity(0.14)
             if let hovered = self.hoveredFamily, hovered != family.label {
-                return base.opacity(Self.dimMultiplier)
+                return base.opacity(DonutGeometry.dimMultiplier)
             }
             return base
         }
@@ -132,8 +175,8 @@ struct ModelDistributionDonut: View {
             ForEach(families) { family in
                 SectorMark(
                     angle: .value(metric.accessibilityLabel, family.value(for: metric)),
-                    innerRadius: .ratio(Self.donutInnerRatio),
-                    outerRadius: .ratio(Self.donutOuterRatio)
+                    innerRadius: .ratio(DonutGeometry.innerRatio),
+                    outerRadius: .ratio(DonutGeometry.outerRatio)
                 )
                 .foregroundStyle(by: .value("Model", family.label))
             }
@@ -143,7 +186,7 @@ struct ModelDistributionDonut: View {
             range: displayRange
         )
         .chartLegend(.hidden)
-        .frame(width: Self.donutSize, height: Self.donutSize)
+        .frame(width: DonutGeometry.size, height: DonutGeometry.size)
         .chartOverlay { _ in
             GeometryReader { geo in
                 Rectangle()
@@ -152,7 +195,7 @@ struct ModelDistributionDonut: View {
                     .onContinuousHover { phase in
                         switch phase {
                         case .active(let location):
-                            let next = Self.familyAt(
+                            let next = DonutGeometry.familyAt(
                                 point: location,
                                 in: geo.size,
                                 families: families,
@@ -181,7 +224,7 @@ struct ModelDistributionDonut: View {
                     RoundedRectangle(cornerRadius: 1.5, style: .continuous)
                         .fill(colorMap[family.label] ?? Color.primary.opacity(0.14))
                         .frame(width: 10, height: 4)
-                        .opacity(isDim ? Self.dimMultiplier : 1)
+                        .opacity(isDim ? DonutGeometry.dimMultiplier : 1)
                     Text(family.label)
                         .font(.caption2.weight(isActive ? .semibold : .regular))
                         .foregroundStyle(isActive ? Color.primary : Color.secondary)
@@ -289,42 +332,6 @@ struct ModelDistributionDonut: View {
         return String(format: "$%.2f", usd)
     }
 
-    /// Hit-test a pointer location against the donut ring; returns the family
-    /// label whose sector contains the cursor, or nil if outside the ring.
-    nonisolated static func familyAt(
-        point: CGPoint,
-        in size: CGSize,
-        families: [FamilyEntry],
-        metric: DonutMetric
-    ) -> String? {
-        guard !families.isEmpty else { return nil }
-        let cx = size.width / 2
-        let cy = size.height / 2
-        let dx = point.x - cx
-        let dy = point.y - cy
-        let dist = sqrt(dx * dx + dy * dy)
-        let halfMin = min(size.width, size.height) / 2
-        let inner = halfMin * Self.donutInnerRatio
-        let outer = halfMin * Self.donutOuterRatio
-        guard dist >= inner, dist <= outer else { return nil }
-
-        // Angle measured from 12 o'clock, clockwise, in [0, 2π).
-        var angle = atan2(dx, -dy)
-        if angle < 0 { angle += 2 * .pi }
-
-        let total = families.reduce(0) { $0 + $1.value(for: metric) }
-        guard total > 0 else { return nil }
-
-        let normalized = angle / (2 * .pi)
-        var cumulative = 0.0
-        for family in families {
-            cumulative += family.value(for: metric) / total
-            if normalized <= cumulative + 1e-9 {
-                return family.label
-            }
-        }
-        return families.last?.label
-    }
 }
 
 // MARK: - Preview
