@@ -371,7 +371,7 @@ private struct WindowLiveMonitorView: View {
         VStack(alignment: .leading, spacing: 24) {
             WindowHeader(
                 title: "Live Monitor",
-                subtitle: self.model.envelope.map { "Updated \(Self.shortTime($0.generatedAt))" } ?? "Waiting for helper data",
+                subtitle: self.headerSubtitle,
                 issue: WindowHeaderIssuePresentation.make(message: self.model.issue),
                 onRetry: {
                     Task { await self.model.refresh() }
@@ -415,11 +415,7 @@ private struct WindowLiveMonitorView: View {
                     )
                 }
             } else {
-                ContentUnavailableView(
-                    "Waiting for live monitor data",
-                    systemImage: "waveform.path.ecg.rectangle",
-                    description: Text("The helper will populate this page when /api/live-monitor responds.")
-                )
+                WindowLiveMonitorEmptyState(isRefreshing: self.model.isRefreshing)
             }
 
             HStack(spacing: 12) {
@@ -440,8 +436,152 @@ private struct WindowLiveMonitorView: View {
         }
     }
 
+    private var headerSubtitle: String {
+        if let envelope = self.model.envelope {
+            return "Updated \(Self.shortTime(envelope.generatedAt))"
+        }
+        if self.model.isRefreshing {
+            return "Connecting to the local helper…"
+        }
+        return "Real-time provider rate windows, costs, and depletion forecasts. Refreshes every 10 seconds."
+    }
+
     private static func shortTime(_ iso: String) -> String {
         liveMonitorShortTime(iso)
+    }
+}
+
+private struct WindowLiveMonitorEmptyState: View {
+    let isRefreshing: Bool
+
+    private struct Highlight: Identifiable {
+        let id: String
+        let symbol: String
+        let title: String
+        let subtitle: String
+    }
+
+    private static let highlights: [Highlight] = [
+        Highlight(
+            id: "providers",
+            symbol: "rectangle.stack",
+            title: "Provider lanes",
+            subtitle: "Today's spend, primary and secondary rate windows, and weekly projection per provider."
+        ),
+        Highlight(
+            id: "active-block",
+            symbol: "clock",
+            title: "Active block",
+            subtitle: "Tokens in flight, entries, end time, and projected quota burn."
+        ),
+        Highlight(
+            id: "forecast",
+            symbol: "chart.line.uptrend.xyaxis",
+            title: "Depletion forecast",
+            subtitle: "When current usage trends will exhaust your rate window."
+        ),
+        Highlight(
+            id: "quotas",
+            symbol: "gauge.with.dots.needle.bottom.50percent",
+            title: "Suggested quotas",
+            subtitle: "Recommended pacing to land safely inside the next reset."
+        ),
+        Highlight(
+            id: "context",
+            symbol: "doc.text.magnifyingglass",
+            title: "Context window",
+            subtitle: "Live input-token usage against the model's context limit."
+        ),
+        Highlight(
+            id: "session",
+            symbol: "bubble.left.and.bubble.right",
+            title: "Recent session",
+            subtitle: "Latest conversation: turns, duration, cost, and model."
+        ),
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            VStack(spacing: 14) {
+                ZStack {
+                    Circle()
+                        .fill(Color.accentInteractive.opacity(0.10))
+                        .frame(width: 56, height: 56)
+                    Image(systemName: "waveform.path.ecg")
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundStyle(Color.accentInteractive)
+                }
+
+                VStack(spacing: 6) {
+                    Text("Waiting for live data")
+                        .font(.title3.weight(.semibold))
+                    Text("Live Monitor streams provider rate-window usage, depletion forecasts, and quota suggestions for every connected AI provider. The helper will populate this view automatically as soon as the first refresh succeeds.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: 460)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                if self.isRefreshing {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("Refreshing…")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 24)
+            .padding(.horizontal, 16)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(Color.accentInteractive.opacity(0.05))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(Color.accentInteractive.opacity(0.18), lineWidth: 1)
+            )
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text("What you'll see when data arrives")
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(.secondary)
+
+                LazyVGrid(
+                    columns: [GridItem(.adaptive(minimum: 240), spacing: 10)],
+                    alignment: .leading,
+                    spacing: 10
+                ) {
+                    ForEach(Self.highlights) { highlight in
+                        HStack(alignment: .top, spacing: 10) {
+                            Image(systemName: highlight.symbol)
+                                .font(.callout.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 20, alignment: .center)
+                                .padding(.top, 1)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(highlight.title)
+                                    .font(.callout.weight(.semibold))
+                                Text(highlight.subtitle)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            Spacer(minLength: 0)
+                        }
+                        .padding(12)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(Color.secondary.opacity(0.06))
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
