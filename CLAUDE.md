@@ -51,7 +51,7 @@ The compiled `src/ui/app.js` and `src/ui/style.css` are committed to git so `car
 ## Test
 
 ```bash
-cargo test                        # full suite across 4 suites (572+ tests)
+cargo test                        # full suite across 4 suites (1048+ tests)
 cargo test scanner                # scanner module tests
 cargo test pricing                # pricing + LiteLLM + cost-breakdown tests
 cargo test oauth                  # OAuth module tests
@@ -86,6 +86,11 @@ src/
   models.rs            -- Shared types (Session, Turn, ToolEvent, CacheEfficiency, etc.)
   pricing.rs           -- Pricing table, calc_cost_nanos, volume discounts, 4-way CostBreakdown,
                           5-tier lookup with hardcoded Claude/GPT-5 priority + LiteLLM fallback
+  pricing_defs.rs      -- Static type definitions for the official-pricing sync subsystem:
+                          12 enums (with strum::IntoStaticStr-derived as_str), pure data structs,
+                          and the SOURCES / CONTENT_SOURCES / STATUS_SOURCES tables
+  pricing_sync.rs      -- Runtime sync logic: HTTP fetch + SHA-256 integrity + regex parsers +
+                          OpenAI org-usage reconciliation + DB orchestration. Uses pricing_defs::*
   currency.rs          -- Frankfurter USD->N conversion, 24h disk cache, hardcoded fallback
   litellm.rs           -- LiteLLM catalogue fetch + cache + `pricing refresh` entry
   tz.rs                -- TzParams for timezone-aware SQL bucketing
@@ -108,10 +113,26 @@ src/
     api.rs             -- GET api.anthropic.com/api/oauth/usage, response building
     models.rs          -- CredentialsFile, OAuthUsageResponse, UsageWindowsResponse, Plan, Identity
 
+  live_providers/
+    mod.rs             -- load_snapshots orchestrator + shared helpers (provider_cost_summary,
+                          status_to_live, normalize_provider) + ResponseScope type
+    cache.rs           -- Cache helpers: cached_response, update_cache_after_fetch,
+                          cacheable_response, merge_provider_snapshot, sort_snapshots
+    conditions.rs      -- provider_status_condition, community_spike_condition, and the
+                          build_local_notification_state orchestrator
+    claude.rs          -- build_claude_snapshot + Claude-specific helpers
+                          (live_quota_suggestions, live_predictive_insights, identity_to_live, ...)
+    codex.rs           -- build_codex_snapshot, build_codex_bootstrap_snapshot,
+                          resolve_codex_live_data_with, CodexLiveResolution
+
   scanner/
     mod.rs             -- scan() orchestration, incremental processing, walkdir
     parser.rs          -- JSONL parsing, streaming dedup by message.id, tool_inputs capture
-    db.rs              -- SQLite schema, queries, migrations; all SQL lives here
+    db.rs              -- SQLite schema, queries, migrations; all SQL lives here.
+                          init_db() delegates to create_schema() (DDL) and apply_migrations()
+                          (the has_column probe array). collect_warn<T>() helper absorbs the
+                          per-row filter_map+warn boilerplate. Dashboard payload assembled by
+                          query_dashboard_* per-section helpers
     tests.rs           -- Integration tests for scan pipeline
     classifier.rs      -- 13-category task classifier (pure RegexSet)
     oneshot.rs         -- Edit->Bash->Edit retry-cycle detection

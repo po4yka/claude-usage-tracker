@@ -57,7 +57,7 @@ The compiled `src/ui/app.js` and `src/ui/style.css` are committed to git so `car
 ## Test
 
 ```bash
-cargo test                        # full Rust suite (538+ tests across 4 suites)
+cargo test                        # full Rust suite (1048+ tests across 4 suites)
 cargo test scanner                # scanner module tests
 cargo test pricing                # pricing + LiteLLM + cost-breakdown tests
 cargo test oauth                  # OAuth module tests
@@ -97,6 +97,11 @@ src/
   models.rs            -- Shared types (Session, Turn, ToolEvent, CacheEfficiency, ...)
   pricing.rs           -- Pricing table, calc_cost_nanos, volume discounts,
                           CostBreakdown 4-way split, LiteLlm 5th-tier fallback
+  pricing_defs.rs      -- Static type definitions for the official-pricing sync subsystem:
+                          12 enums (strum::IntoStaticStr-derived), pure data structs,
+                          and the SOURCES / CONTENT_SOURCES / STATUS_SOURCES tables
+  pricing_sync.rs      -- Runtime sync logic: HTTP fetch + SHA-256 integrity + regex parsers +
+                          OpenAI org-usage reconciliation + DB orchestration
   currency.rs          -- Frankfurter USD->N conversion with 24h disk cache + hardcoded fallback
   litellm.rs           -- LiteLLM catalogue fetch + cache (~/.cache/heimdall/litellm_pricing.json)
   tz.rs                -- TzParams shared between server and db for timezone-aware bucketing
@@ -120,10 +125,27 @@ src/
     api.rs             -- GET api.anthropic.com/api/oauth/usage, response building
     models.rs          -- CredentialsFile, OAuthUsageResponse, UsageWindowsResponse, Plan, Identity
 
+  live_providers/
+    mod.rs             -- load_snapshots orchestrator + shared helpers (provider_cost_summary,
+                          status_to_live, normalize_provider) + ResponseScope type
+    cache.rs           -- Cache helpers: cached_response, update_cache_after_fetch,
+                          cacheable_response, merge_provider_snapshot, sort_snapshots
+    conditions.rs      -- provider_status_condition, community_spike_condition, and the
+                          build_local_notification_state orchestrator
+    claude.rs          -- build_claude_snapshot + Claude-specific helpers
+    codex.rs           -- build_codex_snapshot, build_codex_bootstrap_snapshot,
+                          resolve_codex_live_data_with, CodexLiveResolution
+
   scanner/
     mod.rs             -- scan() orchestration, incremental processing, walkdir
     parser.rs          -- JSONL parsing, streaming dedup by message.id, tool_inputs capture
-    db.rs              -- SQLite schema, queries, migrations; all SQL lives here
+    db.rs              -- SQLite schema, queries, migrations; all SQL lives here.
+                          init_db() delegates to create_schema() (pure DDL) and apply_migrations()
+                          (has_column probe array, ordered). collect_warn<T>() helper absorbs the
+                          per-row filter_map+warn boilerplate. Dashboard payload built by
+                          query_dashboard_* per-section helpers; provider-scoped row queries follow
+                          a documented (conn, provider, start_date, limit) signature using
+                          strict collect
     tests.rs           -- Integration tests for the full scan pipeline
     classifier.rs      -- 13-category task classifier (regex RegexSet, pure function)
     oneshot.rs         -- Edit->Bash->Edit retry-cycle detection
@@ -141,6 +163,7 @@ src/
       opencode.rs      -- OpenCode (SQLite; schema-probing)
       pi.rs            -- Pi (JSONL; responseId last-wins dedup)
       copilot.rs       -- GitHub Copilot (mixed-format best-effort probe)
+      amp.rs           -- Amp Code (JSONL threads, credits-based billing; nullable USD)
 
   hook/
     main.rs            -- heimdall-hook binary entry (thin wrapper)
@@ -245,7 +268,7 @@ src/
 
 - Use `thiserror` for error types, `anyhow` in main/CLI.
 - Prefer `&str` over `String` in function signatures where possible.
-- All SQL queries in `db.rs`, nowhere else.
+- All SQL queries in `scanner/db.rs`, nowhere else. The top-level `src/db.rs` only owns the destructive `db reset` TTY guard.
 - Tests use the `tempfile` crate for temp dirs and DB files; never touch the user's real `~/.claude/` in tests.
 - No `.unwrap()` in library code (scanner, server, pricing). OK in tests and main.
 - Log with `tracing`: `debug!` for per-file progress, `info!` for scan summaries, `warn!` for recoverable errors.
@@ -263,7 +286,7 @@ Edit `pricing.rs` only. Add to `PRICING_TABLE`. Set `threshold_tokens: None` unl
 
 1. Add the field to the `Turn` or `Session` struct in `models.rs`.
 2. Parse it in `parser.rs` (Claude path) and/or the relevant provider module.
-3. Add a column migration in `scanner/db.rs` (ALTER TABLE with `has_column` guard).
+3. Add a column migration in `scanner/db.rs::apply_migrations` (ALTER TABLE with `has_column` guard). Migration order in the array is preserved on every startup; never re-order existing entries.
 4. Update `insert_turns` / `upsert_sessions` to persist it.
 5. Expose via API in `server/api.rs` if needed by the dashboard.
 6. Update `src/ui/state/types.ts` + the relevant `.tsx` if it should appear in the UI, then `npm run build:ui`.
@@ -319,7 +342,11 @@ Register in `optimizer/mod.rs::run_optimize_with_overrides`. Severity thresholds
 
 ### Changing the database schema
 
+Two stable seams: `create_schema(conn)` for fresh-DB DDL (CREATE TABLE / CREATE INDEX), `apply_migrations(conn)` for the ordered `has_column` probe array. New columns go in `apply_migrations` only — `create_schema` mirrors the *current* shape so a fresh install bypasses the probe array entirely.
+
 Always use additive migrations (ALTER TABLE ADD COLUMN). Check for column existence with `has_column` before adding. Never drop columns or tables in migrations – only in full rescan. If you introduce a new default for existing rows, add an idempotent `UPDATE ... WHERE column IS NULL OR column = ''` after the ADD COLUMN. Covers both freshly-created DBs and mid-upgrade ones.
+
+The `has_column` probe approach is intentionally robust (self-healing — every check runs against current schema state). Replacing it with `PRAGMA user_version` is on the future-work list but blocked on having a fixture-based test harness for historical DB versions; bare-replacement risks `ALTER TABLE … ADD COLUMN` duplicate-column errors at startup for existing users.
 
 ### Config file changes
 
