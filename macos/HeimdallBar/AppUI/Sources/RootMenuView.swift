@@ -100,22 +100,11 @@ struct RootMenuView: View {
     }
 
     private func attentionLabel(for overview: OverviewMenuProjection) -> String? {
-        guard let item = overview.items.max(by: { self.severityRank(for: $0.visualState) < self.severityRank(for: $1.visualState) }),
-              self.severityRank(for: item.visualState) > 0 else {
+        guard let item = overview.items.max(by: { $0.visualState.severityRank < $1.visualState.severityRank }),
+              item.visualState.severityRank > 0 else {
             return nil
         }
         return "Needs attention: \(item.title) \(item.stateLabel.lowercased())"
-    }
-
-    private func severityRank(for state: ProviderVisualState) -> Int {
-        switch state {
-        case .error: return 5
-        case .incident: return 4
-        case .degraded: return 3
-        case .stale: return 2
-        case .refreshing: return 1
-        case .healthy: return 0
-        }
     }
 }
 
@@ -647,23 +636,12 @@ struct OverviewMenuCard: View {
 
     private var sortedItems: [ProviderMenuProjection] {
         self.projection.items.sorted {
-            let lhs = self.severityRank(for: $0.visualState)
-            let rhs = self.severityRank(for: $1.visualState)
+            let lhs = $0.visualState.severityRank
+            let rhs = $1.visualState.severityRank
             if lhs == rhs {
                 return $0.title < $1.title
             }
             return lhs > rhs
-        }
-    }
-
-    private func severityRank(for state: ProviderVisualState) -> Int {
-        switch state {
-        case .error: return 5
-        case .incident: return 4
-        case .degraded: return 3
-        case .stale: return 2
-        case .refreshing: return 1
-        case .healthy: return 0
         }
     }
 }

@@ -330,14 +330,27 @@ public enum MenuProjectionBuilder {
         return "\(delta / 86_400)d ago"
     }
 
+    // ISO8601DateFormatter is thread-safe for read-only parsing once
+    // configured (Apple docs). nonisolated(unsafe) opts these out of
+    // Swift 6 actor isolation since the formatOptions are set once in
+    // the closure and the formatter is only used via .date(from:).
+    nonisolated(unsafe) private static let iso8601FractionalFormatter: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+
+    nonisolated(unsafe) private static let iso8601StandardFormatter: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f
+    }()
+
     private static func parseISO8601(_ timestamp: String) -> Date? {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatter.date(from: timestamp) {
+        if let date = self.iso8601FractionalFormatter.date(from: timestamp) {
             return date
         }
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter.date(from: timestamp)
+        return self.iso8601StandardFormatter.date(from: timestamp)
     }
 
     private static func historyFractions(_ points: [CostHistoryPoint]) -> [Double] {
@@ -556,16 +569,7 @@ public enum MenuProjectionBuilder {
     }
 
     private static func currencyLabel(_ value: Double) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.locale = Locale(identifier: "en_US")
-        formatter.currencyCode = "USD"
-        formatter.currencySymbol = "$"
-        formatter.minimumFractionDigits = 2
-        formatter.maximumFractionDigits = 2
-        formatter.positiveFormat = "¤#,##0.00"
-        formatter.negativeFormat = "-¤#,##0.00"
-        return formatter.string(from: NSNumber(value: value)) ?? String(format: "$%.2f", value)
+        FormatHelpers.formatUSD(value)
     }
 
     /// Linearly extrapolate the current weekly window's cost to the reset

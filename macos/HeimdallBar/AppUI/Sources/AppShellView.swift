@@ -170,23 +170,12 @@ private struct WindowOverviewView: View {
 
     private func sortedItems(from projection: OverviewMenuProjection) -> [ProviderMenuProjection] {
         projection.items.sorted {
-            let lhs = self.severityRank(for: $0.visualState)
-            let rhs = self.severityRank(for: $1.visualState)
+            let lhs = $0.visualState.severityRank
+            let rhs = $1.visualState.severityRank
             if lhs == rhs {
                 return $0.title < $1.title
             }
             return lhs > rhs
-        }
-    }
-
-    private func severityRank(for state: ProviderVisualState) -> Int {
-        switch state {
-        case .error: return 5
-        case .incident: return 4
-        case .degraded: return 3
-        case .stale: return 2
-        case .refreshing: return 1
-        case .healthy: return 0
         }
     }
 }
@@ -258,7 +247,7 @@ private struct WindowOverviewCloudSyncSection: View {
     }
 
     private static func currency(_ value: Double) -> String {
-        value.formatted(.currency(code: "USD").precision(.fractionLength(value >= 1 ? 2 : 4)))
+        FormatHelpers.formatUSD(value)
     }
 
     private func displayTimestamp(_ raw: String) -> String {
@@ -738,7 +727,7 @@ private struct WindowLiveMonitorProviderCard: View {
     }
 
     private static func currency(_ value: Double) -> String {
-        value.formatted(.currency(code: "USD").precision(.fractionLength(value >= 1 ? 2 : 4)))
+        FormatHelpers.formatUSD(value)
     }
 
     private static func resetLabel(minutes: Int) -> String {
@@ -847,20 +836,17 @@ private struct WindowLiveMonitorDetailSection: View {
     }
 
     private static func compactNumber(_ value: Int) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.maximumFractionDigits = 1
         if abs(value) >= 1_000_000 {
             return String(format: "%.1fM", Double(value) / 1_000_000)
         }
         if abs(value) >= 1_000 {
             return String(format: "%.1fK", Double(value) / 1_000)
         }
-        return formatter.string(from: NSNumber(value: value)) ?? "\(value)"
+        return "\(value)"
     }
 
     private static func currency(_ value: Double) -> String {
-        value.formatted(.currency(code: "USD").precision(.fractionLength(value >= 1 ? 2 : 4)))
+        FormatHelpers.formatUSD(value)
     }
 }
 
@@ -1543,16 +1529,7 @@ struct WindowOverviewProviderCostInsightsModel: Equatable {
     }
 
     static func currencyLabel(_ value: Double) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.locale = Locale(identifier: "en_US")
-        formatter.currencyCode = "USD"
-        formatter.currencySymbol = "$"
-        formatter.minimumFractionDigits = 2
-        formatter.maximumFractionDigits = 2
-        formatter.positiveFormat = "¤#,##0.00"
-        formatter.negativeFormat = "-¤#,##0.00"
-        return formatter.string(from: NSNumber(value: value)) ?? String(format: "$%.2f", value)
+        FormatHelpers.formatUSD(value)
     }
 }
 
@@ -2757,16 +2734,7 @@ private struct WindowOverviewTotalsCard: View {
     }
 
     private static func currencyLabel(_ value: Double) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.locale = Locale(identifier: "en_US")
-        formatter.currencyCode = "USD"
-        formatter.currencySymbol = "$"
-        formatter.minimumFractionDigits = 2
-        formatter.maximumFractionDigits = 2
-        formatter.positiveFormat = "¤#,##0.00"
-        formatter.negativeFormat = "-¤#,##0.00"
-        return formatter.string(from: NSNumber(value: value)) ?? String(format: "$%.2f", value)
+        FormatHelpers.formatUSD(value)
     }
 }
 
