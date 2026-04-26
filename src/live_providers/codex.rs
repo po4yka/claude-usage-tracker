@@ -11,9 +11,19 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use toml::Value as TomlValue;
 
-use crate::models::{
-    LiveProviderAuth, LiveProviderIdentity, LiveProviderRecoveryAction, LiveRateWindow,
+use std::future::Future;
+use std::pin::Pin;
+use std::sync::Arc;
+
+use crate::agent_status::models::ProviderStatus;
+use crate::analytics::depletion::{
+    build_depletion_forecast, primary_window_signal, secondary_window_signal,
 };
+use crate::models::{
+    LiveProviderAuth, LiveProviderIdentity, LiveProviderRecoveryAction, LiveProviderSnapshot,
+    LiveProviderSourceAttempt, LiveRateWindow,
+};
+use crate::server::api::AppState;
 
 const DEFAULT_USAGE_URL: &str = "https://chatgpt.com/backend-api/wham/usage";
 
@@ -1509,5 +1519,374 @@ mod tests {
             health.diagnostic_code.as_deref(),
             Some("authenticated-incompatible-source")
         );
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Codex live data resolution — moved from mod.rs (Phase 2.1 split)
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone)]
+pub(super) struct CodexLiveResolution {
+    pub(super) available: bool,
+    pub(super) source_used: String,
+    pub(super) last_attempted_source: Option<String>,
+    pub(super) resolved_via_fallback: bool,
+    pub(super) refresh_duration_ms: u64,
+    pub(super) source_attempts: Vec<LiveProviderSourceAttempt>,
+    pub(super) identity: Option<LiveProviderIdentity>,
+    pub(super) primary: Option<LiveRateWindow>,
+    pub(super) secondary: Option<LiveRateWindow>,
+    pub(super) credits: Option<f64>,
+    pub(super) error: Option<String>,
+    pub(super) auth: Option<CodexAuth>,
+    pub(super) credential_store: ResolvedCodexCredentialStore,
+    pub(super) bootstrap_error: Option<String>,
+}
+
+pub(super) async fn build_codex_snapshot(
+    state: &Arc<AppState>,
+    status: Option<&ProviderStatus>,
+) -> Result<LiveProviderSnapshot> {
+    let cost_summary = super::load_provider_cost_summary(state, "codex").await?;
+    let env = std::env::vars().collect::<Vec<_>>();
+    let config_facts = load_config_facts(&env);
+    let bootstrap = resolve_bootstrap_auth(&env, &config_facts);
+    // Wrap fetch_oauth_usage with a single-shot refresh retry: if the initial
+    // call fails with an auth-looking error and we have a refresh_token, ask
+    // Codex's OAuth provider for a new access token, persist it back to
+    // auth.json only when the resolved credential backend is file-backed, and
+    // retry the fetch once with the new creds.
+    let env_for_refresh = env.clone();
+    let resolution = resolve_codex_live_data_with(
+        bootstrap,
+        move |auth| {
+            let env_for_refresh = env_for_refresh.clone();
+            Box::pin(async move {
+                match fetch_oauth_usage(auth).await {
+                    Ok(response) => Ok(response),
+                    Err(err) => {
+                        let Some(refresh) = auth.refresh_token.as_deref() else {
+                            return Err(err);
+                        };
+                        if !looks_like_oauth_auth_error(&err) {
+                            return Err(err);
+                        }
+                        match refresh_oauth_token(refresh).await {
+                            Ok(tokens) => {
+                                let refreshed = apply_refreshed_tokens(auth, &tokens);
+                                let config_facts = load_config_facts(&env_for_refresh);
+                                let bootstrap =
+                                    resolve_bootstrap_auth(&env_for_refresh, &config_facts);
+                                if bootstrap.credential_store.persists_to_file()
+                                    && let Err(persist_err) =
+                                        persist_refreshed_tokens_to_disk(&env_for_refresh, &tokens)
+                                {
+                                    tracing::warn!("Codex refresh persist failed: {persist_err:#}");
+                                }
+                                fetch_oauth_usage(&refreshed).await
+                            }
+                            Err(refresh_err) => {
+                                tracing::warn!("Codex token refresh failed: {refresh_err:#}");
+                                Err(err)
+                            }
+                        }
+                    }
+                }
+            })
+        },
+        fetch_rpc_snapshot,
+        fetch_cli_status,
+    )
+    .await;
+    let auth = build_auth_health(
+        &env,
+        &config_facts,
+        CodexAuthHealthInput {
+            credential_store: resolution.credential_store,
+            auth: resolution.auth.as_ref(),
+            identity: resolution.identity.as_ref(),
+            available: resolution.available,
+            bootstrap_error: resolution.bootstrap_error.as_deref(),
+            error: resolution.error.as_deref(),
+        },
+    );
+    let depletion_forecast = {
+        let mut signals = Vec::new();
+        if let Some(window) = resolution.primary.as_ref() {
+            signals.push(primary_window_signal(
+                window.used_percent,
+                Some(100.0 - window.used_percent),
+                window.resets_in_minutes,
+                None,
+                window.resets_at.clone(),
+            ));
+        }
+        if let Some(window) = resolution.secondary.as_ref() {
+            signals.push(secondary_window_signal(
+                window.used_percent,
+                Some(100.0 - window.used_percent),
+                window.resets_in_minutes,
+                None,
+                window.resets_at.clone(),
+            ));
+        }
+        build_depletion_forecast(signals)
+    };
+
+    Ok(LiveProviderSnapshot {
+        provider: "codex".into(),
+        available: resolution.available,
+        source_used: resolution.source_used,
+        last_attempted_source: resolution.last_attempted_source,
+        resolved_via_fallback: resolution.resolved_via_fallback,
+        refresh_duration_ms: resolution.refresh_duration_ms,
+        source_attempts: resolution.source_attempts,
+        identity: resolution.identity,
+        primary: resolution.primary,
+        secondary: resolution.secondary,
+        tertiary: None,
+        credits: resolution.credits,
+        status: status.map(super::status_to_live),
+        auth,
+        cost_summary,
+        claude_usage: None,
+        claude_admin: None,
+        quota_suggestions: None,
+        depletion_forecast,
+        predictive_insights: None,
+        last_refresh: chrono::Utc::now().to_rfc3339(),
+        stale: !resolution.available,
+        error: resolution.error,
+    })
+}
+
+pub(super) async fn build_codex_bootstrap_snapshot(
+    state: &Arc<AppState>,
+    status: Option<&ProviderStatus>,
+) -> Result<LiveProviderSnapshot> {
+    let started_at = Instant::now();
+    let cost_summary = super::load_provider_cost_summary(state, "codex").await?;
+    let env = std::env::vars().collect::<Vec<_>>();
+    let config_facts = load_config_facts(&env);
+    let bootstrap = resolve_bootstrap_auth(&env, &config_facts);
+    let identity = bootstrap.auth.as_ref().and_then(decode_identity);
+    let source_used = if bootstrap.auth.is_some() {
+        "bootstrap"
+    } else {
+        "unavailable"
+    };
+    let source_attempts = if let Some(message) = bootstrap.load_error.clone() {
+        vec![LiveProviderSourceAttempt {
+            source: "oauth-auth".into(),
+            outcome: "unavailable".into(),
+            message: Some(message),
+        }]
+    } else {
+        Vec::new()
+    };
+    let auth = build_auth_health(
+        &env,
+        &config_facts,
+        CodexAuthHealthInput {
+            credential_store: bootstrap.credential_store,
+            auth: bootstrap.auth.as_ref(),
+            identity: identity.as_ref(),
+            available: false,
+            bootstrap_error: bootstrap.load_error.as_deref(),
+            error: None,
+        },
+    );
+
+    Ok(LiveProviderSnapshot {
+        provider: "codex".into(),
+        available: false,
+        source_used: source_used.into(),
+        last_attempted_source: source_attempts.last().map(|attempt| attempt.source.clone()),
+        resolved_via_fallback: false,
+        refresh_duration_ms: started_at.elapsed().as_millis() as u64,
+        source_attempts,
+        identity,
+        primary: None,
+        secondary: None,
+        tertiary: None,
+        credits: None,
+        status: status.map(super::status_to_live),
+        auth,
+        cost_summary,
+        claude_usage: None,
+        claude_admin: None,
+        quota_suggestions: None,
+        depletion_forecast: None,
+        predictive_insights: None,
+        last_refresh: chrono::Utc::now().to_rfc3339(),
+        stale: true,
+        error: None,
+    })
+}
+
+pub(super) async fn resolve_codex_live_data_with<FetchOauth, FetchRpc, FetchCli>(
+    bootstrap: CodexBootstrapAuth,
+    fetch_oauth: FetchOauth,
+    fetch_rpc: FetchRpc,
+    fetch_cli: FetchCli,
+) -> CodexLiveResolution
+where
+    FetchOauth: for<'a> Fn(
+        &'a CodexAuth,
+    )
+        -> Pin<Box<dyn Future<Output = Result<CodexUsageResponse>> + Send + 'a>>,
+    FetchRpc: Fn(Duration) -> Result<(Option<RpcAccountResponse>, RpcRateLimitsResponse)>,
+    FetchCli: Fn(Duration) -> Result<CliStatusSnapshot>,
+{
+    let started_at = Instant::now();
+    let mut attempts = Vec::new();
+    let mut identity = None::<LiveProviderIdentity>;
+    let mut primary = None;
+    let mut secondary = None;
+    let mut credits = None;
+    let resolved_auth = bootstrap.auth.clone();
+    let mut source_used = "unavailable".to_string();
+    let mut error = bootstrap.load_error.clone();
+    let mut available = false;
+    let mut last_attempted_source;
+
+    last_attempted_source = Some("cli-rpc".to_string());
+    match fetch_rpc(Duration::from_secs(8)) {
+        Ok((account, limits)) => {
+            attempts.push(LiveProviderSourceAttempt {
+                source: "cli-rpc".into(),
+                outcome: "success".into(),
+                message: Some(format!(
+                    "credential backend resolved as {}",
+                    bootstrap.credential_store.backend_label()
+                )),
+            });
+            available = true;
+            source_used = "cli-rpc".into();
+            identity = account.as_ref().and_then(rpc_account_to_identity);
+            primary = limits.rate_limits.primary.as_ref().map(rpc_window_to_live);
+            secondary = limits
+                .rate_limits
+                .secondary
+                .as_ref()
+                .map(rpc_window_to_live);
+            credits = limits
+                .rate_limits
+                .credits
+                .as_ref()
+                .and_then(rpc_credits_to_f64);
+            error = None;
+        }
+        Err(rpc_error) => {
+            attempts.push(LiveProviderSourceAttempt {
+                source: "cli-rpc".into(),
+                outcome: "error".into(),
+                message: Some(rpc_error.to_string()),
+            });
+            if error.is_none() {
+                error = Some(rpc_error.to_string());
+            }
+        }
+    }
+
+    if !available && let Some(codex_auth) = bootstrap.auth.as_ref() {
+        last_attempted_source = Some("oauth".to_string());
+        if identity.is_none() {
+            identity = decode_identity(codex_auth);
+        }
+        match fetch_oauth(codex_auth).await {
+            Ok(response) => {
+                attempts.push(LiveProviderSourceAttempt {
+                    source: "oauth".into(),
+                    outcome: "success".into(),
+                    message: None,
+                });
+                available = true;
+                source_used = "oauth".into();
+                if let Some(plan_type) = response.plan_type
+                    && identity.is_none()
+                {
+                    identity = Some(LiveProviderIdentity {
+                        provider: "codex".into(),
+                        account_email: None,
+                        account_organization: None,
+                        login_method: Some("chatgpt".into()),
+                        plan: Some(plan_type),
+                    });
+                }
+                if let Some(rate_limit) = response.rate_limit {
+                    primary = rate_limit.primary_window.as_ref().map(oauth_window_to_live);
+                    secondary = rate_limit
+                        .secondary_window
+                        .as_ref()
+                        .map(oauth_window_to_live);
+                }
+                credits = response.credits.as_ref().and_then(oauth_credits_to_f64);
+                error = None;
+            }
+            Err(fetch_error) => {
+                attempts.push(LiveProviderSourceAttempt {
+                    source: "oauth".into(),
+                    outcome: "error".into(),
+                    message: Some(fetch_error.to_string()),
+                });
+                error = Some(fetch_error.to_string());
+            }
+        }
+    } else if !available && bootstrap.load_error.is_some() {
+        attempts.push(LiveProviderSourceAttempt {
+            source: "oauth-auth".into(),
+            outcome: "error".into(),
+            message: bootstrap.load_error.clone(),
+        });
+    }
+
+    if !available {
+        last_attempted_source = Some("cli-pty".to_string());
+        match fetch_cli(Duration::from_secs(8)) {
+            Ok(status_snapshot) => {
+                attempts.push(LiveProviderSourceAttempt {
+                    source: "cli-pty".into(),
+                    outcome: "success".into(),
+                    message: None,
+                });
+                available = true;
+                source_used = "cli-pty".into();
+                primary = status_snapshot.primary;
+                secondary = status_snapshot.secondary;
+                credits = status_snapshot.credits;
+                error = None;
+            }
+            Err(cli_error) => {
+                attempts.push(LiveProviderSourceAttempt {
+                    source: "cli-pty".into(),
+                    outcome: "error".into(),
+                    message: Some(cli_error.to_string()),
+                });
+                if error.is_none() {
+                    error = Some(cli_error.to_string());
+                }
+            }
+        }
+    }
+
+    let resolved_via_fallback = available && source_used != "cli-rpc";
+
+    CodexLiveResolution {
+        available,
+        source_used,
+        last_attempted_source,
+        resolved_via_fallback,
+        refresh_duration_ms: started_at.elapsed().as_millis() as u64,
+        source_attempts: attempts,
+        identity,
+        primary,
+        secondary,
+        credits,
+        error,
+        auth: resolved_auth,
+        credential_store: bootstrap.credential_store,
+        bootstrap_error: bootstrap.load_error,
     }
 }

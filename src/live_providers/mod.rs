@@ -1,36 +1,25 @@
 use std::future::Future;
-use std::pin::Pin;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
 
 use anyhow::{Result, anyhow, bail};
 
 use crate::agent_status::models::ProviderStatus;
-use crate::analytics::blocks::identify_blocks;
-use crate::analytics::depletion::{
-    billing_block_signal, build_depletion_forecast, primary_window_signal, secondary_window_signal,
-};
-use crate::analytics::predictive::compute_predictive_insights;
-use crate::analytics::quota::compute_quota_suggestions;
 use crate::models::{
-    LIVE_PROVIDERS_CONTRACT_VERSION, LiveFloatPercentiles, LiveHistoricalEnvelope,
-    LiveIntegerPercentiles, LiveLimitHitAnalysis, LivePredictiveBurnRate, LivePredictiveInsights,
-    LiveProviderHistoryResponse, LiveProviderIdentity, LiveProviderSnapshot,
-    LiveProviderSourceAttempt, LiveProviderStatus, LiveProvidersResponse, LiveQuotaSuggestionLevel,
-    LiveQuotaSuggestions, LocalNotificationCondition, LocalNotificationState,
-    MOBILE_SNAPSHOT_CONTRACT_VERSION, MobileProviderHistorySeries, MobileSnapshotEnvelope,
-    MobileSnapshotFreshness, MobileSnapshotTotals, ProviderCostSummary,
+    LIVE_PROVIDERS_CONTRACT_VERSION, LiveProviderHistoryResponse, LiveProviderStatus,
+    LiveProvidersResponse, MOBILE_SNAPSHOT_CONTRACT_VERSION, MobileProviderHistorySeries,
+    MobileSnapshotEnvelope, MobileSnapshotFreshness, MobileSnapshotTotals, ProviderCostSummary,
 };
-use crate::oauth::credentials;
-use crate::oauth::models::{BudgetInfo, Identity, Plan, UsageWindowsResponse, WindowInfo};
+use crate::oauth::models::UsageWindowsResponse;
 use crate::scanner::db;
 use crate::server::api::{
     AppState, refresh_agent_status, refresh_community_signal, refresh_usage_windows,
 };
-use crate::status_aggregator::models::{CommunitySignal, SignalLevel};
-use crate::tz::TzParams;
+use crate::status_aggregator::models::CommunitySignal;
 
+pub mod cache;
+pub mod claude;
 pub mod codex;
+pub mod conditions;
 
 const LIVE_PROVIDER_CACHE_SECS: u64 = 60;
 const ALL_PROVIDERS: [&str; 2] = ["claude", "codex"];
@@ -48,24 +37,6 @@ impl ResponseScope {
             Self::ProviderOnly => "provider",
         }
     }
-}
-
-#[derive(Debug, Clone)]
-struct CodexLiveResolution {
-    available: bool,
-    source_used: String,
-    last_attempted_source: Option<String>,
-    resolved_via_fallback: bool,
-    refresh_duration_ms: u64,
-    source_attempts: Vec<LiveProviderSourceAttempt>,
-    identity: Option<LiveProviderIdentity>,
-    primary: Option<crate::models::LiveRateWindow>,
-    secondary: Option<crate::models::LiveRateWindow>,
-    credits: Option<f64>,
-    error: Option<String>,
-    auth: Option<codex::CodexAuth>,
-    credential_store: codex::ResolvedCodexCredentialStore,
-    bootstrap_error: Option<String>,
 }
 
 pub async fn load_snapshots(
@@ -111,16 +82,16 @@ where
         // fine for background refresh but unacceptable for a 5-second probe
         // timeout. Subsequent (non-startup) requests walk the full path and
         // populate `live_provider_cache` for the next readiness probe.
-        if let Some(cached) = cached_response(state).await {
-            return Ok(filter_response(
+        if let Some(cached) = cache::cached_response(state).await {
+            return Ok(cache::filter_response(
                 &cached,
                 requested_provider.as_deref(),
                 scope,
                 true,
             ));
         }
-        if let Some(cached) = cached_response_any(state).await {
-            return Ok(filter_response(
+        if let Some(cached) = cache::cached_response_any(state).await {
+            return Ok(cache::filter_response(
                 &cached,
                 requested_provider.as_deref(),
                 scope,
@@ -138,8 +109,8 @@ where
         });
     }
 
-    if !force_refresh && let Some(cached) = cached_response(state).await {
-        return Ok(filter_response(
+    if !force_refresh && let Some(cached) = cache::cached_response(state).await {
+        return Ok(cache::filter_response(
             &cached,
             requested_provider.as_deref(),
             scope,
@@ -150,7 +121,7 @@ where
     // Stale-while-revalidate: if we have any cached entry (even expired) and no
     // refresh is already in flight, return the stale response immediately and
     // kick off a background refresh so the *next* request sees fresh data.
-    if !force_refresh && let Some(stale) = cached_response_any(state).await {
+    if !force_refresh && let Some(stale) = cache::cached_response_any(state).await {
         match state.live_provider_refresh_lock.try_lock() {
             Ok(_guard) => {
                 // Lock acquired; drop the guard and let the background task
@@ -162,7 +133,7 @@ where
                 tokio::spawn(async move {
                     let _guard = bg_state.live_provider_refresh_lock.lock().await;
                     // Re-check: another task may have refreshed while we waited.
-                    if cached_response(&bg_state).await.is_some() {
+                    if cache::cached_response(&bg_state).await.is_some() {
                         return;
                     }
                     match fetch_live_provider_response(
@@ -175,7 +146,7 @@ where
                     .await
                     {
                         Ok(response) => {
-                            update_cache_after_fetch(
+                            cache::update_cache_after_fetch(
                                 &bg_state,
                                 bg_provider.as_deref(),
                                 scope,
@@ -188,7 +159,7 @@ where
                         }
                     }
                 });
-                return Ok(filter_response(
+                return Ok(cache::filter_response(
                     &stale,
                     requested_provider.as_deref(),
                     scope,
@@ -198,7 +169,7 @@ where
             Err(_) => {
                 // A refresh is already in flight; return stale immediately
                 // rather than blocking the caller.
-                return Ok(filter_response(
+                return Ok(cache::filter_response(
                     &stale,
                     requested_provider.as_deref(),
                     scope,
@@ -218,8 +189,8 @@ where
         }
     };
 
-    if !force_refresh && let Some(cached) = cached_response(state).await {
-        return Ok(filter_response(
+    if !force_refresh && let Some(cached) = cache::cached_response(state).await {
+        return Ok(cache::filter_response(
             &cached,
             requested_provider.as_deref(),
             scope,
@@ -227,8 +198,8 @@ where
         ));
     }
 
-    if waited_for_refresh && let Some(cached) = cached_response_any(state).await {
-        return Ok(filter_response(
+    if waited_for_refresh && let Some(cached) = cache::cached_response_any(state).await {
+        return Ok(cache::filter_response(
             &cached,
             requested_provider.as_deref(),
             scope,
@@ -237,7 +208,7 @@ where
     }
 
     let response = fetcher(requested_provider.clone(), scope, force_refresh, false).await?;
-    update_cache_after_fetch(state, requested_provider.as_deref(), scope, &response).await;
+    cache::update_cache_after_fetch(state, requested_provider.as_deref(), scope, &response).await;
     Ok(response)
 }
 
@@ -332,7 +303,7 @@ fn build_mobile_snapshot(
 
 fn build_mobile_history_and_totals(
     conn: &rusqlite::Connection,
-    providers: &[LiveProviderSnapshot],
+    providers: &[crate::models::LiveProviderSnapshot],
     provider_names: &[String],
 ) -> Result<(Vec<MobileProviderHistorySeries>, MobileSnapshotTotals)> {
     let start_90d = (chrono::Utc::now().date_naive() - chrono::Duration::days(89)).to_string();
@@ -418,7 +389,7 @@ async fn fetch_live_provider_response(
     for provider in providers_to_build.iter().copied() {
         match provider {
             "claude" => {
-                let snapshot = build_claude_snapshot(
+                let snapshot = claude::build_claude_snapshot(
                     state,
                     claude_usage
                         .as_ref()
@@ -433,7 +404,7 @@ async fn fetch_live_provider_response(
             }
             "codex" => {
                 let snapshot = if startup {
-                    build_codex_bootstrap_snapshot(
+                    codex::build_codex_bootstrap_snapshot(
                         state,
                         agent_status
                             .as_ref()
@@ -441,7 +412,7 @@ async fn fetch_live_provider_response(
                     )
                     .await?
                 } else {
-                    build_codex_snapshot(
+                    codex::build_codex_snapshot(
                         state,
                         agent_status
                             .as_ref()
@@ -454,7 +425,7 @@ async fn fetch_live_provider_response(
             other => bail!("unsupported live provider: {}", other),
         }
     }
-    let local_notification_state = build_local_notification_state(
+    let local_notification_state = conditions::build_local_notification_state(
         state,
         agent_status.as_ref(),
         claude_usage.as_ref(),
@@ -511,325 +482,6 @@ async fn cached_community_signal(state: &Arc<AppState>) -> Option<CommunitySigna
     cache.as_ref().map(|(_, signal)| signal.clone())
 }
 
-async fn build_local_notification_state(
-    state: &Arc<AppState>,
-    agent_status: Option<&crate::agent_status::models::AgentStatusSnapshot>,
-    claude_usage: Option<&UsageWindowsResponse>,
-    community_signal: Option<&CommunitySignal>,
-) -> Result<LocalNotificationState> {
-    let generated_at = chrono::Utc::now().to_rfc3339();
-    let cost_threshold_usd = state.webhook_config.cost_threshold;
-    let mut conditions = Vec::new();
-
-    if let Some(session) = claude_usage.and_then(|usage| usage.session.as_ref()) {
-        let depleted = session.used_percent >= 99.99;
-        conditions.push(LocalNotificationCondition {
-            id: "claude-session-depleted".into(),
-            kind: "session_depleted".into(),
-            provider: Some("claude".into()),
-            service_label: "Claude".into(),
-            is_active: depleted,
-            activation_title: "Claude session depleted".into(),
-            activation_body: match session.resets_in_minutes {
-                Some(minutes) => {
-                    format!("Claude session is depleted. Resets in {minutes} minutes.")
-                }
-                None => "Claude session is depleted.".into(),
-            },
-            recovery_title: Some("Claude session restored".into()),
-            recovery_body: Some("Claude session capacity is available again.".into()),
-            day_key: None,
-        });
-    }
-
-    if let Some(status) = agent_status.and_then(|snapshot| snapshot.claude.as_ref()) {
-        conditions.push(provider_status_condition(
-            "claude-service-degraded",
-            "claude",
-            "Claude",
-            status,
-        ));
-    }
-    if let Some(status) = agent_status.and_then(|snapshot| snapshot.openai.as_ref()) {
-        conditions.push(provider_status_condition(
-            "codex-service-degraded",
-            "codex",
-            "OpenAI",
-            status,
-        ));
-    }
-
-    if state.aggregator_config.enabled
-        && let Some(signal) = community_signal
-        && signal.enabled
-    {
-        let claude_major = agent_status
-            .and_then(|snapshot| snapshot.claude.as_ref())
-            .map(|status| status.indicator.is_alert_worthy())
-            .unwrap_or(false);
-        let codex_major = agent_status
-            .and_then(|snapshot| snapshot.openai.as_ref())
-            .map(|status| status.indicator.is_alert_worthy())
-            .unwrap_or(false);
-
-        conditions.push(community_spike_condition(
-            "claude-community-spike",
-            "claude",
-            "Claude",
-            &signal.claude,
-            claude_major,
-        ));
-        conditions.push(community_spike_condition(
-            "codex-community-spike",
-            "codex",
-            "OpenAI",
-            &signal.openai,
-            codex_major,
-        ));
-    }
-
-    if let Some(threshold) = cost_threshold_usd {
-        let (day_key, daily_cost_usd) = load_today_cost_snapshot(state).await?;
-        conditions.push(LocalNotificationCondition {
-            id: "daily-cost-threshold".into(),
-            kind: "daily_cost_threshold".into(),
-            provider: None,
-            service_label: "Heimdall".into(),
-            is_active: daily_cost_usd > threshold,
-            activation_title: "Daily cost threshold crossed".into(),
-            activation_body: format!(
-                "Today's Heimdall cost reached ${daily_cost_usd:.2}, above the configured ${threshold:.2} threshold."
-            ),
-            recovery_title: None,
-            recovery_body: None,
-            day_key: Some(day_key),
-        });
-    }
-
-    Ok(LocalNotificationState {
-        generated_at,
-        cost_threshold_usd,
-        conditions,
-    })
-}
-
-fn provider_status_condition(
-    id: &str,
-    provider: &str,
-    service_label: &str,
-    status: &ProviderStatus,
-) -> LocalNotificationCondition {
-    let active = status.indicator.is_alert_worthy();
-    let activation_title = if provider == "codex" {
-        "Codex service degraded"
-    } else {
-        "Claude service degraded"
-    };
-    let recovery_title = if provider == "codex" {
-        "Codex service restored"
-    } else {
-        "Claude service restored"
-    };
-
-    LocalNotificationCondition {
-        id: id.into(),
-        kind: "provider_degraded".into(),
-        provider: Some(provider.into()),
-        service_label: service_label.into(),
-        is_active: active,
-        activation_title: activation_title.into(),
-        activation_body: if provider == "codex" {
-            format!(
-                "OpenAI status is degraded for Codex. {}",
-                status.description
-            )
-        } else {
-            format!("Claude status is degraded. {}", status.description)
-        },
-        recovery_title: Some(recovery_title.into()),
-        recovery_body: Some(if provider == "codex" {
-            "OpenAI status returned to a non-alert state for Codex.".into()
-        } else {
-            "Claude status returned to a non-alert state.".into()
-        }),
-        day_key: None,
-    }
-}
-
-fn community_spike_condition(
-    id: &str,
-    provider: &str,
-    service_label: &str,
-    signals: &[crate::status_aggregator::models::ServiceSignal],
-    official_is_major: bool,
-) -> LocalNotificationCondition {
-    let is_spike = signals
-        .iter()
-        .any(|signal| signal.level == SignalLevel::Spike);
-    let is_active = is_spike && !official_is_major;
-    let activation_title = if provider == "codex" {
-        "Codex community spike detected"
-    } else {
-        "Claude community spike detected"
-    };
-
-    LocalNotificationCondition {
-        id: id.into(),
-        kind: "community_spike".into(),
-        provider: Some(provider.into()),
-        service_label: service_label.into(),
-        is_active,
-        activation_title: activation_title.into(),
-        activation_body: if provider == "codex" {
-            "OpenAI community reports spiked while official status remains below major.".into()
-        } else {
-            "Claude community reports spiked while official status remains below major.".into()
-        },
-        recovery_title: None,
-        recovery_body: None,
-        day_key: None,
-    }
-}
-
-async fn load_today_cost_snapshot(state: &Arc<AppState>) -> Result<(String, f64)> {
-    let db_path = state.db_path.clone();
-    tokio::task::spawn_blocking(move || -> Result<(String, f64)> {
-        let conn = db::open_db(&db_path)?;
-        db::init_db(&conn)?;
-
-        let now = chrono::Local::now();
-        let tz = TzParams {
-            tz_offset_min: Some(now.offset().local_minus_utc() / 60),
-            week_starts_on: None,
-        };
-        let today = now.format("%Y-%m-%d").to_string();
-        let data = db::get_dashboard_data(&conn, tz)?;
-        let daily_cost_usd = data
-            .daily_by_model
-            .iter()
-            .filter(|row| row.day == today)
-            .map(|row| row.cost)
-            .sum();
-
-        Ok((today, daily_cost_usd))
-    })
-    .await
-    .map_err(|err| anyhow!("failed to load daily cost snapshot: {}", err))?
-}
-
-async fn cached_response(state: &Arc<AppState>) -> Option<LiveProvidersResponse> {
-    let cache = state.live_provider_cache.read().await;
-    match &*cache {
-        Some((fetched_at, cached))
-            if fetched_at.elapsed() < Duration::from_secs(LIVE_PROVIDER_CACHE_SECS) =>
-        {
-            Some(cached.clone())
-        }
-        _ => None,
-    }
-}
-
-async fn cached_response_any(state: &Arc<AppState>) -> Option<LiveProvidersResponse> {
-    let cache = state.live_provider_cache.read().await;
-    cache.as_ref().map(|(_, cached)| cached.clone())
-}
-
-async fn update_cache_after_fetch(
-    state: &Arc<AppState>,
-    requested_provider: Option<&str>,
-    scope: ResponseScope,
-    response: &LiveProvidersResponse,
-) {
-    let mut cache = state.live_provider_cache.write().await;
-
-    if is_full_response(response) {
-        *cache = Some((Instant::now(), cacheable_response(response)));
-        return;
-    }
-
-    if requested_provider.is_some()
-        && scope == ResponseScope::ProviderOnly
-        && let Some((fetched_at, cached)) = &mut *cache
-    {
-        merge_provider_snapshot(cached, response);
-        *fetched_at = Instant::now();
-    }
-}
-
-fn is_full_response(response: &LiveProvidersResponse) -> bool {
-    response.providers.len() == ALL_PROVIDERS.len()
-        && response
-            .providers
-            .iter()
-            .all(|snapshot| ALL_PROVIDERS.contains(&snapshot.provider.as_str()))
-}
-
-fn cacheable_response(response: &LiveProvidersResponse) -> LiveProvidersResponse {
-    let mut cached = response.clone();
-    cached.requested_provider = None;
-    cached.response_scope = ResponseScope::All.as_str().to_string();
-    cached.cache_hit = false;
-    cached.refreshed_providers.clear();
-    cached
-}
-
-fn merge_provider_snapshot(base: &mut LiveProvidersResponse, update: &LiveProvidersResponse) {
-    for snapshot in &update.providers {
-        if let Some(existing) = base
-            .providers
-            .iter_mut()
-            .find(|candidate| candidate.provider == snapshot.provider)
-        {
-            *existing = snapshot.clone();
-        } else {
-            base.providers.push(snapshot.clone());
-        }
-    }
-    sort_snapshots(&mut base.providers);
-    base.fetched_at = chrono::Utc::now().to_rfc3339();
-    base.local_notification_state = update.local_notification_state.clone();
-}
-
-fn filter_response(
-    response: &LiveProvidersResponse,
-    requested_provider: Option<&str>,
-    scope: ResponseScope,
-    cache_hit: bool,
-) -> LiveProvidersResponse {
-    let providers = match (requested_provider, scope) {
-        (Some(provider), ResponseScope::ProviderOnly) => response
-            .providers
-            .iter()
-            .filter(|snapshot| snapshot.provider == provider)
-            .cloned()
-            .collect(),
-        _ => response.providers.clone(),
-    };
-
-    LiveProvidersResponse {
-        contract_version: response.contract_version,
-        providers,
-        fetched_at: response.fetched_at.clone(),
-        requested_provider: requested_provider.map(ToOwned::to_owned),
-        response_scope: scope.as_str().to_string(),
-        cache_hit,
-        refreshed_providers: if cache_hit {
-            Vec::new()
-        } else {
-            response.refreshed_providers.clone()
-        },
-        local_notification_state: response.local_notification_state.clone(),
-    }
-}
-
-fn sort_snapshots(snapshots: &mut [LiveProviderSnapshot]) {
-    snapshots.sort_by_key(|snapshot| match snapshot.provider.as_str() {
-        "claude" => 0,
-        "codex" => 1,
-        _ => 2,
-    });
-}
-
 fn normalize_provider(provider: Option<&str>) -> Result<Option<&'static str>> {
     match provider {
         None => Ok(None),
@@ -839,677 +491,13 @@ fn normalize_provider(provider: Option<&str>) -> Result<Option<&'static str>> {
     }
 }
 
-async fn build_claude_snapshot(
-    state: &Arc<AppState>,
-    usage: &UsageWindowsResponse,
-    status: Option<&ProviderStatus>,
-    session_length_hours: f64,
-) -> Result<LiveProviderSnapshot> {
-    let started_at = Instant::now();
-    let db_path = state.db_path.clone();
-    let blocks_token_limit = state.blocks_token_limit;
-    let usage_clone = usage.clone();
-    let status = status.cloned();
-    let env = std::env::vars().collect::<Vec<_>>();
-    let resolved_auth = credentials::resolve_auth(&env);
-    let auth = resolved_auth.health.clone();
-    let resolved_identity = resolved_auth.identity.clone();
-    tokio::task::spawn_blocking(move || {
-        use crate::analytics::blocks::{calculate_burn_rate, project_block_usage};
-        use crate::analytics::quota::compute_quota;
+// ---------------------------------------------------------------------------
+// Shared helpers used by multiple submodules
+// ---------------------------------------------------------------------------
 
-        let conn = db::open_db(&db_path)?;
-        db::init_db(&conn)?;
-        let claude_usage = db::get_latest_claude_usage_response(&conn)?.latest_snapshot;
-        let cost_summary = provider_cost_summary(&conn, "claude")?;
-        let turns = db::load_all_turns(&conn)?;
-        let blocks = identify_blocks(&turns, session_length_hours);
-        let now = chrono::Utc::now();
-        let active_projection = blocks
-            .iter()
-            .find(|block| block.is_active && !block.is_gap)
-            .map(|block| {
-                let projection = project_block_usage(block, calculate_burn_rate(block, now), now);
-                projection.projected_tokens as i64
-            });
-        let quota_suggestions =
-            compute_quota_suggestions(&blocks, blocks_token_limit).map(live_quota_suggestions);
-        let primary = usage_clone.session.as_ref().map(window_to_live);
-        let secondary = usage_clone.weekly.as_ref().map(window_to_live);
-        let depletion_forecast = {
-            let mut signals = Vec::new();
-            if let Some(limit) = blocks_token_limit
-                && let Some(active_block) =
-                    blocks.iter().find(|block| block.is_active && !block.is_gap)
-            {
-                let projection =
-                    project_block_usage(active_block, calculate_burn_rate(active_block, now), now);
-                if let Some(quota) = compute_quota(active_block, &projection, limit) {
-                    signals.push(billing_block_signal(
-                        "Billing block",
-                        quota.current_pct * 100.0,
-                        Some(quota.projected_pct * 100.0),
-                        Some(quota.remaining_tokens),
-                        Some(100.0 - (quota.current_pct * 100.0)),
-                        Some(active_block.end.to_rfc3339()),
-                    ));
-                }
-            }
-            if let Some(window) = primary.as_ref() {
-                signals.push(primary_window_signal(
-                    window.used_percent,
-                    Some(100.0 - window.used_percent),
-                    window.resets_in_minutes,
-                    None,
-                    window.resets_at.clone(),
-                ));
-            }
-            if let Some(window) = secondary.as_ref() {
-                signals.push(secondary_window_signal(
-                    window.used_percent,
-                    Some(100.0 - window.used_percent),
-                    window.resets_in_minutes,
-                    None,
-                    window.resets_at.clone(),
-                ));
-            }
-            build_depletion_forecast(signals)
-        };
-        let predictive_insights =
-            compute_predictive_insights(&blocks, blocks_token_limit, active_projection, now)
-                .map(live_predictive_insights);
-
-        let mut source_attempts = Vec::new();
-        let source_used = if usage_clone.available && usage_clone.source == "oauth" {
-            source_attempts.push(LiveProviderSourceAttempt {
-                source: "oauth".into(),
-                outcome: "success".into(),
-                message: None,
-            });
-            "oauth"
-        } else if usage_clone.available && usage_clone.source == "admin" {
-            source_attempts.push(LiveProviderSourceAttempt {
-                source: "oauth".into(),
-                outcome: "unavailable".into(),
-                message: Some("OAuth usage unavailable; using Anthropic admin analytics.".into()),
-            });
-            source_attempts.push(LiveProviderSourceAttempt {
-                source: "admin".into(),
-                outcome: "success".into(),
-                message: Some("using org-wide Anthropic admin analytics".into()),
-            });
-            "admin"
-        } else if claude_usage.is_some() {
-            source_attempts.push(LiveProviderSourceAttempt {
-                source: "oauth".into(),
-                outcome: if usage_clone.error.is_some() {
-                    "error".into()
-                } else {
-                    "unavailable".into()
-                },
-                message: usage_clone.error.clone(),
-            });
-            source_attempts.push(LiveProviderSourceAttempt {
-                source: "local".into(),
-                outcome: "success".into(),
-                message: Some("using latest stored /usage factors".into()),
-            });
-            "local"
-        } else {
-            source_attempts.push(LiveProviderSourceAttempt {
-                source: "oauth".into(),
-                outcome: if usage_clone.error.is_some() {
-                    "error".into()
-                } else {
-                    "unavailable".into()
-                },
-                message: usage_clone.error.clone(),
-            });
-            "unavailable"
-        };
-        let last_attempted_source = source_attempts.last().map(|attempt| attempt.source.clone());
-        let resolved_via_fallback = source_used == "local" || source_used == "admin";
-
-        Ok(LiveProviderSnapshot {
-            provider: "claude".into(),
-            available: usage_clone.available || claude_usage.is_some(),
-            source_used: source_used.into(),
-            last_attempted_source,
-            resolved_via_fallback,
-            refresh_duration_ms: started_at.elapsed().as_millis() as u64,
-            source_attempts,
-            identity: usage_clone
-                .identity
-                .as_ref()
-                .map(identity_to_live)
-                .or_else(|| resolved_identity.as_ref().map(identity_to_live)),
-            primary,
-            secondary,
-            tertiary: usage_clone
-                .weekly_opus
-                .as_ref()
-                .or(usage_clone.weekly_sonnet.as_ref())
-                .map(window_to_live),
-            credits: usage_clone.budget.as_ref().map(budget_to_credits),
-            status: status.as_ref().map(status_to_live),
-            auth,
-            cost_summary,
-            claude_usage,
-            claude_admin: usage_clone.admin_fallback.clone(),
-            quota_suggestions,
-            depletion_forecast,
-            predictive_insights,
-            last_refresh: chrono::Utc::now().to_rfc3339(),
-            stale: false,
-            error: if source_used == "unavailable" {
-                usage_clone.error.clone()
-            } else {
-                None
-            },
-        })
-    })
-    .await
-    .map_err(anyhow::Error::from)?
-}
-
-async fn build_codex_snapshot(
-    state: &Arc<AppState>,
-    status: Option<&ProviderStatus>,
-) -> Result<LiveProviderSnapshot> {
-    let cost_summary = load_provider_cost_summary(state, "codex").await?;
-    let env = std::env::vars().collect::<Vec<_>>();
-    let config_facts = codex::load_config_facts(&env);
-    let bootstrap = codex::resolve_bootstrap_auth(&env, &config_facts);
-    // Wrap fetch_oauth_usage with a single-shot refresh retry: if the initial
-    // call fails with an auth-looking error and we have a refresh_token, ask
-    // Codex's OAuth provider for a new access token, persist it back to
-    // auth.json only when the resolved credential backend is file-backed, and
-    // retry the fetch once with the new creds.
-    let env_for_refresh = env.clone();
-    let resolution = resolve_codex_live_data_with(
-        bootstrap,
-        move |auth| {
-            let env_for_refresh = env_for_refresh.clone();
-            Box::pin(async move {
-                match codex::fetch_oauth_usage(auth).await {
-                    Ok(response) => Ok(response),
-                    Err(err) => {
-                        let Some(refresh) = auth.refresh_token.as_deref() else {
-                            return Err(err);
-                        };
-                        if !codex::looks_like_oauth_auth_error(&err) {
-                            return Err(err);
-                        }
-                        match codex::refresh_oauth_token(refresh).await {
-                            Ok(tokens) => {
-                                let refreshed = codex::apply_refreshed_tokens(auth, &tokens);
-                                let config_facts = codex::load_config_facts(&env_for_refresh);
-                                let bootstrap =
-                                    codex::resolve_bootstrap_auth(&env_for_refresh, &config_facts);
-                                if bootstrap.credential_store.persists_to_file()
-                                    && let Err(persist_err) =
-                                        codex::persist_refreshed_tokens_to_disk(
-                                            &env_for_refresh,
-                                            &tokens,
-                                        )
-                                {
-                                    tracing::warn!("Codex refresh persist failed: {persist_err:#}");
-                                }
-                                codex::fetch_oauth_usage(&refreshed).await
-                            }
-                            Err(refresh_err) => {
-                                tracing::warn!("Codex token refresh failed: {refresh_err:#}");
-                                Err(err)
-                            }
-                        }
-                    }
-                }
-            })
-        },
-        codex::fetch_rpc_snapshot,
-        codex::fetch_cli_status,
-    )
-    .await;
-    let auth = codex::build_auth_health(
-        &env,
-        &config_facts,
-        codex::CodexAuthHealthInput {
-            credential_store: resolution.credential_store,
-            auth: resolution.auth.as_ref(),
-            identity: resolution.identity.as_ref(),
-            available: resolution.available,
-            bootstrap_error: resolution.bootstrap_error.as_deref(),
-            error: resolution.error.as_deref(),
-        },
-    );
-    let depletion_forecast = {
-        let mut signals = Vec::new();
-        if let Some(window) = resolution.primary.as_ref() {
-            signals.push(primary_window_signal(
-                window.used_percent,
-                Some(100.0 - window.used_percent),
-                window.resets_in_minutes,
-                None,
-                window.resets_at.clone(),
-            ));
-        }
-        if let Some(window) = resolution.secondary.as_ref() {
-            signals.push(secondary_window_signal(
-                window.used_percent,
-                Some(100.0 - window.used_percent),
-                window.resets_in_minutes,
-                None,
-                window.resets_at.clone(),
-            ));
-        }
-        build_depletion_forecast(signals)
-    };
-
-    Ok(LiveProviderSnapshot {
-        provider: "codex".into(),
-        available: resolution.available,
-        source_used: resolution.source_used,
-        last_attempted_source: resolution.last_attempted_source,
-        resolved_via_fallback: resolution.resolved_via_fallback,
-        refresh_duration_ms: resolution.refresh_duration_ms,
-        source_attempts: resolution.source_attempts,
-        identity: resolution.identity,
-        primary: resolution.primary,
-        secondary: resolution.secondary,
-        tertiary: None,
-        credits: resolution.credits,
-        status: status.map(status_to_live),
-        auth,
-        cost_summary,
-        claude_usage: None,
-        claude_admin: None,
-        quota_suggestions: None,
-        depletion_forecast,
-        predictive_insights: None,
-        last_refresh: chrono::Utc::now().to_rfc3339(),
-        stale: !resolution.available,
-        error: resolution.error,
-    })
-}
-
-async fn build_codex_bootstrap_snapshot(
-    state: &Arc<AppState>,
-    status: Option<&ProviderStatus>,
-) -> Result<LiveProviderSnapshot> {
-    let started_at = Instant::now();
-    let cost_summary = load_provider_cost_summary(state, "codex").await?;
-    let env = std::env::vars().collect::<Vec<_>>();
-    let config_facts = codex::load_config_facts(&env);
-    let bootstrap = codex::resolve_bootstrap_auth(&env, &config_facts);
-    let identity = bootstrap.auth.as_ref().and_then(codex::decode_identity);
-    let source_used = if bootstrap.auth.is_some() {
-        "bootstrap"
-    } else {
-        "unavailable"
-    };
-    let source_attempts = if let Some(message) = bootstrap.load_error.clone() {
-        vec![LiveProviderSourceAttempt {
-            source: "oauth-auth".into(),
-            outcome: "unavailable".into(),
-            message: Some(message),
-        }]
-    } else {
-        Vec::new()
-    };
-    let auth = codex::build_auth_health(
-        &env,
-        &config_facts,
-        codex::CodexAuthHealthInput {
-            credential_store: bootstrap.credential_store,
-            auth: bootstrap.auth.as_ref(),
-            identity: identity.as_ref(),
-            available: false,
-            bootstrap_error: bootstrap.load_error.as_deref(),
-            error: None,
-        },
-    );
-
-    Ok(LiveProviderSnapshot {
-        provider: "codex".into(),
-        available: false,
-        source_used: source_used.into(),
-        last_attempted_source: source_attempts.last().map(|attempt| attempt.source.clone()),
-        resolved_via_fallback: false,
-        refresh_duration_ms: started_at.elapsed().as_millis() as u64,
-        source_attempts,
-        identity,
-        primary: None,
-        secondary: None,
-        tertiary: None,
-        credits: None,
-        status: status.map(status_to_live),
-        auth,
-        cost_summary,
-        claude_usage: None,
-        claude_admin: None,
-        quota_suggestions: None,
-        depletion_forecast: None,
-        predictive_insights: None,
-        last_refresh: chrono::Utc::now().to_rfc3339(),
-        stale: true,
-        error: None,
-    })
-}
-
-fn live_quota_suggestions(
-    suggestions: crate::analytics::quota::QuotaSuggestions,
-) -> LiveQuotaSuggestions {
-    LiveQuotaSuggestions {
-        sample_count: suggestions.sample_count,
-        population_count: suggestions.population_count,
-        recommended_key: suggestions.recommended_key,
-        sample_strategy: suggestions.sample_strategy,
-        sample_label: suggestions.sample_label,
-        levels: suggestions
-            .levels
-            .into_iter()
-            .map(|level| LiveQuotaSuggestionLevel {
-                key: level.key,
-                label: level.label,
-                limit_tokens: level.limit_tokens,
-            })
-            .collect(),
-        note: suggestions.note,
-    }
-}
-
-fn live_predictive_insights(
-    insights: crate::analytics::predictive::PredictiveInsights,
-) -> LivePredictiveInsights {
-    LivePredictiveInsights {
-        rolling_hour_burn: insights
-            .rolling_hour_burn
-            .map(|burn| LivePredictiveBurnRate {
-                tokens_per_min: burn.tokens_per_min,
-                cost_per_hour_nanos: burn.cost_per_hour_nanos,
-                coverage_minutes: burn.coverage_minutes,
-                tier: burn.tier,
-            }),
-        historical_envelope: insights
-            .historical_envelope
-            .map(|envelope| LiveHistoricalEnvelope {
-                sample_count: envelope.sample_count,
-                tokens: live_integer_percentiles(envelope.tokens),
-                cost_usd: live_float_percentiles(envelope.cost_usd),
-                turns: live_integer_percentiles(envelope.turns),
-            }),
-        limit_hit_analysis: insights
-            .limit_hit_analysis
-            .map(|analysis| LiveLimitHitAnalysis {
-                sample_count: analysis.sample_count,
-                hit_count: analysis.hit_count,
-                hit_rate: analysis.hit_rate,
-                threshold_tokens: analysis.threshold_tokens,
-                threshold_percent: analysis.threshold_percent,
-                active_current_hit: analysis.active_current_hit,
-                active_projected_hit: analysis.active_projected_hit,
-                risk_level: analysis.risk_level,
-                summary_label: analysis.summary_label,
-            }),
-    }
-}
-
-fn live_integer_percentiles(
-    percentiles: crate::analytics::predictive::IntegerPercentiles,
-) -> LiveIntegerPercentiles {
-    LiveIntegerPercentiles {
-        average: percentiles.average,
-        p50: percentiles.p50,
-        p75: percentiles.p75,
-        p90: percentiles.p90,
-        p95: percentiles.p95,
-    }
-}
-
-fn live_float_percentiles(
-    percentiles: crate::analytics::predictive::FloatPercentiles,
-) -> LiveFloatPercentiles {
-    LiveFloatPercentiles {
-        average: percentiles.average,
-        p50: percentiles.p50,
-        p75: percentiles.p75,
-        p90: percentiles.p90,
-        p95: percentiles.p95,
-    }
-}
-
-async fn resolve_codex_live_data_with<FetchOauth, FetchRpc, FetchCli>(
-    bootstrap: codex::CodexBootstrapAuth,
-    fetch_oauth: FetchOauth,
-    fetch_rpc: FetchRpc,
-    fetch_cli: FetchCli,
-) -> CodexLiveResolution
-where
-    FetchOauth: for<'a> Fn(
-        &'a codex::CodexAuth,
-    ) -> Pin<
-        Box<dyn Future<Output = Result<codex::CodexUsageResponse>> + Send + 'a>,
-    >,
-    FetchRpc: Fn(
-        Duration,
-    ) -> Result<(
-        Option<codex::RpcAccountResponse>,
-        codex::RpcRateLimitsResponse,
-    )>,
-    FetchCli: Fn(Duration) -> Result<codex::CliStatusSnapshot>,
-{
-    let started_at = Instant::now();
-    let mut attempts = Vec::new();
-    let mut identity = None::<LiveProviderIdentity>;
-    let mut primary = None;
-    let mut secondary = None;
-    let mut credits = None;
-    let resolved_auth = bootstrap.auth.clone();
-    let mut source_used = "unavailable".to_string();
-    let mut error = bootstrap.load_error.clone();
-    let mut available = false;
-    let mut last_attempted_source;
-
-    last_attempted_source = Some("cli-rpc".to_string());
-    match fetch_rpc(Duration::from_secs(8)) {
-        Ok((account, limits)) => {
-            attempts.push(LiveProviderSourceAttempt {
-                source: "cli-rpc".into(),
-                outcome: "success".into(),
-                message: Some(format!(
-                    "credential backend resolved as {}",
-                    bootstrap.credential_store.backend_label()
-                )),
-            });
-            available = true;
-            source_used = "cli-rpc".into();
-            identity = account.as_ref().and_then(codex::rpc_account_to_identity);
-            primary = limits
-                .rate_limits
-                .primary
-                .as_ref()
-                .map(codex::rpc_window_to_live);
-            secondary = limits
-                .rate_limits
-                .secondary
-                .as_ref()
-                .map(codex::rpc_window_to_live);
-            credits = limits
-                .rate_limits
-                .credits
-                .as_ref()
-                .and_then(codex::rpc_credits_to_f64);
-            error = None;
-        }
-        Err(rpc_error) => {
-            attempts.push(LiveProviderSourceAttempt {
-                source: "cli-rpc".into(),
-                outcome: "error".into(),
-                message: Some(rpc_error.to_string()),
-            });
-            if error.is_none() {
-                error = Some(rpc_error.to_string());
-            }
-        }
-    }
-
-    if !available && let Some(codex_auth) = bootstrap.auth.as_ref() {
-        last_attempted_source = Some("oauth".to_string());
-        if identity.is_none() {
-            identity = codex::decode_identity(codex_auth);
-        }
-        match fetch_oauth(codex_auth).await {
-            Ok(response) => {
-                attempts.push(LiveProviderSourceAttempt {
-                    source: "oauth".into(),
-                    outcome: "success".into(),
-                    message: None,
-                });
-                available = true;
-                source_used = "oauth".into();
-                if let Some(plan_type) = response.plan_type
-                    && identity.is_none()
-                {
-                    identity = Some(LiveProviderIdentity {
-                        provider: "codex".into(),
-                        account_email: None,
-                        account_organization: None,
-                        login_method: Some("chatgpt".into()),
-                        plan: Some(plan_type),
-                    });
-                }
-                if let Some(rate_limit) = response.rate_limit {
-                    primary = rate_limit
-                        .primary_window
-                        .as_ref()
-                        .map(codex::oauth_window_to_live);
-                    secondary = rate_limit
-                        .secondary_window
-                        .as_ref()
-                        .map(codex::oauth_window_to_live);
-                }
-                credits = response
-                    .credits
-                    .as_ref()
-                    .and_then(codex::oauth_credits_to_f64);
-                error = None;
-            }
-            Err(fetch_error) => {
-                attempts.push(LiveProviderSourceAttempt {
-                    source: "oauth".into(),
-                    outcome: "error".into(),
-                    message: Some(fetch_error.to_string()),
-                });
-                error = Some(fetch_error.to_string());
-            }
-        }
-    } else if !available && bootstrap.load_error.is_some() {
-        attempts.push(LiveProviderSourceAttempt {
-            source: "oauth-auth".into(),
-            outcome: "error".into(),
-            message: bootstrap.load_error.clone(),
-        });
-    }
-
-    if !available {
-        last_attempted_source = Some("cli-pty".to_string());
-        match fetch_cli(Duration::from_secs(8)) {
-            Ok(status_snapshot) => {
-                attempts.push(LiveProviderSourceAttempt {
-                    source: "cli-pty".into(),
-                    outcome: "success".into(),
-                    message: None,
-                });
-                available = true;
-                source_used = "cli-pty".into();
-                primary = status_snapshot.primary;
-                secondary = status_snapshot.secondary;
-                credits = status_snapshot.credits;
-                error = None;
-            }
-            Err(cli_error) => {
-                attempts.push(LiveProviderSourceAttempt {
-                    source: "cli-pty".into(),
-                    outcome: "error".into(),
-                    message: Some(cli_error.to_string()),
-                });
-                if error.is_none() {
-                    error = Some(cli_error.to_string());
-                }
-            }
-        }
-    }
-
-    let resolved_via_fallback = available && source_used != "cli-rpc";
-
-    CodexLiveResolution {
-        available,
-        source_used,
-        last_attempted_source,
-        resolved_via_fallback,
-        refresh_duration_ms: started_at.elapsed().as_millis() as u64,
-        source_attempts: attempts,
-        identity,
-        primary,
-        secondary,
-        credits,
-        error,
-        auth: resolved_auth,
-        credential_store: bootstrap.credential_store,
-        bootstrap_error: bootstrap.load_error,
-    }
-}
-
-fn window_to_live(window: &WindowInfo) -> crate::models::LiveRateWindow {
-    crate::models::LiveRateWindow {
-        used_percent: window.used_percent,
-        resets_at: window.resets_at.clone(),
-        resets_in_minutes: window.resets_in_minutes,
-        window_minutes: None,
-        reset_label: None,
-    }
-}
-
-fn budget_to_credits(budget: &BudgetInfo) -> f64 {
-    (budget.limit - budget.used).max(0.0)
-}
-
-fn identity_to_live(identity: &Identity) -> LiveProviderIdentity {
-    LiveProviderIdentity {
-        provider: "claude".into(),
-        account_email: None,
-        account_organization: None,
-        login_method: identity.rate_limit_tier.clone(),
-        plan: identity.plan.as_ref().map(plan_to_string),
-    }
-}
-
-fn plan_to_string(plan: &Plan) -> String {
-    match plan {
-        Plan::Max => "max".into(),
-        Plan::Pro => "pro".into(),
-        Plan::Team => "team".into(),
-        Plan::Enterprise => "enterprise".into(),
-    }
-}
-
-fn status_to_live(status: &ProviderStatus) -> LiveProviderStatus {
-    LiveProviderStatus {
-        indicator: match status.indicator {
-            crate::agent_status::models::StatusIndicator::None => "none",
-            crate::agent_status::models::StatusIndicator::Minor => "minor",
-            crate::agent_status::models::StatusIndicator::Major => "major",
-            crate::agent_status::models::StatusIndicator::Critical => "critical",
-            crate::agent_status::models::StatusIndicator::Maintenance => "maintenance",
-            crate::agent_status::models::StatusIndicator::Unknown => "unknown",
-        }
-        .to_string(),
-        description: status.description.clone(),
-        page_url: status.page_url.clone(),
-    }
-}
-
-fn provider_cost_summary(
+/// Compute the cost summary for a single provider. Used by both
+/// `load_provider_cost_summary` (orchestration) and `claude::build_claude_snapshot`.
+pub(crate) fn provider_cost_summary(
     conn: &rusqlite::Connection,
     provider: &str,
 ) -> Result<ProviderCostSummary> {
@@ -1573,24 +561,44 @@ fn provider_cost_summary(
     })
 }
 
+/// Convert a `ProviderStatus` to its live wire representation.
+/// Used by both `claude::build_claude_snapshot` and
+/// `codex::build_codex_snapshot` / `codex::build_codex_bootstrap_snapshot`.
+pub(crate) fn status_to_live(status: &ProviderStatus) -> LiveProviderStatus {
+    LiveProviderStatus {
+        indicator: match status.indicator {
+            crate::agent_status::models::StatusIndicator::None => "none",
+            crate::agent_status::models::StatusIndicator::Minor => "minor",
+            crate::agent_status::models::StatusIndicator::Major => "major",
+            crate::agent_status::models::StatusIndicator::Critical => "critical",
+            crate::agent_status::models::StatusIndicator::Maintenance => "maintenance",
+            crate::agent_status::models::StatusIndicator::Unknown => "unknown",
+        }
+        .to_string(),
+        description: status.description.clone(),
+        page_url: status.page_url.clone(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::models::LiveProviderAuth;
     use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::time::Instant;
 
     fn fixture_response(provider: &str) -> LiveProvidersResponse {
         LiveProvidersResponse {
             contract_version: LIVE_PROVIDERS_CONTRACT_VERSION,
-            providers: vec![LiveProviderSnapshot {
+            providers: vec![crate::models::LiveProviderSnapshot {
                 provider: provider.to_string(),
                 available: true,
                 source_used: "oauth".into(),
                 last_attempted_source: Some("oauth".into()),
                 resolved_via_fallback: false,
                 refresh_duration_ms: 1,
-                source_attempts: vec![LiveProviderSourceAttempt {
+                source_attempts: vec![crate::models::LiveProviderSourceAttempt {
                     source: "oauth".into(),
                     outcome: "success".into(),
                     message: None,
@@ -1742,7 +750,7 @@ mod tests {
         let state = test_state();
         {
             let mut cache = state.live_provider_cache.write().await;
-            *cache = Some((Instant::now() - Duration::from_secs(300), {
+            *cache = Some((Instant::now() - std::time::Duration::from_secs(300), {
                 let mut response = fixture_response("claude");
                 response.response_scope = "all".into();
                 response.requested_provider = None;
@@ -1766,7 +774,7 @@ mod tests {
         .await
         .unwrap();
 
-        assert!(started.elapsed() < Duration::from_millis(50));
+        assert!(started.elapsed() < std::time::Duration::from_millis(50));
         assert!(response.cache_hit);
         assert_eq!(response.providers.len(), 1);
         assert_eq!(response.providers[0].provider, "claude");
@@ -1779,7 +787,7 @@ mod tests {
         let state = test_state();
         {
             let mut cache = state.live_provider_cache.write().await;
-            *cache = Some((Instant::now() - Duration::from_secs(300), {
+            *cache = Some((Instant::now() - std::time::Duration::from_secs(300), {
                 let mut response = fixture_response("claude");
                 response.response_scope = "all".into();
                 response.requested_provider = None;
@@ -1859,7 +867,7 @@ mod tests {
             load_error: None,
         };
 
-        let resolution = resolve_codex_live_data_with(
+        let resolution = codex::resolve_codex_live_data_with(
             bootstrap,
             |_| Box::pin(async { Err(anyhow!("oauth failed")) }),
             |_| {
@@ -1913,7 +921,7 @@ mod tests {
             auth_file_path: std::path::PathBuf::from("/tmp/codex-auth.json"),
             load_error: Some("auth missing".into()),
         };
-        let resolution = resolve_codex_live_data_with(
+        let resolution = codex::resolve_codex_live_data_with(
             bootstrap,
             |_| Box::pin(async { Err(anyhow!("oauth should not run")) }),
             |_| Err(anyhow!("rpc failed")),
@@ -1969,7 +977,7 @@ mod tests {
             load_error: None,
         };
 
-        let resolution = resolve_codex_live_data_with(
+        let resolution = codex::resolve_codex_live_data_with(
             bootstrap,
             |_| {
                 Box::pin(async move {
@@ -2030,7 +1038,7 @@ mod tests {
             load_error: None,
         };
 
-        let resolution = resolve_codex_live_data_with(
+        let resolution = codex::resolve_codex_live_data_with(
             bootstrap,
             |_| Box::pin(async { Err(anyhow!("oauth 503")) }),
             |_| Err(anyhow!("rpc failed")),
@@ -2084,7 +1092,7 @@ mod tests {
             load_error: None,
         };
 
-        let resolution = resolve_codex_live_data_with(
+        let resolution = codex::resolve_codex_live_data_with(
             bootstrap,
             |_| Box::pin(async { Err(anyhow!("oauth 401")) }),
             |_| Err(anyhow!("rpc failed")),
@@ -2119,7 +1127,7 @@ mod tests {
         // Stale timestamp: 120s old, well past LIVE_PROVIDER_CACHE_SECS (60s).
         {
             let mut cache = state.live_provider_cache.write().await;
-            *cache = Some((Instant::now() - Duration::from_secs(120), {
+            *cache = Some((Instant::now() - std::time::Duration::from_secs(120), {
                 let mut response = fixture_response("claude");
                 response.response_scope = "all".into();
                 response.requested_provider = None;
@@ -2154,7 +1162,7 @@ mod tests {
         // The stale response must come back immediately — the foreground path
         // must never block on the background fetch.
         assert!(
-            started.elapsed() < Duration::from_millis(50),
+            started.elapsed() < std::time::Duration::from_millis(50),
             "stale response took too long: {:?}",
             started.elapsed()
         );
