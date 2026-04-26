@@ -63,6 +63,21 @@ public enum MergeMenuTab: String, Codable, CaseIterable, Sendable, Identifiable 
     }
 }
 
+public extension ProviderID {
+    /// Counterpart to `MergeMenuTab.providerID`. Adding a new `ProviderID`
+    /// case forces this exhaustive switch to be updated, preventing the
+    /// silent `.codex` fallback that the previous hardcoded ternary at
+    /// `RootMenuView.swift` exhibited.
+    var menuTab: MergeMenuTab {
+        switch self {
+        case .claude:
+            return .claude
+        case .codex:
+            return .codex
+        }
+    }
+}
+
 // MARK: - Source / display preferences
 
 public enum UsageSourcePreference: String, Codable, CaseIterable, Sendable {

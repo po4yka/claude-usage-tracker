@@ -138,7 +138,7 @@ struct ProviderMenuView: View {
                     overview: nil,
                     providerModel: { _ in self.model },
                     helperPort: self.helperPort,
-                    tab: self.model.provider == .claude ? .claude : .codex,
+                    tab: self.model.provider.menuTab,
                     onQuit: self.onQuit
                 )
             }
