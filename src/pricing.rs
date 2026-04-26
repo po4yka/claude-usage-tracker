@@ -1,8 +1,7 @@
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
-use crate::litellm::{LiteLlmSnapshot, read_cache as litellm_read_cache};
+use crate::litellm::LiteLlmSnapshot;
 
 pub const PRICING_VERSION: &str = "2026-04-10";
 pub const PRICING_VALID_FROM: &str = "2026-04-10T00:00:00Z";
@@ -44,15 +43,6 @@ fn get_override(model: &str) -> Option<&ModelPricing> {
 
 // ── LiteLLM pricing source ────────────────────────────────────────────────────
 
-/// Where model pricing data originates.
-#[allow(dead_code)]
-pub enum PricingSource {
-    /// Built-in hardcoded table only (current default).
-    Static,
-    /// Supplement the hardcoded table with a LiteLLM cache file.
-    LiteLlm { cache_path: PathBuf },
-}
-
 /// Runtime LiteLLM pricing map (populated once at startup when source = LiteLlm).
 /// Guarded by OnceLock so it is safe to set from main and read from all threads.
 static LITELLM_MAP: OnceLock<HashMap<String, ModelPricing>> = OnceLock::new();
@@ -62,16 +52,6 @@ static LITELLM_MAP: OnceLock<HashMap<String, ModelPricing>> = OnceLock::new();
 /// no-ops (OnceLock semantics).
 pub fn set_litellm_map(map: HashMap<String, ModelPricing>) {
     let _ = LITELLM_MAP.set(map);
-}
-
-/// Load the LiteLLM cache file at `path` and convert its per-MTok rates into
-/// `ModelPricing` values. Returns `None` if the file is absent or unparseable.
-///
-/// This is the test seam: pass any `Path` to avoid touching `~/.cache`.
-#[allow(dead_code)]
-pub fn load_litellm_cache(path: &Path) -> Option<HashMap<String, ModelPricing>> {
-    let snapshot: LiteLlmSnapshot = litellm_read_cache(path)?;
-    Some(load_litellm_cache_from_snapshot(snapshot))
 }
 
 /// Convert an already-loaded `LiteLlmSnapshot` into a `ModelPricing` map.
@@ -242,7 +222,10 @@ pub fn builtin_catalog() -> HashMap<String, ModelPricing> {
 
 /// Look up pricing for a model across overrides, built-ins, heuristic
 /// fallbacks, and the LiteLLM cache.
-#[allow(dead_code)]
+///
+/// Test-only helper: production code goes through `calc_cost_nanos` /
+/// `estimate_cost`, which call `lookup_pricing` directly.
+#[cfg(test)]
 pub fn get_pricing(model: &str) -> Option<&ModelPricing> {
     match lookup_pricing(model)? {
         PricingLookup::Borrowed { pricing, .. } => Some(pricing),
@@ -441,12 +424,6 @@ fn get_builtin(model: &str) -> Option<&'static ModelPricing> {
         .iter()
         .find(|(name, _)| *name == model)
         .map(|(_, p)| p)
-}
-
-/// Returns true if this model resolves to any available pricing source.
-#[allow(dead_code)]
-pub fn is_billable(model: &str) -> bool {
-    lookup_pricing(model).is_some()
 }
 
 /// Calculate cost in nanos (1 dollar = 1_000_000_000 nanos) for the given token counts.
@@ -840,12 +817,6 @@ mod tests {
         assert_eq!(fmt_cost(3.0), "$3.0000");
     }
 
-    #[test]
-    fn test_is_billable() {
-        assert!(is_billable("claude-sonnet-4-6"));
-        assert!(!is_billable("gpt-4o"));
-    }
-
     // --- Volume discount tests ---
 
     #[test]
@@ -1103,83 +1074,6 @@ mod tests {
         assert_eq!(bd.cache_write_cost_nanos, 0);
         assert!(pm.is_empty());
         assert_eq!(conf, COST_CONFIDENCE_LOW);
-    }
-
-    // ── LiteLLM cache loading ─────────────────────────────────────────────────
-
-    #[test]
-    fn test_load_litellm_cache_round_trip() {
-        use crate::litellm::{LiteLlmModelEntry, LiteLlmSnapshot, write_cache};
-        use std::collections::HashMap as HM;
-        use tempfile::TempDir;
-
-        let tmp = TempDir::new().unwrap();
-        let path = tmp.path().join("litellm_pricing.json");
-
-        let mut entries = HM::new();
-        entries.insert(
-            "gemini-2.5-flash".to_string(),
-            LiteLlmModelEntry {
-                input_cost_per_token: Some(0.075),
-                output_cost_per_token: Some(0.30),
-            },
-        );
-        let snap = LiteLlmSnapshot {
-            fetched_at: chrono::Utc::now().to_rfc3339(),
-            entries,
-        };
-        write_cache(&path, &snap).unwrap();
-
-        let map = load_litellm_cache(&path).unwrap();
-        assert!(map.contains_key("gemini-2.5-flash"));
-        let p = &map["gemini-2.5-flash"];
-        assert!((p.input - 0.075).abs() < 1e-9);
-        assert!((p.output - 0.30).abs() < 1e-9);
-    }
-
-    #[test]
-    fn test_load_litellm_cache_missing_returns_none() {
-        use tempfile::TempDir;
-        let tmp = TempDir::new().unwrap();
-        let path = tmp.path().join("missing.json");
-        assert!(load_litellm_cache(&path).is_none());
-    }
-
-    #[test]
-    fn test_load_litellm_cache_skips_entries_without_both_rates() {
-        use crate::litellm::{LiteLlmModelEntry, LiteLlmSnapshot, write_cache};
-        use std::collections::HashMap as HM;
-        use tempfile::TempDir;
-
-        let tmp = TempDir::new().unwrap();
-        let path = tmp.path().join("litellm_pricing.json");
-
-        let mut entries = HM::new();
-        // Only has input rate — should be skipped
-        entries.insert(
-            "partial-model".to_string(),
-            LiteLlmModelEntry {
-                input_cost_per_token: Some(1.0),
-                output_cost_per_token: None,
-            },
-        );
-        // Both rates present — should be included
-        entries.insert(
-            "full-model".to_string(),
-            LiteLlmModelEntry {
-                input_cost_per_token: Some(1.0),
-                output_cost_per_token: Some(3.0),
-            },
-        );
-        let snap = LiteLlmSnapshot {
-            fetched_at: chrono::Utc::now().to_rfc3339(),
-            entries,
-        };
-        write_cache(&path, &snap).unwrap();
-
-        let map = load_litellm_cache(&path).unwrap();
-        assert!(!map.contains_key("partial-model"));
-        assert!(map.contains_key("full-model"));
     }
 
     // ── Hardcoded-wins invariant tests ────────────────────────────────────────

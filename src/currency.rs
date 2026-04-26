@@ -14,8 +14,6 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 const FRANKFURTER_URL: &str = "https://api.frankfurter.dev/v1/latest?from=USD";
-#[allow(dead_code)]
-const CACHE_TTL_HOURS: f64 = 24.0;
 const FETCH_TIMEOUT_SECS: u64 = 5;
 
 // ── Public types ────────────────────────────────────────────────────────────
@@ -86,12 +84,6 @@ impl RatesSnapshot {
             .unwrap_or(Utc::now());
         let elapsed = Utc::now().signed_duration_since(fetched);
         elapsed.num_seconds() as f64 / 3600.0
-    }
-
-    /// True if the snapshot is still within the 24h TTL.
-    #[allow(dead_code)]
-    pub fn is_fresh(&self) -> bool {
-        self.age_hours() < CACHE_TTL_HOURS
     }
 }
 
@@ -274,18 +266,6 @@ fn apply_rate(
     }
 }
 
-/// Return the list of supported currencies from the cache, or a small
-/// hardcoded set if the cache is empty.
-#[allow(dead_code)]
-pub fn list_supported_currencies() -> Vec<String> {
-    if let Some(snap) = read_cache(&cache_path()) {
-        let mut keys: Vec<String> = snap.rates.keys().cloned().collect();
-        keys.sort();
-        return keys;
-    }
-    hardcoded_currencies()
-}
-
 /// Small hardcoded set used when no cache exists yet.
 fn hardcoded_currencies() -> Vec<String> {
     let mut v: Vec<String> = [
@@ -322,14 +302,6 @@ mod tests {
             base: "USD".into(),
             rates: map,
         }
-    }
-
-    fn stale_snapshot(rates: &[(&str, f64)]) -> RatesSnapshot {
-        let mut snap = make_snapshot(rates);
-        // 25 hours ago
-        let ts = Utc::now() - chrono::Duration::hours(25);
-        snap.fetched_at = ts.to_rfc3339();
-        snap
     }
 
     // ── USD short-circuit ────────────────────────────────────────────────
@@ -419,24 +391,10 @@ mod tests {
         assert!(matches!(result.source, RateSource::Fallback));
     }
 
-    // ── Cache freshness ──────────────────────────────────────────────────
+    // ── hardcoded_currencies fallback ────────────────────────────────────
 
     #[test]
-    fn test_snapshot_is_fresh() {
-        let snap = make_snapshot(&[("EUR", 0.9)]);
-        assert!(snap.is_fresh());
-    }
-
-    #[test]
-    fn test_stale_snapshot_is_not_fresh() {
-        let snap = stale_snapshot(&[("EUR", 0.9)]);
-        assert!(!snap.is_fresh());
-    }
-
-    // ── list_supported_currencies uses hardcoded when no cache ───────────
-
-    #[test]
-    fn test_list_supported_currencies_hardcoded_contains_major() {
+    fn test_hardcoded_currencies_contains_major() {
         let currencies = hardcoded_currencies();
         assert!(currencies.contains(&"EUR".to_string()));
         assert!(currencies.contains(&"GBP".to_string()));

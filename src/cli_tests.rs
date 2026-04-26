@@ -291,50 +291,6 @@ mod tests {
         assert!(loaded.entries.contains_key("gemini-2.5-flash"));
     }
 
-    /// Hardcoded-wins invariant: even when the LiteLLM map has a conflicting
-    /// entry for "claude-sonnet-4-6", `estimate_cost` must return the hardcoded
-    /// $3/MTok input price (tier 1 exact match wins).
-    ///
-    /// NOTE: `set_litellm_map` is an OnceLock — it can only be set once per
-    /// process. This test uses `load_litellm_cache` + `estimate_cost` directly
-    /// to verify the lookup priority without relying on the global OnceLock.
-    #[test]
-    fn test_hardcoded_claude_wins_over_litellm_conflicting_entry() {
-        use crate::litellm::{LiteLlmModelEntry, LiteLlmSnapshot, write_cache};
-        use crate::pricing::{COST_CONFIDENCE_HIGH, estimate_cost, load_litellm_cache};
-        use std::collections::HashMap;
-
-        let tmp = TempDir::new().unwrap();
-        let cache = tmp.path().join("litellm_pricing.json");
-
-        // LiteLLM cache has a conflicting entry with a different (wrong) price.
-        let mut entries = HashMap::new();
-        entries.insert(
-            "claude-sonnet-4-6".to_string(),
-            LiteLlmModelEntry {
-                input_cost_per_token: Some(999.0), // wrong price — should never be used
-                output_cost_per_token: Some(999.0),
-            },
-        );
-        let snap = LiteLlmSnapshot {
-            fetched_at: chrono::Utc::now().to_rfc3339(),
-            entries,
-        };
-        write_cache(&cache, &snap).unwrap();
-
-        // load_litellm_cache reads the file; this exercises the parsing path.
-        let map = load_litellm_cache(&cache).unwrap();
-        assert!(map.contains_key("claude-sonnet-4-6"));
-        // The map has the LiteLLM entry, but lookup_pricing will never reach it
-        // because tier 1 (exact hardcoded match) fires first.
-        // estimate_cost does NOT use the map argument — it uses the global OnceLock.
-        // So we verify via estimate_cost directly: hardcoded path, no global needed.
-        let est = estimate_cost("claude-sonnet-4-6", 1_000_000, 0, 0, 0);
-        // Must return $3/MTok = 3_000_000_000 nanos, HIGH confidence.
-        assert_eq!(est.estimated_cost_nanos, 3_000_000_000);
-        assert_eq!(est.cost_confidence, COST_CONFIDENCE_HIGH);
-    }
-
     /// LiteLLM fallback: "gemini-2.5-flash" has no hardcoded entry, so
     /// estimate_cost should return 0 nanos and LOW confidence (no map loaded
     /// in this test process from a previous test — OnceLock is unset here).

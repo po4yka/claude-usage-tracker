@@ -2,7 +2,6 @@
 ///
 /// Architecture mirrors `currency.rs`:
 /// - Blocking public API over a `new_current_thread` tokio runtime
-/// - `PricingCacheSource` enum for observability (Live/Cached/Fallback)
 /// - File cache at `~/.cache/heimdall/litellm_pricing.json` with age tracking
 /// - Offline-safe: if fetch fails, callers get `None` and fall back to static table
 /// - Test seam via `fetch_fn` injection — no network in tests
@@ -17,43 +16,6 @@ use thiserror::Error;
 const LITELLM_URL: &str =
     "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json";
 const FETCH_TIMEOUT_SECS: u64 = 5;
-
-// ── Public types ─────────────────────────────────────────────────────────────
-
-/// How the LiteLLM pricing catalogue was sourced.
-#[derive(Debug, Clone)]
-#[allow(dead_code)]
-pub enum PricingCacheSource {
-    /// Fetched live from GitHub just now.
-    Live,
-    /// Loaded from the on-disk cache.
-    Cached {
-        /// How old the cache entry is (hours).
-        age_hours: f64,
-    },
-    /// No data available; caller should use static fallback.
-    Fallback,
-}
-
-#[allow(dead_code)]
-impl PricingCacheSource {
-    /// Lowercase string suitable for logging.
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            PricingCacheSource::Live => "live",
-            PricingCacheSource::Cached { .. } => "cached",
-            PricingCacheSource::Fallback => "fallback",
-        }
-    }
-
-    /// Age in hours for the Cached variant; None otherwise.
-    pub fn age_hours(&self) -> Option<f64> {
-        match self {
-            PricingCacheSource::Cached { age_hours } => Some(*age_hours),
-            _ => None,
-        }
-    }
-}
 
 // ── Cache shape ───────────────────────────────────────────────────────────────
 
@@ -85,12 +47,6 @@ impl LiteLlmSnapshot {
             .unwrap_or(Utc::now());
         let elapsed = Utc::now().signed_duration_since(fetched);
         elapsed.num_seconds() as f64 / 3600.0
-    }
-
-    /// True if the snapshot is within the given TTL.
-    #[allow(dead_code)]
-    pub fn is_fresh(&self, ttl_hours: u32) -> bool {
-        self.age_hours() < ttl_hours as f64
     }
 }
 
@@ -273,13 +229,6 @@ mod tests {
     }
 
     #[test]
-    fn test_snapshot_freshness() {
-        let snap = make_snapshot(&[]);
-        assert!(snap.is_fresh(24));
-        assert!(!snap.is_fresh(0));
-    }
-
-    #[test]
     fn test_run_refresh_with_snapshot() {
         let tmp = TempDir::new().unwrap();
         let path = tmp.path().join("litellm_pricing.json");
@@ -292,30 +241,6 @@ mod tests {
         assert_eq!(count, 3);
         assert_eq!(written_path, path);
         assert!(path.exists());
-    }
-
-    #[test]
-    fn test_pricing_cache_source_as_str() {
-        assert_eq!(PricingCacheSource::Live.as_str(), "live");
-        assert_eq!(
-            PricingCacheSource::Cached { age_hours: 2.0 }.as_str(),
-            "cached"
-        );
-        assert_eq!(PricingCacheSource::Fallback.as_str(), "fallback");
-    }
-
-    #[test]
-    fn test_pricing_cache_source_age_hours() {
-        assert_eq!(PricingCacheSource::Live.age_hours(), None);
-        assert_eq!(PricingCacheSource::Fallback.age_hours(), None);
-        assert!(
-            (PricingCacheSource::Cached { age_hours: 3.5 }
-                .age_hours()
-                .unwrap()
-                - 3.5)
-                .abs()
-                < 1e-9
-        );
     }
 
     #[test]

@@ -752,63 +752,6 @@ pub fn prune_agent_status_history(conn: &Connection, keep_days: i64) -> Result<u
     Ok(deleted)
 }
 
-/// Aggregate `cost_nanos` by `kind`, sorted descending by total cost.
-/// Returns `Vec<(kind, total_cost_nanos)>`.
-#[allow(dead_code)]
-pub fn tool_event_cost_by_kind(conn: &Connection) -> Result<Vec<(String, i64)>> {
-    let mut stmt = conn.prepare(
-        "SELECT kind, COALESCE(SUM(cost_nanos), 0) as total
-         FROM tool_events
-         GROUP BY kind
-         ORDER BY total DESC",
-    )?;
-    let rows = stmt
-        .query_map([], |row| {
-            Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
-        })?
-        .filter_map(|r| match r {
-            Ok(val) => Some(val),
-            Err(e) => {
-                warn!("tool_event_cost_by_kind row error: {}", e);
-                None
-            }
-        })
-        .collect();
-    Ok(rows)
-}
-
-/// Drilldown: aggregate `cost_nanos` by `value` for a specific `kind`.
-/// Returns up to `limit` rows sorted descending by total cost.
-/// Returns `Vec<(value, total_cost_nanos)>`.
-#[allow(dead_code)]
-pub fn tool_event_cost_by_value(
-    conn: &Connection,
-    kind: &str,
-    limit: usize,
-) -> Result<Vec<(String, i64)>> {
-    let mut stmt = conn.prepare(
-        "SELECT value, COALESCE(SUM(cost_nanos), 0) as total
-         FROM tool_events
-         WHERE kind = ?1
-         GROUP BY value
-         ORDER BY total DESC
-         LIMIT ?2",
-    )?;
-    let rows = stmt
-        .query_map(rusqlite::params![kind, limit as i64], |row| {
-            Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
-        })?
-        .filter_map(|r| match r {
-            Ok(val) => Some(val),
-            Err(e) => {
-                warn!("tool_event_cost_by_value row error: {}", e);
-                None
-            }
-        })
-        .collect();
-    Ok(rows)
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 
 fn backfill_turn_pricing(conn: &Connection) -> Result<()> {
@@ -1008,14 +951,6 @@ pub fn insert_tool_invocations(
                 t.timestamp,
             ])?;
         }
-    }
-    Ok(())
-}
-
-#[allow(dead_code)]
-pub fn delete_tool_invocations_by_session(conn: &Connection, session_ids: &[String]) -> Result<()> {
-    for sid in session_ids {
-        conn.execute("DELETE FROM tool_invocations WHERE session_id = ?1", [sid])?;
     }
     Ok(())
 }
@@ -4439,72 +4374,6 @@ mod tests {
             .query_row("SELECT dedup_key FROM tool_events", [], |row| row.get(0))
             .unwrap();
         assert_eq!(remaining_key, "claude:b1");
-    }
-
-    #[test]
-    fn test_tool_event_cost_by_kind_aggregation() {
-        let conn = test_conn();
-
-        // Insert a fixture that exercises the aggregation.
-        let events = vec![
-            crate::models::ToolEvent {
-                dedup_key: "c:1".into(),
-                ts_epoch: 1,
-                session_id: "s1".into(),
-                provider: "claude".into(),
-                project: "p".into(),
-                kind: "file".into(),
-                value: "Edit".into(),
-                cost_nanos: 400,
-                source_path: "/tmp/x.jsonl".into(),
-            },
-            crate::models::ToolEvent {
-                dedup_key: "c:2".into(),
-                ts_epoch: 2,
-                session_id: "s1".into(),
-                provider: "claude".into(),
-                project: "p".into(),
-                kind: "file".into(),
-                value: "Read".into(),
-                cost_nanos: 200,
-                source_path: "/tmp/x.jsonl".into(),
-            },
-            crate::models::ToolEvent {
-                dedup_key: "c:3".into(),
-                ts_epoch: 3,
-                session_id: "s1".into(),
-                provider: "claude".into(),
-                project: "p".into(),
-                kind: "bash".into(),
-                value: "Bash".into(),
-                cost_nanos: 100,
-                source_path: "/tmp/x.jsonl".into(),
-            },
-            crate::models::ToolEvent {
-                dedup_key: "c:4".into(),
-                ts_epoch: 4,
-                session_id: "s1".into(),
-                provider: "claude".into(),
-                project: "p".into(),
-                kind: "mcp".into(),
-                value: "read_file".into(),
-                cost_nanos: 300,
-                source_path: "/tmp/x.jsonl".into(),
-            },
-        ];
-        insert_tool_events(&conn, &events).unwrap();
-
-        let by_kind = tool_event_cost_by_kind(&conn).unwrap();
-        // Sorted descending: file=600, mcp=300, bash=100
-        assert_eq!(by_kind.len(), 3);
-        assert_eq!(by_kind[0], ("file".into(), 600));
-        assert_eq!(by_kind[1], ("mcp".into(), 300));
-        assert_eq!(by_kind[2], ("bash".into(), 100));
-
-        let by_value = tool_event_cost_by_value(&conn, "file", 10).unwrap();
-        assert_eq!(by_value.len(), 2);
-        assert_eq!(by_value[0], ("Edit".into(), 400));
-        assert_eq!(by_value[1], ("Read".into(), 200));
     }
 
     #[test]
