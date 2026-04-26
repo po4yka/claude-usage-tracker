@@ -19,7 +19,10 @@ pub enum CostSource {
     Local,
     /// Always use the hook-supplied cost.
     Hook,
-    /// Phase 8 placeholder — treated as Auto for now.
+    /// Render both hook and local values side-by-side with a `[WARN: cost
+    /// drift]` indicator when divergence exceeds 10%.  Falls back to single
+    /// value rendering when the hook payload omits a cost.  See
+    /// `render::build_session_segment`.
     Both,
 }
 
