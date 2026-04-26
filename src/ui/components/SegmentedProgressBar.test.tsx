@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { SegmentedProgressBar } from './SegmentedProgressBar';
 
+// Tests match the post-migration smooth single-fill bar (see
+// SegmentedProgressBar.tsx header comment). The legacy LED-segment
+// geometry is gone; assertions now check the single fill child's
+// width and threshold-encoded background.
+
 describe('SegmentedProgressBar', () => {
   it('renders bounded progress with the expected accessibility contract', () => {
     const vnode = SegmentedProgressBar({
@@ -10,14 +15,14 @@ describe('SegmentedProgressBar', () => {
       status: 'warning',
       'aria-label': 'Usage',
     }) as { props: Record<string, unknown> };
-    const segments = vnode.props['children'] as Array<{ props: { style: { background: string } } }>;
+    const fill = vnode.props['children'] as { props: { style: { background: string; width: string }; class?: string } };
 
     expect(vnode.props['role']).toBe('progressbar');
     expect(vnode.props['aria-label']).toBe('Usage');
     expect(vnode.props['aria-valuenow']).toBe(50);
-    expect(segments).toHaveLength(10);
-    expect(segments[0]?.props.style.background).toBe('var(--warning)');
-    expect(segments[9]?.props.style.background).toBe('var(--border)');
+    expect(fill.props.class).toBe('segmented-bar__fill');
+    expect(fill.props.style.width).toBe('50%');
+    expect(fill.props.style.background).toBe('var(--warning)');
   });
 
   it('caps overflow at 100 percent and switches to accent styling', () => {
@@ -27,12 +32,11 @@ describe('SegmentedProgressBar', () => {
       segments: 5,
       size: 'compact',
     }) as { props: Record<string, unknown> };
-    const segments = vnode.props['children'] as Array<{ props: { style: { background: string } } }>;
+    const fill = vnode.props['children'] as { props: { style: { background: string; width: string } } };
 
     expect(vnode.props['class']).toContain('segmented-bar--compact');
     expect(vnode.props['aria-valuenow']).toBe(100);
-    expect(segments.every(segment => segment.props.style.background === 'var(--accent)')).toBe(
-      true
-    );
+    expect(fill.props.style.width).toBe('100%');
+    expect(fill.props.style.background).toBe('var(--accent)');
   });
 });

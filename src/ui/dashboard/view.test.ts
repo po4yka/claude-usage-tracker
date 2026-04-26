@@ -62,6 +62,45 @@ function makeFakeElement(id: string): FakeElement {
   };
 }
 
+// Walk a vnode tree returned to render() and collect every user-visible
+// string. preact's render is mocked, so the fake elements never get a
+// real textContent — we synthesize it from the vnode passed to render.
+// When we hit a vnode whose `type` is a function (a presentational
+// component without hooks), we invoke it with its props and recurse
+// into the resulting tree, so labels created inside the component
+// body are visible to the walker.
+function vnodeText(node: unknown, depth = 0): string[] {
+  if (typeof node === 'string' || typeof node === 'number') return [String(node)];
+  if (Array.isArray(node)) return node.flatMap(item => vnodeText(item, depth));
+  if (!node || typeof node !== 'object') return [];
+  if (depth > 20) return [];
+  const vnode = node as { type?: unknown; props?: Record<string, unknown> };
+  const props = vnode.props ?? {};
+  if (typeof vnode.type === 'function') {
+    try {
+      const rendered = (vnode.type as (props: Record<string, unknown>) => unknown)(props);
+      return vnodeText(rendered, depth + 1);
+    } catch {
+      return vnodeText(props['children'], depth + 1);
+    }
+  }
+  const labelProps = ['label', 'value', 'subtitle', 'title', 'placeholder'] as const;
+  const fromLabels = labelProps.flatMap(key => vnodeText(props[key], depth + 1));
+  return [...fromLabels, ...vnodeText(props['children'], depth + 1)];
+}
+
+function lastRenderedTextFor(elements: Record<string, FakeElement>, id: string): string {
+  const target = elements[id];
+  for (let i = renderSpy.mock.calls.length - 1; i >= 0; i--) {
+    const call = renderSpy.mock.calls[i];
+    if (!call) continue;
+    if (call[1] === target) {
+      return vnodeText(call[0]).join(' ');
+    }
+  }
+  return elements[id]?.textContent ?? '';
+}
+
 function makeDashboardData(): DashboardData {
   return {
     all_models: ['sonnet', 'haiku'],
@@ -319,7 +358,7 @@ describe('dashboard view', () => {
 
     view.renderUsageWindows(usage, null, () => {}, () => {}, () => {});
 
-    const text = elements['usage-windows']?.textContent ?? '';
+    const text = lastRenderedTextFor(elements, 'usage-windows');
     expect(text).toContain('Active Users Today');
     expect(text).toContain('Sessions Today');
     expect(text).toContain('Accepted Lines (30d)');

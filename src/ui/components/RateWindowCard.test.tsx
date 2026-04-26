@@ -3,12 +3,20 @@ import type { WindowInfo } from '../state/types';
 import { SegmentedProgressBar } from './SegmentedProgressBar';
 import { BudgetCard, ClaudeAdminFallbackGrid, RateWindowCard, RateWindowUnavailable } from './RateWindowCard';
 
+// Walk a vnode tree and collect every user-visible string. Beyond plain
+// text children we also harvest common label-style props (`label`,
+// `value`, `subtitle`, `title`, `placeholder`) so the walker can see
+// text passed *into* function components — components are not expanded
+// here, since we don't actually render through Preact.
 function collectText(node: unknown): string[] {
   if (typeof node === 'string' || typeof node === 'number') return [String(node)];
   if (Array.isArray(node)) return node.flatMap(collectText);
   if (!node || typeof node !== 'object') return [];
-  const vnode = node as { props?: { children?: unknown } };
-  return collectText(vnode.props?.children);
+  const vnode = node as { props?: Record<string, unknown> };
+  const props = vnode.props ?? {};
+  const labelProps = ['label', 'value', 'subtitle', 'title', 'placeholder'] as const;
+  const fromLabels = labelProps.flatMap(key => collectText(props[key]));
+  return [...fromLabels, ...collectText(props['children'])];
 }
 
 function findByType(node: unknown, type: unknown): Array<{ props: Record<string, unknown> }> {
