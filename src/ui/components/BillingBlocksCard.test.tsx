@@ -120,7 +120,7 @@ describe('BillingBlocksCard', () => {
     expect(text).toContain('2.5000');
     expect(text).toContain('[WARN]');
     expect(text).toContain('Configured');
-    expect(text).toContain('1.0M');
+    expect(text).toContain('1.00M');
     expect(text).toContain('P95');
     expect(text).toContain('Projects');
     expect(text).toContain('12 near-limit completed blocks');

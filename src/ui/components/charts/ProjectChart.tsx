@@ -1,6 +1,6 @@
 import { ApexChart } from './ApexChart';
 import type { ApexDataPointSelectionConfig, ApexTooltipFormatterContext } from '../../lib/apex';
-import { industrialChartOptions, tokenSeriesColors } from '../../lib/charts';
+import { dashboardChartOptions, tokenSeriesColors } from '../../lib/charts';
 import { fmt, truncateMid } from '../../lib/format';
 import type { ProjectAgg } from '../../state/types';
 
@@ -14,7 +14,7 @@ export function ProjectChart({
   const top = byProject.slice(0, 10);
   if (!top.length) return null;
 
-  const base = industrialChartOptions('bar');
+  const base = dashboardChartOptions('bar');
   const colors = tokenSeriesColors();
   // Collapse Input + Output into a single Total-tokens series. The
   // per-type breakdown already lives in ProjectCostTable below.

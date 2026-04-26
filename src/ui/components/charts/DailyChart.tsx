@@ -1,11 +1,11 @@
 import { ApexChart } from './ApexChart';
-import { industrialChartOptions, tokenSeriesColors, RANGE_TICKS } from '../../lib/charts';
+import { dashboardChartOptions, tokenSeriesColors, RANGE_TICKS } from '../../lib/charts';
 import { fmt } from '../../lib/format';
 import { selectedRange } from '../../state/store';
 import type { DailyAgg } from '../../state/types';
 
 export function DailyChart({ daily }: { daily: DailyAgg[] }) {
-  const base = industrialChartOptions('bar');
+  const base = dashboardChartOptions('bar');
   const options = {
     ...base,
     chart: { ...base.chart, type: 'bar', stacked: true },

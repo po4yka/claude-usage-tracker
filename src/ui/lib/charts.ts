@@ -118,6 +118,3 @@ export function dashboardChartOptions(type: 'bar' | 'donut' | 'line'): ApexOptio
   return base;
 }
 
-// Backward-compat alias for the previous export name. Remove once all
-// consumers have migrated to `dashboardChartOptions`.
-export const industrialChartOptions = dashboardChartOptions;

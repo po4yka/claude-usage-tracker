@@ -1844,7 +1844,6 @@
     }
     return base;
   }
-  var industrialChartOptions = dashboardChartOptions;
 
   // src/ui/lib/format.ts
   function $2(id) {
@@ -5677,7 +5676,7 @@
 
   // src/ui/components/charts/DailyChart.tsx
   function DailyChart({ daily }) {
-    const base = industrialChartOptions("bar");
+    const base = dashboardChartOptions("bar");
     const options = {
       ...base,
       chart: { ...base.chart, type: "bar", stacked: true },
@@ -5777,7 +5776,6 @@
   function HourlyChart({ data }) {
     if (!data.length) return null;
     const maxTurns = Math.max(...data.map((d5) => d5.turns), 1);
-    const fillColor = cssVar("--text-display");
     const emptyColor = cssVar("--border");
     return /* @__PURE__ */ u4("div", { children: [
       /* @__PURE__ */ u4("div", { class: "section-title", style: { padding: "0", marginBottom: "12px" }, children: "Activity by Hour of Day" }),
@@ -5816,8 +5814,7 @@
           children: String(h5).padStart(2, "0")
         },
         h5
-      )) }),
-      /* @__PURE__ */ u4("div", { style: { display: "none" }, "data-fill": fillColor })
+      )) })
     ] });
   }
 
@@ -5947,7 +5944,7 @@
         isOther: true
       });
     }
-    const base = industrialChartOptions("donut");
+    const base = dashboardChartOptions("donut");
     const options = {
       ...base,
       chart: {
@@ -6454,7 +6451,7 @@
   }) {
     const top = byProject.slice(0, 10);
     if (!top.length) return null;
-    const base = industrialChartOptions("bar");
+    const base = dashboardChartOptions("bar");
     const colors = tokenSeriesColors();
     const totals = top.map((p5) => p5.input + p5.output);
     const maxTotal = totals.reduce((m4, v4) => v4 > m4 ? v4 : m4, 0);
@@ -7143,11 +7140,6 @@ ${row.project}` : row.project;
     if (h5 === 0) return `${m4}m`;
     return `${h5}h ${m4}m`;
   }
-  function fmtTokens(n3) {
-    if (n3 >= 1e6) return (n3 / 1e6).toFixed(1) + "M";
-    if (n3 >= 1e3) return (n3 / 1e3).toFixed(1) + "K";
-    return n3.toString();
-  }
   function fmtUtcTime(iso) {
     try {
       const d5 = new Date(iso);
@@ -7182,7 +7174,7 @@ ${row.project}` : row.project;
           },
           children: [
             /* @__PURE__ */ u4("span", { class: "stat-sub", children: "Configured" }),
-            /* @__PURE__ */ u4("span", { class: "stat-sub", style: { fontFamily: "var(--font-mono)", fontSize: "11px" }, children: fmtTokens(data.token_limit) })
+            /* @__PURE__ */ u4("span", { class: "stat-sub", style: { fontFamily: "var(--font-mono)", fontSize: "11px" }, children: fmt(data.token_limit) })
           ]
         }
       ),
@@ -7200,7 +7192,7 @@ ${row.project}` : row.project;
               level.label,
               level.key === suggestions.recommended_key && /* @__PURE__ */ u4("span", { style: { marginLeft: "6px", color: "var(--success)" }, children: "[RECOMMENDED]" })
             ] }),
-            /* @__PURE__ */ u4("span", { class: "stat-sub", style: { fontFamily: "var(--font-mono)", fontSize: "11px" }, children: fmtTokens(level.limit_tokens) })
+            /* @__PURE__ */ u4("span", { class: "stat-sub", style: { fontFamily: "var(--font-mono)", fontSize: "11px" }, children: fmt(level.limit_tokens) })
           ]
         },
         level.key
@@ -7241,9 +7233,9 @@ ${row.project}` : row.project;
                   class: "stat-sub",
                   style: { fontFamily: "var(--font-mono)", fontSize: "11px" },
                   children: [
-                    fmtTokens(quota.used_tokens),
+                    fmt(quota.used_tokens),
                     " / ",
-                    fmtTokens(quota.limit_tokens),
+                    fmt(quota.limit_tokens),
                     " ",
                     currentPct,
                     "%",
@@ -7291,9 +7283,9 @@ ${row.project}` : row.project;
                   class: "stat-sub",
                   style: { fontFamily: "var(--font-mono)", fontSize: "11px" },
                   children: [
-                    fmtTokens(quota.projected_tokens),
+                    fmt(quota.projected_tokens),
                     " / ",
-                    fmtTokens(quota.limit_tokens),
+                    fmt(quota.limit_tokens),
                     " ",
                     projectedPct,
                     "%",
@@ -7334,7 +7326,7 @@ ${row.project}` : row.project;
         /* @__PURE__ */ u4("div", { class: "stat-sub", children: [
           "7d historical max:",
           " ",
-          /* @__PURE__ */ u4("span", { style: { fontFamily: "var(--font-mono)" }, children: fmtTokens(data.historical_max_tokens) }),
+          /* @__PURE__ */ u4("span", { style: { fontFamily: "var(--font-mono)" }, children: fmt(data.historical_max_tokens) }),
           " ",
           "tokens"
         ] }),
@@ -7352,7 +7344,7 @@ ${row.project}` : row.project;
           {
             class: "stat-value",
             style: { fontFamily: "var(--font-mono)", letterSpacing: "-0.02em" },
-            children: fmtTokens(totalTokens2)
+            children: fmt(totalTokens2)
           }
         ),
         /* @__PURE__ */ u4("div", { class: "stat-sub", children: [
@@ -7382,7 +7374,7 @@ ${row.project}` : row.project;
         ] }),
         activeBlock.projection && /* @__PURE__ */ u4("div", { class: "stat-sub", style: { fontFamily: "var(--font-mono)", fontSize: "12px", marginTop: "4px" }, children: [
           "Projects ",
-          fmtTokens(activeBlock.projection.projected_tokens),
+          fmt(activeBlock.projection.projected_tokens),
           " tokens \xB7 $",
           (activeBlock.projection.projected_cost_nanos / 1e9).toFixed(4)
         ] })
@@ -7901,7 +7893,7 @@ ${row.project}` : row.project;
         isOther: true
       });
     }
-    const base = industrialChartOptions("donut");
+    const base = dashboardChartOptions("donut");
     const options = {
       ...base,
       chart: { ...base.chart, type: "donut" },
@@ -7998,7 +7990,7 @@ ${row.project}` : row.project;
     if (!weekly?.length) {
       return /* @__PURE__ */ u4("div", { style: { padding: "24px", color: "var(--text-muted)", fontFamily: "var(--font-mono)", fontSize: "12px" }, children: "No weekly data available." });
     }
-    const base = industrialChartOptions("bar");
+    const base = dashboardChartOptions("bar");
     const options = {
       ...base,
       chart: { ...base.chart, type: "bar", stacked: true },
@@ -8775,40 +8767,6 @@ ${row.project}` : row.project;
     ]);
     downloadCSV(filename, header, rows);
   }
-  function buildProjectAggregates(data) {
-    const byProject = data ? data.sessions_all.reduce((acc, session) => {
-      if (!selectedModels.value.has(session.model)) return acc;
-      const current = acc.get(session.project) ?? {
-        project: session.project,
-        display_name: session.display_name || session.project,
-        input: 0,
-        output: 0,
-        cache_read: 0,
-        cache_creation: 0,
-        reasoning_output: 0,
-        turns: 0,
-        sessions: 0,
-        cost: 0,
-        credits: null
-      };
-      current.input += session.input;
-      current.output += session.output;
-      current.cache_read += session.cache_read;
-      current.cache_creation += session.cache_creation;
-      current.reasoning_output += session.reasoning_output;
-      current.turns += session.turns;
-      current.sessions += 1;
-      current.cost += session.cost;
-      if (session.credits != null) {
-        current.credits = (current.credits ?? 0) + session.credits;
-      }
-      acc.set(session.project, current);
-      return acc;
-    }, /* @__PURE__ */ new Map()) : /* @__PURE__ */ new Map();
-    return Array.from(byProject.values()).sort(
-      (left, right) => right.input + right.output - (left.input + left.output)
-    );
-  }
   function exportSessionsCSV() {
     const header = [
       "Session",
@@ -8843,7 +8801,7 @@ ${row.project}` : row.project;
     downloadCSV("sessions", header, rows);
   }
   function exportProjectsCSV() {
-    exportProjectRowsCSV("projects", buildProjectAggregates(rawData.value));
+    exportProjectRowsCSV("projects", lastByProject.value);
   }
   function createUsageWindowsLoader(state) {
     return () => runExclusive(state, "loadUsageWindows", async () => {

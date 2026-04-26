@@ -17,6 +17,7 @@ import {
   billingBlocksData,
   contextWindowData,
   costReconciliationData,
+  lastByProject,
   loadState,
   projectSearchQuery,
   rawData,
@@ -136,44 +137,6 @@ function exportProjectRowsCSV(filename: string, rowsData: ProjectAgg[]): void {
   downloadCSV(filename, header, rows);
 }
 
-function buildProjectAggregates(data: DashboardData | null): ProjectAgg[] {
-  const byProject = data
-    ? data.sessions_all.reduce<Map<string, ProjectAgg>>((acc, session) => {
-        if (!selectedModels.value.has(session.model)) return acc;
-        const current = acc.get(session.project) ?? {
-          project: session.project,
-          display_name: session.display_name || session.project,
-          input: 0,
-          output: 0,
-          cache_read: 0,
-          cache_creation: 0,
-          reasoning_output: 0,
-          turns: 0,
-          sessions: 0,
-          cost: 0,
-          credits: null,
-        };
-        current.input += session.input;
-        current.output += session.output;
-        current.cache_read += session.cache_read;
-        current.cache_creation += session.cache_creation;
-        current.reasoning_output += session.reasoning_output;
-        current.turns += session.turns;
-        current.sessions += 1;
-        current.cost += session.cost;
-        if (session.credits != null) {
-          current.credits = (current.credits ?? 0) + session.credits;
-        }
-        acc.set(session.project, current);
-        return acc;
-      }, new Map())
-    : new Map<string, ProjectAgg>();
-
-  return Array.from(byProject.values()).sort(
-    (left, right) => (right.input + right.output) - (left.input + left.output)
-  );
-}
-
 function exportSessionsCSV(): void {
   const header = [
     'Session',
@@ -213,7 +176,7 @@ function exportSessionsCSV(): void {
 }
 
 function exportProjectsCSV(): void {
-  exportProjectRowsCSV('projects', buildProjectAggregates(rawData.value));
+  exportProjectRowsCSV('projects', lastByProject.value);
 }
 
 function createUsageWindowsLoader(state: RuntimeState): () => Promise<void> {

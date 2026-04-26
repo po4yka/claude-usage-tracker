@@ -1,5 +1,5 @@
 import { ApexChart } from './ApexChart';
-import { industrialChartOptions, tokenSeriesColors } from '../../lib/charts';
+import { dashboardChartOptions, tokenSeriesColors } from '../../lib/charts';
 import { fmt, esc } from '../../lib/format';
 import type { WeeklyAgg } from '../../state/types';
 
@@ -12,7 +12,7 @@ export function WeeklyChart({ weekly }: { weekly: WeeklyAgg[] }) {
     );
   }
 
-  const base = industrialChartOptions('bar');
+  const base = dashboardChartOptions('bar');
   const options = {
     ...base,
     chart: { ...base.chart, type: 'bar', stacked: true },

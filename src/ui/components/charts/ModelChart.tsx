@@ -1,6 +1,6 @@
 import { useState } from 'preact/hooks';
 import { ApexChart } from './ApexChart';
-import { industrialChartOptions, cssVar, withAlpha } from '../../lib/charts';
+import { dashboardChartOptions, cssVar, withAlpha } from '../../lib/charts';
 import { esc, fmt, fmtCost, fmtCostCompact } from '../../lib/format';
 import type { ModelAgg } from '../../state/types';
 
@@ -118,7 +118,7 @@ export function ModelChart({
     });
   }
 
-  const base = industrialChartOptions('donut');
+  const base = dashboardChartOptions('donut');
   const options = {
     ...base,
     chart: {

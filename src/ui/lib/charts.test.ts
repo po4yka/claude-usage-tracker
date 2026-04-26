@@ -4,7 +4,7 @@ import {
   RANGE_TICKS,
   apexThemeMode,
   cssVar,
-  industrialChartOptions,
+  dashboardChartOptions,
   modelSeriesColors,
   tokenSeriesColors,
   withAlpha,
@@ -75,8 +75,8 @@ describe('chart helpers', () => {
       'rgba(0, 170, 0, 0.75)',
     ]);
 
-    const donut = industrialChartOptions('donut');
-    const line = industrialChartOptions('line');
+    const donut = dashboardChartOptions('donut');
+    const line = dashboardChartOptions('line');
 
     expect(donut.legend?.position).toBe('bottom');
     expect(donut.theme?.mode).toBe('dark');

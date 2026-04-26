@@ -1,5 +1,5 @@
 import { ApexChart } from './ApexChart';
-import { industrialChartOptions, cssVar, withAlpha } from '../../lib/charts';
+import { dashboardChartOptions, cssVar, withAlpha } from '../../lib/charts';
 import { esc, fmt, fmtCost, fmtCostCompact } from '../../lib/format';
 import type { VersionSummary } from '../../state/types';
 import type { VersionMetric } from '../../state/store';
@@ -99,7 +99,7 @@ export function VersionDonut({ rows, metric, onMetricChange }: VersionDonutProps
     });
   }
 
-  const base = industrialChartOptions('donut');
+  const base = dashboardChartOptions('donut');
   const options = {
     ...base,
     chart: { ...base.chart, type: 'donut' },

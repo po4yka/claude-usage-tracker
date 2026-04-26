@@ -6,7 +6,6 @@ export function HourlyChart({ data }: { data: HourlyRow[] }) {
   if (!data.length) return null;
 
   const maxTurns = Math.max(...data.map(d => d.turns), 1);
-  const fillColor = cssVar('--text-display');
   const emptyColor = cssVar('--border');
 
   return (
@@ -56,8 +55,6 @@ export function HourlyChart({ data }: { data: HourlyRow[] }) {
           </span>
         ))}
       </div>
-      {/* Mark the last-visible label so the void `fillColor` isn't truly unused, no-op-ish */}
-      <div style={{ display: 'none' }} data-fill={fillColor} />
     </div>
   );
 }

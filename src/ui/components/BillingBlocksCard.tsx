@@ -1,4 +1,5 @@
 import { SegmentedProgressBar } from './SegmentedProgressBar';
+import { fmt } from '../lib/format';
 import type { BillingBlocksResponse, BillingBlockView, BurnRateTier, QuotaSeverity } from '../state/types';
 import type { SegmentedBarStatus } from './SegmentedProgressBar';
 
@@ -34,12 +35,6 @@ function formatDuration(from: string, to: string): string {
   const m = totalMin % 60;
   if (h === 0) return `${m}m`;
   return `${h}h ${m}m`;
-}
-
-function fmtTokens(n: number): string {
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
-  if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K';
-  return n.toString();
 }
 
 function fmtUtcTime(iso: string): string {
@@ -85,7 +80,7 @@ function QuotaSuggestionsSection({ data }: { data: BillingBlocksResponse }) {
         >
           <span class="stat-sub">Configured</span>
           <span class="stat-sub" style={{ fontFamily: 'var(--font-mono)', fontSize: '11px' }}>
-            {fmtTokens(data.token_limit)}
+            {fmt(data.token_limit)}
           </span>
         </div>
       )}
@@ -108,7 +103,7 @@ function QuotaSuggestionsSection({ data }: { data: BillingBlocksResponse }) {
               )}
             </span>
             <span class="stat-sub" style={{ fontFamily: 'var(--font-mono)', fontSize: '11px' }}>
-              {fmtTokens(level.limit_tokens)}
+              {fmt(level.limit_tokens)}
             </span>
           </div>
         ))}
@@ -165,7 +160,7 @@ function QuotaSection({ block }: QuotaSectionProps) {
             class="stat-sub"
             style={{ fontFamily: 'var(--font-mono)', fontSize: '11px' }}
           >
-            {fmtTokens(quota.used_tokens)} / {fmtTokens(quota.limit_tokens)}{' '}
+            {fmt(quota.used_tokens)} / {fmt(quota.limit_tokens)}{' '}
             {currentPct}%{' '}
             <span
               style={{
@@ -206,7 +201,7 @@ function QuotaSection({ block }: QuotaSectionProps) {
             class="stat-sub"
             style={{ fontFamily: 'var(--font-mono)', fontSize: '11px' }}
           >
-            {fmtTokens(quota.projected_tokens)} / {fmtTokens(quota.limit_tokens)}{' '}
+            {fmt(quota.projected_tokens)} / {fmt(quota.limit_tokens)}{' '}
             {projectedPct}%{' '}
             <span
               style={{
@@ -256,7 +251,7 @@ export function BillingBlocksCard({ data }: BillingBlocksCardProps) {
           <div class="stat-sub">
             7d historical max:{' '}
             <span style={{ fontFamily: 'var(--font-mono)' }}>
-              {fmtTokens(data.historical_max_tokens)}
+              {fmt(data.historical_max_tokens)}
             </span>{' '}
             tokens
           </div>
@@ -286,7 +281,7 @@ export function BillingBlocksCard({ data }: BillingBlocksCardProps) {
           class="stat-value"
           style={{ fontFamily: 'var(--font-mono)', letterSpacing: '-0.02em' }}
         >
-          {fmtTokens(totalTokens)}
+          {fmt(totalTokens)}
         </div>
         <div class="stat-sub">
           {elapsed} elapsed &middot; ends {blockEnd} &middot; {activeBlock.entry_count} entries
@@ -310,7 +305,7 @@ export function BillingBlocksCard({ data }: BillingBlocksCardProps) {
         )}
         {activeBlock.projection && (
           <div class="stat-sub" style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', marginTop: '4px' }}>
-            Projects {fmtTokens(activeBlock.projection.projected_tokens)} tokens · $
+            Projects {fmt(activeBlock.projection.projected_tokens)} tokens · $
             {(activeBlock.projection.projected_cost_nanos / 1e9).toFixed(4)}
           </div>
         )}
