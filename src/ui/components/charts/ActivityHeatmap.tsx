@@ -1,6 +1,13 @@
-// TODO Phase-11: spec ambiguity — heatmap currently has no per-project breakdown.
-// The heatmap aggregates by hour/day across all projects; tooltip enhancement
-// is deferred until the per-project heatmap requirement is clarified.
+// Heatmap aggregates by hour/day across all projects; per-project breakdown is
+// intentionally not surfaced here. If we add it, decide first:
+//   1. Filter integration: does the existing FilterBar `project` filter scope
+//      the heatmap, or does the heatmap need its own selector?
+//   2. Tooltip shape: top-N projects per cell with shares, or one project at a
+//      time driven by a hover-locked legend swatch?
+//   3. Cell encoding: keep the monochrome opacity ladder (one project = full
+//      opacity, others dimmed) or switch to small-multiples (7×24 grid per
+//      project, capped at top-N)?
+// Until those questions are answered the all-projects view is the contract.
 import { withAlpha } from '../../lib/charts';
 import { fmt, fmtCost, fmtCostBig, fmtCostCompact, fmtTzOffset } from '../../lib/format';
 import type { HeatmapData } from '../../state/types';
