@@ -453,8 +453,7 @@ mod tests {
 
     #[test]
     fn copilot_archive_paths_returns_dirs() {
-        let provider =
-            CopilotProvider::new_with_dirs(vec![PathBuf::from("/tmp/copilot-sessions")]);
+        let provider = CopilotProvider::new_with_dirs(vec![PathBuf::from("/tmp/copilot-sessions")]);
         let paths = provider.archive_paths();
         assert!(
             paths.iter().any(|p| p.ends_with("copilot-sessions")),

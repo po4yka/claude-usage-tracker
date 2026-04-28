@@ -498,8 +498,7 @@ mod tests {
 
     #[test]
     fn opencode_archive_paths_returns_dirs() {
-        let provider =
-            OpenCodeProvider::new_with_dirs(vec![PathBuf::from("/tmp/opencode-data")]);
+        let provider = OpenCodeProvider::new_with_dirs(vec![PathBuf::from("/tmp/opencode-data")]);
         let paths = provider.archive_paths();
         assert!(
             paths.iter().any(|p| p.ends_with("opencode-data")),

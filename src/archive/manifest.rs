@@ -112,16 +112,29 @@ mod tests {
                     name: "claude".into(),
                     root: "/r1".into(),
                     files: vec![
-                        FileEntry { logical_path: "a".into(), sha256: "0".into(), size: 100, mtime_ms: 0 },
-                        FileEntry { logical_path: "b".into(), sha256: "0".into(), size: 50, mtime_ms: 0 },
+                        FileEntry {
+                            logical_path: "a".into(),
+                            sha256: "0".into(),
+                            size: 100,
+                            mtime_ms: 0,
+                        },
+                        FileEntry {
+                            logical_path: "b".into(),
+                            sha256: "0".into(),
+                            size: 50,
+                            mtime_ms: 0,
+                        },
                     ],
                 },
                 ProviderSection {
                     name: "codex".into(),
                     root: "/r2".into(),
-                    files: vec![
-                        FileEntry { logical_path: "c".into(), sha256: "0".into(), size: 25, mtime_ms: 0 },
-                    ],
+                    files: vec![FileEntry {
+                        logical_path: "c".into(),
+                        sha256: "0".into(),
+                        size: 25,
+                        mtime_ms: 0,
+                    }],
                 },
             ],
         };

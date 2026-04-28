@@ -193,12 +193,11 @@ pub fn run_menubar(db_path: &Path) -> Result<String> {
     let archive_metas = crate::archive::Archive::at(archive_root)
         .ok()
         .and_then(|a| a.list().ok());
-    let (last_snapshot_at, last_snapshot_bytes) = match archive_metas
-        .and_then(|metas| metas.into_iter().next())
-    {
-        Some(m) => (Some(m.created_at), Some(m.total_bytes)),
-        None => (None, None),
-    };
+    let (last_snapshot_at, last_snapshot_bytes) =
+        match archive_metas.and_then(|metas| metas.into_iter().next()) {
+            Some(m) => (Some(m.created_at), Some(m.total_bytes)),
+            None => (None, None),
+        };
 
     let data = MenubarData {
         today_cost_usd,

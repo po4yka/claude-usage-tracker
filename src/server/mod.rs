@@ -153,10 +153,7 @@ pub(crate) fn build_router(state: Arc<AppState>) -> Router {
             get(api::api_cost_reconciliation),
         )
         .route("/api/archive", get(api::api_archive_list))
-        .route(
-            "/api/archive/{snapshot_id}",
-            get(api::api_archive_show),
-        )
+        .route("/api/archive/{snapshot_id}", get(api::api_archive_show))
         .route("/api/archive/snapshot", post(api::api_archive_snapshot))
         .with_state(state)
 }

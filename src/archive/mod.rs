@@ -173,8 +173,7 @@ impl Archive {
     /// Read a snapshot's full manifest.
     pub fn show(&self, snapshot_id: &str) -> Result<Manifest> {
         let path = self.snapshots_dir().join(snapshot_id).join("manifest.json");
-        let bytes = fs::read(&path)
-            .with_context(|| format!("reading {}", path.display()))?;
+        let bytes = fs::read(&path).with_context(|| format!("reading {}", path.display()))?;
         let manifest: Manifest = serde_json::from_slice(&bytes)?;
         Ok(manifest)
     }
@@ -221,7 +220,9 @@ fn write_json<T: serde::Serialize>(path: &Path, value: &T) -> Result<()> {
 fn mtime_millis(path: &Path) -> Option<i64> {
     let meta = fs::metadata(path).ok()?;
     let modified = meta.modified().ok()?;
-    let dur = modified.duration_since(UNIX_EPOCH).unwrap_or(Duration::ZERO);
+    let dur = modified
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or(Duration::ZERO);
     Some(dur.as_millis() as i64)
 }
 

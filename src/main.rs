@@ -881,7 +881,11 @@ fn main() -> Result<()> {
                         }
                     }
                 }
-                ArchiveAction::Show { snapshot_id, archive_root, json } => {
+                ArchiveAction::Show {
+                    snapshot_id,
+                    archive_root,
+                    json,
+                } => {
                     let root = archive_root.unwrap_or_else(archive::default_root);
                     let archive_handle = Archive::at(root)?;
                     let manifest = archive_handle.show(&snapshot_id)?;
@@ -898,7 +902,11 @@ fn main() -> Result<()> {
                         }
                     }
                 }
-                ArchiveAction::Restore { snapshot_id, to, archive_root } => {
+                ArchiveAction::Restore {
+                    snapshot_id,
+                    to,
+                    archive_root,
+                } => {
                     let root = archive_root.unwrap_or_else(archive::default_root);
                     let archive_handle = Archive::at(root)?;
                     let dest = to.unwrap_or_else(|| {
@@ -907,7 +915,10 @@ fn main() -> Result<()> {
                     archive_handle.restore(&snapshot_id, &dest)?;
                     println!("restored {} -> {}", snapshot_id, dest.display());
                 }
-                ArchiveAction::Prune { keep_last, archive_root } => {
+                ArchiveAction::Prune {
+                    keep_last,
+                    archive_root,
+                } => {
                     let root = archive_root.unwrap_or_else(archive::default_root);
                     let _lock = ArchiveLock::acquire(&root)?;
                     let archive_handle = Archive::at(root)?;

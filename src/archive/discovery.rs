@@ -44,7 +44,11 @@ fn collect_under_root(
         let entry = match entry {
             Ok(e) => e,
             Err(e) => {
-                tracing::warn!("archive discover: walk error under {}: {}", root.display(), e);
+                tracing::warn!(
+                    "archive discover: walk error under {}: {}",
+                    root.display(),
+                    e
+                );
                 continue;
             }
         };
@@ -53,7 +57,9 @@ fn collect_under_root(
         }
         let abs = entry.path().to_path_buf();
         let logical = match abs.strip_prefix(root) {
-            Ok(rel) => rel.to_string_lossy().replace(std::path::MAIN_SEPARATOR, "/"),
+            Ok(rel) => rel
+                .to_string_lossy()
+                .replace(std::path::MAIN_SEPARATOR, "/"),
             Err(_) => continue,
         };
         out.push(DiscoveredFile {

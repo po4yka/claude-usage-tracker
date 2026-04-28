@@ -454,8 +454,10 @@ mod tests {
         let mut snapshot_cmd = std::process::Command::new(&exe);
         snapshot_cmd
             .args([
-                "archive", "snapshot",
-                "--archive-root", archive_root.to_str().unwrap(),
+                "archive",
+                "snapshot",
+                "--archive-root",
+                archive_root.to_str().unwrap(),
                 "--json",
             ])
             // Force the Claude provider to look at our fixture root rather than $HOME.
@@ -465,12 +467,17 @@ mod tests {
 
         let mut list_cmd = std::process::Command::new(exe);
         list_cmd.args([
-            "archive", "list",
-            "--archive-root", archive_root.to_str().unwrap(),
+            "archive",
+            "list",
+            "--archive-root",
+            archive_root.to_str().unwrap(),
         ]);
         let out = list_cmd.output().expect("run list");
         assert!(out.status.success(), "list failed: {:?}", out);
         let stdout = String::from_utf8_lossy(&out.stdout);
-        assert!(stdout.contains("files"), "list output missing 'files': {stdout}");
+        assert!(
+            stdout.contains("files"),
+            "list output missing 'files': {stdout}"
+        );
     }
 }

@@ -20,10 +20,7 @@ impl Provider for FixtureProvider {
     fn discover_sessions(&self) -> Result<Vec<SessionSource>> {
         Ok(vec![])
     }
-    fn parse(
-        &self,
-        _path: &std::path::Path,
-    ) -> Result<Vec<claude_usage_tracker::models::Turn>> {
+    fn parse(&self, _path: &std::path::Path) -> Result<Vec<claude_usage_tracker::models::Turn>> {
         Ok(vec![])
     }
     fn archive_paths(&self) -> Vec<PathBuf> {
@@ -53,8 +50,7 @@ fn snapshot_writes_manifest_and_objects() {
         .join(&id)
         .join("manifest.json");
     assert!(manifest_path.is_file());
-    let manifest: Manifest =
-        serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
+    let manifest: Manifest = serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
     assert_eq!(manifest.providers.len(), 1);
     assert_eq!(manifest.providers[0].files.len(), 2);
 

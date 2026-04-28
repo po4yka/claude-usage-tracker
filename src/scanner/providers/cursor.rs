@@ -499,9 +499,7 @@ mod tests {
             CursorProvider::new_with_dirs(vec![PathBuf::from("/tmp/cursor-workspaceStorage")]);
         let paths = provider.archive_paths();
         assert!(
-            paths
-                .iter()
-                .any(|p| p.ends_with("cursor-workspaceStorage")),
+            paths.iter().any(|p| p.ends_with("cursor-workspaceStorage")),
             "expected cursor-workspaceStorage in archive_paths, got: {:?}",
             paths
         );
