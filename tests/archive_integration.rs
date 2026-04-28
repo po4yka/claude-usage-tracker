@@ -90,3 +90,44 @@ fn snapshot_is_dedup_friendly_across_runs() {
         .count();
     assert_eq!(count, 1, "identical content must dedupe to a single object");
 }
+
+#[test]
+fn list_returns_snapshots_newest_first() {
+    let tmp = TempDir::new().unwrap();
+    let archive_root = tmp.path().join("archive");
+    let provider_root = tmp.path().join("source");
+    fs::create_dir_all(&provider_root).unwrap();
+    fs::write(provider_root.join("a.jsonl"), b"data").unwrap();
+    let providers: Vec<Arc<dyn Provider>> = vec![Arc::new(FixtureProvider {
+        name: "fixture",
+        roots: vec![provider_root.clone()],
+    })];
+    let archive = Archive::at(archive_root.clone()).unwrap();
+    let id1 = archive.snapshot(&providers).unwrap();
+    let id2 = archive.snapshot(&providers).unwrap();
+
+    let list = archive.list().unwrap();
+    assert!(list.len() >= 2);
+    assert_eq!(list[0].snapshot_id, id2, "list must be newest-first");
+    assert_eq!(list[1].snapshot_id, id1);
+}
+
+#[test]
+fn restore_round_trips_file_contents() {
+    let tmp = TempDir::new().unwrap();
+    let archive_root = tmp.path().join("archive");
+    let provider_root = tmp.path().join("source");
+    fs::create_dir_all(provider_root.join("nested")).unwrap();
+    fs::write(provider_root.join("nested/x.jsonl"), b"ABC").unwrap();
+    let providers: Vec<Arc<dyn Provider>> = vec![Arc::new(FixtureProvider {
+        name: "fixture",
+        roots: vec![provider_root.clone()],
+    })];
+    let archive = Archive::at(archive_root.clone()).unwrap();
+    let id = archive.snapshot(&providers).unwrap();
+
+    let dest = tmp.path().join("restore");
+    archive.restore(&id, &dest).unwrap();
+    let restored = std::fs::read(dest.join("fixture").join("nested/x.jsonl")).unwrap();
+    assert_eq!(restored, b"ABC");
+}

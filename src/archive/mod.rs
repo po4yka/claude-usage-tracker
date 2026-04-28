@@ -17,7 +17,7 @@ use tracing::info;
 
 use crate::scanner::provider::Provider;
 
-use self::manifest::{FileEntry, Manifest, ProviderSection};
+use self::manifest::{FileEntry, Manifest, ProviderSection, Summary};
 use self::objects::{ObjectStore, Sha256Hash};
 
 /// Default archive root: `~/.heimdall/archive/`.
@@ -124,6 +124,86 @@ impl Archive {
             snapshot_id, summary.total_files, summary.total_bytes
         );
         Ok(snapshot_id)
+    }
+}
+
+/// Lightweight metadata about a snapshot, returned by `Archive::list`.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SnapshotMeta {
+    pub snapshot_id: String,
+    pub created_at: String,
+    pub total_files: u64,
+    pub total_bytes: u64,
+}
+
+impl Archive {
+    /// List snapshots, newest first.
+    pub fn list(&self) -> Result<Vec<SnapshotMeta>> {
+        let dir = self.snapshots_dir();
+        if !dir.is_dir() {
+            return Ok(Vec::new());
+        }
+        let mut metas = Vec::new();
+        for entry in fs::read_dir(&dir)? {
+            let entry = entry?;
+            if !entry.file_type()?.is_dir() {
+                continue;
+            }
+            let summary_path = entry.path().join("summary.json");
+            if !summary_path.is_file() {
+                continue;
+            }
+            let bytes = fs::read(&summary_path)?;
+            let summary: Summary = serde_json::from_slice(&bytes)?;
+            metas.push(SnapshotMeta {
+                snapshot_id: summary.snapshot_id,
+                created_at: summary.created_at,
+                total_files: summary.total_files,
+                total_bytes: summary.total_bytes,
+            });
+        }
+        metas.sort_by(|a, b| b.snapshot_id.cmp(&a.snapshot_id));
+        Ok(metas)
+    }
+
+    /// Read a snapshot's full manifest.
+    pub fn show(&self, snapshot_id: &str) -> Result<Manifest> {
+        let path = self.snapshots_dir().join(snapshot_id).join("manifest.json");
+        let bytes = fs::read(&path)
+            .with_context(|| format!("reading {}", path.display()))?;
+        let manifest: Manifest = serde_json::from_slice(&bytes)?;
+        Ok(manifest)
+    }
+
+    /// Restore a snapshot to a fresh directory.
+    ///
+    /// Refuses to overwrite an existing non-empty directory.
+    pub fn restore(&self, snapshot_id: &str, dest: &Path) -> Result<()> {
+        if dest.exists() {
+            let mut entries = fs::read_dir(dest)?;
+            if entries.next().is_some() {
+                anyhow::bail!(
+                    "restore destination {} is not empty; refusing to overwrite",
+                    dest.display()
+                );
+            }
+        } else {
+            fs::create_dir_all(dest)?;
+        }
+        let manifest = self.show(snapshot_id)?;
+        let store = self.objects()?;
+        for section in &manifest.providers {
+            for file in &section.files {
+                let hash = Sha256Hash::from_hex(&file.sha256)?;
+                let bytes = store.get(&hash)?;
+                let out_path = dest.join(&section.name).join(&file.logical_path);
+                if let Some(parent) = out_path.parent() {
+                    fs::create_dir_all(parent)?;
+                }
+                fs::write(&out_path, bytes)?;
+            }
+        }
+        Ok(())
     }
 }
 
