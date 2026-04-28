@@ -4210,4 +4210,123 @@ mod tests {
         let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
         assert_eq!(json["unchanged"], true);
     }
+
+    #[tokio::test]
+    async fn web_conversations_returns_empty_listing_when_no_captures() {
+        let tmp = TempDir::new().unwrap();
+        let (db_path, projects) = setup_test_db(&tmp);
+
+        let _home_guard = HOME_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let prev_home = std::env::var_os("HOME");
+        unsafe { std::env::set_var("HOME", tmp.path()) };
+
+        let app = test_app(db_path, projects);
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/archive/web-conversations")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        match prev_home {
+            Some(prev) => unsafe { std::env::set_var("HOME", prev) },
+            None => unsafe { std::env::remove_var("HOME") },
+        }
+
+        assert_eq!(resp.status(), StatusCode::OK);
+        let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(json["conversations"], serde_json::json!([]));
+        assert_eq!(json["heartbeat"], serde_json::Value::Null);
+    }
+
+    #[tokio::test]
+    async fn companion_heartbeat_requires_bearer() {
+        let tmp = TempDir::new().unwrap();
+        let (db_path, projects) = setup_test_db(&tmp);
+
+        let _home_guard = HOME_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let prev_home = std::env::var_os("HOME");
+        unsafe { std::env::set_var("HOME", tmp.path()) };
+
+        let app = test_app(db_path, projects);
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/archive/companion-heartbeat")
+                    .header("content-type", "application/json")
+                    .body(Body::from(b"{}".as_ref()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        match prev_home {
+            Some(prev) => unsafe { std::env::set_var("HOME", prev) },
+            None => unsafe { std::env::remove_var("HOME") },
+        }
+
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn companion_heartbeat_persists_to_disk() {
+        let tmp = TempDir::new().unwrap();
+        let (db_path, projects) = setup_test_db(&tmp);
+
+        let _home_guard = HOME_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let prev_home = std::env::var_os("HOME");
+        unsafe { std::env::set_var("HOME", tmp.path()) };
+
+        // Seed the companion token into the tempdir so the handler finds it.
+        let token_path = tmp.path().join(".heimdall").join("companion-token");
+        let token = crate::archive::companion_token::read_or_init(&token_path).unwrap();
+        let token_hex = token.as_hex().to_owned();
+
+        let body = serde_json::json!({
+            "extension_version": "0.1.0",
+            "user_agent": "UA",
+            "vendor": "claude.ai",
+        });
+
+        let app = test_app(db_path, projects);
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/archive/companion-heartbeat")
+                    .header("content-type", "application/json")
+                    .header("authorization", format!("Bearer {token_hex}"))
+                    .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        match prev_home {
+            Some(prev) => unsafe { std::env::set_var("HOME", prev) },
+            None => unsafe { std::env::remove_var("HOME") },
+        }
+
+        assert_eq!(resp.status(), StatusCode::OK);
+        let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(json["ok"], true);
+
+        // Heartbeat file should exist on disk.
+        let expected = tmp
+            .path()
+            .join(".heimdall")
+            .join("archive")
+            .join("web")
+            .join("companion-heartbeat.json");
+        assert!(
+            expected.is_file(),
+            "heartbeat file should exist at {expected:?}"
+        );
+    }
 }

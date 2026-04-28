@@ -213,6 +213,70 @@ pub fn list_web_conversations(archive_root: &Path) -> Result<Vec<WebConversation
 }
 
 // ---------------------------------------------------------------------------
+// Heartbeat
+// ---------------------------------------------------------------------------
+
+/// Last-seen record written by the browser companion.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompanionHeartbeat {
+    pub last_seen_at: String,
+    pub extension_version: Option<String>,
+    pub user_agent: Option<String>,
+    pub vendors_seen: Vec<String>,
+}
+
+/// Path of the heartbeat file: `<archive_root>/web/companion-heartbeat.json`.
+pub fn heartbeat_path(archive_root: &Path) -> PathBuf {
+    archive_root.join("web").join("companion-heartbeat.json")
+}
+
+/// Update (or create) the heartbeat file.
+///
+/// - `last_seen_at` is always refreshed to the current UTC instant.
+/// - `extension_version` / `user_agent` are replaced only when `Some`.
+/// - `vendor` is appended to `vendors_seen` only when non-empty and not already present.
+pub fn record_heartbeat(
+    archive_root: &Path,
+    extension_version: Option<String>,
+    user_agent: Option<String>,
+    vendor: &str,
+) -> Result<()> {
+    let path = heartbeat_path(archive_root);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let mut h = read_heartbeat(archive_root)?.unwrap_or_else(|| CompanionHeartbeat {
+        last_seen_at: String::new(),
+        extension_version: None,
+        user_agent: None,
+        vendors_seen: Vec::new(),
+    });
+    h.last_seen_at = Utc::now().format("%Y-%m-%dT%H%M%S%.6fZ").to_string();
+    if extension_version.is_some() {
+        h.extension_version = extension_version;
+    }
+    if user_agent.is_some() {
+        h.user_agent = user_agent;
+    }
+    if !vendor.is_empty() && !h.vendors_seen.iter().any(|v| v == vendor) {
+        h.vendors_seen.push(vendor.to_string());
+    }
+    let bytes = serde_json::to_vec_pretty(&h)?;
+    fs::write(&path, bytes)?;
+    Ok(())
+}
+
+/// Read the heartbeat file, returning `None` when it does not exist.
+pub fn read_heartbeat(archive_root: &Path) -> Result<Option<CompanionHeartbeat>> {
+    let path = heartbeat_path(archive_root);
+    if !path.is_file() {
+        return Ok(None);
+    }
+    let bytes = fs::read(&path)?;
+    Ok(serde_json::from_slice(&bytes).ok())
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -313,6 +377,27 @@ mod tests {
         // Nothing should have escaped to the parent of <root>.
         let escaped = dir.path().parent().unwrap().join("etc");
         assert!(!escaped.exists(), "path traversal must not escape root");
+    }
+
+    #[test]
+    fn record_heartbeat_creates_file() {
+        let tmp = TempDir::new().unwrap();
+        record_heartbeat(tmp.path(), Some("0.1.0".into()), Some("UA".into()), "claude.ai").unwrap();
+        let h = read_heartbeat(tmp.path()).unwrap().expect("present");
+        assert!(!h.last_seen_at.is_empty());
+        assert_eq!(h.extension_version.as_deref(), Some("0.1.0"));
+        assert_eq!(h.user_agent.as_deref(), Some("UA"));
+        assert_eq!(h.vendors_seen, vec!["claude.ai"]);
+    }
+
+    #[test]
+    fn record_heartbeat_appends_unique_vendors() {
+        let tmp = TempDir::new().unwrap();
+        record_heartbeat(tmp.path(), None, None, "claude.ai").unwrap();
+        record_heartbeat(tmp.path(), None, None, "claude.ai").unwrap();
+        record_heartbeat(tmp.path(), None, None, "chatgpt.com").unwrap();
+        let h = read_heartbeat(tmp.path()).unwrap().expect("present");
+        assert_eq!(h.vendors_seen, vec!["claude.ai", "chatgpt.com"]);
     }
 
     #[test]

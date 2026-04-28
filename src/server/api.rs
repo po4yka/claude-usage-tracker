@@ -2462,6 +2462,90 @@ pub async fn api_archive_snapshot(
     Ok(Json(serde_json::json!({ "snapshot_id": id })))
 }
 
+/// `GET /api/archive/web-conversations` — list captured web conversations + heartbeat.
+pub async fn api_archive_web_conversations(
+    State(_state): State<Arc<AppState>>,
+    request: Request,
+) -> Result<Json<Value>, StatusCode> {
+    enforce_loopback_request(&request)?;
+    let archive_root_for_list = crate::archive::default_root();
+    let summaries = tokio::task::spawn_blocking(move || -> anyhow::Result<_> {
+        crate::archive::web::list_web_conversations(&archive_root_for_list)
+    })
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let heartbeat = tokio::task::spawn_blocking(move || -> anyhow::Result<_> {
+        let archive_root = crate::archive::default_root();
+        crate::archive::web::read_heartbeat(&archive_root)
+    })
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    .ok()
+    .flatten();
+    let body = serde_json::json!({
+        "conversations": summaries,
+        "heartbeat": heartbeat,
+    });
+    Ok(Json(body))
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CompanionHeartbeatBody {
+    #[serde(default)]
+    pub extension_version: Option<String>,
+    #[serde(default)]
+    pub user_agent: Option<String>,
+    #[serde(default)]
+    pub vendor: Option<String>,
+}
+
+/// `POST /api/archive/companion-heartbeat` — record a companion ping (bearer-gated).
+pub async fn api_archive_companion_heartbeat(
+    State(_state): State<Arc<AppState>>,
+    request: Request,
+) -> Result<Json<Value>, StatusCode> {
+    enforce_loopback_request(&request)?;
+    let header = request
+        .headers()
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("");
+    let candidate = header.strip_prefix("Bearer ").unwrap_or("").to_string();
+
+    let token_path = crate::archive::companion_token::default_path();
+    let token = tokio::task::spawn_blocking(move || {
+        crate::archive::companion_token::read_or_init(&token_path)
+    })
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    if !token.matches(&candidate) {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    let body_bytes = axum::body::to_bytes(request.into_body(), 64 * 1024)
+        .await
+        .map_err(|_| StatusCode::PAYLOAD_TOO_LARGE)?;
+    let body: CompanionHeartbeatBody =
+        serde_json::from_slice(&body_bytes).map_err(|_| StatusCode::BAD_REQUEST)?;
+
+    let archive_root = crate::archive::default_root();
+    let vendor = body.vendor.unwrap_or_default();
+    tokio::task::spawn_blocking(move || {
+        crate::archive::web::record_heartbeat(
+            &archive_root,
+            body.extension_version,
+            body.user_agent,
+            &vendor,
+        )
+    })
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(serde_json::json!({"ok": true})))
+}
+
 /// `POST /api/archive/web-conversation` — store a captured web conversation (bearer-gated).
 pub async fn api_archive_web_conversation(
     State(_state): State<Arc<AppState>>,
