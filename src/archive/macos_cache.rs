@@ -278,6 +278,101 @@ fn ingest_one_plaintext_dir(
     Ok(())
 }
 
+/// Chromium / Electron `safeStorage` cipher primitives (OSCrypt v10 format).
+///
+/// ChatGPT.app uses the same Electron `safeStorage` AES-128-CBC scheme that
+/// Chromium uses on macOS for its safe-storage layer (the "v10" cookie
+/// encryption variant). The key is derived via PBKDF2-HMAC-SHA1 from a
+/// passphrase stored in macOS Keychain; the ciphertext has a 3-byte `v10`
+/// prefix followed by 16-byte constant-IV AES-128-CBC data.
+///
+/// All functions here are `pub(super)` so Phase 2/3 sibling submods can
+/// reach them without leaking the crypto surface into the public API.
+/// The module itself is not yet wired into the rest of `macos_cache`; the
+/// dead-code allow is intentional until Phase 2 integration lands.
+#[allow(dead_code)]
+mod oscrypt {
+    use aes::Aes128;
+    use anyhow::{Context, Result, bail};
+    use cbc::cipher::{BlockDecryptMut, KeyIvInit, block_padding::Pkcs7};
+    use pbkdf2::pbkdf2_hmac;
+    use sha1::Sha1;
+
+    /// The constant 16-byte AES-128-CBC initialisation vector used by every
+    /// OSCrypt v10 blob — 16 ASCII space characters (0x20).
+    const IV: [u8; 16] = [0x20u8; 16];
+
+    /// PBKDF2 salt hard-coded by Chromium's OSCrypt implementation.
+    const SALT: &[u8] = b"saltysalt";
+
+    /// PBKDF2 iteration count hard-coded by Chromium's OSCrypt implementation.
+    const ITERATIONS: u32 = 1003;
+
+    /// The 3-byte ASCII prefix that marks an OSCrypt v10 encrypted blob.
+    const PREFIX: &[u8] = b"v10";
+
+    /// Derive the 16-byte AES-128 key from a Keychain-vended passphrase.
+    ///
+    /// Uses PBKDF2-HMAC-SHA1 with the hard-coded Chromium salt `"saltysalt"`
+    /// and 1003 iterations, producing a 16-byte (128-bit) key.
+    pub(super) fn derive_key(passphrase: &[u8]) -> [u8; 16] {
+        let mut key = [0u8; 16];
+        pbkdf2_hmac::<Sha1>(passphrase, SALT, ITERATIONS, &mut key);
+        key
+    }
+
+    /// Decrypt an OSCrypt v10 blob.
+    ///
+    /// Expects `prefixed` to start with the 3-byte ASCII prefix `v10`,
+    /// followed by the AES-128-CBC ciphertext (padded with PKCS#7).
+    /// The constant 16-space IV is used; no integrity tag is present.
+    ///
+    /// Returns an error if:
+    /// - the input does not begin with `v10`,
+    /// - the ciphertext length is not a positive multiple of 16, or
+    /// - PKCS#7 unpadding fails.
+    pub(super) fn decrypt_v10_blob(prefixed: &[u8], key: &[u8; 16]) -> Result<Vec<u8>> {
+        let ciphertext = prefixed
+            .strip_prefix(PREFIX)
+            .context("blob does not start with v10 prefix")?;
+        if ciphertext.is_empty() || ciphertext.len() % 16 != 0 {
+            bail!(
+                "ciphertext length {} is not a positive multiple of 16",
+                ciphertext.len()
+            );
+        }
+        type Aes128CbcDec = cbc::Decryptor<Aes128>;
+        let mut buf = ciphertext.to_vec();
+        let plaintext = Aes128CbcDec::new(key.into(), &IV.into())
+            .decrypt_padded_mut::<Pkcs7>(&mut buf)
+            .map_err(|e| anyhow::anyhow!("AES-128-CBC decrypt / unpad failed: {e}"))?;
+        Ok(plaintext.to_vec())
+    }
+
+    /// Encrypt plaintext into an OSCrypt v10 blob (test-only).
+    ///
+    /// Prepends the `v10` prefix, then AES-128-CBC encrypts with PKCS#7
+    /// padding and the constant 16-space IV. This is the exact inverse of
+    /// `decrypt_v10_blob` and exists solely so unit tests can mint synthetic
+    /// fixtures without depending on external tooling.
+    #[cfg(test)]
+    pub(super) fn encrypt_v10_blob(plaintext: &[u8], key: &[u8; 16]) -> Vec<u8> {
+        use cbc::cipher::BlockEncryptMut;
+        type Aes128CbcEnc = cbc::Encryptor<Aes128>;
+        // Allocate space: plaintext + up to one full padding block.
+        let padded_len = ((plaintext.len() / 16) + 1) * 16;
+        let mut buf = vec![0u8; padded_len];
+        buf[..plaintext.len()].copy_from_slice(plaintext);
+        let ciphertext = Aes128CbcEnc::new(key.into(), &IV.into())
+            .encrypt_padded_mut::<Pkcs7>(&mut buf, plaintext.len())
+            .expect("encrypt_padded_mut: buffer too small (should not happen)");
+        let mut out = Vec::with_capacity(PREFIX.len() + ciphertext.len());
+        out.extend_from_slice(PREFIX);
+        out.extend_from_slice(ciphertext);
+        out
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -426,6 +521,76 @@ mod tests {
             report.errors[0].contains("bad.json"),
             "got: {:?}",
             report.errors
+        );
+    }
+
+    // ── oscrypt cipher tests ─────────────────────────────────────────────────
+
+    #[test]
+    fn oscrypt_round_trips_a_short_payload() {
+        let key = [0x42u8; 16];
+        let plaintext = b"hello world";
+        let blob = oscrypt::encrypt_v10_blob(plaintext, &key);
+        let recovered = oscrypt::decrypt_v10_blob(&blob, &key).unwrap();
+        assert_eq!(recovered, plaintext);
+    }
+
+    #[test]
+    fn oscrypt_round_trips_a_payload_that_exactly_fills_a_block() {
+        // 16 bytes of input → PKCS#7 appends a full 16-byte padding block,
+        // so the ciphertext body is 32 bytes.
+        let key = [0x11u8; 16];
+        let plaintext = b"1234567890abcdef"; // exactly 16 bytes
+        let blob = oscrypt::encrypt_v10_blob(plaintext, &key);
+        // Prefix (3) + 2 AES blocks (32) = 35 bytes total.
+        assert_eq!(blob.len(), 3 + 32);
+        let recovered = oscrypt::decrypt_v10_blob(&blob, &key).unwrap();
+        assert_eq!(recovered.as_slice(), plaintext);
+    }
+
+    #[test]
+    fn oscrypt_round_trips_a_long_json_payload() {
+        let key = [0xABu8; 16];
+        // Build a ~4 KiB JSON string.
+        let payload: String = {
+            let entry = r#"{"key":"value","number":12345678,"flag":true}"#;
+            let entries: Vec<&str> = std::iter::repeat(entry).take(90).collect();
+            format!("[{}]", entries.join(","))
+        };
+        assert!(payload.len() >= 4000, "payload too short: {}", payload.len());
+        let blob = oscrypt::encrypt_v10_blob(payload.as_bytes(), &key);
+        let recovered = oscrypt::decrypt_v10_blob(&blob, &key).unwrap();
+        assert_eq!(recovered, payload.as_bytes());
+    }
+
+    #[test]
+    fn oscrypt_decrypt_rejects_non_v10_prefix() {
+        let key = [0x00u8; 16];
+        // A blob that starts with "v11" instead of "v10".
+        let bad_blob = b"v11\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00";
+        let err = oscrypt::decrypt_v10_blob(bad_blob, &key);
+        assert!(err.is_err(), "expected error for non-v10 prefix");
+        let msg = err.unwrap_err().to_string();
+        assert!(
+            msg.contains("v10"),
+            "error should mention v10 prefix, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn oscrypt_derive_key_known_vector() {
+        // Derive the key for the passphrase "peanuts" using the hard-coded
+        // Chromium parameters (salt="saltysalt", 1003 iterations, 16 bytes).
+        // The expected value was computed by calling derive_key itself and
+        // pinning the result; the test guards against accidental regressions
+        // (wrong salt, wrong iteration count, wrong output length).
+        let key = oscrypt::derive_key(b"peanuts");
+        let hex: String = key.iter().map(|b| format!("{b:02x}")).collect();
+        // Pin the value produced by this exact PBKDF2-HMAC-SHA1 configuration.
+        assert_eq!(
+            hex,
+            "d9a09d499b4e1b7461f28e67972c6dbd",
+            "derive_key regression: got {hex}"
         );
     }
 }

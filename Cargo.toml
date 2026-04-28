@@ -48,6 +48,11 @@ jaq-core = "3.0.0"
 jaq-std = "3.0.0"
 jaq-json = { version = "2.0.0", features = ["std"] }
 zip = { version = "2", default-features = false, features = ["deflate"] }
+aes = "0.8"
+cbc = { version = "0.1", features = ["alloc"] }
+hmac = "0.12"
+pbkdf2 = "0.12"
+sha1 = "0.10"
 
 [dev-dependencies]
 http-body-util = "0.1"
