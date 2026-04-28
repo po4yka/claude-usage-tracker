@@ -5,8 +5,8 @@
 //! The test therefore compiles and passes on any platform (macOS, Linux, CI).
 
 use claude_usage_tracker::archive::macos_cache::{
-    IngestOptions, IngestReport, ingest_into_archive,
-    ingest_v2_into_archive_with_provider, keychain,
+    IngestOptions, IngestReport, ingest_into_archive, ingest_v2_into_archive_with_provider,
+    keychain,
 };
 use std::fs;
 use tempfile::TempDir;
@@ -100,7 +100,11 @@ fn v2_ingest_writes_both_conversations_to_web_tree() {
     assert_eq!(report.v2_failed_decrypt, 0);
     assert_eq!(report.v2_failed_parse, 0);
     assert_eq!(report.written, 2);
-    assert!(report.errors.is_empty(), "unexpected errors: {:?}", report.errors);
+    assert!(
+        report.errors.is_empty(),
+        "unexpected errors: {:?}",
+        report.errors
+    );
 
     let web = archive.join("web").join("chatgpt.com");
     assert!(web.join("it-conv-alpha.json").is_file(), "alpha missing");
@@ -170,18 +174,24 @@ fn v2_ingest_access_denied_records_error_but_does_not_fail() {
     fs::write(v2_dir.join("a.data"), b"irrelevant").unwrap();
 
     let mut report = IngestReport::default();
-    let result = ingest_v2_into_archive_with_provider(
-        &cache,
-        &archive,
-        &mut report,
-        &DeniedKeyProvider,
-    );
+    let result =
+        ingest_v2_into_archive_with_provider(&cache, &archive, &mut report, &DeniedKeyProvider);
 
     // Should not propagate as Err — just record in report.errors.
-    assert!(result.is_ok(), "access denied should not propagate: {:?}", result);
-    assert_eq!(report.v2_attempted, 0, "no files attempted when key fetch fails");
     assert!(
-        report.errors.iter().any(|e| e.contains("Allow") || e.contains("denied")),
+        result.is_ok(),
+        "access denied should not propagate: {:?}",
+        result
+    );
+    assert_eq!(
+        report.v2_attempted, 0,
+        "no files attempted when key fetch fails"
+    );
+    assert!(
+        report
+            .errors
+            .iter()
+            .any(|e| e.contains("Allow") || e.contains("denied")),
         "expected an error mentioning Allow/denied: {:?}",
         report.errors
     );

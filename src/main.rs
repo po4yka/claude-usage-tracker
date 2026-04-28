@@ -1308,8 +1308,8 @@ fn main() -> Result<()> {
                     .ok_or_else(|| anyhow::anyhow!("could not resolve home directory"))?;
                 let reports = archive::macos_cache::scan_caches(&root)?;
                 // Probe keychain metadata once (non-prompting) for the ACL hint.
-                let keychain_meta = archive::macos_cache::keychain::probe_v2_key_metadata()
-                    .unwrap_or(None);
+                let keychain_meta =
+                    archive::macos_cache::keychain::probe_v2_key_metadata().unwrap_or(None);
                 if json {
                     println!("{}", serde_json::to_string_pretty(&reports)?);
                 } else if reports.is_empty() {
@@ -1339,7 +1339,9 @@ fn main() -> Result<()> {
                                     "keychain: item present (granted)"
                                 }
                                 Some(_) => "keychain: item present (grant required)",
-                                None => "keychain: item not found — sign in to ChatGPT.app at least once",
+                                None => {
+                                    "keychain: item not found — sign in to ChatGPT.app at least once"
+                                }
                             };
                             println!("    {}", acl_line);
                         }

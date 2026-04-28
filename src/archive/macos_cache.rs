@@ -429,7 +429,9 @@ pub fn ingest_v2_into_archive_with_provider<P: keychain::KeyProvider>(
                 target: "archive::macos_cache",
                 "v2 Keychain item would require a prompt in this context"
             );
-            report.errors.push("v2 key: Keychain prompt suppressed".into());
+            report
+                .errors
+                .push("v2 key: Keychain prompt suppressed".into());
             return Ok(());
         }
         Err(keychain::KeychainError::Other(e)) => return Err(e),
@@ -499,15 +501,14 @@ pub fn ingest_v2_into_archive_with_provider<P: keychain::KeyProvider>(
                     report.v2_decrypted += 1;
                     for conv in parsed {
                         report.parsed += 1;
-                        let key_id =
-                            openai::conversation_key(&conv).unwrap_or_else(|| {
-                                decrypted
-                                    .source_path
-                                    .file_stem()
-                                    .and_then(|s| s.to_str())
-                                    .unwrap_or("unknown")
-                                    .to_string()
-                            });
+                        let key_id = openai::conversation_key(&conv).unwrap_or_else(|| {
+                            decrypted
+                                .source_path
+                                .file_stem()
+                                .and_then(|s| s.to_str())
+                                .unwrap_or("unknown")
+                                .to_string()
+                        });
                         let payload = match serde_json::to_value(&conv) {
                             Ok(v) => v,
                             Err(e) => {
@@ -518,9 +519,7 @@ pub fn ingest_v2_into_archive_with_provider<P: keychain::KeyProvider>(
                         let web = WebConversation {
                             vendor: "chatgpt.com".into(),
                             conversation_id: key_id.clone(),
-                            captured_at: Utc::now()
-                                .format("%Y-%m-%dT%H%M%S%.6fZ")
-                                .to_string(),
+                            captured_at: Utc::now().format("%Y-%m-%dT%H%M%S%.6fZ").to_string(),
                             schema_fingerprint: "chatgpt.com/macos-v2-decrypted".into(),
                             payload,
                         };
@@ -1073,7 +1072,11 @@ mod tests {
             let entries: Vec<&str> = std::iter::repeat(entry).take(90).collect();
             format!("[{}]", entries.join(","))
         };
-        assert!(payload.len() >= 4000, "payload too short: {}", payload.len());
+        assert!(
+            payload.len() >= 4000,
+            "payload too short: {}",
+            payload.len()
+        );
         let blob = oscrypt::encrypt_v10_blob(payload.as_bytes(), &key);
         let recovered = oscrypt::decrypt_v10_blob(&blob, &key).unwrap();
         assert_eq!(recovered, payload.as_bytes());
@@ -1104,8 +1107,7 @@ mod tests {
         let hex: String = key.iter().map(|b| format!("{b:02x}")).collect();
         // Pin the value produced by this exact PBKDF2-HMAC-SHA1 configuration.
         assert_eq!(
-            hex,
-            "d9a09d499b4e1b7461f28e67972c6dbd",
+            hex, "d9a09d499b4e1b7461f28e67972c6dbd",
             "derive_key regression: got {hex}"
         );
     }
@@ -1117,9 +1119,7 @@ mod tests {
         use super::keychain::KeyProvider;
         struct Stub(Vec<u8>);
         impl KeyProvider for Stub {
-            fn fetch_v2_passphrase(
-                &self,
-            ) -> Result<Vec<u8>, super::keychain::KeychainError> {
+            fn fetch_v2_passphrase(&self) -> Result<Vec<u8>, super::keychain::KeychainError> {
                 Ok(self.0.clone())
             }
         }
@@ -1132,9 +1132,7 @@ mod tests {
         use super::keychain::KeyProvider;
         struct Denied;
         impl KeyProvider for Denied {
-            fn fetch_v2_passphrase(
-                &self,
-            ) -> Result<Vec<u8>, super::keychain::KeychainError> {
+            fn fetch_v2_passphrase(&self) -> Result<Vec<u8>, super::keychain::KeychainError> {
                 Err(super::keychain::KeychainError::AccessDenied)
             }
         }
@@ -1301,12 +1299,18 @@ mod tests {
 
         assert_eq!(report.v2_attempted, 2);
         assert_eq!(report.v2_decrypted, 1, "only the good file should parse");
-        assert_eq!(report.v2_failed_parse, 1, "garbage should land in failed-decrypts");
+        assert_eq!(
+            report.v2_failed_parse, 1,
+            "garbage should land in failed-decrypts"
+        );
         assert_eq!(report.v2_failed_decrypt, 0);
         assert_eq!(report.written, 1);
 
         let web_dir = archive.join("web").join("chatgpt.com");
-        assert!(web_dir.join("conv-good.json").is_file(), "good conversation missing");
+        assert!(
+            web_dir.join("conv-good.json").is_file(),
+            "good conversation missing"
+        );
 
         let failed_dir = web_dir.join(".failed-decrypts");
         assert!(failed_dir.is_dir(), ".failed-decrypts dir missing");
