@@ -2,10 +2,15 @@
 mod tests {
     use std::io::Write;
     use std::net::SocketAddr;
-    use std::sync::Arc;
+    use std::sync::{Arc, Mutex};
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
     use std::time::Duration;
     use tempfile::TempDir;
+
+    /// Tests that mutate `HOME` to redirect `dirs::home_dir()` into a tempdir
+    /// must serialize against each other — `HOME` is process-global and
+    /// `cargo test` runs tests in parallel by default.
+    static HOME_LOCK: Mutex<()> = Mutex::new(());
 
     use axum::Router;
     use axum::body::Body;
@@ -3950,8 +3955,8 @@ mod tests {
         // Point HOME at the tempdir so default_root() resolves to a fresh
         // directory with no imports. list_imports() returns [] when the
         // exports sub-directory does not exist.
+        let _home_guard = HOME_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let prev_home = std::env::var_os("HOME");
-        // SAFETY: single-threaded test runtime; no other thread reads HOME.
         unsafe { std::env::set_var("HOME", tmp.path()) };
 
         let app = test_app(db_path, projects);
@@ -3984,8 +3989,8 @@ mod tests {
         // Point HOME at the tempdir so default_root() resolves to a fresh
         // directory with no snapshots. The archive list() call returns [] when
         // the snapshots sub-directory does not exist.
+        let _home_guard = HOME_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let prev_home = std::env::var_os("HOME");
-        // SAFETY: single-threaded test runtime; no other thread reads HOME.
         unsafe { std::env::set_var("HOME", tmp.path()) };
 
         let app = test_app(db_path, projects);
@@ -4008,5 +4013,159 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
         let bytes = resp.into_body().collect().await.unwrap().to_bytes();
         assert_eq!(&*bytes, b"[]");
+    }
+
+    #[tokio::test]
+    async fn web_conversation_returns_401_without_bearer() {
+        let tmp = TempDir::new().unwrap();
+        let (db_path, projects) = setup_test_db(&tmp);
+
+        let _home_guard = HOME_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let prev_home = std::env::var_os("HOME");
+        unsafe { std::env::set_var("HOME", tmp.path()) };
+
+        let app = test_app(db_path, projects);
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/archive/web-conversation")
+                    .header("content-type", "application/json")
+                    .body(Body::from(b"{}".as_ref()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        match prev_home {
+            Some(prev) => unsafe { std::env::set_var("HOME", prev) },
+            None => unsafe { std::env::remove_var("HOME") },
+        }
+
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn web_conversation_saves_with_valid_bearer() {
+        let tmp = TempDir::new().unwrap();
+        let (db_path, projects) = setup_test_db(&tmp);
+
+        let _home_guard = HOME_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let prev_home = std::env::var_os("HOME");
+        unsafe { std::env::set_var("HOME", tmp.path()) };
+
+        // Seed the companion token into the tempdir.
+        let token_path = tmp.path().join(".heimdall").join("companion-token");
+        let token =
+            crate::archive::companion_token::read_or_init(&token_path).unwrap();
+        let token_hex = token.as_hex().to_owned();
+
+        let conv = crate::archive::web::WebConversation {
+            vendor: "claude.ai".into(),
+            conversation_id: "test-conv-1".into(),
+            captured_at: "2026-04-28T12:00:00.000000Z".into(),
+            schema_fingerprint: "test/v1".into(),
+            payload: serde_json::json!({"hello": "world"}),
+        };
+        let body = serde_json::to_vec(&conv).unwrap();
+
+        let app = test_app(db_path, projects);
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/archive/web-conversation")
+                    .header("content-type", "application/json")
+                    .header("authorization", format!("Bearer {token_hex}"))
+                    .body(Body::from(body))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        match prev_home {
+            Some(prev) => unsafe { std::env::set_var("HOME", prev) },
+            None => unsafe { std::env::remove_var("HOME") },
+        }
+
+        assert_eq!(resp.status(), StatusCode::OK);
+        let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(json["saved"], true);
+
+        // File should exist under <HOME>/.heimdall/archive/web/claude.ai/test-conv-1.json
+        let expected = tmp
+            .path()
+            .join(".heimdall")
+            .join("archive")
+            .join("web")
+            .join("claude.ai")
+            .join("test-conv-1.json");
+        assert!(expected.is_file(), "saved file should exist at {expected:?}");
+    }
+
+    #[tokio::test]
+    async fn web_conversation_returns_unchanged_for_byte_identical_payload() {
+        let tmp = TempDir::new().unwrap();
+        let (db_path, projects) = setup_test_db(&tmp);
+
+        let _home_guard = HOME_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let prev_home = std::env::var_os("HOME");
+        unsafe { std::env::set_var("HOME", tmp.path()) };
+
+        // Seed the companion token into the tempdir.
+        let token_path = tmp.path().join(".heimdall").join("companion-token");
+        let token =
+            crate::archive::companion_token::read_or_init(&token_path).unwrap();
+        let token_hex = token.as_hex().to_owned();
+
+        let conv = crate::archive::web::WebConversation {
+            vendor: "claude.ai".into(),
+            conversation_id: "test-conv-2".into(),
+            captured_at: "2026-04-28T12:00:00.000000Z".into(),
+            schema_fingerprint: "test/v1".into(),
+            payload: serde_json::json!({"hello": "world"}),
+        };
+        let body = serde_json::to_vec(&conv).unwrap();
+
+        // First POST — should save.
+        let app1 = test_app(db_path.clone(), projects.clone());
+        let _ = app1
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/archive/web-conversation")
+                    .header("content-type", "application/json")
+                    .header("authorization", format!("Bearer {token_hex}"))
+                    .body(Body::from(body.clone()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        // Second POST with identical payload — should be unchanged.
+        let app2 = test_app(db_path, projects);
+        let resp = app2
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/archive/web-conversation")
+                    .header("content-type", "application/json")
+                    .header("authorization", format!("Bearer {token_hex}"))
+                    .body(Body::from(body))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        match prev_home {
+            Some(prev) => unsafe { std::env::set_var("HOME", prev) },
+            None => unsafe { std::env::remove_var("HOME") },
+        }
+
+        assert_eq!(resp.status(), StatusCode::OK);
+        let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(json["unchanged"], true);
     }
 }

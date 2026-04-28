@@ -156,6 +156,10 @@ pub(crate) fn build_router(state: Arc<AppState>) -> Router {
         .route("/api/archive/imports", get(api::api_archive_imports))
         .route("/api/archive/{snapshot_id}", get(api::api_archive_show))
         .route("/api/archive/snapshot", post(api::api_archive_snapshot))
+        .route(
+            "/api/archive/web-conversation",
+            post(api::api_archive_web_conversation),
+        )
         .with_state(state)
 }
 

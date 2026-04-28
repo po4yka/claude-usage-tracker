@@ -2246,6 +2246,56 @@ pub async fn api_archive_snapshot(
     Ok(Json(serde_json::json!({ "snapshot_id": id })))
 }
 
+/// `POST /api/archive/web-conversation` — store a captured web conversation (bearer-gated).
+pub async fn api_archive_web_conversation(
+    State(_state): State<Arc<AppState>>,
+    request: Request,
+) -> Result<Json<Value>, StatusCode> {
+    enforce_loopback_request(&request)?;
+
+    // Bearer auth.
+    let header = request
+        .headers()
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("");
+    let candidate = header.strip_prefix("Bearer ").unwrap_or("").to_string();
+
+    let token_path = crate::archive::companion_token::default_path();
+    let token = tokio::task::spawn_blocking(move || {
+        crate::archive::companion_token::read_or_init(&token_path)
+    })
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    if !token.matches(&candidate) {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    // Body (cap 50 MiB).
+    let body_bytes = axum::body::to_bytes(request.into_body(), 50 * 1024 * 1024)
+        .await
+        .map_err(|_| StatusCode::PAYLOAD_TOO_LARGE)?;
+    let conv: crate::archive::web::WebConversation = serde_json::from_slice(&body_bytes)
+        .map_err(|_| StatusCode::BAD_REQUEST)?;
+
+    let archive_root = crate::archive::default_root();
+    let outcome = tokio::task::spawn_blocking(move || {
+        crate::archive::web::write_web_conversation(&archive_root, &conv)
+    })
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let body = match outcome {
+        crate::archive::web::WriteOutcome::Saved { .. } =>
+            serde_json::json!({"saved": true}),
+        crate::archive::web::WriteOutcome::Unchanged =>
+            serde_json::json!({"unchanged": true}),
+    };
+    Ok(Json(body))
+}
+
 #[cfg(test)]
 mod monitor_global_issue_tests {
     use super::*;
