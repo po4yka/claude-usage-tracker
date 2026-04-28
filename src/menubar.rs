@@ -57,6 +57,11 @@ pub struct MenubarData {
     pub today_sessions: i64,
     /// One-shot rate across all sessions with data (0.0–1.0), or None.
     pub one_shot_rate: Option<f64>,
+    /// When the most recent archive snapshot was taken (RFC3339), or `None`
+    /// if the archive is empty.
+    pub last_snapshot_at: Option<String>,
+    /// Total bytes in the most recent snapshot, or `None`.
+    pub last_snapshot_bytes: Option<u64>,
 }
 
 /// Strip or escape any character that SwiftBar would interpret as a control
@@ -133,12 +138,22 @@ pub fn render(data: &MenubarData) -> String {
         None => "One-shot rate: n/a".to_string(),
     });
 
+    let snapshot_section = match (&data.last_snapshot_at, data.last_snapshot_bytes) {
+        (Some(at), Some(bytes)) => format!(
+            "Snapshots\nLast: {at} ({bytes} bytes)\nSnapshot now | bash=claude-usage-tracker param0=archive param1=snapshot terminal=false",
+            at = sanitize_swiftbar_text(at),
+            bytes = bytes,
+        ),
+        _ => "Snapshots\nNo snapshots yet\nSnapshot now | bash=claude-usage-tracker param0=archive param1=snapshot terminal=false".to_string(),
+    };
+
     format!(
-        "{title}\n---\nToday\nCost: ${cost:.2}\nSessions: {sessions}\n{one_shot_line}\n---\nOpen dashboard | href=http://localhost:8080\nRescan | bash=claude-usage-tracker terminal=false",
+        "{title}\n---\nToday\nCost: ${cost:.2}\nSessions: {sessions}\n{one_shot_line}\n---\n{snapshot_section}\n---\nOpen dashboard | href=http://localhost:8080\nRescan | bash=claude-usage-tracker terminal=false",
         title = title,
         cost = data.today_cost_usd,
         sessions = data.today_sessions,
         one_shot_line = one_shot_line,
+        snapshot_section = snapshot_section,
     )
 }
 
@@ -174,10 +189,23 @@ pub fn run_menubar(db_path: &Path) -> Result<String> {
         )
         .unwrap_or(None);
 
+    let archive_root = crate::archive::default_root();
+    let archive_metas = crate::archive::Archive::at(archive_root)
+        .ok()
+        .and_then(|a| a.list().ok());
+    let (last_snapshot_at, last_snapshot_bytes) = match archive_metas
+        .and_then(|metas| metas.into_iter().next())
+    {
+        Some(m) => (Some(m.created_at), Some(m.total_bytes)),
+        None => (None, None),
+    };
+
     let data = MenubarData {
         today_cost_usd,
         today_sessions,
         one_shot_rate,
+        last_snapshot_at,
+        last_snapshot_bytes,
     };
 
     Ok(render(&data))
@@ -304,6 +332,8 @@ mod tests {
             today_cost_usd: 2.47,
             today_sessions: 12,
             one_shot_rate: Some(0.78),
+            last_snapshot_at: None,
+            last_snapshot_bytes: None,
         };
         let output = render(&data);
         let first_line = output.lines().next().unwrap_or("");
@@ -319,6 +349,8 @@ mod tests {
             today_cost_usd: 1.23,
             today_sessions: 7,
             one_shot_rate: None,
+            last_snapshot_at: None,
+            last_snapshot_bytes: None,
         };
         let output = render(&data);
         let first_line = output.lines().next().unwrap_or("");
@@ -344,6 +376,8 @@ mod tests {
             today_cost_usd: 0.5,
             today_sessions: 3,
             one_shot_rate: Some(0.75),
+            last_snapshot_at: None,
+            last_snapshot_bytes: None,
         };
         let output = render(&data);
         assert!(
@@ -358,6 +392,8 @@ mod tests {
             today_cost_usd: 0.0,
             today_sessions: 0,
             one_shot_rate: None,
+            last_snapshot_at: None,
+            last_snapshot_bytes: None,
         };
         let output = render(&data);
         assert!(
@@ -413,6 +449,8 @@ mod tests {
             today_cost_usd: 99_999.99,
             today_sessions: 9_999,
             one_shot_rate: None,
+            last_snapshot_at: None,
+            last_snapshot_bytes: None,
         };
         let title = format_title(&huge);
         assert!(
@@ -433,6 +471,8 @@ mod tests {
             today_cost_usd: 99_999.99,
             today_sessions: 9_999,
             one_shot_rate: Some(0.99),
+            last_snapshot_at: None,
+            last_snapshot_bytes: None,
         };
         let output = render(&data);
 
@@ -514,5 +554,21 @@ mod tests {
             first_line.contains("1"),
             "title must reflect 1 session, got: {first_line:?}"
         );
+    }
+
+    #[test]
+    fn render_includes_snapshots_section() {
+        let data = MenubarData {
+            today_cost_usd: 1.0,
+            today_sessions: 1,
+            one_shot_rate: None,
+            last_snapshot_at: Some("2026-04-28T08:00:00Z".into()),
+            last_snapshot_bytes: Some(1234),
+        };
+        let out = render(&data);
+        assert!(out.contains("Snapshots"));
+        assert!(out.contains("2026-04-28T08:00:00Z"));
+        assert!(out.contains("1234"));
+        assert!(out.contains("Snapshot now"));
     }
 }
