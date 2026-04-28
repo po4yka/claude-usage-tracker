@@ -5,6 +5,7 @@ const TABS: Array<{ key: DashboardTab; label: string }> = [
   { key: 'activity', label: 'Activity' },
   { key: 'breakdowns', label: 'Breakdowns' },
   { key: 'tables', label: 'Tables' },
+  { key: 'backup', label: 'Backup' },
 ];
 
 interface DashboardTabsProps {

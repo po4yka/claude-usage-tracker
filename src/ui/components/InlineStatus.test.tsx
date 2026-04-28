@@ -17,6 +17,7 @@ const EMPTY_STATUS = {
   'header-refresh': null,
   'agent-status': null,
   'community-signal': null,
+  snapshot: null,
 };
 
 function collectText(node: unknown): string[] {

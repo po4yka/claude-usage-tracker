@@ -81,6 +81,7 @@ const SECTION_TAB_MAP: Record<string, DashboardTab> = {
   'model-cost-mount': 'tables',
   'sessions-mount': 'tables',
   'project-cost-mount': 'tables',
+  'backup-panel': 'backup',
 };
 
 const SECTION_DISPLAY_MODE: Record<string, string> = {

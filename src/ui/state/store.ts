@@ -8,9 +8,20 @@ export const billingBlocksData = signal<BillingBlocksResponse | null>(null);
 export const contextWindowData = signal<ContextWindowResponse | null>(null);
 export const costReconciliationData = signal<CostReconciliationResponse | null>(null);
 
+// ── Backup / snapshots ────────────────────────────────────────────────
+export interface SnapshotMeta {
+  snapshot_id: string;
+  created_at: string;
+  total_files: number;
+  total_bytes: number;
+}
+
+export const backupSnapshots = signal<SnapshotMeta[]>([]);
+export const backupLoadState = signal<'idle' | 'loading' | 'error'>('idle');
+
 // ── Filter state ─────────────────────────────────────────────────────
 export type ProviderFilter = 'claude' | 'codex' | 'both';
-export type DashboardTab = 'overview' | 'activity' | 'breakdowns' | 'tables';
+export type DashboardTab = 'overview' | 'activity' | 'breakdowns' | 'tables' | 'backup';
 const SESSIONS_PAGE_PARAM = 'sessions_page';
 const SESSIONS_HIDDEN_COLUMNS_PARAM = 'sessions_hidden';
 const FILTERS_EXPANDED_PARAM = 'filters_expanded';
@@ -61,7 +72,7 @@ export const rescanDisabled = signal<boolean>(false);
 export const themeMode = signal<'dark' | 'light'>('dark');
 
 // ── Inline status (replaces toasts) ──────────────────────────────────
-export type StatusPlacement = 'global' | 'rate-windows' | 'rescan' | 'header-refresh' | 'agent-status' | 'community-signal';
+export type StatusPlacement = 'global' | 'rate-windows' | 'rescan' | 'header-refresh' | 'agent-status' | 'community-signal' | 'snapshot';
 export type StatusKind = 'success' | 'error' | 'loading' | 'info';
 
 export interface StatusEntry {
@@ -76,6 +87,7 @@ export const statusByPlacement = signal<Record<StatusPlacement, StatusEntry | nu
   'header-refresh': null,
   'agent-status': null,
   'community-signal': null,
+  'snapshot': null,
 });
 
 // ── Pagination page size (used by SessionsTable via DataTable) ───────
@@ -99,7 +111,7 @@ function readRangeFromUrl(): RangeKey {
 
 function readDashboardTab(): DashboardTab {
   const p = readSearchParam(DASHBOARD_TAB_PARAM);
-  return (['overview', 'activity', 'breakdowns', 'tables'] as DashboardTab[]).includes(p as DashboardTab)
+  return (['overview', 'activity', 'breakdowns', 'tables', 'backup'] as DashboardTab[]).includes(p as DashboardTab)
     ? (p as DashboardTab)
     : 'overview';
 }

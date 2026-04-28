@@ -1012,6 +1012,8 @@
   var billingBlocksData = y3(null);
   var contextWindowData = y3(null);
   var costReconciliationData = y3(null);
+  var backupSnapshots = y3([]);
+  var backupLoadState = y3("idle");
   var SESSIONS_PAGE_PARAM = "sessions_page";
   var SESSIONS_HIDDEN_COLUMNS_PARAM = "sessions_hidden";
   var FILTERS_EXPANDED_PARAM = "filters_expanded";
@@ -1055,7 +1057,8 @@
     "rescan": null,
     "header-refresh": null,
     "agent-status": null,
-    "community-signal": null
+    "community-signal": null,
+    "snapshot": null
   });
   var SESSIONS_PAGE_SIZE = 25;
   function readSearchParam(name) {
@@ -1073,7 +1076,7 @@
   }
   function readDashboardTab() {
     const p5 = readSearchParam(DASHBOARD_TAB_PARAM);
-    return ["overview", "activity", "breakdowns", "tables"].includes(p5) ? p5 : "overview";
+    return ["overview", "activity", "breakdowns", "tables", "backup"].includes(p5) ? p5 : "overview";
   }
   function readProviderFromUrl() {
     const p5 = readSearchParam("provider");
@@ -1197,6 +1200,101 @@
     history.replaceState(null, "", nextUrl);
   }
 
+  // src/ui/lib/status.ts
+  var timers = {};
+  function cancelTimer(placement) {
+    const t4 = timers[placement];
+    if (t4 != null) {
+      clearTimeout(t4);
+      delete timers[placement];
+    }
+  }
+  function setStatus(placement, kind, message, autoDismissMs) {
+    statusByPlacement.value = { ...statusByPlacement.value, [placement]: { kind, message } };
+    cancelTimer(placement);
+    if (autoDismissMs && autoDismissMs > 0) {
+      timers[placement] = window.setTimeout(() => clearStatus(placement), autoDismissMs);
+    }
+  }
+  function clearStatus(placement) {
+    statusByPlacement.value = { ...statusByPlacement.value, [placement]: null };
+    cancelTimer(placement);
+  }
+
+  // src/ui/lib/format.ts
+  function $2(id) {
+    return document.getElementById(id);
+  }
+  function fmt(n3) {
+    if (n3 >= 1e9) return (n3 / 1e9).toFixed(2) + "B";
+    if (n3 >= 1e6) return (n3 / 1e6).toFixed(2) + "M";
+    if (n3 >= 1e3) return (n3 / 1e3).toFixed(1) + "K";
+    return n3.toLocaleString();
+  }
+  function fmtCost(c4) {
+    return "$" + c4.toLocaleString("en-US", { minimumFractionDigits: 4, maximumFractionDigits: 4 });
+  }
+  function fmtCostBig(c4) {
+    return "$" + c4.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  function fmtCostCompact(c4) {
+    const abs = Math.abs(c4);
+    if (abs >= 1e9) return "$" + (c4 / 1e9).toFixed(2) + "B";
+    if (abs >= 1e6) return "$" + (c4 / 1e6).toFixed(2) + "M";
+    if (abs >= 1e3) return "$" + (c4 / 1e3).toFixed(1) + "K";
+    if (abs >= 1) return "$" + c4.toFixed(2);
+    return "$" + c4.toFixed(4);
+  }
+  function fmtTzOffset(minutes) {
+    if (minutes === 0) return "UTC";
+    const sign = minutes < 0 ? "-" : "+";
+    const abs = Math.abs(minutes);
+    const hh = Math.floor(abs / 60);
+    const mm = abs % 60;
+    return `UTC${sign}${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+  }
+  function fmtResetTime(minutes) {
+    if (minutes == null || minutes <= 0) return "now";
+    if (minutes >= 1440) return Math.floor(minutes / 1440) + "d " + Math.floor(minutes % 1440 / 60) + "h";
+    if (minutes >= 60) return Math.floor(minutes / 60) + "h " + minutes % 60 + "m";
+    return minutes + "m";
+  }
+  function fmtRelativeTime(iso) {
+    if (!iso) return "never";
+    const ts = Date.parse(iso);
+    if (Number.isNaN(ts)) return iso;
+    const diffMs = Date.now() - ts;
+    if (diffMs <= 0) return "just now";
+    const minutes = Math.floor(diffMs / 6e4);
+    if (minutes < 1) return "just now";
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
+  }
+  function anyHasCredits(rows) {
+    return rows.some((r4) => r4.credits != null);
+  }
+  function fmtCredits(n3) {
+    if (n3 == null) return "\u2014";
+    return n3.toFixed(2);
+  }
+  function esc(s4) {
+    return s4.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+  function fmtLabel(s4) {
+    if (!s4 || s4 === "not_available" || s4 === "unknown") return "\u2014";
+    return s4.split(/[_\s-]+/).filter(Boolean).map((w5) => w5.charAt(0).toUpperCase() + w5.slice(1).toLowerCase()).join(" ");
+  }
+  function truncateMid(s4, max2, tailChars = 8) {
+    const codepoints = Array.from(s4);
+    if (codepoints.length <= max2) return s4;
+    const safeTail = Math.min(tailChars, Math.max(0, max2 - 2));
+    const head = Math.max(0, max2 - safeTail - 1);
+    return codepoints.slice(0, head).join("") + "\u2026" + codepoints.slice(-safeTail).join("");
+  }
+
   // node_modules/preact/jsx-runtime/dist/jsxRuntime.module.js
   var f4 = 0;
   function u4(e4, t4, n3, o4, i4, u5) {
@@ -1208,12 +1306,59 @@
     return l.vnode && l.vnode(l5), l5;
   }
 
+  // src/ui/components/BackupPanel.tsx
+  function BackupPanel({ onSnapshot, onReload }) {
+    const snapshots = backupSnapshots.value;
+    const state = backupLoadState.value;
+    return /* @__PURE__ */ u4("section", { class: "backup-panel", children: [
+      /* @__PURE__ */ u4("header", { class: "backup-panel-header", children: [
+        /* @__PURE__ */ u4("h2", { children: "Snapshots" }),
+        /* @__PURE__ */ u4(
+          "button",
+          {
+            type: "button",
+            class: "primary",
+            disabled: state === "loading",
+            onClick: async () => {
+              setStatus("snapshot", "loading", "snapshotting...");
+              try {
+                await onSnapshot();
+                await onReload();
+                setStatus("snapshot", "success", "done", 3e3);
+              } catch (err) {
+                setStatus("snapshot", "error", `error: ${err instanceof Error ? err.message : String(err)}`);
+              }
+            },
+            children: "Snapshot now"
+          }
+        )
+      ] }),
+      state === "error" && /* @__PURE__ */ u4("p", { class: "backup-panel-error", children: "Failed to load snapshots." }),
+      snapshots.length === 0 && state === "idle" && /* @__PURE__ */ u4("p", { class: "backup-panel-empty", children: 'No snapshots yet \u2014 click "Snapshot now" to create one.' }),
+      snapshots.length > 0 && /* @__PURE__ */ u4("table", { class: "data-table", children: [
+        /* @__PURE__ */ u4("thead", { children: /* @__PURE__ */ u4("tr", { children: [
+          /* @__PURE__ */ u4("th", { children: "SNAPSHOT" }),
+          /* @__PURE__ */ u4("th", { children: "CREATED" }),
+          /* @__PURE__ */ u4("th", { children: "FILES" }),
+          /* @__PURE__ */ u4("th", { children: "BYTES" })
+        ] }) }),
+        /* @__PURE__ */ u4("tbody", { children: snapshots.map((s4) => /* @__PURE__ */ u4("tr", { children: [
+          /* @__PURE__ */ u4("td", { children: esc(s4.snapshot_id) }),
+          /* @__PURE__ */ u4("td", { children: esc(s4.created_at) }),
+          /* @__PURE__ */ u4("td", { children: s4.total_files }),
+          /* @__PURE__ */ u4("td", { children: s4.total_bytes })
+        ] }, s4.snapshot_id)) })
+      ] })
+    ] });
+  }
+
   // src/ui/components/DashboardTabs.tsx
   var TABS = [
     { key: "overview", label: "Overview" },
     { key: "activity", label: "Activity" },
     { key: "breakdowns", label: "Breakdowns" },
-    { key: "tables", label: "Tables" }
+    { key: "tables", label: "Tables" },
+    { key: "backup", label: "Backup" }
   ];
   function DashboardTabs({ onTabChange }) {
     return /* @__PURE__ */ u4("nav", { id: "dashboard-tabs", role: "tablist", "aria-label": "Dashboard sections", children: TABS.map((tab) => {
@@ -1508,27 +1653,6 @@
         }, 3e3);
       }
     };
-  }
-
-  // src/ui/lib/status.ts
-  var timers = {};
-  function cancelTimer(placement) {
-    const t4 = timers[placement];
-    if (t4 != null) {
-      clearTimeout(t4);
-      delete timers[placement];
-    }
-  }
-  function setStatus(placement, kind, message, autoDismissMs) {
-    statusByPlacement.value = { ...statusByPlacement.value, [placement]: { kind, message } };
-    cancelTimer(placement);
-    if (autoDismissMs && autoDismissMs > 0) {
-      timers[placement] = window.setTimeout(() => clearStatus(placement), autoDismissMs);
-    }
-  }
-  function clearStatus(placement) {
-    statusByPlacement.value = { ...statusByPlacement.value, [placement]: null };
-    cancelTimer(placement);
   }
 
   // src/ui/components/InlineStatus.tsx
@@ -1843,80 +1967,6 @@
       base.fill = { type: "solid", opacity: 0 };
     }
     return base;
-  }
-
-  // src/ui/lib/format.ts
-  function $2(id) {
-    return document.getElementById(id);
-  }
-  function fmt(n3) {
-    if (n3 >= 1e9) return (n3 / 1e9).toFixed(2) + "B";
-    if (n3 >= 1e6) return (n3 / 1e6).toFixed(2) + "M";
-    if (n3 >= 1e3) return (n3 / 1e3).toFixed(1) + "K";
-    return n3.toLocaleString();
-  }
-  function fmtCost(c4) {
-    return "$" + c4.toLocaleString("en-US", { minimumFractionDigits: 4, maximumFractionDigits: 4 });
-  }
-  function fmtCostBig(c4) {
-    return "$" + c4.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  }
-  function fmtCostCompact(c4) {
-    const abs = Math.abs(c4);
-    if (abs >= 1e9) return "$" + (c4 / 1e9).toFixed(2) + "B";
-    if (abs >= 1e6) return "$" + (c4 / 1e6).toFixed(2) + "M";
-    if (abs >= 1e3) return "$" + (c4 / 1e3).toFixed(1) + "K";
-    if (abs >= 1) return "$" + c4.toFixed(2);
-    return "$" + c4.toFixed(4);
-  }
-  function fmtTzOffset(minutes) {
-    if (minutes === 0) return "UTC";
-    const sign = minutes < 0 ? "-" : "+";
-    const abs = Math.abs(minutes);
-    const hh = Math.floor(abs / 60);
-    const mm = abs % 60;
-    return `UTC${sign}${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
-  }
-  function fmtResetTime(minutes) {
-    if (minutes == null || minutes <= 0) return "now";
-    if (minutes >= 1440) return Math.floor(minutes / 1440) + "d " + Math.floor(minutes % 1440 / 60) + "h";
-    if (minutes >= 60) return Math.floor(minutes / 60) + "h " + minutes % 60 + "m";
-    return minutes + "m";
-  }
-  function fmtRelativeTime(iso) {
-    if (!iso) return "never";
-    const ts = Date.parse(iso);
-    if (Number.isNaN(ts)) return iso;
-    const diffMs = Date.now() - ts;
-    if (diffMs <= 0) return "just now";
-    const minutes = Math.floor(diffMs / 6e4);
-    if (minutes < 1) return "just now";
-    if (minutes < 60) return `${minutes}m ago`;
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours}h ago`;
-    const days = Math.floor(hours / 24);
-    return `${days}d ago`;
-  }
-  function anyHasCredits(rows) {
-    return rows.some((r4) => r4.credits != null);
-  }
-  function fmtCredits(n3) {
-    if (n3 == null) return "\u2014";
-    return n3.toFixed(2);
-  }
-  function esc(s4) {
-    return s4.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-  }
-  function fmtLabel(s4) {
-    if (!s4 || s4 === "not_available" || s4 === "unknown") return "\u2014";
-    return s4.split(/[_\s-]+/).filter(Boolean).map((w5) => w5.charAt(0).toUpperCase() + w5.slice(1).toLowerCase()).join(" ");
-  }
-  function truncateMid(s4, max2, tailChars = 8) {
-    const codepoints = Array.from(s4);
-    if (codepoints.length <= max2) return s4;
-    const safeTail = Math.min(tailChars, Math.max(0, max2 - 2));
-    const head = Math.max(0, max2 - safeTail - 1);
-    return codepoints.slice(0, head).join("") + "\u2026" + codepoints.slice(-safeTail).join("");
   }
 
   // src/ui/components/charts/ActivityHeatmap.tsx
@@ -8229,7 +8279,8 @@ ${row.project}` : row.project;
     "cost-reconciliation": "breakdowns",
     "model-cost-mount": "tables",
     "sessions-mount": "tables",
-    "project-cost-mount": "tables"
+    "project-cost-mount": "tables",
+    "backup-panel": "backup"
   };
   var SECTION_DISPLAY_MODE = {
     "usage-windows": "grid",
@@ -9590,6 +9641,21 @@ ${row.project}` : row.project;
   }
 
   // src/ui/app.tsx
+  async function loadBackupSnapshots() {
+    backupLoadState.value = "loading";
+    try {
+      const r4 = await fetch("/api/archive");
+      if (!r4.ok) throw new Error(`HTTP ${r4.status}`);
+      backupSnapshots.value = await r4.json();
+      backupLoadState.value = "idle";
+    } catch {
+      backupLoadState.value = "error";
+    }
+  }
+  async function triggerSnapshot() {
+    const r4 = await fetch("/api/archive/snapshot", { method: "POST" });
+    if (!r4.ok) throw new Error(`HTTP ${r4.status}`);
+  }
   applyTheme(getTheme());
   var isMonitorRoute = window.location.pathname === "/monitor";
   if (isMonitorRoute) {
@@ -9641,6 +9707,14 @@ ${row.project}` : row.project;
   var globalStatusMount = document.getElementById("inline-status-global");
   if (globalStatusMount && dashboardRuntime) {
     R(/* @__PURE__ */ u4(InlineStatus, { placement: "global" }), globalStatusMount);
+  }
+  var backupPanelMount = document.getElementById("backup-panel");
+  if (backupPanelMount && dashboardRuntime) {
+    R(
+      /* @__PURE__ */ u4(BackupPanel, { onSnapshot: triggerSnapshot, onReload: loadBackupSnapshots }),
+      backupPanelMount
+    );
+    void loadBackupSnapshots();
   }
   if (dashboardRuntime) {
     dashboardRuntime.start();

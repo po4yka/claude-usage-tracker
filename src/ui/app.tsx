@@ -1,4 +1,5 @@
 import { render } from 'preact';
+import { BackupPanel } from './components/BackupPanel';
 import { DashboardTabs } from './components/DashboardTabs';
 import { FilterBar } from './components/FilterBar';
 import { Footer } from './components/Footer';
@@ -9,7 +10,24 @@ import { MonitorHeader } from './monitor/MonitorHeader';
 import { createLiveMonitorRuntime } from './monitor/runtime';
 import { hydrateLiveMonitorPreferences } from './monitor/store';
 import { applyTheme, getTheme } from './lib/theme';
-import { rawData, syncDashboardUrl } from './state/store';
+import { backupSnapshots, backupLoadState, rawData, syncDashboardUrl } from './state/store';
+
+async function loadBackupSnapshots(): Promise<void> {
+  backupLoadState.value = 'loading';
+  try {
+    const r = await fetch('/api/archive');
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    backupSnapshots.value = (await r.json()) as typeof backupSnapshots.value;
+    backupLoadState.value = 'idle';
+  } catch {
+    backupLoadState.value = 'error';
+  }
+}
+
+async function triggerSnapshot(): Promise<void> {
+  const r = await fetch('/api/archive/snapshot', { method: 'POST' });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+}
 
 applyTheme(getTheme());
 const isMonitorRoute = window.location.pathname === '/monitor';
@@ -68,6 +86,15 @@ if (footerEl?.parentElement) {
 const globalStatusMount = document.getElementById('inline-status-global');
 if (globalStatusMount && dashboardRuntime) {
   render(<InlineStatus placement="global" />, globalStatusMount);
+}
+
+const backupPanelMount = document.getElementById('backup-panel');
+if (backupPanelMount && dashboardRuntime) {
+  render(
+    <BackupPanel onSnapshot={triggerSnapshot} onReload={loadBackupSnapshots} />,
+    backupPanelMount,
+  );
+  void loadBackupSnapshots();
 }
 
 if (dashboardRuntime) {
