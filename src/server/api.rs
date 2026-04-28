@@ -344,23 +344,33 @@ pub(crate) async fn build_subscription_quota_section(
 
         let budget = budget_from_snapshot(snapshot);
 
-        // Compute fresh estimates per window. observed_tokens is read from DB.
+        // Compute fresh estimates per window. observed_tokens is read from DB,
+        // then smoothed against the trailing history of recorded snapshots.
         let provider_str = snapshot.provider.clone();
-        let window_specs: Vec<(String, String, f64, i64, Option<&'static str>)> = windows
+        struct WindowSpec {
+            kind: String,
+            label: String,
+            used_percent: f64,
+            secs: i64,
+            pattern: Option<&'static str>,
+            resets_at: Option<String>,
+        }
+        let window_specs: Vec<WindowSpec> = windows
             .iter()
             .map(|w| {
-                let model_pattern: Option<&'static str> = match w.kind.as_str() {
+                let pattern: Option<&'static str> = match w.kind.as_str() {
                     "seven_day_opus" => Some("%opus%"),
                     "seven_day_sonnet" => Some("%sonnet%"),
                     _ => None,
                 };
-                (
-                    w.kind.clone(),
-                    w.label.clone(),
-                    w.used_percent,
-                    w.window_seconds.unwrap_or(0),
-                    model_pattern,
-                )
+                WindowSpec {
+                    kind: w.kind.clone(),
+                    label: w.label.clone(),
+                    used_percent: w.used_percent,
+                    secs: w.window_seconds.unwrap_or(0),
+                    pattern,
+                    resets_at: w.resets_at.clone(),
+                }
             })
             .collect();
 
@@ -377,24 +387,45 @@ pub(crate) async fn build_subscription_quota_section(
                 }
                 window_specs
                     .into_iter()
-                    .filter_map(|(kind, label, used_percent, secs, pattern)| {
-                        if secs <= 0 {
+                    .filter_map(|spec| {
+                        if spec.secs <= 0 {
                             return None;
                         }
                         let observed = db::observed_tokens_for_window(
                             &conn,
                             &provider_for_task,
-                            secs,
-                            pattern,
+                            spec.secs,
+                            spec.pattern,
+                            spec.resets_at.as_deref(),
                         )
                         .unwrap_or(0);
-                        let est = estimate_window_cap(used_percent, observed)?;
+                        let est = estimate_window_cap(spec.used_percent, observed)?;
+                        let history =
+                            db::recent_cap_observations(&conn, &provider_for_task, &spec.kind, 24)
+                                .unwrap_or_default();
+                        let smoothed = crate::live_providers::quota_estimator::smooth_with_history(
+                            est, &history,
+                        );
+                        if let Some(shift) = smoothed.cap_shift {
+                            tracing::warn!(
+                                target: "quota.cap_shift",
+                                provider = %provider_for_task,
+                                window_type = %spec.kind,
+                                current = smoothed.current_cap_tokens,
+                                smoothed = smoothed.smoothed_cap_tokens,
+                                shift = ?shift,
+                                "cap shift detected"
+                            );
+                        }
                         Some(EstimatedWindow {
-                            kind,
-                            label,
-                            estimated_cap_tokens: est.estimated_cap_tokens,
+                            kind: spec.kind,
+                            label: spec.label,
+                            estimated_cap_tokens: smoothed.current_cap_tokens,
                             observed_tokens: observed,
-                            confidence: est.confidence,
+                            confidence: smoothed.confidence,
+                            smoothed_cap_tokens: Some(smoothed.smoothed_cap_tokens),
+                            sample_count: Some(smoothed.sample_count),
+                            cap_shift: smoothed.cap_shift.map(|s| s.as_str().to_string()),
                         })
                     })
                     .collect()

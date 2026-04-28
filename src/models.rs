@@ -74,6 +74,13 @@ pub struct EstimatedWindow {
     pub estimated_cap_tokens: i64,
     pub observed_tokens: i64,
     pub confidence: f64,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub smoothed_cap_tokens: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub sample_count: Option<u32>,
+    /// Lowercase tag: `"increase"` | `"decrease"`. Absent when no shift.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub cap_shift: Option<String>,
 }
 
 /// One downsampled row of historical observations for the chart.

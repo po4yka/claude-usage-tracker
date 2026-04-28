@@ -2074,39 +2074,112 @@ pub fn record_rate_window_snapshot(
     Ok(true)
 }
 
-/// Sum of all token columns from `turns` for a provider in the last
-/// `window_seconds`, optionally filtered by a `model LIKE` pattern (e.g.
-/// `"%opus%"`). Used as the numerator for the cap-estimator.
+/// Sum of all token columns from `turns` for a provider over a quota window,
+/// optionally filtered by a `model LIKE` pattern (e.g. `"%opus%"`).
+///
+/// When `resets_at` parses cleanly the window is anchored to the provider's
+/// actual reset boundary: `[resets_at - window_seconds, min(resets_at, now)]`.
+/// On `None` or parse failure we fall back to a rolling
+/// `[now - window_seconds, now]` cutoff with no upper bound (the legacy
+/// behavior — kept for backward compatibility and as a graceful degrade
+/// when `resets_at` is missing).
 pub fn observed_tokens_for_window(
     conn: &Connection,
     provider: &str,
     window_seconds: i64,
     model_pattern: Option<&str>,
+    resets_at: Option<&str>,
 ) -> Result<i64> {
     if window_seconds <= 0 {
         return Ok(0);
     }
-    let cutoff = (chrono::Utc::now() - chrono::Duration::seconds(window_seconds)).to_rfc3339();
-    let total: Option<i64> = if let Some(pattern) = model_pattern {
-        conn.query_row(
+    let now = chrono::Utc::now();
+    let parsed_resets_at = resets_at.and_then(|s| {
+        chrono::DateTime::parse_from_rfc3339(s)
+            .ok()
+            .or_else(|| {
+                chrono::DateTime::parse_from_rfc3339(&format!("{}+00:00", s.trim_end_matches('Z')))
+                    .ok()
+            })
+            .map(|dt| dt.with_timezone(&chrono::Utc))
+    });
+
+    let (start_str, end_str) = match parsed_resets_at {
+        Some(reset) => {
+            let start = reset - chrono::Duration::seconds(window_seconds);
+            let end = reset.min(now);
+            (start.to_rfc3339(), Some(end.to_rfc3339()))
+        }
+        None => {
+            let cutoff = now - chrono::Duration::seconds(window_seconds);
+            (cutoff.to_rfc3339(), None)
+        }
+    };
+
+    let total: Option<i64> = match (model_pattern, end_str.as_deref()) {
+        (Some(pattern), Some(end)) => conn.query_row(
+            "SELECT COALESCE(SUM(input_tokens + output_tokens + cache_read_tokens
+                + cache_creation_tokens + reasoning_output_tokens), 0)
+             FROM turns
+             WHERE provider = ?1 AND timestamp >= ?2 AND timestamp < ?3
+               AND lower(model) LIKE ?4",
+            rusqlite::params![provider, start_str, end, pattern],
+            |row| row.get(0),
+        )?,
+        (Some(pattern), None) => conn.query_row(
             "SELECT COALESCE(SUM(input_tokens + output_tokens + cache_read_tokens
                 + cache_creation_tokens + reasoning_output_tokens), 0)
              FROM turns
              WHERE provider = ?1 AND timestamp >= ?2 AND lower(model) LIKE ?3",
-            rusqlite::params![provider, cutoff, pattern],
+            rusqlite::params![provider, start_str, pattern],
             |row| row.get(0),
-        )?
-    } else {
-        conn.query_row(
+        )?,
+        (None, Some(end)) => conn.query_row(
+            "SELECT COALESCE(SUM(input_tokens + output_tokens + cache_read_tokens
+                + cache_creation_tokens + reasoning_output_tokens), 0)
+             FROM turns
+             WHERE provider = ?1 AND timestamp >= ?2 AND timestamp < ?3",
+            rusqlite::params![provider, start_str, end],
+            |row| row.get(0),
+        )?,
+        (None, None) => conn.query_row(
             "SELECT COALESCE(SUM(input_tokens + output_tokens + cache_read_tokens
                 + cache_creation_tokens + reasoning_output_tokens), 0)
              FROM turns
              WHERE provider = ?1 AND timestamp >= ?2",
-            rusqlite::params![provider, cutoff],
+            rusqlite::params![provider, start_str],
             |row| row.get(0),
-        )?
+        )?,
     };
     Ok(total.unwrap_or(0))
+}
+
+/// Most-recent `(confidence, estimated_cap_tokens)` pairs for one
+/// `(provider, window_type)` series, ordered DESC by timestamp. Used as the
+/// trailing window for confidence-weighted EMA smoothing in the cap
+/// estimator. Rows with `NULL` cap or confidence are filtered out (those are
+/// snapshots where utilization was below the estimator's noise floor).
+pub fn recent_cap_observations(
+    conn: &Connection,
+    provider: &str,
+    window_type: &str,
+    limit: i64,
+) -> Result<Vec<(f64, i64)>> {
+    let mut stmt = conn.prepare(
+        "SELECT confidence, estimated_cap_tokens
+         FROM rate_window_history
+         WHERE provider = ?1 AND window_type = ?2
+           AND estimated_cap_tokens IS NOT NULL AND confidence IS NOT NULL
+         ORDER BY timestamp DESC
+         LIMIT ?3",
+    )?;
+    let rows = collect_warn(
+        stmt.query_map(rusqlite::params![provider, window_type, limit], |row| {
+            Ok((row.get::<_, f64>(0)?, row.get::<_, i64>(1)?))
+        })?,
+        "Failed to read recent cap observation row",
+    );
+    Ok(rows)
 }
 
 /// Hour-downsampled history for the subscription-quota widget. Returns at most
@@ -4212,15 +4285,114 @@ mod tests {
         ];
         insert_turns(&conn, &turns).unwrap();
 
-        let total = observed_tokens_for_window(&conn, "claude", 3600, None).unwrap();
+        let total = observed_tokens_for_window(&conn, "claude", 3600, None, None).unwrap();
         assert_eq!(total, 1800);
 
-        let opus_only = observed_tokens_for_window(&conn, "claude", 3600, Some("%opus%")).unwrap();
+        let opus_only =
+            observed_tokens_for_window(&conn, "claude", 3600, Some("%opus%"), None).unwrap();
         assert_eq!(opus_only, 1500);
 
         let sonnet_only =
-            observed_tokens_for_window(&conn, "claude", 3600, Some("%sonnet%")).unwrap();
+            observed_tokens_for_window(&conn, "claude", 3600, Some("%sonnet%"), None).unwrap();
         assert_eq!(sonnet_only, 300);
+    }
+
+    #[test]
+    fn test_observed_tokens_for_window_resets_at_aligns_boundary() {
+        let conn = test_conn();
+        let now = chrono::Utc::now();
+        // Provider says the window reset 30 minutes ago; the window we want
+        // to measure is the one that just ended:
+        //   [resets_at - 5h, resets_at] = [now - 5h30m, now - 30m]
+        let resets_at = now - chrono::Duration::minutes(30);
+        let window_secs = 5 * 3600;
+
+        conn.execute(
+            "INSERT INTO sessions (session_id, provider, total_input_tokens, turn_count)
+             VALUES ('claude:s1', 'claude', 0, 0)",
+            [],
+        )
+        .unwrap();
+
+        let mk = |ts: chrono::DateTime<chrono::Utc>, tokens: i64| Turn {
+            session_id: "claude:s1".into(),
+            provider: "claude".into(),
+            model: "claude-sonnet".into(),
+            input_tokens: tokens,
+            output_tokens: 0,
+            timestamp: ts.to_rfc3339(),
+            ..Default::default()
+        };
+        let turns = vec![
+            // After resets_at — must be excluded by aligned query.
+            mk(now - chrono::Duration::minutes(15), 9999),
+            // In window.
+            mk(now - chrono::Duration::hours(1), 100),
+            mk(now - chrono::Duration::hours(3), 200),
+            // Before window — excluded by both.
+            mk(now - chrono::Duration::hours(7), 99999),
+        ];
+        insert_turns(&conn, &turns).unwrap();
+
+        let resets_str = resets_at.to_rfc3339();
+        let aligned =
+            observed_tokens_for_window(&conn, "claude", window_secs, None, Some(&resets_str))
+                .unwrap();
+        assert_eq!(aligned, 300, "aligned window excludes the post-reset turn");
+
+        // Rolling 5h includes the now-15min turn — the boundary leak we're fixing.
+        let rolling = observed_tokens_for_window(&conn, "claude", window_secs, None, None).unwrap();
+        assert_eq!(rolling, 100 + 200 + 9999);
+
+        // Garbage `resets_at` falls back to rolling behavior.
+        let fallback =
+            observed_tokens_for_window(&conn, "claude", window_secs, None, Some("not-a-date"))
+                .unwrap();
+        assert_eq!(fallback, rolling);
+    }
+
+    #[test]
+    fn test_recent_cap_observations_orders_and_limits() {
+        let conn = test_conn();
+        let now = chrono::Utc::now();
+        let mk_ts = |off_min: i64| (now - chrono::Duration::minutes(off_min)).to_rfc3339();
+        conn.execute(
+            "INSERT INTO rate_window_history
+                (timestamp, window_type, used_percent, resets_at, source_kind, source_path,
+                 provider, plan, observed_tokens, estimated_cap_tokens, confidence)
+             VALUES
+                (?1, 'five_hour', 50.0, NULL, 'oauth', '', 'claude', 'pro', 1, 100, 1.0),
+                (?2, 'five_hour', 40.0, NULL, 'oauth', '', 'claude', 'pro', 1, 110, 0.9),
+                (?3, 'five_hour', 30.0, NULL, 'oauth', '', 'claude', 'pro', 1, 120, 0.8),
+                (?4, 'five_hour', 20.0, NULL, 'oauth', '', 'claude', 'pro', 1, 130, 0.7),
+                (?5, 'seven_day', 50.0, NULL, 'oauth', '', 'claude', 'pro', 1, 999, 1.0),
+                (?6, 'five_hour', 50.0, NULL, 'oauth', '', 'claude', 'pro', 1, NULL, NULL)",
+            rusqlite::params![
+                mk_ts(10),
+                mk_ts(20),
+                mk_ts(30),
+                mk_ts(40),
+                mk_ts(15),
+                mk_ts(50),
+            ],
+        )
+        .unwrap();
+
+        let rows = recent_cap_observations(&conn, "claude", "five_hour", 3).unwrap();
+        assert_eq!(rows.len(), 3, "respects LIMIT");
+        // DESC by timestamp → caps in insertion order: 100, 110, 120
+        assert_eq!(rows[0].1, 100);
+        assert_eq!(rows[1].1, 110);
+        assert_eq!(rows[2].1, 120);
+        assert!((rows[0].0 - 1.0).abs() < 1e-9);
+        assert!((rows[1].0 - 0.9).abs() < 1e-9);
+
+        let unlimited = recent_cap_observations(&conn, "claude", "five_hour", 100).unwrap();
+        assert_eq!(unlimited.len(), 4, "skips the NULL-confidence row");
+
+        let other = recent_cap_observations(&conn, "claude", "seven_day", 100).unwrap();
+        assert_eq!(other.len(), 1);
+        assert_eq!(other[0].1, 999);
     }
 
     #[test]

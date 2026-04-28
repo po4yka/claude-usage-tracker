@@ -8028,6 +8028,16 @@ ${row.project}` : row.project;
         !hasEstimates && /* @__PURE__ */ u4("div", { class: "subscription-quota-empty", children: "Insufficient data \u2014 utilization too low to derive a token cap." }),
         estimated.map((w5) => {
           const dim = w5.confidence < 0.3;
+          const headlineCap = w5.smoothed_cap_tokens != null ? w5.smoothed_cap_tokens : w5.estimated_cap_tokens;
+          const shiftGlyph = w5.cap_shift === "increase" ? "\u2191 " : w5.cap_shift === "decrease" ? "\u2193 " : "";
+          const shiftClass = w5.cap_shift === "decrease" ? "subscription-quota-shift subscription-quota-shift-down" : w5.cap_shift === "increase" ? "subscription-quota-shift subscription-quota-shift-up" : "";
+          const subParts = [
+            `from ${fmt(w5.observed_tokens)} observed`,
+            fmtConfidence(w5.confidence)
+          ];
+          if (w5.sample_count != null && w5.sample_count > 0) {
+            subParts.push(`n=${w5.sample_count}`);
+          }
           return /* @__PURE__ */ u4(
             "div",
             {
@@ -8036,16 +8046,12 @@ ${row.project}` : row.project;
               children: [
                 /* @__PURE__ */ u4("div", { class: "subscription-quota-row-label", children: w5.label }),
                 /* @__PURE__ */ u4("div", { class: "subscription-quota-row-value", children: [
+                  shiftGlyph && /* @__PURE__ */ u4("span", { class: shiftClass, children: shiftGlyph }),
                   "~",
-                  fmt(w5.estimated_cap_tokens),
+                  fmt(headlineCap),
                   " tokens"
                 ] }),
-                /* @__PURE__ */ u4("div", { class: "subscription-quota-row-sub", children: [
-                  "from ",
-                  fmt(w5.observed_tokens),
-                  " observed \xB7 ",
-                  fmtConfidence(w5.confidence)
-                ] })
+                /* @__PURE__ */ u4("div", { class: "subscription-quota-row-sub", children: subParts.join(" \xB7 ") })
               ]
             },
             `est-${w5.kind}`

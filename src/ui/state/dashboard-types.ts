@@ -342,6 +342,15 @@ export interface EstimatedWindow {
   estimated_cap_tokens: number;
   observed_tokens: number;
   confidence: number;
+  /**
+   * Confidence-weighted EMA of recent observations + the current one.
+   * Absent on stale clients / before any history exists.
+   */
+  smoothed_cap_tokens?: number | null;
+  /** Number of (history + current) samples that fed the smoother. */
+  sample_count?: number | null;
+  /** Lowercase tag the backend emits when a ≥ ±20% shift is detected. */
+  cap_shift?: 'increase' | 'decrease' | null;
 }
 
 export interface ProviderQuotaEstimated {

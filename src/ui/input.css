@@ -1136,6 +1136,18 @@
   text-align: right;
 }
 
+.subscription-quota-shift {
+  font-family: var(--font-mono);
+}
+
+.subscription-quota-shift-up {
+  color: var(--text-secondary);
+}
+
+.subscription-quota-shift-down {
+  color: var(--accent);
+}
+
 .subscription-quota-row-bar {
   grid-area: bar;
 }

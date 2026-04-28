@@ -514,6 +514,7 @@ fn record_subscription_quota_snapshots(state: &Arc<AppState>, response: &LivePro
                 &spec.provider,
                 spec.window_seconds,
                 spec.model_pattern.as_deref(),
+                spec.resets_at.as_deref(),
             )
             .unwrap_or(0);
             let estimate = estimate_window_cap(spec.used_percent, observed);

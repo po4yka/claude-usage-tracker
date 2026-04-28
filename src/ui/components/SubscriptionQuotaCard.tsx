@@ -100,6 +100,23 @@ export function SubscriptionQuotaCard({ snapshot }: SubscriptionQuotaCardProps) 
         )}
         {estimated.map(w => {
           const dim = w.confidence < 0.3;
+          const headlineCap =
+            w.smoothed_cap_tokens != null ? w.smoothed_cap_tokens : w.estimated_cap_tokens;
+          const shiftGlyph =
+            w.cap_shift === 'increase' ? '↑ ' : w.cap_shift === 'decrease' ? '↓ ' : '';
+          const shiftClass =
+            w.cap_shift === 'decrease'
+              ? 'subscription-quota-shift subscription-quota-shift-down'
+              : w.cap_shift === 'increase'
+                ? 'subscription-quota-shift subscription-quota-shift-up'
+                : '';
+          const subParts: string[] = [
+            `from ${fmt(w.observed_tokens)} observed`,
+            fmtConfidence(w.confidence),
+          ];
+          if (w.sample_count != null && w.sample_count > 0) {
+            subParts.push(`n=${w.sample_count}`);
+          }
           return (
             <div
               class="subscription-quota-row subscription-quota-row-estimated"
@@ -107,10 +124,11 @@ export function SubscriptionQuotaCard({ snapshot }: SubscriptionQuotaCardProps) 
               style={dim ? { opacity: 0.6 } : undefined}
             >
               <div class="subscription-quota-row-label">{w.label}</div>
-              <div class="subscription-quota-row-value">~{fmt(w.estimated_cap_tokens)} tokens</div>
-              <div class="subscription-quota-row-sub">
-                from {fmt(w.observed_tokens)} observed · {fmtConfidence(w.confidence)}
+              <div class="subscription-quota-row-value">
+                {shiftGlyph && <span class={shiftClass}>{shiftGlyph}</span>}
+                ~{fmt(headlineCap)} tokens
               </div>
+              <div class="subscription-quota-row-sub">{subParts.join(' · ')}</div>
             </div>
           );
         })}
