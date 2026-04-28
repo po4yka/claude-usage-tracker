@@ -1,0 +1,11 @@
+{
+  "background": {
+    "scripts": ["background.js"]
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "heimdall-companion@heimdall.dev",
+      "strict_min_version": "115.0"
+    }
+  }
+}

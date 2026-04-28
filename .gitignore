@@ -11,3 +11,5 @@ scorecard.png
 .claude/scheduled_tasks.lock
 macos/HeimdallBar/.derived/
 macos/HeimdallBar/build/
+extensions/heimdall-companion/node_modules/
+extensions/heimdall-companion/dist/
