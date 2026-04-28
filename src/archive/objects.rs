@@ -104,6 +104,12 @@ impl ObjectStore {
         fs::read(&path).with_context(|| format!("reading object {}", path.display()))
     }
 
+    /// Read the object and return its actual SHA-256 (for corruption checks).
+    pub fn actual_hash(&self, hash: &Sha256Hash) -> Result<Sha256Hash> {
+        let bytes = self.get(hash)?;
+        Ok(Sha256Hash::from_bytes(&bytes))
+    }
+
     /// Remove every object whose hash is not in `referenced`. Returns the
     /// number of objects deleted.
     pub fn gc(&self, referenced: &HashSet<Sha256Hash>) -> Result<usize> {

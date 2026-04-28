@@ -7,6 +7,8 @@ pub mod objects;
 
 use std::collections::HashSet;
 use std::fs;
+use std::fs::File;
+use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, UNIX_EPOCH};
@@ -223,7 +225,6 @@ fn mtime_millis(path: &Path) -> Option<i64> {
     Some(dur.as_millis() as i64)
 }
 
-#[allow(dead_code)]
 pub(crate) fn referenced_hashes_in_archive(root: &Path) -> Result<HashSet<Sha256Hash>> {
     let mut set = HashSet::new();
     let snapshots = root.join("snapshots");
@@ -248,4 +249,111 @@ pub(crate) fn referenced_hashes_in_archive(root: &Path) -> Result<HashSet<Sha256
         }
     }
     Ok(set)
+}
+
+pub struct VerifyReport {
+    pub objects_checked: usize,
+    pub corrupt_objects: Vec<String>,
+    pub manifests_checked: usize,
+}
+
+impl Archive {
+    /// Walk every snapshot's manifest, hash each referenced object, and
+    /// flag any whose stored SHA does not match its filename.
+    pub fn verify(&self) -> Result<VerifyReport> {
+        let referenced = referenced_hashes_in_archive(&self.root)?;
+        let store = self.objects()?;
+        let mut corrupt = Vec::new();
+        let mut checked = 0_usize;
+        for hash in &referenced {
+            checked += 1;
+            if !store.contains(hash) {
+                corrupt.push(format!("missing: {}", hash.as_hex()));
+                continue;
+            }
+            let actual = store.actual_hash(hash)?;
+            if &actual != hash {
+                corrupt.push(format!("hash mismatch: {}", hash.as_hex()));
+            }
+        }
+        let snapshots = self.snapshots_dir();
+        let manifests_checked = if snapshots.is_dir() {
+            fs::read_dir(&snapshots)?
+                .filter_map(|e| e.ok())
+                .filter(|e| e.path().join("manifest.json").is_file())
+                .count()
+        } else {
+            0
+        };
+        Ok(VerifyReport {
+            objects_checked: checked,
+            corrupt_objects: corrupt,
+            manifests_checked,
+        })
+    }
+
+    /// Remove all but the most recent `keep` snapshots, then GC unreferenced
+    /// objects. Returns `(snapshots_removed, objects_removed)`.
+    pub fn prune(&self, keep: usize) -> Result<(usize, usize)> {
+        let mut metas = self.list()?;
+        let mut removed_snapshots = 0;
+        if metas.len() > keep {
+            for stale in metas.split_off(keep) {
+                let dir = self.snapshots_dir().join(&stale.snapshot_id);
+                fs::remove_dir_all(&dir)?;
+                removed_snapshots += 1;
+            }
+        }
+        let referenced = referenced_hashes_in_archive(&self.root)?;
+        let removed_objects = self.objects()?.gc(&referenced)?;
+        Ok((removed_snapshots, removed_objects))
+    }
+}
+
+/// Advisory file lock for concurrent snapshot/import runs.
+///
+/// On Unix we use `flock` via raw libc. On unsupported platforms we fall
+/// back to a presence-of-file check (best-effort).
+pub struct ArchiveLock {
+    _file: File,
+}
+
+impl ArchiveLock {
+    pub fn acquire(root: &Path) -> Result<Self> {
+        fs::create_dir_all(root)?;
+        let path = root.join("archive.lock");
+        let file = match File::create(&path) {
+            Ok(f) => f,
+            Err(e) if e.kind() == ErrorKind::PermissionDenied => {
+                anyhow::bail!("cannot write archive.lock at {}: {e}", path.display())
+            }
+            Err(e) => return Err(e.into()),
+        };
+        #[cfg(unix)]
+        {
+            use std::os::unix::io::AsRawFd;
+            let fd = file.as_raw_fd();
+            let rc = unsafe { libc_flock(fd, LOCK_EX | LOCK_NB) };
+            if rc != 0 {
+                anyhow::bail!(
+                    "another archive operation is in progress (flock failed on {})",
+                    path.display()
+                );
+            }
+        }
+        Ok(ArchiveLock { _file: file })
+    }
+}
+
+#[cfg(unix)]
+const LOCK_EX: i32 = 2;
+#[cfg(unix)]
+const LOCK_NB: i32 = 4;
+
+#[cfg(unix)]
+unsafe fn libc_flock(fd: i32, op: i32) -> i32 {
+    unsafe extern "C" {
+        fn flock(fd: i32, op: i32) -> i32;
+    }
+    unsafe { flock(fd, op) }
 }

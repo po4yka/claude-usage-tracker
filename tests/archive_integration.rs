@@ -131,3 +131,58 @@ fn restore_round_trips_file_contents() {
     let restored = std::fs::read(dest.join("fixture").join("nested/x.jsonl")).unwrap();
     assert_eq!(restored, b"ABC");
 }
+
+#[test]
+fn prune_keeps_only_n_newest() {
+    let tmp = TempDir::new().unwrap();
+    let archive_root = tmp.path().join("archive");
+    let provider_root = tmp.path().join("source");
+    fs::create_dir_all(&provider_root).unwrap();
+    let providers: Vec<Arc<dyn Provider>> = vec![Arc::new(FixtureProvider {
+        name: "fixture",
+        roots: vec![provider_root.clone()],
+    })];
+    let archive = Archive::at(archive_root.clone()).unwrap();
+    for n in 0..4 {
+        fs::write(provider_root.join(format!("v{n}.jsonl")), format!("v{n}")).unwrap();
+        archive.snapshot(&providers).unwrap();
+    }
+    let (removed_snaps, _) = archive.prune(2).unwrap();
+    assert_eq!(removed_snaps, 2);
+    assert_eq!(archive.list().unwrap().len(), 2);
+}
+
+#[test]
+fn verify_reports_clean_archive() {
+    let tmp = TempDir::new().unwrap();
+    let archive_root = tmp.path().join("archive");
+    let provider_root = tmp.path().join("source");
+    fs::create_dir_all(&provider_root).unwrap();
+    fs::write(provider_root.join("a.jsonl"), b"data").unwrap();
+    let providers: Vec<Arc<dyn Provider>> = vec![Arc::new(FixtureProvider {
+        name: "fixture",
+        roots: vec![provider_root.clone()],
+    })];
+    let archive = Archive::at(archive_root.clone()).unwrap();
+    archive.snapshot(&providers).unwrap();
+    let report = archive.verify().unwrap();
+    assert!(
+        report.corrupt_objects.is_empty(),
+        "expected clean archive, got {:?}",
+        report.corrupt_objects
+    );
+    assert_eq!(report.manifests_checked, 1);
+}
+
+#[test]
+fn lock_blocks_concurrent_acquire() {
+    use claude_usage_tracker::archive::ArchiveLock;
+    let tmp = TempDir::new().unwrap();
+    fs::create_dir_all(tmp.path()).unwrap();
+    let _first = ArchiveLock::acquire(tmp.path()).unwrap();
+    let result = ArchiveLock::acquire(tmp.path());
+    assert!(
+        result.is_err(),
+        "second lock acquire must fail while the first is held"
+    );
+}
