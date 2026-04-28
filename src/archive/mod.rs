@@ -5,6 +5,7 @@ pub mod imports;
 pub mod index;
 pub mod manifest;
 pub mod objects;
+pub mod web;
 
 use std::collections::HashSet;
 use std::fs;
