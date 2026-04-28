@@ -9,4 +9,5 @@
 //! explicit `tempdir` to keep the user's real archive untouched.
 
 pub mod index;
+pub mod manifest;
 pub mod objects;
