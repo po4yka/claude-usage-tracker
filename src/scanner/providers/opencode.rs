@@ -126,6 +126,10 @@ impl Provider for OpenCodeProvider {
         Ok(parse_opencode_db(path))
     }
 
+    fn archive_paths(&self) -> Vec<PathBuf> {
+        self.dirs.clone()
+    }
+
     fn parse_source(&self, path: &Path, _skip_lines: i64) -> ParseResult {
         match self.parse(path) {
             Ok(turns) => parse_provider_turns_result(self.name(), turns, path, None),
@@ -490,6 +494,18 @@ mod tests {
     #[test]
     fn opencode_provider_name() {
         assert_eq!(OpenCodeProvider::new_with_dirs(vec![]).name(), "opencode");
+    }
+
+    #[test]
+    fn opencode_archive_paths_returns_dirs() {
+        let provider =
+            OpenCodeProvider::new_with_dirs(vec![PathBuf::from("/tmp/opencode-data")]);
+        let paths = provider.archive_paths();
+        assert!(
+            paths.iter().any(|p| p.ends_with("opencode-data")),
+            "expected opencode-data in archive_paths, got: {:?}",
+            paths
+        );
     }
 
     // -----------------------------------------------------------------------

@@ -218,6 +218,10 @@ impl Provider for CursorProvider {
         Ok(turns)
     }
 
+    fn archive_paths(&self) -> Vec<PathBuf> {
+        self.dirs.clone()
+    }
+
     fn parse_source(&self, path: &Path, _skip_lines: i64) -> ParseResult {
         match self.parse(path) {
             Ok(turns) => parse_provider_turns_result(self.name(), turns, path, None),
@@ -487,6 +491,20 @@ mod tests {
     #[test]
     fn cursor_provider_name() {
         assert_eq!(CursorProvider::new_with_dirs(vec![]).name(), "cursor");
+    }
+
+    #[test]
+    fn cursor_archive_paths_returns_workspace_storage_dir() {
+        let provider =
+            CursorProvider::new_with_dirs(vec![PathBuf::from("/tmp/cursor-workspaceStorage")]);
+        let paths = provider.archive_paths();
+        assert!(
+            paths
+                .iter()
+                .any(|p| p.ends_with("cursor-workspaceStorage")),
+            "expected cursor-workspaceStorage in archive_paths, got: {:?}",
+            paths
+        );
     }
 
     // -----------------------------------------------------------------------

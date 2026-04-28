@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 
@@ -8,7 +8,7 @@ use crate::scanner::parser::{ParseResult, parse_jsonl_file};
 /// A file path that a provider has identified as a parseable session log.
 #[derive(Debug, Clone)]
 pub struct SessionSource {
-    pub path: std::path::PathBuf,
+    pub path: PathBuf,
 }
 
 /// Per-source-type plug-in contract. Registered in `providers::all()`.
@@ -26,6 +26,13 @@ pub trait Provider: Send + Sync {
     fn parse_source(&self, path: &Path, skip_lines: i64) -> ParseResult {
         parse_jsonl_file(self.name(), path, skip_lines)
     }
+
+    /// Return on-disk roots whose contents this provider authoritatively
+    /// owns and that the archive subsystem should snapshot. Default empty
+    /// for providers with no on-disk source (e.g. live-API-only).
+    fn archive_paths(&self) -> Vec<PathBuf> {
+        Vec::new()
+    }
 }
 
 #[cfg(test)]
@@ -37,5 +44,26 @@ mod tests {
         // Verify dyn dispatch compiles — no implementation needed, just type-check.
         fn _accepts(_p: &dyn Provider) {}
         // If this file compiles, the trait is object-safe.
+    }
+
+    #[test]
+    fn provider_default_archive_paths_is_empty() {
+        struct StubProvider;
+        impl Provider for StubProvider {
+            fn name(&self) -> &'static str {
+                "stub"
+            }
+            fn discover_sessions(&self) -> Result<Vec<SessionSource>> {
+                Ok(vec![])
+            }
+            fn parse(&self, _path: &Path) -> Result<Vec<Turn>> {
+                Ok(vec![])
+            }
+        }
+        let p = StubProvider;
+        assert!(
+            p.archive_paths().is_empty(),
+            "default archive_paths must return empty Vec"
+        );
     }
 }

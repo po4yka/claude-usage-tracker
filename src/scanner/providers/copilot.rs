@@ -163,6 +163,10 @@ impl Provider for CopilotProvider {
         Ok(parse_copilot_file(path))
     }
 
+    fn archive_paths(&self) -> Vec<PathBuf> {
+        self.dirs.clone()
+    }
+
     fn parse_source(&self, path: &Path, _skip_lines: i64) -> ParseResult {
         match self.parse(path) {
             Ok(turns) => parse_provider_turns_result(self.name(), turns, path, None),
@@ -445,6 +449,18 @@ mod tests {
     #[test]
     fn copilot_provider_name() {
         assert_eq!(CopilotProvider::new_with_dirs(vec![]).name(), "copilot");
+    }
+
+    #[test]
+    fn copilot_archive_paths_returns_dirs() {
+        let provider =
+            CopilotProvider::new_with_dirs(vec![PathBuf::from("/tmp/copilot-sessions")]);
+        let paths = provider.archive_paths();
+        assert!(
+            paths.iter().any(|p| p.ends_with("copilot-sessions")),
+            "expected copilot-sessions in archive_paths, got: {:?}",
+            paths
+        );
     }
 
     // -----------------------------------------------------------------------

@@ -42,6 +42,10 @@ impl Provider for ClaudeProvider {
     fn parse(&self, path: &Path) -> Result<Vec<Turn>> {
         Ok(parse_claude_jsonl_file(path, 0).turns)
     }
+
+    fn archive_paths(&self) -> Vec<std::path::PathBuf> {
+        self.dirs.clone()
+    }
 }
 
 #[cfg(test)]
@@ -62,6 +66,17 @@ mod tests {
     #[test]
     fn claude_provider_name() {
         assert_eq!(ClaudeProvider::new(vec![]).name(), "claude");
+    }
+
+    #[test]
+    fn claude_archive_paths_contains_projects_root() {
+        let provider = ClaudeProvider::new(vec![PathBuf::from("/tmp/test-projects")]);
+        let paths = provider.archive_paths();
+        assert!(
+            paths.iter().any(|p| p.ends_with("test-projects")),
+            "expected test-projects in archive_paths, got: {:?}",
+            paths
+        );
     }
 
     #[test]

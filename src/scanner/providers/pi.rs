@@ -112,6 +112,10 @@ impl Provider for PiProvider {
     fn parse(&self, path: &Path) -> Result<Vec<Turn>> {
         Ok(parse_pi_jsonl_file(path))
     }
+
+    fn archive_paths(&self) -> Vec<PathBuf> {
+        self.dirs.clone()
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -287,6 +291,17 @@ mod tests {
     #[test]
     fn pi_provider_name() {
         assert_eq!(PiProvider::new_with_dirs(vec![]).name(), "pi");
+    }
+
+    #[test]
+    fn pi_archive_paths_returns_dirs() {
+        let provider = PiProvider::new_with_dirs(vec![PathBuf::from("/tmp/pi-sessions")]);
+        let paths = provider.archive_paths();
+        assert!(
+            paths.iter().any(|p| p.ends_with("pi-sessions")),
+            "expected pi-sessions in archive_paths, got: {:?}",
+            paths
+        );
     }
 
     // -----------------------------------------------------------------------

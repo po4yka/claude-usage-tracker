@@ -45,6 +45,10 @@ impl Provider for XcodeProvider {
         // consistently with the live scan path (see parse_jsonl_file).
         Ok(parse_jsonl_file(PROVIDER_XCODE, path, 0).turns)
     }
+
+    fn archive_paths(&self) -> Vec<PathBuf> {
+        self.dirs.clone()
+    }
 }
 
 #[cfg(test)]
@@ -65,6 +69,17 @@ mod tests {
     #[test]
     fn xcode_provider_name() {
         assert_eq!(XcodeProvider::new(vec![]).name(), "xcode");
+    }
+
+    #[test]
+    fn xcode_archive_paths_returns_dirs() {
+        let provider = XcodeProvider::new(vec![PathBuf::from("/tmp/xcode-sessions")]);
+        let paths = provider.archive_paths();
+        assert!(
+            paths.iter().any(|p| p.ends_with("xcode-sessions")),
+            "expected xcode-sessions in archive_paths, got: {:?}",
+            paths
+        );
     }
 
     #[test]

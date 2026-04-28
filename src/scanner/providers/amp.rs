@@ -130,6 +130,10 @@ impl Provider for AmpProvider {
     fn parse(&self, path: &Path) -> Result<Vec<Turn>> {
         Ok(parse_amp_thread_file(path))
     }
+
+    fn archive_paths(&self) -> Vec<PathBuf> {
+        self.dirs.clone()
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -354,6 +358,17 @@ mod tests {
     #[test]
     fn amp_provider_name() {
         assert_eq!(AmpProvider::new_with_dirs(vec![]).name(), "amp");
+    }
+
+    #[test]
+    fn amp_archive_paths_returns_dirs() {
+        let provider = AmpProvider::new_with_dirs(vec![PathBuf::from("/tmp/amp-threads")]);
+        let paths = provider.archive_paths();
+        assert!(
+            paths.iter().any(|p| p.ends_with("amp-threads")),
+            "expected amp-threads in archive_paths, got: {:?}",
+            paths
+        );
     }
 
     // -----------------------------------------------------------------------

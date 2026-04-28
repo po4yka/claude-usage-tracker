@@ -67,6 +67,10 @@ impl Provider for CodexProvider {
     fn parse(&self, path: &Path) -> Result<Vec<Turn>> {
         Ok(parse_codex_jsonl_file(path, 0).turns)
     }
+
+    fn archive_paths(&self) -> Vec<std::path::PathBuf> {
+        self.dirs.clone()
+    }
 }
 
 pub(crate) fn parse_codex_jsonl_file(filepath: &Path, skip_lines: i64) -> ParseResult {
@@ -530,6 +534,17 @@ mod tests {
     #[test]
     fn codex_provider_name() {
         assert_eq!(CodexProvider::new(vec![]).name(), "codex");
+    }
+
+    #[test]
+    fn codex_archive_paths_returns_dirs() {
+        let provider = CodexProvider::new(vec![PathBuf::from("/tmp/codex-sessions")]);
+        let paths = provider.archive_paths();
+        assert!(
+            paths.iter().any(|p| p.ends_with("codex-sessions")),
+            "expected codex-sessions in archive_paths, got: {:?}",
+            paths
+        );
     }
 
     #[test]
