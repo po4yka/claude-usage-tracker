@@ -425,4 +425,52 @@ mod tests {
         )
         .unwrap();
     }
+
+    #[test]
+    fn archive_snapshot_then_list_round_trips() {
+        use std::fs;
+        use tempfile::TempDir;
+        let tmp = TempDir::new().unwrap();
+        let archive_root = tmp.path().join("archive");
+        let proj = tmp.path().join("home/.claude/projects/p1");
+        fs::create_dir_all(&proj).unwrap();
+        fs::write(proj.join("session.jsonl"), b"hello").unwrap();
+
+        // Derive the CLI binary path from the test executable location.
+        // Unit tests run from `target/<profile>/deps/`; the CLI binary sits one
+        // level up at `target/<profile>/claude-usage-tracker`.
+        let test_exe = std::env::current_exe().unwrap();
+        let target_dir = test_exe.parent().unwrap().parent().unwrap();
+        let exe = target_dir.join("claude-usage-tracker");
+        if !exe.exists() {
+            // `cargo test` builds the binary on demand into the same profile;
+            // if it doesn't exist yet, build it.
+            let status = std::process::Command::new(env!("CARGO"))
+                .args(["build", "--bin", "claude-usage-tracker"])
+                .status()
+                .expect("cargo build");
+            assert!(status.success(), "cargo build failed");
+        }
+        let mut snapshot_cmd = std::process::Command::new(&exe);
+        snapshot_cmd
+            .args([
+                "archive", "snapshot",
+                "--archive-root", archive_root.to_str().unwrap(),
+                "--json",
+            ])
+            // Force the Claude provider to look at our fixture root rather than $HOME.
+            .env("HOME", tmp.path().join("home"));
+        let out = snapshot_cmd.output().expect("run snapshot");
+        assert!(out.status.success(), "snapshot failed: {:?}", out);
+
+        let mut list_cmd = std::process::Command::new(exe);
+        list_cmd.args([
+            "archive", "list",
+            "--archive-root", archive_root.to_str().unwrap(),
+        ]);
+        let out = list_cmd.output().expect("run list");
+        assert!(out.status.success(), "list failed: {:?}", out);
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        assert!(stdout.contains("files"), "list output missing 'files': {stdout}");
+    }
 }

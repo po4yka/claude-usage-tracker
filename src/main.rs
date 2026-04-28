@@ -1,4 +1,5 @@
 use claude_usage_tracker::analytics;
+use claude_usage_tracker::archive;
 use claude_usage_tracker::config;
 use claude_usage_tracker::currency;
 use claude_usage_tracker::db as db_mod;
@@ -180,6 +181,11 @@ enum Commands {
         #[arg(long, value_name = "FILTER")]
         jq: Option<String>,
     },
+    /// Manage the local chat-backup archive (Phase 1: CLI snapshots only)
+    Archive {
+        #[command(subcommand)]
+        action: ArchiveAction,
+    },
     /// Manage the heimdall-hook real-time PreToolUse ingest hook
     Hook {
         #[command(subcommand)]
@@ -307,6 +313,56 @@ enum ConfigAction {
         /// Output format: toml | json
         #[arg(long, default_value = "toml", value_parser = ["toml", "json"])]
         format: String,
+    },
+}
+
+#[derive(Subcommand)]
+enum ArchiveAction {
+    /// Take a content-addressed snapshot of every provider's source files
+    Snapshot {
+        /// Override the archive root (default: ~/.heimdall/archive)
+        #[arg(long)]
+        archive_root: Option<PathBuf>,
+        /// Emit JSON instead of a human-readable report
+        #[arg(long)]
+        json: bool,
+    },
+    /// List existing snapshots
+    List {
+        #[arg(long)]
+        archive_root: Option<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Show the manifest of a snapshot
+    Show {
+        /// Snapshot ID (format: 2026-04-28T080000.000000Z)
+        snapshot_id: String,
+        #[arg(long)]
+        archive_root: Option<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Restore a snapshot's contents into a fresh directory
+    Restore {
+        snapshot_id: String,
+        /// Destination directory (default: ./heimdall-restore-<id>)
+        #[arg(long)]
+        to: Option<PathBuf>,
+        #[arg(long)]
+        archive_root: Option<PathBuf>,
+    },
+    /// Keep only the most recent N snapshots, GC unreferenced objects
+    Prune {
+        #[arg(long, default_value_t = 30)]
+        keep_last: usize,
+        #[arg(long)]
+        archive_root: Option<PathBuf>,
+    },
+    /// Verify object integrity and rebuild the index
+    Verify {
+        #[arg(long)]
+        archive_root: Option<PathBuf>,
     },
 }
 
@@ -786,6 +842,93 @@ fn main() -> Result<()> {
         } => {
             let db = default_db(db_path);
             cmd_optimize(&db, &format, jq.as_deref())?;
+        }
+        Commands::Archive { action } => {
+            use archive::{Archive, ArchiveLock};
+            match action {
+                ArchiveAction::Snapshot { archive_root, json } => {
+                    let root = archive_root.unwrap_or_else(archive::default_root);
+                    let _lock = ArchiveLock::acquire(&root)?;
+                    let archive_handle = Archive::at(root)?;
+                    let providers = scanner::providers::all();
+                    let id = archive_handle.snapshot(&providers)?;
+                    let metas = archive_handle.list()?;
+                    let latest = metas.into_iter().find(|m| m.snapshot_id == id);
+                    if json {
+                        println!("{}", serde_json::to_string_pretty(&latest)?);
+                    } else if let Some(m) = latest {
+                        println!(
+                            "snapshot {}: {} files, {} bytes",
+                            m.snapshot_id, m.total_files, m.total_bytes
+                        );
+                    }
+                }
+                ArchiveAction::List { archive_root, json } => {
+                    let root = archive_root.unwrap_or_else(archive::default_root);
+                    let archive_handle = Archive::at(root)?;
+                    let metas = archive_handle.list()?;
+                    if json {
+                        println!("{}", serde_json::to_string_pretty(&metas)?);
+                    } else {
+                        for m in metas {
+                            println!(
+                                "{}  {} files  {} bytes",
+                                m.snapshot_id, m.total_files, m.total_bytes
+                            );
+                        }
+                    }
+                }
+                ArchiveAction::Show { snapshot_id, archive_root, json } => {
+                    let root = archive_root.unwrap_or_else(archive::default_root);
+                    let archive_handle = Archive::at(root)?;
+                    let manifest = archive_handle.show(&snapshot_id)?;
+                    if json {
+                        println!("{}", serde_json::to_string_pretty(&manifest)?);
+                    } else {
+                        println!(
+                            "{} ({} providers)",
+                            manifest.snapshot_id,
+                            manifest.providers.len()
+                        );
+                        for p in &manifest.providers {
+                            println!("  {}: {} files", p.name, p.files.len());
+                        }
+                    }
+                }
+                ArchiveAction::Restore { snapshot_id, to, archive_root } => {
+                    let root = archive_root.unwrap_or_else(archive::default_root);
+                    let archive_handle = Archive::at(root)?;
+                    let dest = to.unwrap_or_else(|| {
+                        std::path::PathBuf::from(format!("heimdall-restore-{snapshot_id}"))
+                    });
+                    archive_handle.restore(&snapshot_id, &dest)?;
+                    println!("restored {} -> {}", snapshot_id, dest.display());
+                }
+                ArchiveAction::Prune { keep_last, archive_root } => {
+                    let root = archive_root.unwrap_or_else(archive::default_root);
+                    let _lock = ArchiveLock::acquire(&root)?;
+                    let archive_handle = Archive::at(root)?;
+                    let (snaps, objs) = archive_handle.prune(keep_last)?;
+                    println!("pruned {} snapshots, {} objects", snaps, objs);
+                }
+                ArchiveAction::Verify { archive_root } => {
+                    let root = archive_root.unwrap_or_else(archive::default_root);
+                    let archive_handle = Archive::at(root)?;
+                    let report = archive_handle.verify()?;
+                    println!(
+                        "verified {} objects across {} manifests; {} issues",
+                        report.objects_checked,
+                        report.manifests_checked,
+                        report.corrupt_objects.len()
+                    );
+                    for line in &report.corrupt_objects {
+                        eprintln!("  {line}");
+                    }
+                    if !report.corrupt_objects.is_empty() {
+                        std::process::exit(2);
+                    }
+                }
+            }
         }
         Commands::Hook { action } => {
             cmd_hook(action)?;
