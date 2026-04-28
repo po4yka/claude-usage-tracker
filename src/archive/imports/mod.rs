@@ -6,6 +6,7 @@
 //! the result under `<archive_root>/exports/<vendor>/<id>/`.
 
 pub mod detect;
+pub mod openai;
 
 use detect::Vendor;
 
