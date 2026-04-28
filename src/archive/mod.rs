@@ -153,8 +153,10 @@ impl Archive {
             if !summary_path.is_file() {
                 continue;
             }
-            let bytes = fs::read(&summary_path)?;
-            let summary: Summary = serde_json::from_slice(&bytes)?;
+            let bytes = fs::read(&summary_path)
+                .with_context(|| format!("reading {}", summary_path.display()))?;
+            let summary: Summary = serde_json::from_slice(&bytes)
+                .with_context(|| format!("parsing {}", summary_path.display()))?;
             metas.push(SnapshotMeta {
                 snapshot_id: summary.snapshot_id,
                 created_at: summary.created_at,
@@ -177,8 +179,11 @@ impl Archive {
 
     /// Restore a snapshot to a fresh directory.
     ///
-    /// Refuses to overwrite an existing non-empty directory.
+    /// Refuses to overwrite an existing non-empty directory. Validates the
+    /// snapshot before touching the destination so a bad snapshot_id never
+    /// leaves a stale empty dir behind.
     pub fn restore(&self, snapshot_id: &str, dest: &Path) -> Result<()> {
+        let manifest = self.show(snapshot_id)?;
         if dest.exists() {
             let mut entries = fs::read_dir(dest)?;
             if entries.next().is_some() {
@@ -190,7 +195,6 @@ impl Archive {
         } else {
             fs::create_dir_all(dest)?;
         }
-        let manifest = self.show(snapshot_id)?;
         let store = self.objects()?;
         for section in &manifest.providers {
             for file in &section.files {
