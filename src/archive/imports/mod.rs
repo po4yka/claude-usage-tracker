@@ -5,6 +5,7 @@
 //! a vendor signature, dispatches to a vendor-specific parser, and writes
 //! the result under `<archive_root>/exports/<vendor>/<id>/`.
 
+pub mod anthropic;
 pub mod detect;
 pub mod openai;
 
