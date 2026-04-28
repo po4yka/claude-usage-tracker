@@ -2209,6 +2209,23 @@ pub async fn api_archive_show(
     Ok(Json(value))
 }
 
+/// `GET /api/archive/imports` — list all chat-export imports.
+pub async fn api_archive_imports(
+    State(_state): State<Arc<AppState>>,
+    request: Request,
+) -> Result<Json<Value>, StatusCode> {
+    enforce_loopback_request(&request)?;
+    let archive_root = crate::archive::default_root();
+    let imports = tokio::task::spawn_blocking(move || -> anyhow::Result<_> {
+        crate::archive::imports::list_imports(&archive_root)
+    })
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let value = serde_json::to_value(imports).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(value))
+}
+
 /// `POST /api/archive/snapshot` — take a new content-addressed snapshot.
 pub async fn api_archive_snapshot(
     State(state): State<Arc<AppState>>,

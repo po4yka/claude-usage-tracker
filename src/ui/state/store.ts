@@ -19,6 +19,17 @@ export interface SnapshotMeta {
 export const backupSnapshots = signal<SnapshotMeta[]>([]);
 export const backupLoadState = signal<'idle' | 'loading' | 'error'>('idle');
 
+// ── Imports (chat-export ingests) ─────────────────────────────────────
+export interface ImportMeta {
+  import_id: string;
+  vendor: string;
+  created_at: string;
+  conversation_count: number;
+  parser_version: number;
+  schema_fingerprint: string | null;
+}
+export const archiveImports = signal<ImportMeta[]>([]);
+
 // ── Filter state ─────────────────────────────────────────────────────
 export type ProviderFilter = 'claude' | 'codex' | 'both';
 export type DashboardTab = 'overview' | 'activity' | 'breakdowns' | 'tables' | 'backup';

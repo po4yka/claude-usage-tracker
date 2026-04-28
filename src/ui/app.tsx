@@ -1,5 +1,6 @@
 import { render } from 'preact';
 import { BackupPanel } from './components/BackupPanel';
+import { ImportsPanel } from './components/ImportsPanel';
 import { DashboardTabs } from './components/DashboardTabs';
 import { FilterBar } from './components/FilterBar';
 import { Footer } from './components/Footer';
@@ -10,7 +11,7 @@ import { MonitorHeader } from './monitor/MonitorHeader';
 import { createLiveMonitorRuntime } from './monitor/runtime';
 import { hydrateLiveMonitorPreferences } from './monitor/store';
 import { applyTheme, getTheme } from './lib/theme';
-import { backupSnapshots, backupLoadState, rawData, syncDashboardUrl } from './state/store';
+import { backupSnapshots, backupLoadState, archiveImports, rawData, syncDashboardUrl } from './state/store';
 
 async function loadBackupSnapshots(): Promise<void> {
   backupLoadState.value = 'loading';
@@ -95,6 +96,22 @@ if (backupPanelMount && dashboardRuntime) {
     backupPanelMount,
   );
   void loadBackupSnapshots();
+}
+
+async function loadArchiveImports(): Promise<void> {
+  try {
+    const r = await fetch('/api/archive/imports');
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    archiveImports.value = (await r.json()) as typeof archiveImports.value;
+  } catch (err) {
+    console.error('failed to load imports:', err);
+  }
+}
+
+const importsPanelMount = document.getElementById('imports-panel');
+if (importsPanelMount && dashboardRuntime) {
+  render(<ImportsPanel onReload={loadArchiveImports} />, importsPanelMount);
+  void loadArchiveImports();
 }
 
 if (dashboardRuntime) {

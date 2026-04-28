@@ -87,6 +87,54 @@ pub fn import_zip(archive_root: &Path, zip_path: &Path) -> Result<ImportReport> 
     })
 }
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ImportSummary {
+    pub import_id: String,
+    pub vendor: String,
+    pub created_at: String,
+    pub conversation_count: usize,
+    pub parser_version: u32,
+    pub schema_fingerprint: Option<String>,
+}
+
+/// List every import under `<archive_root>/exports/<vendor>/*`.
+pub fn list_imports(archive_root: &Path) -> Result<Vec<ImportSummary>> {
+    let exports = archive_root.join("exports");
+    if !exports.is_dir() {
+        return Ok(Vec::new());
+    }
+    let mut out = Vec::new();
+    for vendor_entry in std::fs::read_dir(&exports)? {
+        let vendor_entry = vendor_entry?;
+        if !vendor_entry.file_type()?.is_dir() {
+            continue;
+        }
+        for import_entry in std::fs::read_dir(vendor_entry.path())? {
+            let import_entry = import_entry?;
+            if !import_entry.file_type()?.is_dir() {
+                continue;
+            }
+            let meta_path = import_entry.path().join("metadata.json");
+            if !meta_path.is_file() {
+                continue;
+            }
+            let bytes = std::fs::read(&meta_path)?;
+            let meta: storage::ImportMetadata = serde_json::from_slice(&bytes)
+                .with_context(|| format!("parsing {}", meta_path.display()))?;
+            out.push(ImportSummary {
+                import_id: meta.import_id,
+                vendor: meta.vendor,
+                created_at: meta.created_at,
+                conversation_count: meta.conversation_count,
+                parser_version: meta.parser_version,
+                schema_fingerprint: meta.schema_fingerprint,
+            });
+        }
+    }
+    out.sort_by(|a, b| b.import_id.cmp(&a.import_id));
+    Ok(out)
+}
+
 fn write_openai_conversations<R: std::io::Read + std::io::Seek>(
     zip: &mut zip::ZipArchive<R>,
     dir: &ImportDir,

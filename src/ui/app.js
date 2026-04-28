@@ -1014,6 +1014,7 @@
   var costReconciliationData = y3(null);
   var backupSnapshots = y3([]);
   var backupLoadState = y3("idle");
+  var archiveImports = y3([]);
   var SESSIONS_PAGE_PARAM = "sessions_page";
   var SESSIONS_HIDDEN_COLUMNS_PARAM = "sessions_hidden";
   var FILTERS_EXPANDED_PARAM = "filters_expanded";
@@ -1348,6 +1349,40 @@
           /* @__PURE__ */ u4("td", { children: s4.total_files }),
           /* @__PURE__ */ u4("td", { children: s4.total_bytes })
         ] }, s4.snapshot_id)) })
+      ] })
+    ] });
+  }
+
+  // src/ui/components/ImportsPanel.tsx
+  function ImportsPanel({ onReload }) {
+    const imports = archiveImports.value;
+    return /* @__PURE__ */ u4("section", { class: "imports-panel", children: [
+      /* @__PURE__ */ u4("header", { class: "imports-panel-header", children: [
+        /* @__PURE__ */ u4("h2", { children: "Imports" }),
+        /* @__PURE__ */ u4("button", { type: "button", onClick: () => void onReload(), children: "Refresh" })
+      ] }),
+      imports.length === 0 && /* @__PURE__ */ u4("p", { class: "imports-panel-empty", children: [
+        "No imports yet. To bring in your web-chat history, request a data export from claude.ai or chatgpt.com (Settings \u2192 Export data) and drop the resulting ZIP onto Heimdall via",
+        " ",
+        /* @__PURE__ */ u4("code", { children: "heimdall import-export <zip>" }),
+        " or run",
+        " ",
+        /* @__PURE__ */ u4("code", { children: "heimdall import-export --watch ~/Downloads" }),
+        "."
+      ] }),
+      imports.length > 0 && /* @__PURE__ */ u4("table", { class: "data-table", children: [
+        /* @__PURE__ */ u4("thead", { children: /* @__PURE__ */ u4("tr", { children: [
+          /* @__PURE__ */ u4("th", { children: "VENDOR" }),
+          /* @__PURE__ */ u4("th", { children: "IMPORTED" }),
+          /* @__PURE__ */ u4("th", { children: "CONVERSATIONS" }),
+          /* @__PURE__ */ u4("th", { children: "SCHEMA FINGERPRINT" })
+        ] }) }),
+        /* @__PURE__ */ u4("tbody", { children: imports.map((m4) => /* @__PURE__ */ u4("tr", { children: [
+          /* @__PURE__ */ u4("td", { children: esc(m4.vendor) }),
+          /* @__PURE__ */ u4("td", { children: esc(m4.created_at) }),
+          /* @__PURE__ */ u4("td", { children: m4.conversation_count }),
+          /* @__PURE__ */ u4("td", { children: /* @__PURE__ */ u4("code", { children: esc((m4.schema_fingerprint || "\u2014").slice(0, 12)) }) })
+        ] }, m4.import_id)) })
       ] })
     ] });
   }
@@ -9715,6 +9750,20 @@ ${row.project}` : row.project;
       backupPanelMount
     );
     void loadBackupSnapshots();
+  }
+  async function loadArchiveImports() {
+    try {
+      const r4 = await fetch("/api/archive/imports");
+      if (!r4.ok) throw new Error(`HTTP ${r4.status}`);
+      archiveImports.value = await r4.json();
+    } catch (err) {
+      console.error("failed to load imports:", err);
+    }
+  }
+  var importsPanelMount = document.getElementById("imports-panel");
+  if (importsPanelMount && dashboardRuntime) {
+    R(/* @__PURE__ */ u4(ImportsPanel, { onReload: loadArchiveImports }), importsPanelMount);
+    void loadArchiveImports();
   }
   if (dashboardRuntime) {
     dashboardRuntime.start();
