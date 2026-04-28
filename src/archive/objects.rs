@@ -10,6 +10,7 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use sha2::{Digest, Sha256};
+use tracing::warn;
 
 /// 64-character lowercase hex SHA-256 digest.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -130,12 +131,22 @@ impl ObjectStore {
                     let inner_name = inner.file_name().to_string_lossy().to_string();
                     let entry_name = entry.file_name().to_string_lossy().to_string();
                     if entry_name.starts_with(".tmp-") {
-                        // Stale tmp file from a crashed put; clean up.
-                        let _ = fs::remove_file(entry.path());
+                        // Stale tmp file from a crashed put; best-effort clean up.
+                        if let Err(e) = fs::remove_file(entry.path()) {
+                            warn!(
+                                "gc: failed to remove stale tmp {}: {e}",
+                                entry.path().display()
+                            );
+                        }
                         continue;
                     }
                     let hex = format!("{outer_name}{inner_name}{entry_name}");
-                    let hash = Sha256Hash(hex);
+                    // Filesystem-trusted: filenames here come from our own put().
+                    // Validate defensively so foreign files (e.g. .DS_Store) are
+                    // skipped rather than treated as unreferenced objects.
+                    let Ok(hash) = Sha256Hash::from_hex(&hex) else {
+                        continue;
+                    };
                     if !referenced.contains(&hash) {
                         fs::remove_file(entry.path())?;
                         removed += 1;
