@@ -7884,6 +7884,264 @@ ${row.project}` : row.project;
     ] });
   }
 
+  // src/ui/components/SubscriptionQuotaCard.tsx
+  var PROVIDER_LABELS = {
+    claude: "Claude",
+    codex: "Codex"
+  };
+  function providerTitle(provider) {
+    return PROVIDER_LABELS[provider] ?? fmtLabel(provider);
+  }
+  function fmtConfidence(c4) {
+    if (c4 >= 0.85) return "high confidence";
+    if (c4 >= 0.5) return "medium confidence";
+    return "low confidence";
+  }
+  function SubscriptionQuotaCard({ snapshot }) {
+    const title = providerTitle(snapshot.provider);
+    const planLabel = snapshot.published.plan_label ? fmtLabel(snapshot.published.plan_label) : "\u2014";
+    const estimated = snapshot.estimated?.windows ?? [];
+    const hasEstimates = estimated.length > 0;
+    return /* @__PURE__ */ u4("div", { class: "card subscription-quota-card", children: [
+      /* @__PURE__ */ u4("div", { class: "subscription-quota-header", children: [
+        /* @__PURE__ */ u4("div", { class: "subscription-quota-title", children: title }),
+        /* @__PURE__ */ u4("div", { class: "subscription-quota-plan", title: `Source: ${snapshot.source_used}`, children: planLabel })
+      ] }),
+      /* @__PURE__ */ u4("div", { class: "subscription-quota-section", children: [
+        /* @__PURE__ */ u4("div", { class: "subscription-quota-section-label", children: "Published" }),
+        snapshot.published.windows.length === 0 && /* @__PURE__ */ u4("div", { class: "subscription-quota-empty", children: "No active windows reported." }),
+        snapshot.published.windows.map((window2) => {
+          const pct = Math.min(100, Math.max(0, window2.used_percent));
+          return /* @__PURE__ */ u4("div", { class: "subscription-quota-row", children: [
+            /* @__PURE__ */ u4("div", { class: "subscription-quota-row-label", children: window2.label }),
+            /* @__PURE__ */ u4("div", { class: "subscription-quota-row-value", children: [
+              pct.toFixed(1),
+              "%"
+            ] }),
+            /* @__PURE__ */ u4("div", { class: "subscription-quota-row-bar", children: /* @__PURE__ */ u4(
+              SegmentedProgressBar,
+              {
+                value: pct,
+                max: 100,
+                size: "standard",
+                "aria-label": `${window2.label} usage`
+              }
+            ) }),
+            /* @__PURE__ */ u4("div", { class: "subscription-quota-row-sub", children: window2.resets_in_minutes != null ? `Resets in ${fmtResetTime(window2.resets_in_minutes)}` : window2.resets_at ?? "" })
+          ] }, `pub-${window2.kind}`);
+        }),
+        snapshot.published.budget && /* @__PURE__ */ u4("div", { class: "subscription-quota-row", children: [
+          /* @__PURE__ */ u4("div", { class: "subscription-quota-row-label", children: "Monthly $-budget" }),
+          /* @__PURE__ */ u4("div", { class: "subscription-quota-row-value", children: [
+            "$",
+            snapshot.published.budget.used_usd.toFixed(2)
+          ] }),
+          /* @__PURE__ */ u4("div", { class: "subscription-quota-row-bar", children: /* @__PURE__ */ u4(
+            SegmentedProgressBar,
+            {
+              value: snapshot.published.budget.utilization,
+              max: 100,
+              size: "standard",
+              "aria-label": "Budget usage"
+            }
+          ) }),
+          /* @__PURE__ */ u4("div", { class: "subscription-quota-row-sub", children: [
+            "of $",
+            snapshot.published.budget.limit_usd.toFixed(2),
+            " (",
+            snapshot.published.budget.currency,
+            ")"
+          ] })
+        ] }, "pub-budget")
+      ] }),
+      /* @__PURE__ */ u4("div", { class: "subscription-quota-divider" }),
+      /* @__PURE__ */ u4("div", { class: "subscription-quota-section", children: [
+        /* @__PURE__ */ u4("div", { class: "subscription-quota-section-label", children: [
+          "Estimated",
+          " ",
+          /* @__PURE__ */ u4("span", { class: "subscription-quota-tag", children: "[ESTIMATED]" })
+        ] }),
+        !hasEstimates && /* @__PURE__ */ u4("div", { class: "subscription-quota-empty", children: "Insufficient data \u2014 utilization too low to derive a token cap." }),
+        estimated.map((w5) => {
+          const dim = w5.confidence < 0.3;
+          return /* @__PURE__ */ u4(
+            "div",
+            {
+              class: "subscription-quota-row subscription-quota-row-estimated",
+              style: dim ? { opacity: 0.6 } : void 0,
+              children: [
+                /* @__PURE__ */ u4("div", { class: "subscription-quota-row-label", children: w5.label }),
+                /* @__PURE__ */ u4("div", { class: "subscription-quota-row-value", children: [
+                  "~",
+                  fmt(w5.estimated_cap_tokens),
+                  " tokens"
+                ] }),
+                /* @__PURE__ */ u4("div", { class: "subscription-quota-row-sub", children: [
+                  "from ",
+                  fmt(w5.observed_tokens),
+                  " observed \xB7 ",
+                  fmtConfidence(w5.confidence)
+                ] })
+              ]
+            },
+            `est-${w5.kind}`
+          );
+        })
+      ] })
+    ] });
+  }
+
+  // src/ui/components/SubscriptionHistoryChart.tsx
+  var WINDOW_LABELS = {
+    five_hour: "Claude \xB7 5h",
+    seven_day: "Claude \xB7 weekly",
+    seven_day_opus: "Claude \xB7 weekly Opus",
+    seven_day_sonnet: "Claude \xB7 weekly Sonnet",
+    codex_primary: "Codex \xB7 primary",
+    codex_secondary: "Codex \xB7 secondary"
+  };
+  var OPACITY_LADDER = [1, 0.65, 0.35, 0.2];
+  function inferProvider(windowType) {
+    return windowType.startsWith("codex_") ? "codex" : "claude";
+  }
+  function buildOptions(history2, changelog, provider) {
+    const filtered = history2.filter((row) => {
+      if (row.estimated_cap_tokens == null) return false;
+      if (provider === "all") return true;
+      return inferProvider(row.window_type) === provider;
+    });
+    if (filtered.length === 0) return null;
+    const seriesMap = /* @__PURE__ */ new Map();
+    for (const row of filtered) {
+      if (row.estimated_cap_tokens == null) continue;
+      const ts = Date.parse(row.timestamp);
+      if (Number.isNaN(ts)) continue;
+      let arr = seriesMap.get(row.window_type);
+      if (!arr) {
+        arr = [];
+        seriesMap.set(row.window_type, arr);
+      }
+      arr.push({ x: ts, y: row.estimated_cap_tokens });
+    }
+    if (seriesMap.size === 0) return null;
+    const seriesKeys = Array.from(seriesMap.keys()).sort();
+    const series = seriesKeys.map((key, i4) => ({
+      name: WINDOW_LABELS[key] ?? key,
+      data: (seriesMap.get(key) ?? []).sort((a4, b4) => a4.x - b4.x),
+      // The opacity ladder is applied via the per-series `colors` array below.
+      color: void 0,
+      _opacity: OPACITY_LADDER[i4 % OPACITY_LADDER.length]
+    }));
+    const annotationPoints = changelog.filter((entry) => provider === "all" || entry.provider === provider).map((entry) => ({
+      x: Date.parse(`${entry.date}T12:00:00Z`),
+      y: null,
+      marker: {
+        size: 4,
+        fillColor: "var(--text-primary)",
+        strokeColor: "var(--bg)",
+        radius: 0
+      },
+      label: {
+        text: entry.title,
+        style: {
+          color: "var(--text-primary)",
+          background: "var(--surface-elevated)",
+          fontFamily: "var(--font-mono)",
+          fontSize: "10px"
+        }
+      }
+    })).filter((p5) => Number.isFinite(p5.x));
+    const opts = {
+      chart: {
+        type: "line",
+        toolbar: { show: false },
+        animations: { enabled: false },
+        fontFamily: "var(--font-mono)"
+      },
+      theme: { mode: "dark" },
+      series: series.map((s4) => ({ name: s4.name, data: s4.data })),
+      colors: series.map(() => "var(--text-primary)"),
+      stroke: {
+        width: 2,
+        curve: "smooth"
+      },
+      fill: { type: "solid", opacity: 0 },
+      grid: {
+        borderColor: "var(--border)",
+        strokeDashArray: 2,
+        xaxis: { lines: { show: false } },
+        yaxis: { lines: { show: true } }
+      },
+      legend: {
+        position: "top",
+        labels: { colors: "var(--text-secondary)", fontFamily: "var(--font-mono)" },
+        itemMargin: { horizontal: 12, vertical: 4 }
+      },
+      xaxis: {
+        type: "datetime",
+        labels: {
+          style: { colors: "var(--text-secondary)", fontFamily: "var(--font-mono)", fontSize: "11px" }
+        },
+        axisBorder: { show: false },
+        axisTicks: { show: false }
+      },
+      yaxis: {
+        labels: {
+          style: { colors: "var(--text-secondary)", fontFamily: "var(--font-mono)", fontSize: "11px" },
+          formatter: (val) => {
+            if (!Number.isFinite(val)) return "";
+            if (val >= 1e9) return `${(val / 1e9).toFixed(2)}B`;
+            if (val >= 1e6) return `${(val / 1e6).toFixed(2)}M`;
+            if (val >= 1e3) return `${(val / 1e3).toFixed(0)}K`;
+            return String(val);
+          }
+        }
+      },
+      tooltip: {
+        theme: "dark",
+        style: { fontFamily: "var(--font-mono)", fontSize: "11px" },
+        y: {
+          formatter: (val) => Number.isFinite(val) ? `${val.toLocaleString("en-US")} tokens` : "\u2014"
+        }
+      },
+      markers: { size: 0, strokeWidth: 0, hover: { size: 4 } },
+      dataLabels: { enabled: false }
+    };
+    if (annotationPoints.length > 0) {
+      opts.annotations = { points: annotationPoints };
+    }
+    return opts;
+  }
+  function SubscriptionHistoryChart({ history: history2, changelog }) {
+    const [provider, setProvider] = d2("all");
+    const options = T2(
+      () => buildOptions(history2, changelog, provider),
+      [history2, changelog, provider]
+    );
+    return /* @__PURE__ */ u4("div", { class: "card subscription-history-card", children: [
+      /* @__PURE__ */ u4("div", { class: "subscription-history-header", children: [
+        /* @__PURE__ */ u4("div", { class: "subscription-history-title", children: "Subscription cap history" }),
+        /* @__PURE__ */ u4("div", { class: "subscription-history-filter", children: ["all", "claude", "codex"].map((p5) => /* @__PURE__ */ u4(
+          "button",
+          {
+            type: "button",
+            class: `chip${provider === p5 ? " chip-active" : ""}`,
+            onClick: () => setProvider(p5),
+            children: p5 === "all" ? "All" : p5 === "claude" ? "Claude" : "Codex"
+          },
+          p5
+        )) })
+      ] }),
+      /* @__PURE__ */ u4("div", { class: "subscription-history-body", children: options ? /* @__PURE__ */ u4("div", { class: "chart-wrap tall", children: /* @__PURE__ */ u4(ApexChart, { options, id: "subscription-history-chart" }) }) : /* @__PURE__ */ u4("div", { class: "subscription-quota-empty", children: "No historical observations yet \u2014 caps will appear once snapshots accumulate." }) }),
+      changelog.length > 0 && /* @__PURE__ */ u4("ul", { class: "subscription-history-changelog", children: changelog.map((entry) => /* @__PURE__ */ u4("li", { children: [
+        /* @__PURE__ */ u4("span", { class: "subscription-history-date", children: entry.date }),
+        /* @__PURE__ */ u4("span", { class: "subscription-history-provider", children: entry.provider }),
+        /* @__PURE__ */ u4("a", { class: "subscription-history-link", href: entry.source_url, target: "_blank", rel: "noreferrer", children: entry.title }),
+        /* @__PURE__ */ u4("span", { class: "subscription-history-desc", children: entry.description })
+      ] }, `${entry.date}-${entry.provider}-${entry.kind}`)) })
+    ] });
+  }
+
   // src/ui/components/tables/ToolUsageTable.tsx
   function makeColumns3(data) {
     const maxInvocations = data.reduce((m4, r4) => Math.max(m4, r4.invocations), 0);
@@ -8293,6 +8551,7 @@ ${row.project}` : row.project;
   // src/ui/dashboard/view.tsx
   var SECTION_TAB_MAP = {
     "usage-windows": "overview",
+    "subscription-quota": "overview",
     "claude-usage": "overview",
     "agent-status": "overview",
     "estimation-meta": "overview",
@@ -8319,6 +8578,7 @@ ${row.project}` : row.project;
   };
   var SECTION_DISPLAY_MODE = {
     "usage-windows": "grid",
+    "subscription-quota": "block",
     "agent-status": "grid",
     "estimation-meta": "grid",
     "stats-row": "grid"
@@ -8480,6 +8740,30 @@ ${row.project}` : row.project;
   function renderHourlyChart(data) {
     renderSection("hourly-chart", data.length > 0, /* @__PURE__ */ u4(HourlyChart, { data }));
   }
+  function renderSubscriptionQuota(section) {
+    const container = $2("subscription-quota");
+    if (!container) return;
+    const hasContent = !!section && (section.providers.length > 0 || section.history.length > 0 || section.changelog.length > 0);
+    if (!hasContent) {
+      setSectionVisibility("subscription-quota", false, "block");
+      R(null, container);
+      return;
+    }
+    setSectionVisibility("subscription-quota", true, "block");
+    R(
+      /* @__PURE__ */ u4("div", { class: "subscription-quota-section", children: [
+        /* @__PURE__ */ u4("div", { class: "subscription-quota-grid", children: section.providers.map((snap) => /* @__PURE__ */ u4(SubscriptionQuotaCard, { snapshot: snap }, snap.provider)) }),
+        /* @__PURE__ */ u4(
+          SubscriptionHistoryChart,
+          {
+            history: section.history,
+            changelog: section.changelog
+          }
+        )
+      ] }),
+      container
+    );
+  }
   function renderUsageWindows(data, previousSessionPercent, setPreviousSessionPercent, setStatusMessage, clearStatusMessage) {
     const container = $2("usage-windows");
     if (!container) return;
@@ -8630,6 +8914,7 @@ ${row.project}` : row.project;
     );
     setSectionVisibility("stats-row", true, "grid");
     renderEstimationMeta(confidenceBreakdown, billingModeBreakdown, pricingVersions);
+    renderSubscriptionQuota(data.subscription_quota);
     renderOfficialSync(data.official_sync);
     renderOpenAiReconciliation(data.openai_reconciliation);
     if (bucketIsWeek) {

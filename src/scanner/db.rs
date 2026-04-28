@@ -1,5 +1,5 @@
 use anyhow::Result;
-use rusqlite::Connection;
+use rusqlite::{Connection, OptionalExtension};
 use tracing::warn;
 
 use std::collections::HashMap;
@@ -450,6 +450,32 @@ fn apply_migrations(conn: &Connection) -> Result<()> {
             "ALTER TABLE rate_window_history ADD COLUMN source_path TEXT NOT NULL DEFAULT '';",
         )?;
     }
+
+    // Phase 22: Subscription-quota widget. Capture per-provider/per-window
+    // snapshots so we can chart estimated cap evolution over time.
+    if !has_column(conn, "rate_window_history", "provider") {
+        conn.execute_batch(
+            "ALTER TABLE rate_window_history ADD COLUMN provider TEXT NOT NULL DEFAULT 'claude';",
+        )?;
+    }
+    if !has_column(conn, "rate_window_history", "plan") {
+        conn.execute_batch("ALTER TABLE rate_window_history ADD COLUMN plan TEXT;")?;
+    }
+    if !has_column(conn, "rate_window_history", "observed_tokens") {
+        conn.execute_batch("ALTER TABLE rate_window_history ADD COLUMN observed_tokens INTEGER;")?;
+    }
+    if !has_column(conn, "rate_window_history", "estimated_cap_tokens") {
+        conn.execute_batch(
+            "ALTER TABLE rate_window_history ADD COLUMN estimated_cap_tokens INTEGER;",
+        )?;
+    }
+    if !has_column(conn, "rate_window_history", "confidence") {
+        conn.execute_batch("ALTER TABLE rate_window_history ADD COLUMN confidence REAL;")?;
+    }
+    conn.execute_batch(
+        "CREATE INDEX IF NOT EXISTS idx_rwh_provider_window
+            ON rate_window_history(provider, window_type, timestamp);",
+    )?;
 
     // Phase 5: context-window columns on live_events (idempotent ALTER TABLE).
     if !has_column(conn, "live_events", "context_input_tokens") {
@@ -1942,6 +1968,7 @@ pub fn get_dashboard_data(conn: &Connection, tz: TzParams) -> Result<DashboardDa
         generated_at,
         cache_efficiency,
         weekly_by_model,
+        subscription_quota: None,
     })
 }
 
@@ -1976,6 +2003,150 @@ pub fn get_rate_window_history(
     let rows = collect_warn(
         stmt.query_map(rusqlite::params![window_type, cutoff], |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, f64>(1)?))
+        })?,
+        "Failed to read rate_window_history row",
+    );
+    Ok(rows)
+}
+
+/// Snapshot of a rate-window observation with derived cap estimate, persisted
+/// every refresh so the dashboard can reconstruct historical evolution.
+pub struct RateWindowSnapshotInsert<'a> {
+    pub provider: &'a str,
+    pub window_type: &'a str,
+    pub used_percent: f64,
+    pub resets_at: Option<&'a str>,
+    pub plan: Option<&'a str>,
+    pub observed_tokens: Option<i64>,
+    pub estimated_cap_tokens: Option<i64>,
+    pub confidence: Option<f64>,
+    pub source_kind: &'a str,
+}
+
+/// Insert a rate-window snapshot, with a per-(provider, window_type) dedup
+/// gate: skip if the most recent row was within the last 5 minutes AND the
+/// `used_percent` differs by ≤ 0.5pp. This keeps the table sparse while still
+/// capturing meaningful changes.
+///
+/// Returns `Ok(true)` when the row was inserted, `Ok(false)` when the dedup
+/// gate skipped it.
+pub fn record_rate_window_snapshot(
+    conn: &Connection,
+    snap: &RateWindowSnapshotInsert<'_>,
+) -> Result<bool> {
+    let dedup_cutoff = (chrono::Utc::now() - chrono::Duration::minutes(5)).to_rfc3339();
+    let recent: Option<f64> = conn
+        .query_row(
+            "SELECT used_percent FROM rate_window_history
+             WHERE provider = ?1 AND window_type = ?2 AND timestamp >= ?3
+             ORDER BY timestamp DESC LIMIT 1",
+            rusqlite::params![snap.provider, snap.window_type, dedup_cutoff],
+            |row| row.get::<_, Option<f64>>(0),
+        )
+        .optional()?
+        .flatten();
+    if let Some(prev) = recent
+        && (prev - snap.used_percent).abs() <= 0.5
+    {
+        return Ok(false);
+    }
+
+    let timestamp = chrono::Utc::now().to_rfc3339();
+    conn.execute(
+        "INSERT INTO rate_window_history
+            (timestamp, window_type, used_percent, resets_at,
+             source_kind, source_path, provider, plan,
+             observed_tokens, estimated_cap_tokens, confidence)
+         VALUES (?1, ?2, ?3, ?4, ?5, '', ?6, ?7, ?8, ?9, ?10)",
+        rusqlite::params![
+            timestamp,
+            snap.window_type,
+            snap.used_percent,
+            snap.resets_at,
+            snap.source_kind,
+            snap.provider,
+            snap.plan,
+            snap.observed_tokens,
+            snap.estimated_cap_tokens,
+            snap.confidence,
+        ],
+    )?;
+    Ok(true)
+}
+
+/// Sum of all token columns from `turns` for a provider in the last
+/// `window_seconds`, optionally filtered by a `model LIKE` pattern (e.g.
+/// `"%opus%"`). Used as the numerator for the cap-estimator.
+pub fn observed_tokens_for_window(
+    conn: &Connection,
+    provider: &str,
+    window_seconds: i64,
+    model_pattern: Option<&str>,
+) -> Result<i64> {
+    if window_seconds <= 0 {
+        return Ok(0);
+    }
+    let cutoff = (chrono::Utc::now() - chrono::Duration::seconds(window_seconds)).to_rfc3339();
+    let total: Option<i64> = if let Some(pattern) = model_pattern {
+        conn.query_row(
+            "SELECT COALESCE(SUM(input_tokens + output_tokens + cache_read_tokens
+                + cache_creation_tokens + reasoning_output_tokens), 0)
+             FROM turns
+             WHERE provider = ?1 AND timestamp >= ?2 AND lower(model) LIKE ?3",
+            rusqlite::params![provider, cutoff, pattern],
+            |row| row.get(0),
+        )?
+    } else {
+        conn.query_row(
+            "SELECT COALESCE(SUM(input_tokens + output_tokens + cache_read_tokens
+                + cache_creation_tokens + reasoning_output_tokens), 0)
+             FROM turns
+             WHERE provider = ?1 AND timestamp >= ?2",
+            rusqlite::params![provider, cutoff],
+            |row| row.get(0),
+        )?
+    };
+    Ok(total.unwrap_or(0))
+}
+
+/// Hour-downsampled history for the subscription-quota widget. Returns at most
+/// one row per (provider, window_type, hour) over the last `days` days; the
+/// `MAX(estimated_cap_tokens)` per hour preserves the highest derived cap so
+/// noisy near-zero-utilization estimates don't drown out the signal.
+pub fn load_rate_window_history(
+    conn: &Connection,
+    days: i64,
+) -> Result<Vec<crate::models::RateWindowHistoryRow>> {
+    let cutoff = (chrono::Utc::now() - chrono::Duration::days(days)).to_rfc3339();
+    // Hour-downsample by `(provider, window_type, hour_bucket)`. We pick
+    // `MAX(plan)` rather than the most-recent value because tracking
+    // recency requires a window function that complicates the query — and
+    // plan strings rarely vary within a single hour for a given provider.
+    let mut stmt = conn.prepare(
+        "SELECT
+            strftime('%Y-%m-%dT%H:00:00Z', timestamp) AS hour_bucket,
+            provider,
+            window_type,
+            AVG(used_percent),
+            MAX(estimated_cap_tokens),
+            MAX(confidence),
+            MAX(plan)
+         FROM rate_window_history
+         WHERE timestamp >= ?1
+         GROUP BY hour_bucket, provider, window_type
+         ORDER BY hour_bucket ASC",
+    )?;
+    let rows = collect_warn(
+        stmt.query_map(rusqlite::params![cutoff], |row| {
+            Ok(crate::models::RateWindowHistoryRow {
+                timestamp: row.get(0)?,
+                provider: row.get(1)?,
+                window_type: row.get(2)?,
+                used_percent: row.get(3)?,
+                estimated_cap_tokens: row.get(4)?,
+                confidence: row.get(5)?,
+                plan: row.get(6)?,
+            })
         })?,
         "Failed to read rate_window_history row",
     );
@@ -3965,6 +4136,91 @@ mod tests {
 
         let weekly = get_rate_window_history(&conn, "weekly", 24).unwrap();
         assert_eq!(weekly.len(), 1);
+    }
+
+    #[test]
+    fn test_record_rate_window_snapshot_dedup_and_load() {
+        let conn = test_conn();
+        let snap = RateWindowSnapshotInsert {
+            provider: "claude",
+            window_type: "five_hour",
+            used_percent: 42.0,
+            resets_at: Some("2099-01-01T00:00:00Z"),
+            plan: Some("pro"),
+            observed_tokens: Some(420_000),
+            estimated_cap_tokens: Some(1_000_000),
+            confidence: Some(0.9),
+            source_kind: "oauth",
+        };
+        assert!(record_rate_window_snapshot(&conn, &snap).unwrap());
+
+        // Same value within 0.5pp inside the 5-min dedup window: skipped.
+        let snap_dup = RateWindowSnapshotInsert {
+            used_percent: 42.3,
+            ..snap
+        };
+        assert!(!record_rate_window_snapshot(&conn, &snap_dup).unwrap());
+
+        // Different window_type: not deduped against the first row.
+        let snap_other = RateWindowSnapshotInsert {
+            window_type: "seven_day",
+            used_percent: 10.0,
+            ..snap
+        };
+        assert!(record_rate_window_snapshot(&conn, &snap_other).unwrap());
+
+        let history = load_rate_window_history(&conn, 90).unwrap();
+        assert_eq!(history.len(), 2, "got {history:?}");
+        let claude_5h = history
+            .iter()
+            .find(|r| r.window_type == "five_hour")
+            .expect("five_hour row");
+        assert_eq!(claude_5h.provider, "claude");
+        assert_eq!(claude_5h.estimated_cap_tokens, Some(1_000_000));
+        assert_eq!(claude_5h.plan.as_deref(), Some("pro"));
+    }
+
+    #[test]
+    fn test_observed_tokens_for_window_filters() {
+        let conn = test_conn();
+        let now = chrono::Utc::now().to_rfc3339();
+        conn.execute(
+            "INSERT INTO sessions (session_id, provider, total_input_tokens, turn_count)
+             VALUES ('claude:s1', 'claude', 0, 0)",
+            [],
+        )
+        .unwrap();
+        let turns = vec![
+            Turn {
+                session_id: "claude:s1".into(),
+                provider: "claude".into(),
+                model: "claude-opus-4-5".into(),
+                input_tokens: 1000,
+                output_tokens: 500,
+                timestamp: now.clone(),
+                ..Default::default()
+            },
+            Turn {
+                session_id: "claude:s1".into(),
+                provider: "claude".into(),
+                model: "claude-sonnet-4-5".into(),
+                input_tokens: 200,
+                output_tokens: 100,
+                timestamp: now,
+                ..Default::default()
+            },
+        ];
+        insert_turns(&conn, &turns).unwrap();
+
+        let total = observed_tokens_for_window(&conn, "claude", 3600, None).unwrap();
+        assert_eq!(total, 1800);
+
+        let opus_only = observed_tokens_for_window(&conn, "claude", 3600, Some("%opus%")).unwrap();
+        assert_eq!(opus_only, 1500);
+
+        let sonnet_only =
+            observed_tokens_for_window(&conn, "claude", 3600, Some("%sonnet%")).unwrap();
+        assert_eq!(sonnet_only, 300);
     }
 
     #[test]

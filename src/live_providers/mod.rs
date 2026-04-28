@@ -20,6 +20,7 @@ pub mod cache;
 pub mod claude;
 pub mod codex;
 pub mod conditions;
+pub mod quota_estimator;
 
 const LIVE_PROVIDER_CACHE_SECS: u64 = 60;
 const ALL_PROVIDERS: [&str; 2] = ["claude", "codex"];
@@ -348,6 +349,196 @@ fn source_device_name() -> String {
         .unwrap_or_else(|| "unknown-device".to_string())
 }
 
+/// Window-type identifiers used both as a series key on the dashboard chart
+/// and as `rate_window_history.window_type` in SQLite.
+const WINDOW_FIVE_HOUR: &str = "five_hour";
+const WINDOW_SEVEN_DAY: &str = "seven_day";
+const WINDOW_SEVEN_DAY_OPUS: &str = "seven_day_opus";
+const WINDOW_SEVEN_DAY_SONNET: &str = "seven_day_sonnet";
+const WINDOW_CODEX_PRIMARY: &str = "codex_primary";
+const WINDOW_CODEX_SECONDARY: &str = "codex_secondary";
+
+/// Persist quota snapshots for the current response on a fire-and-forget task.
+/// Failure to record is non-fatal: the historical chart simply skips that
+/// data point. We never want to block the live-provider response on disk IO.
+fn record_subscription_quota_snapshots(state: &Arc<AppState>, response: &LiveProvidersResponse) {
+    use crate::live_providers::quota_estimator::estimate_window_cap;
+    use crate::models::LiveProviderSnapshot;
+    use crate::scanner::db::{RateWindowSnapshotInsert, record_rate_window_snapshot};
+
+    struct WindowSpec<'a> {
+        provider: &'a str,
+        window_type: &'a str,
+        used_percent: f64,
+        resets_at: Option<String>,
+        plan: Option<String>,
+        window_seconds: i64,
+        model_pattern: Option<&'a str>,
+    }
+
+    fn collect_specs<'a>(snapshot: &'a LiveProviderSnapshot) -> Vec<WindowSpec<'a>> {
+        let plan = snapshot.identity.as_ref().and_then(|i| i.plan.clone());
+        let mut specs = Vec::new();
+        match snapshot.provider.as_str() {
+            "claude" => {
+                if let Some(window) = snapshot.primary.as_ref() {
+                    specs.push(WindowSpec {
+                        provider: "claude",
+                        window_type: WINDOW_FIVE_HOUR,
+                        used_percent: window.used_percent,
+                        resets_at: window.resets_at.clone(),
+                        plan: plan.clone(),
+                        window_seconds: 5 * 3600,
+                        model_pattern: None,
+                    });
+                }
+                if let Some(window) = snapshot.secondary.as_ref() {
+                    specs.push(WindowSpec {
+                        provider: "claude",
+                        window_type: WINDOW_SEVEN_DAY,
+                        used_percent: window.used_percent,
+                        resets_at: window.resets_at.clone(),
+                        plan: plan.clone(),
+                        window_seconds: 7 * 86_400,
+                        model_pattern: None,
+                    });
+                }
+                if let Some(window) = snapshot.tertiary.as_ref() {
+                    // Tertiary is the more-specific of the Opus/Sonnet
+                    // windows; we cannot tell from the snapshot alone which
+                    // one Anthropic selected, so we record both with the
+                    // matching observed-token filter and let the
+                    // estimator's confidence floor weed out the noise.
+                    let used = window.used_percent;
+                    let resets = window.resets_at.clone();
+                    specs.push(WindowSpec {
+                        provider: "claude",
+                        window_type: WINDOW_SEVEN_DAY_OPUS,
+                        used_percent: used,
+                        resets_at: resets.clone(),
+                        plan: plan.clone(),
+                        window_seconds: 7 * 86_400,
+                        model_pattern: Some("%opus%"),
+                    });
+                    specs.push(WindowSpec {
+                        provider: "claude",
+                        window_type: WINDOW_SEVEN_DAY_SONNET,
+                        used_percent: used,
+                        resets_at: resets,
+                        plan: plan.clone(),
+                        window_seconds: 7 * 86_400,
+                        model_pattern: Some("%sonnet%"),
+                    });
+                }
+            }
+            "codex" => {
+                if let Some(window) = snapshot.primary.as_ref() {
+                    specs.push(WindowSpec {
+                        provider: "codex",
+                        window_type: WINDOW_CODEX_PRIMARY,
+                        used_percent: window.used_percent,
+                        resets_at: window.resets_at.clone(),
+                        plan: plan.clone(),
+                        window_seconds: window.window_minutes.unwrap_or(5 * 60) * 60,
+                        model_pattern: None,
+                    });
+                }
+                if let Some(window) = snapshot.secondary.as_ref() {
+                    specs.push(WindowSpec {
+                        provider: "codex",
+                        window_type: WINDOW_CODEX_SECONDARY,
+                        used_percent: window.used_percent,
+                        resets_at: window.resets_at.clone(),
+                        plan,
+                        window_seconds: window.window_minutes.unwrap_or(7 * 24 * 60) * 60,
+                        model_pattern: None,
+                    });
+                }
+            }
+            _ => {}
+        }
+        specs
+    }
+
+    let mut all_specs: Vec<WindowSpec<'_>> = Vec::new();
+    for snapshot in &response.providers {
+        if !snapshot.available {
+            continue;
+        }
+        all_specs.extend(collect_specs(snapshot));
+    }
+    if all_specs.is_empty() {
+        return;
+    }
+
+    // Snapshot owned data for the spawned task.
+    struct OwnedSpec {
+        provider: String,
+        window_type: String,
+        used_percent: f64,
+        resets_at: Option<String>,
+        plan: Option<String>,
+        window_seconds: i64,
+        model_pattern: Option<String>,
+    }
+    let owned: Vec<OwnedSpec> = all_specs
+        .into_iter()
+        .map(|s| OwnedSpec {
+            provider: s.provider.to_string(),
+            window_type: s.window_type.to_string(),
+            used_percent: s.used_percent,
+            resets_at: s.resets_at,
+            plan: s.plan,
+            window_seconds: s.window_seconds,
+            model_pattern: s.model_pattern.map(|p| p.to_string()),
+        })
+        .collect();
+    let db_path = state.db_path.clone();
+
+    tokio::task::spawn_blocking(move || {
+        use crate::scanner::db::{init_db, observed_tokens_for_window, open_db};
+        let conn = match open_db(&db_path) {
+            Ok(c) => c,
+            Err(err) => {
+                tracing::warn!("subscription_quota: open_db failed: {err}");
+                return;
+            }
+        };
+        if let Err(err) = init_db(&conn) {
+            tracing::warn!("subscription_quota: init_db failed: {err}");
+            return;
+        }
+        for spec in &owned {
+            let observed = observed_tokens_for_window(
+                &conn,
+                &spec.provider,
+                spec.window_seconds,
+                spec.model_pattern.as_deref(),
+            )
+            .unwrap_or(0);
+            let estimate = estimate_window_cap(spec.used_percent, observed);
+            let snap = RateWindowSnapshotInsert {
+                provider: &spec.provider,
+                window_type: &spec.window_type,
+                used_percent: spec.used_percent,
+                resets_at: spec.resets_at.as_deref(),
+                plan: spec.plan.as_deref(),
+                observed_tokens: Some(observed),
+                estimated_cap_tokens: estimate.map(|e| e.estimated_cap_tokens),
+                confidence: estimate.map(|e| e.confidence),
+                source_kind: "oauth",
+            };
+            if let Err(err) = record_rate_window_snapshot(&conn, &snap) {
+                tracing::warn!(
+                    "subscription_quota: record snapshot {}/{} failed: {err}",
+                    spec.provider,
+                    spec.window_type
+                );
+            }
+        }
+    });
+}
+
 async fn fetch_live_provider_response(
     state: &Arc<AppState>,
     requested_provider: Option<&str>,
@@ -433,7 +624,7 @@ async fn fetch_live_provider_response(
     )
     .await?;
 
-    Ok(LiveProvidersResponse {
+    let response = LiveProvidersResponse {
         contract_version: LIVE_PROVIDERS_CONTRACT_VERSION,
         providers,
         fetched_at: chrono::Utc::now().to_rfc3339(),
@@ -449,7 +640,11 @@ async fn fetch_live_provider_response(
             Vec::new()
         },
         local_notification_state: Some(local_notification_state),
-    })
+    };
+    if !startup {
+        record_subscription_quota_snapshots(state, &response);
+    }
+    Ok(response)
 }
 
 async fn cached_agent_status(

@@ -21,6 +21,8 @@ import { ServiceTiersTable } from '../components/tables/ServiceTiers';
 import { SessionsTable } from '../components/tables/SessionsTable';
 import { StatsCards } from '../components/StatsCards';
 import { SubagentSummary as SubagentSummaryComponent } from '../components/SubagentSummary';
+import { SubscriptionQuotaCard } from '../components/SubscriptionQuotaCard';
+import { SubscriptionHistoryChart } from '../components/SubscriptionHistoryChart';
 import { ToolUsageTable } from '../components/tables/ToolUsageTable';
 import { VersionDonut } from '../components/charts/VersionDonut';
 import { VersionTable } from '../components/tables/VersionTable';
@@ -59,6 +61,7 @@ import { buildAggregations, buildWeeklyAgg, getRangeCutoff } from './aggregation
 
 const SECTION_TAB_MAP: Record<string, DashboardTab> = {
   'usage-windows': 'overview',
+  'subscription-quota': 'overview',
   'claude-usage': 'overview',
   'agent-status': 'overview',
   'estimation-meta': 'overview',
@@ -86,6 +89,7 @@ const SECTION_TAB_MAP: Record<string, DashboardTab> = {
 
 const SECTION_DISPLAY_MODE: Record<string, string> = {
   'usage-windows': 'grid',
+  'subscription-quota': 'block',
   'agent-status': 'grid',
   'estimation-meta': 'grid',
   'stats-row': 'grid',
@@ -278,6 +282,38 @@ function renderHourlyChart(data: DashboardData['hourly_distribution']): void {
   renderSection('hourly-chart', data.length > 0, <HourlyChart data={data} />);
 }
 
+function renderSubscriptionQuota(
+  section: DashboardData['subscription_quota']
+): void {
+  const container = $('subscription-quota');
+  if (!container) return;
+  const hasContent =
+    !!section &&
+    (section.providers.length > 0 ||
+      section.history.length > 0 ||
+      section.changelog.length > 0);
+  if (!hasContent) {
+    setSectionVisibility('subscription-quota', false, 'block');
+    render(null, container);
+    return;
+  }
+  setSectionVisibility('subscription-quota', true, 'block');
+  render(
+    <div class="subscription-quota-section">
+      <div class="subscription-quota-grid">
+        {section!.providers.map(snap => (
+          <SubscriptionQuotaCard key={snap.provider} snapshot={snap} />
+        ))}
+      </div>
+      <SubscriptionHistoryChart
+        history={section!.history}
+        changelog={section!.changelog}
+      />
+    </div>,
+    container
+  );
+}
+
 export function renderUsageWindows(
   data: UsageWindowsResponse,
   previousSessionPercent: number | null,
@@ -466,6 +502,7 @@ export function renderDashboardView(
   );
   setSectionVisibility('stats-row', true, 'grid');
   renderEstimationMeta(confidenceBreakdown, billingModeBreakdown, pricingVersions);
+  renderSubscriptionQuota(data.subscription_quota);
   renderOfficialSync(data.official_sync);
   renderOpenAiReconciliation(data.openai_reconciliation);
 

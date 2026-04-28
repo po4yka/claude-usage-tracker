@@ -1,0 +1,58 @@
+[
+  {
+    "date": "2025-08-28",
+    "provider": "claude",
+    "kind": "limit_added",
+    "title": "Weekly rate limits introduced",
+    "description": "Anthropic added weekly caps on top of the existing 5-hour rolling window. Affects <5% of subscribers per Anthropic.",
+    "source_url": "https://support.claude.com/en/articles/9797557-usage-limit-best-practices"
+  },
+  {
+    "date": "2025-09-29",
+    "provider": "claude",
+    "kind": "limit_tightened",
+    "title": "Claude Code limits tightened",
+    "description": "Community reports of unexpected reductions in effective per-window allowances on the Pro and Max plans, undocumented by Anthropic.",
+    "source_url": "https://github.com/anthropics/claude-code/issues/9094"
+  },
+  {
+    "date": "2025-11-24",
+    "provider": "claude",
+    "kind": "limit_split",
+    "title": "Opus cap removed; Sonnet gets its own limit",
+    "description": "Opus 4.5 launch: shared Opus weekly cap removed, Opus now uses the overall limit. Sonnet receives a dedicated weekly limit matching the previous overall cap.",
+    "source_url": "https://platform.claude.com/docs/en/about-claude/models/whats-new-claude-4-5"
+  },
+  {
+    "date": "2026-01-08",
+    "provider": "claude",
+    "kind": "limit_tightened",
+    "title": "Opus 4.5 weekly limit reduced",
+    "description": "Opus 4.5 weekly allowance significantly reduced after the Jan 8 reset; reported as the most restrictive since launch.",
+    "source_url": "https://github.com/anthropics/claude-code/issues/17084"
+  },
+  {
+    "date": "2026-03-26",
+    "provider": "claude",
+    "kind": "limit_redistributed",
+    "title": "Peak-hour throttling tightened",
+    "description": "Anthropic redistributed weekly capacity: 5-hour windows drain faster during peak hours (05:00–11:00 PT / 13:00–19:00 GMT). Overall weekly limits unchanged.",
+    "source_url": "https://www.theregister.com/2026/03/26/anthropic_tweaks_usage_limits/"
+  },
+  {
+    "date": "2026-04-02",
+    "provider": "codex",
+    "kind": "billing_model_change",
+    "title": "Codex switched to token-based metering",
+    "description": "OpenAI replaced per-message Codex limits with API-token usage metering across Plus, Pro, Business, and new Enterprise plans.",
+    "source_url": "https://help.openai.com/en/articles/20001106-codex-rate-card"
+  },
+  {
+    "date": "2026-04-02",
+    "provider": "codex",
+    "kind": "promotion",
+    "title": "ChatGPT Pro $100 launch promo: 2× Codex usage",
+    "description": "Through 2026-05-31, the Pro $100 tier doubles Codex allowances (10× Plus instead of 5×); Pro $200 keeps 25× Plus on the 5-hour window.",
+    "source_url": "https://venturebeat.com/orchestration/openai-introduces-chatgpt-pro-usd100-tier-with-5x-usage-limits-for-codex"
+  }
+]

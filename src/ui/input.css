@@ -1042,3 +1042,221 @@
     animation: none;
   }
 }
+
+/* ── Phase 22: Subscription-quota widget ──────────────────────────────
+ * Two zones inside one card (Published + Estimated), separated by a 1px
+ * border. Estimated is dimmed when confidence < 0.3. The history chart
+ * sits below the per-provider grid in the same section.
+ */
+.subscription-quota-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.subscription-quota-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+  border-radius: 12px;
+}
+
+.subscription-quota-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.subscription-quota-title {
+  font-family: var(--font-sans);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.subscription-quota-plan {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+  letter-spacing: 0.04em;
+}
+
+.subscription-quota-section-label {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+  letter-spacing: 0.04em;
+}
+
+.subscription-quota-tag {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  padding: 1px 6px;
+  margin-left: 6px;
+  color: var(--text-secondary);
+  background: var(--surface-raised);
+  border-radius: 4px;
+}
+
+.subscription-quota-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas:
+    "label value"
+    "bar bar"
+    "sub sub";
+  column-gap: 12px;
+  row-gap: 4px;
+  padding: 8px 0;
+}
+
+.subscription-quota-row + .subscription-quota-row {
+  border-top: 1px dashed var(--border);
+}
+
+.subscription-quota-row-label {
+  grid-area: label;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.subscription-quota-row-value {
+  grid-area: value;
+  font-family: var(--font-mono);
+  font-feature-settings: "tnum";
+  font-size: 13px;
+  color: var(--text-primary);
+  text-align: right;
+}
+
+.subscription-quota-row-bar {
+  grid-area: bar;
+}
+
+.subscription-quota-row-sub {
+  grid-area: sub;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.subscription-quota-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 0;
+}
+
+.subscription-quota-empty {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: var(--text-secondary);
+  padding: 8px 0;
+}
+
+.subscription-history-card {
+  padding: 20px;
+  border-radius: 12px;
+}
+
+.subscription-history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.subscription-history-title {
+  font-family: var(--font-sans);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.subscription-history-filter {
+  display: flex;
+  gap: 8px;
+}
+
+.chip {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border-visible);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.chip:hover {
+  color: var(--text-primary);
+  background: var(--surface-raised);
+}
+
+.chip-active {
+  color: var(--text-primary);
+  border-color: var(--accent-interactive);
+  background: color-mix(in srgb, var(--accent-interactive) 18%, transparent);
+}
+
+.subscription-history-body {
+  position: relative;
+}
+
+.subscription-history-changelog {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+  border-top: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.subscription-history-changelog li {
+  display: grid;
+  grid-template-columns: 90px 60px 1fr;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--border);
+  color: var(--text-secondary);
+  align-items: baseline;
+}
+
+.subscription-history-changelog li > .subscription-history-desc {
+  grid-column: 1 / -1;
+  color: var(--text-secondary);
+  opacity: 0.85;
+  padding-left: 158px;
+  margin-top: 2px;
+}
+
+.subscription-history-date {
+  color: var(--text-primary);
+  font-feature-settings: "tnum";
+}
+
+.subscription-history-provider {
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.subscription-history-link {
+  color: var(--text-primary);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--border-visible);
+}
+
+.subscription-history-link:hover {
+  color: var(--accent-interactive);
+  border-bottom-color: var(--accent-interactive);
+}

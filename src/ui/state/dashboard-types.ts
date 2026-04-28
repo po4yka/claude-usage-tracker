@@ -313,6 +313,75 @@ export interface HeatmapData {
   tz_offset_min: number;
 }
 
+// Subscription-quota widget (Phase 22). Mirrors src/models.rs.
+export interface PublishedWindow {
+  kind: string;
+  label: string;
+  used_percent: number;
+  resets_at?: string | null;
+  resets_in_minutes?: number | null;
+  window_seconds?: number | null;
+}
+
+export interface PublishedBudget {
+  used_usd: number;
+  limit_usd: number;
+  utilization: number;
+  currency: string;
+}
+
+export interface ProviderQuotaPublished {
+  plan_label?: string | null;
+  windows: PublishedWindow[];
+  budget?: PublishedBudget | null;
+}
+
+export interface EstimatedWindow {
+  kind: string;
+  label: string;
+  estimated_cap_tokens: number;
+  observed_tokens: number;
+  confidence: number;
+}
+
+export interface ProviderQuotaEstimated {
+  windows: EstimatedWindow[];
+}
+
+export interface ProviderQuotaSnapshot {
+  provider: string;
+  plan?: string | null;
+  source_used: string;
+  published: ProviderQuotaPublished;
+  estimated?: ProviderQuotaEstimated | null;
+}
+
+export interface RateWindowHistoryRow {
+  timestamp: string;
+  provider: string;
+  window_type: string;
+  used_percent: number | null;
+  estimated_cap_tokens: number | null;
+  confidence: number | null;
+  plan: string | null;
+}
+
+export interface ChangelogEntry {
+  date: string;
+  provider: string;
+  kind: string;
+  title: string;
+  description: string;
+  source_url: string;
+}
+
+export interface SubscriptionQuotaSection {
+  providers: ProviderQuotaSnapshot[];
+  history: RateWindowHistoryRow[];
+  changelog: ChangelogEntry[];
+  generated_at: string;
+}
+
 export interface DashboardData {
   all_models: string[];
   provider_breakdown: ProviderSummary[];
@@ -334,5 +403,6 @@ export interface DashboardData {
   official_sync: OfficialSyncSummary;
   generated_at: string;
   cache_efficiency: CacheEfficiency;
+  subscription_quota?: SubscriptionQuotaSection | null;
   error?: string;
 }

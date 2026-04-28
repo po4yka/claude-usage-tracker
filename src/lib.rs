@@ -36,6 +36,7 @@ pub mod scrape;
 pub mod server;
 pub mod status_aggregator;
 pub mod statusline;
+pub mod subscription_changelog;
 pub mod tz;
 pub mod usage_monitor;
 pub mod webhooks;

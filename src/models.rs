@@ -1,5 +1,93 @@
 use serde::{Deserialize, Serialize};
 
+// ---------------------------------------------------------------------------
+// Subscription-quota widget (Phase 22)
+// ---------------------------------------------------------------------------
+//
+// Provider subscriptions don't expose absolute token caps. We split the
+// payload into a `published` block (verbatim from the provider — utilization%,
+// reset times, $-budget, plan name) and an `estimated` block we derive
+// ourselves by inverting `used_percent` against observed-token throughput.
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SubscriptionQuotaSection {
+    pub providers: Vec<ProviderQuotaSnapshot>,
+    pub history: Vec<RateWindowHistoryRow>,
+    pub changelog: Vec<crate::subscription_changelog::ChangelogEntry>,
+    pub generated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProviderQuotaSnapshot {
+    pub provider: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plan: Option<String>,
+    pub source_used: String,
+    pub published: ProviderQuotaPublished,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub estimated: Option<ProviderQuotaEstimated>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ProviderQuotaPublished {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plan_label: Option<String>,
+    pub windows: Vec<PublishedWindow>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub budget: Option<PublishedBudget>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PublishedWindow {
+    /// Stable identifier (e.g. `"five_hour"`, `"seven_day"`,
+    /// `"seven_day_opus"`, `"seven_day_sonnet"`, `"codex_primary"`,
+    /// `"codex_secondary"`). Used as the time-series series key.
+    pub kind: String,
+    /// Human label for the card (e.g. `"5-hour window"`).
+    pub label: String,
+    pub used_percent: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resets_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resets_in_minutes: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub window_seconds: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PublishedBudget {
+    pub used_usd: f64,
+    pub limit_usd: f64,
+    pub utilization: f64,
+    pub currency: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ProviderQuotaEstimated {
+    pub windows: Vec<EstimatedWindow>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EstimatedWindow {
+    pub kind: String,
+    pub label: String,
+    pub estimated_cap_tokens: i64,
+    pub observed_tokens: i64,
+    pub confidence: f64,
+}
+
+/// One downsampled row of historical observations for the chart.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RateWindowHistoryRow {
+    pub timestamp: String,
+    pub provider: String,
+    pub window_type: String,
+    pub used_percent: Option<f64>,
+    pub estimated_cap_tokens: Option<i64>,
+    pub confidence: Option<f64>,
+    pub plan: Option<String>,
+}
+
 pub const LIVE_PROVIDERS_CONTRACT_VERSION: u32 = 2;
 pub const MOBILE_SNAPSHOT_CONTRACT_VERSION: u32 = 1;
 
@@ -135,6 +223,11 @@ pub struct DashboardData {
     /// Phase 3: weekly aggregation by model — always populated.
     /// The frontend buckets and filters client-side.
     pub weekly_by_model: Vec<WeeklyModelRow>,
+    /// Phase 22: subscription-quota widget payload (Claude + Codex).
+    /// Populated by the API handler after live-provider snapshots resolve;
+    /// remains `None` from the pure-DB path (e.g. CLI `today --json`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subscription_quota: Option<SubscriptionQuotaSection>,
 }
 
 /// One entry in the `weekly_by_model` array of `/api/data`.
@@ -1174,6 +1267,20 @@ mod tests {
     fn cache_hit_rate_none_when_empty() {
         let bd = TokenBreakdown::default();
         assert!(bd.cache_hit_rate().is_none());
+    }
+
+    #[test]
+    fn subscription_quota_section_serializes_minimal() {
+        let section = SubscriptionQuotaSection {
+            providers: vec![],
+            history: vec![],
+            changelog: vec![],
+            generated_at: "2026-04-28T00:00:00Z".into(),
+        };
+        let json = serde_json::to_value(&section).unwrap();
+        assert!(json["providers"].is_array());
+        assert!(json["history"].is_array());
+        assert!(json["changelog"].is_array());
     }
 
     #[test]

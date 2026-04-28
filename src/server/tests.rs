@@ -725,6 +725,47 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_api_data_includes_subscription_quota_section() {
+        let tmp = TempDir::new().unwrap();
+        let (db_path, projects) = setup_test_db(&tmp);
+        let app = test_app(db_path, projects);
+
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/data")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = resp.into_body().collect().await.unwrap().to_bytes();
+        let data: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+        // The subscription_quota section is attached even when providers are
+        // unavailable in tests — its `changelog` is statically loaded from
+        // the bundled JSON, so we always have something to assert against.
+        let section = data
+            .get("subscription_quota")
+            .expect("subscription_quota section");
+        assert!(
+            section["providers"].is_array(),
+            "providers should be array, got {section}"
+        );
+        assert!(section["history"].is_array());
+        let changelog = section["changelog"]
+            .as_array()
+            .expect("changelog should be array");
+        assert!(
+            changelog.len() >= 6,
+            "expected ≥6 curated changelog entries, got {}",
+            changelog.len()
+        );
+        assert!(section["generated_at"].is_string());
+    }
+
+    #[tokio::test]
     async fn test_api_rescan_returns_json() {
         let tmp = TempDir::new().unwrap();
         let (db_path, projects) = setup_test_db(&tmp);

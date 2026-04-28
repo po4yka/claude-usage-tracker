@@ -220,8 +220,224 @@ pub async fn api_data(
             .to_string();
     }
 
+    result.subscription_quota = build_subscription_quota_section(&state).await;
+
     let value = serde_json::to_value(result).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(value))
+}
+
+/// Assemble the subscription-quota section attached to `/api/data`. Returns
+/// `None` only when the live-provider call fails outright; partial data
+/// (e.g. Claude OK, Codex unavailable) still produces a section so the widget
+/// can render what it has.
+pub(crate) async fn build_subscription_quota_section(
+    state: &Arc<AppState>,
+) -> Option<crate::models::SubscriptionQuotaSection> {
+    use crate::live_providers::quota_estimator::estimate_window_cap;
+    use crate::live_providers::{ResponseScope, load_snapshots};
+    use crate::models::{
+        EstimatedWindow, ProviderQuotaEstimated, ProviderQuotaPublished, ProviderQuotaSnapshot,
+        PublishedWindow, RateWindowHistoryRow, SubscriptionQuotaSection,
+    };
+
+    let live = match load_snapshots(state, None, ResponseScope::All, false, false).await {
+        Ok(resp) => resp,
+        Err(err) => {
+            tracing::warn!("subscription_quota: live snapshot fetch failed: {err}");
+            return None;
+        }
+    };
+
+    let db_path = state.db_path.clone();
+    let history: Vec<RateWindowHistoryRow> =
+        match tokio::task::spawn_blocking(move || -> anyhow::Result<Vec<RateWindowHistoryRow>> {
+            let conn = db::open_db(&db_path)?;
+            db::init_db(&conn)?;
+            db::load_rate_window_history(&conn, 90)
+        })
+        .await
+        {
+            Ok(Ok(rows)) => rows,
+            Ok(Err(err)) => {
+                tracing::warn!("subscription_quota: history read failed: {err}");
+                Vec::new()
+            }
+            Err(err) => {
+                tracing::warn!("subscription_quota: history task join failed: {err}");
+                Vec::new()
+            }
+        };
+
+    fn published_window(
+        kind: &str,
+        label: &str,
+        window: Option<&crate::models::LiveRateWindow>,
+        window_seconds: Option<i64>,
+    ) -> Option<PublishedWindow> {
+        let w = window?;
+        Some(PublishedWindow {
+            kind: kind.into(),
+            label: label.into(),
+            used_percent: w.used_percent,
+            resets_at: w.resets_at.clone(),
+            resets_in_minutes: w.resets_in_minutes,
+            window_seconds: window_seconds.or_else(|| w.window_minutes.map(|m| m * 60)),
+        })
+    }
+
+    let db_path_for_observed = state.db_path.clone();
+    let mut providers: Vec<ProviderQuotaSnapshot> = Vec::new();
+
+    for snapshot in &live.providers {
+        if !snapshot.available {
+            continue;
+        }
+        let plan = snapshot.identity.as_ref().and_then(|i| i.plan.clone());
+        let mut windows = Vec::new();
+        match snapshot.provider.as_str() {
+            "claude" => {
+                if let Some(w) = published_window(
+                    "five_hour",
+                    "5-hour window",
+                    snapshot.primary.as_ref(),
+                    Some(5 * 3600),
+                ) {
+                    windows.push(w);
+                }
+                if let Some(w) = published_window(
+                    "seven_day",
+                    "Weekly (overall)",
+                    snapshot.secondary.as_ref(),
+                    Some(7 * 86_400),
+                ) {
+                    windows.push(w);
+                }
+                if let Some(w) = published_window(
+                    "seven_day_opus",
+                    "Weekly Opus",
+                    snapshot.tertiary.as_ref(),
+                    Some(7 * 86_400),
+                ) {
+                    windows.push(w);
+                }
+            }
+            "codex" => {
+                if let Some(w) = published_window(
+                    "codex_primary",
+                    "Primary window",
+                    snapshot.primary.as_ref(),
+                    None,
+                ) {
+                    windows.push(w);
+                }
+                if let Some(w) = published_window(
+                    "codex_secondary",
+                    "Secondary window",
+                    snapshot.secondary.as_ref(),
+                    None,
+                ) {
+                    windows.push(w);
+                }
+            }
+            _ => continue,
+        }
+
+        let budget = budget_from_snapshot(snapshot);
+
+        // Compute fresh estimates per window. observed_tokens is read from DB.
+        let provider_str = snapshot.provider.clone();
+        let window_specs: Vec<(String, String, f64, i64, Option<&'static str>)> = windows
+            .iter()
+            .map(|w| {
+                let model_pattern: Option<&'static str> = match w.kind.as_str() {
+                    "seven_day_opus" => Some("%opus%"),
+                    "seven_day_sonnet" => Some("%sonnet%"),
+                    _ => None,
+                };
+                (
+                    w.kind.clone(),
+                    w.label.clone(),
+                    w.used_percent,
+                    w.window_seconds.unwrap_or(0),
+                    model_pattern,
+                )
+            })
+            .collect();
+
+        let db_path_inner = db_path_for_observed.clone();
+        let provider_for_task = provider_str.clone();
+        let estimates: Vec<EstimatedWindow> =
+            tokio::task::spawn_blocking(move || -> Vec<EstimatedWindow> {
+                let conn = match db::open_db(&db_path_inner) {
+                    Ok(c) => c,
+                    Err(_) => return Vec::new(),
+                };
+                if db::init_db(&conn).is_err() {
+                    return Vec::new();
+                }
+                window_specs
+                    .into_iter()
+                    .filter_map(|(kind, label, used_percent, secs, pattern)| {
+                        if secs <= 0 {
+                            return None;
+                        }
+                        let observed = db::observed_tokens_for_window(
+                            &conn,
+                            &provider_for_task,
+                            secs,
+                            pattern,
+                        )
+                        .unwrap_or(0);
+                        let est = estimate_window_cap(used_percent, observed)?;
+                        Some(EstimatedWindow {
+                            kind,
+                            label,
+                            estimated_cap_tokens: est.estimated_cap_tokens,
+                            observed_tokens: observed,
+                            confidence: est.confidence,
+                        })
+                    })
+                    .collect()
+            })
+            .await
+            .unwrap_or_default();
+
+        providers.push(ProviderQuotaSnapshot {
+            provider: provider_str,
+            plan: plan.clone(),
+            source_used: snapshot.source_used.clone(),
+            published: ProviderQuotaPublished {
+                plan_label: plan,
+                windows,
+                budget,
+            },
+            estimated: if estimates.is_empty() {
+                None
+            } else {
+                Some(ProviderQuotaEstimated { windows: estimates })
+            },
+        });
+    }
+
+    Some(SubscriptionQuotaSection {
+        providers,
+        history,
+        changelog: crate::subscription_changelog::load(),
+        generated_at: chrono::Utc::now().to_rfc3339(),
+    })
+}
+
+fn budget_from_snapshot(
+    snapshot: &crate::models::LiveProviderSnapshot,
+) -> Option<crate::models::PublishedBudget> {
+    // Anthropic OAuth `extra_usage`: only the dollar amount remaining is
+    // surfaced as `credits` on the live snapshot, so we cannot reconstruct
+    // the absolute limit here. The dashboard renders the remaining-USD value
+    // verbatim when `extra_usage` is enabled; full limit/utilization fields
+    // live on the OAuth response itself and would require widening the
+    // LiveProviderSnapshot contract — out of scope for Phase 22.
+    let _ = snapshot;
+    None
 }
 
 pub(crate) async fn refresh_openai_reconciliation(

@@ -32,13 +32,14 @@ export interface ApexAxisLabels {
 }
 
 export interface ApexAxisConfig {
+  type?: 'category' | 'datetime' | 'numeric';
   categories?: string[];
   min?: number;
   max?: number;
   tickAmount?: number;
   labels?: ApexAxisLabels;
-  axisBorder?: { color?: string };
-  axisTicks?: { color?: string };
+  axisBorder?: { color?: string; show?: boolean };
+  axisTicks?: { color?: string; show?: boolean };
 }
 
 export interface ApexChartOptions {
@@ -65,14 +66,17 @@ export interface ApexLegendOptions {
   position?: 'top' | 'bottom';
   fontFamily?: string;
   fontSize?: string;
-  labels?: { colors?: string };
+  labels?: { colors?: string; fontFamily?: string };
   markers?: { width?: number; height?: number; radius?: number };
   itemMargin?: { horizontal?: number; vertical?: number };
 }
 
 export interface ApexSeries {
   name?: string;
-  data: number[];
+  /// ApexCharts accepts plain numbers for category-axis charts and
+  /// `{x, y}` pairs for time-series. Both shapes are passed through to the
+  /// underlying chart unchanged.
+  data: number[] | Array<{ x: number | string; y: number | null }>;
 }
 
 export interface ApexOptions {
@@ -148,6 +152,45 @@ export interface ApexOptions {
     hover?: { filter?: { type?: string; value?: number } };
     active?: { filter?: { type?: string; value?: number } };
   };
+  annotations?: {
+    xaxis?: Array<{
+      x: number | string;
+      x2?: number | string;
+      borderColor?: string;
+      strokeDashArray?: number;
+      label?: {
+        text?: string;
+        borderColor?: string;
+        offsetY?: number;
+        style?: {
+          color?: string;
+          background?: string;
+          fontFamily?: string;
+          fontSize?: string;
+        };
+      };
+    }>;
+    points?: Array<{
+      x: number | string;
+      y?: number | null;
+      marker?: {
+        size?: number;
+        fillColor?: string;
+        strokeColor?: string;
+        radius?: number;
+      };
+      label?: {
+        text?: string;
+        style?: {
+          color?: string;
+          background?: string;
+          fontFamily?: string;
+          fontSize?: string;
+        };
+      };
+    }>;
+  };
+  markers?: { size?: number; strokeWidth?: number; hover?: { size?: number } };
 }
 
 export interface ApexChartInstance {
