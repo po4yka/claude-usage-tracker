@@ -68,12 +68,13 @@
 //!   tree. If ChatGPT.app changes either, decryption or parsing fails cleanly
 //!   and is surfaced in the report.
 //!
-//! - Decrypt v3 (`conversations-v3-{uuid}/`) caches. The cipher is most
-//!   likely AES-GCM (forensically inferred), but the key is partitioned
-//!   into the data-protection keychain by Team ID; no documented path
-//!   exists for an unsigned third-party CLI to read it. Phase B of the
-//!   v3 plan describes what would need to change before this is
-//!   implementable; until then we detect and report only.
+//! - **v3 decryption** (`ingest_into_archive` with `IngestOptions { v3_key: Some(key) }`):
+//!   decrypts each `.data` file using the caller-supplied AES key (16 or 32 bytes)
+//!   via AES-GCM with a per-file 96-bit nonce prefix. Heimdall does NOT fetch the
+//!   v3 key from the system keychain — it is entitlement-gated and inaccessible to
+//!   third-party CLIs. The user must supply the key via `--v3-key <hex>` if they
+//!   have obtained it by other means (e.g., a future OpenAI key-export feature).
+//!   See `docs/superpowers/plans/2026-04-28-chatgpt-macos-v3-decryptor.md` for context.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -231,6 +232,15 @@ pub struct IngestReport {
     pub v3_dirs: usize,
     /// Total .data file count across v3 directories (skipped — key not extractable).
     pub v3_files: usize,
+    /// Number of v3 *.data files we tried to decrypt (only when v3_key supplied).
+    pub v3_attempted: usize,
+    /// Number that decrypted AND parsed as JSON conversations.
+    pub v3_decrypted: usize,
+    /// Number that decrypted but didn't parse as conversations
+    /// (raw bytes saved to .failed-decrypts/).
+    pub v3_failed_parse: usize,
+    /// Number where decryption itself failed (wrong key or corrupt blob).
+    pub v3_failed_decrypt: usize,
 }
 
 /// Walk every plaintext cache under `cache_root` and ingest each
@@ -411,10 +421,20 @@ pub struct IngestOptions {
     /// If true, attempt to decrypt v2 directories (will trigger the
     /// macOS Keychain prompt on first call).
     pub decrypt_v2: bool,
+    /// User-supplied raw v3 AES key (hex-decoded). If `Some`, decrypt
+    /// v3 directories with this key; if `None`, v3 dirs are detected
+    /// only.
+    ///
+    /// Heimdall does NOT fetch this key from the system keychain — it is
+    /// partitioned by Apple entitlements and inaccessible to third-party
+    /// CLIs. The user must supply the key via `--v3-key <hex>` if they
+    /// have obtained it by other means.
+    pub v3_key: Option<Vec<u8>>,
 }
 
 /// Top-level ingest umbrella. Always runs the plaintext path; runs the
-/// v2 path only when `opts.decrypt_v2` is true (macOS only).
+/// v2 path only when `opts.decrypt_v2` is true (macOS only); runs the
+/// v3 path when `opts.v3_key` is `Some`.
 pub fn ingest_into_archive(
     cache_root: &Path,
     archive_root: &Path,
@@ -426,7 +446,12 @@ pub fn ingest_into_archive(
         ingest_v2_into_archive(cache_root, archive_root, &mut report)?;
     }
     #[cfg(not(target_os = "macos"))]
-    let _ = opts; // suppress unused warning on non-macOS
+    {
+        let _ = opts.decrypt_v2; // v2 keychain path is macOS-only; suppress unused warning
+    }
+    if let Some(ref key) = opts.v3_key {
+        ingest_v3_into_archive_with_key(cache_root, archive_root, key, &mut report)?;
+    }
     Ok(report)
 }
 
@@ -927,6 +952,257 @@ mod oscrypt {
     }
 }
 
+// ── v3 cipher (AES-GCM) ──────────────────────────────────────────────────────
+
+/// AES-GCM cipher primitives for the ChatGPT v3 cache format.
+///
+/// On-disk framing of a v3 `.data` file:
+///   `[0..12]`   = 96-bit AES-GCM nonce (per-file unique)
+///   `[12..n-16]` = ciphertext
+///   `[n-16..n]` = 128-bit AES-GCM authentication tag
+///
+/// Where `n` is the file length. Minimum valid file size = 28 bytes
+/// (12 nonce + 0 ciphertext + 16 tag).
+///
+/// Key auto-dispatch: 16 bytes → AES-128-GCM, 32 bytes → AES-256-GCM.
+mod oscrypt_v3 {
+    use aes_gcm::aead::{Aead, KeyInit};
+    use aes_gcm::{Aes128Gcm, Aes256Gcm, Key, Nonce};
+    use anyhow::{Context, Result};
+
+    const NONCE_LEN: usize = 12;
+    const TAG_LEN: usize = 16;
+    pub(super) const MIN_FILE_LEN: usize = NONCE_LEN + TAG_LEN;
+
+    /// Decrypt a v3 file's bytes with the supplied key. Auto-dispatches on
+    /// key length: 16 → AES-128-GCM, 32 → AES-256-GCM. Rejects other sizes.
+    pub(super) fn decrypt_v3_blob(file_bytes: &[u8], key: &[u8]) -> Result<Vec<u8>> {
+        if file_bytes.len() < MIN_FILE_LEN {
+            anyhow::bail!(
+                "v3 blob too short: {} bytes (need at least {})",
+                file_bytes.len(),
+                MIN_FILE_LEN
+            );
+        }
+        let (nonce_bytes, rest) = file_bytes.split_at(NONCE_LEN);
+        // `rest` = ciphertext + tag concatenated — aes-gcm's `decrypt` expects this.
+        let nonce = Nonce::from_slice(nonce_bytes);
+        let plaintext = match key.len() {
+            16 => {
+                let cipher = Aes128Gcm::new(Key::<Aes128Gcm>::from_slice(key));
+                cipher
+                    .decrypt(nonce, rest)
+                    .map_err(|e| anyhow::anyhow!("AES-128-GCM decrypt: {e}"))
+            }
+            32 => {
+                let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
+                cipher
+                    .decrypt(nonce, rest)
+                    .map_err(|e| anyhow::anyhow!("AES-256-GCM decrypt: {e}"))
+            }
+            other => anyhow::bail!("v3 key must be 16 or 32 bytes; got {other}"),
+        }
+        .context("AES-GCM authentication failed — wrong key or corrupt blob")?;
+        Ok(plaintext)
+    }
+
+    /// Test-only inverse of `decrypt_v3_blob`. Used to mint synthetic
+    /// fixtures without depending on external tooling.
+    #[cfg(test)]
+    pub(super) fn encrypt_v3_blob(
+        plaintext: &[u8],
+        key: &[u8],
+        nonce_bytes: &[u8; 12],
+    ) -> Result<Vec<u8>> {
+        let nonce = Nonce::from_slice(nonce_bytes);
+        let ct_and_tag = match key.len() {
+            16 => {
+                let cipher = Aes128Gcm::new(Key::<Aes128Gcm>::from_slice(key));
+                cipher
+                    .encrypt(nonce, plaintext)
+                    .map_err(|e| anyhow::anyhow!("encrypt: {e}"))
+            }
+            32 => {
+                let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
+                cipher
+                    .encrypt(nonce, plaintext)
+                    .map_err(|e| anyhow::anyhow!("encrypt: {e}"))
+            }
+            other => anyhow::bail!("v3 key must be 16 or 32 bytes; got {other}"),
+        }?;
+        let mut out = Vec::with_capacity(NONCE_LEN + ct_and_tag.len());
+        out.extend_from_slice(nonce_bytes);
+        out.extend_from_slice(&ct_and_tag);
+        Ok(out)
+    }
+}
+
+// ── v3 reader ────────────────────────────────────────────────────────────────
+
+/// Walk a `conversations-v3-*` directory, decrypt each `.data` file with the
+/// supplied AES key, and return decrypted blobs. Per-file failures are returned
+/// as `Err` items; one bad file does not abort the directory.
+pub fn decrypt_v3_dir(dir: &Path, key: &[u8]) -> Vec<Result<DecryptedFile>> {
+    let entries = match fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(e) => {
+            return vec![Err(anyhow::anyhow!("read_dir {}: {e}", dir.display()))];
+        }
+    };
+    let mut out = Vec::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|s| s.to_str()) != Some("data") {
+            continue;
+        }
+        let result = (|| -> Result<DecryptedFile> {
+            let bytes = fs::read(&path).with_context(|| format!("reading {}", path.display()))?;
+            let plaintext = oscrypt_v3::decrypt_v3_blob(&bytes, key)
+                .with_context(|| format!("decrypting {}", path.display()))?;
+            Ok(DecryptedFile {
+                source_path: path.clone(),
+                plaintext,
+            })
+        })();
+        out.push(result);
+    }
+    out
+}
+
+// ── v3 ingest ────────────────────────────────────────────────────────────────
+
+/// Decrypt v3 cache directories using a caller-supplied AES key and write each
+/// conversation into the archive.
+///
+/// The v3 key is NOT fetched from the macOS keychain — it lives in the
+/// data-protection keychain, which is entitlement-gated and inaccessible to
+/// third-party CLIs. The user must supply the key via `--v3-key <hex>`.
+pub fn ingest_v3_into_archive_with_key(
+    cache_root: &Path,
+    archive_root: &Path,
+    key: &[u8],
+    report: &mut IngestReport,
+) -> Result<()> {
+    if key.len() != 16 && key.len() != 32 {
+        anyhow::bail!("v3 key must be 16 or 32 bytes; got {}", key.len());
+    }
+    let caches = scan_caches(cache_root)?;
+    let failed_decrypts_dir = archive_root
+        .join("web")
+        .join("chatgpt.com")
+        .join(".failed-decrypts");
+
+    for cache in caches.iter().filter(|c| c.kind == CacheKind::EncryptedV3) {
+        let outcomes = decrypt_v3_dir(&cache.path, key);
+        for outcome in outcomes {
+            report.v3_attempted += 1;
+            match outcome {
+                Err(e) => {
+                    report.v3_failed_decrypt += 1;
+                    report
+                        .errors
+                        .push(format!("v3 decrypt error in {}: {e}", cache.path.display()));
+                }
+                Ok(decrypted) => {
+                    // JSON-sniff via the existing OpenAI export parser.
+                    let parsed: Vec<openai::Conversation> =
+                        match openai::parse_conversations(&decrypted.plaintext) {
+                            Ok(arr) if !arr.is_empty() => arr,
+                            Ok(_) => {
+                                match serde_json::from_slice::<openai::Conversation>(
+                                    &decrypted.plaintext,
+                                ) {
+                                    Ok(single) => vec![single],
+                                    Err(_) => {
+                                        dump_failed_decrypt_v3(
+                                            &failed_decrypts_dir,
+                                            &decrypted,
+                                            report,
+                                        )?;
+                                        continue;
+                                    }
+                                }
+                            }
+                            Err(_) => {
+                                match serde_json::from_slice::<openai::Conversation>(
+                                    &decrypted.plaintext,
+                                ) {
+                                    Ok(single) => vec![single],
+                                    Err(_) => {
+                                        dump_failed_decrypt_v3(
+                                            &failed_decrypts_dir,
+                                            &decrypted,
+                                            report,
+                                        )?;
+                                        continue;
+                                    }
+                                }
+                            }
+                        };
+
+                    report.v3_decrypted += 1;
+                    for conv in parsed {
+                        report.parsed += 1;
+                        let key_id = openai::conversation_key(&conv).unwrap_or_else(|| {
+                            decrypted
+                                .source_path
+                                .file_stem()
+                                .and_then(|s| s.to_str())
+                                .unwrap_or("unknown")
+                                .to_string()
+                        });
+                        let payload = match serde_json::to_value(&conv) {
+                            Ok(v) => v,
+                            Err(e) => {
+                                report.errors.push(format!("{key_id}: serialize: {e}"));
+                                continue;
+                            }
+                        };
+                        let web = WebConversation {
+                            vendor: "chatgpt.com".into(),
+                            conversation_id: key_id.clone(),
+                            captured_at: Utc::now().format("%Y-%m-%dT%H%M%S%.6fZ").to_string(),
+                            schema_fingerprint: "chatgpt.com/macos-v3-decrypted".into(),
+                            payload,
+                        };
+                        match write_web_conversation(archive_root, &web) {
+                            Ok(WriteOutcome::Saved { .. }) => report.written += 1,
+                            Ok(WriteOutcome::Unchanged) => report.unchanged += 1,
+                            Err(e) => report.errors.push(format!("{key_id}: write: {e}")),
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Write a failed v3 decrypt blob to the sidecar directory.
+fn dump_failed_decrypt_v3(
+    sidecar_dir: &Path,
+    decrypted: &DecryptedFile,
+    report: &mut IngestReport,
+) -> Result<()> {
+    fs::create_dir_all(sidecar_dir)
+        .with_context(|| format!("creating {}", sidecar_dir.display()))?;
+    let stem = decrypted
+        .source_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("unknown");
+    let out_path = sidecar_dir.join(format!("{stem}.bin"));
+    fs::write(&out_path, &decrypted.plaintext)
+        .with_context(|| format!("writing failed-decrypt to {}", out_path.display()))?;
+    report.v3_failed_parse += 1;
+    report.errors.push(format!(
+        "{}: decrypted but not parseable as JSON conversations; raw bytes saved to {}",
+        decrypted.source_path.display(),
+        out_path.display()
+    ));
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1413,7 +1689,10 @@ mod tests {
         fs::create_dir_all(&v3).unwrap();
         fs::write(v3.join("dummy.data"), b"\xbf\x20\x52\x00\xd0\x88\xf9").unwrap();
 
-        let opts = IngestOptions { decrypt_v2: true };
+        let opts = IngestOptions {
+            decrypt_v2: true,
+            v3_key: None,
+        };
         let report = ingest_into_archive(&cache, &archive, opts).unwrap();
         assert_eq!(report.v3_dirs, 1);
         assert_eq!(report.v3_files, 1);
@@ -1424,6 +1703,83 @@ mod tests {
         assert!(
             !failed.exists(),
             "ingest must not touch v3 — no failed-decrypts dir"
+        );
+    }
+
+    // ── oscrypt_v3 cipher tests ───────────────────────────────────────────────
+
+    #[test]
+    fn oscrypt_v3_round_trips_aes256() {
+        let key = [0x11u8; 32];
+        let nonce = [0x22u8; 12];
+        let pt = b"hello v3 world";
+        let blob = oscrypt_v3::encrypt_v3_blob(pt, &key, &nonce).unwrap();
+        let back = oscrypt_v3::decrypt_v3_blob(&blob, &key).unwrap();
+        assert_eq!(back, pt);
+    }
+
+    #[test]
+    fn oscrypt_v3_round_trips_aes128() {
+        let key = [0x33u8; 16];
+        let nonce = [0x44u8; 12];
+        let pt = b"smaller key";
+        let blob = oscrypt_v3::encrypt_v3_blob(pt, &key, &nonce).unwrap();
+        let back = oscrypt_v3::decrypt_v3_blob(&blob, &key).unwrap();
+        assert_eq!(back, pt);
+    }
+
+    #[test]
+    fn oscrypt_v3_rejects_tag_tampering() {
+        let key = [0x55u8; 32];
+        let nonce = [0x66u8; 12];
+        let pt = b"don't tamper with me";
+        let mut blob = oscrypt_v3::encrypt_v3_blob(pt, &key, &nonce).unwrap();
+        // Flip a bit in the tag (last 16 bytes).
+        let last = blob.len() - 1;
+        blob[last] ^= 0x01;
+        let result = oscrypt_v3::decrypt_v3_blob(&blob, &key);
+        assert!(result.is_err(), "tampered tag must reject");
+    }
+
+    #[test]
+    fn oscrypt_v3_rejects_truncated_blob() {
+        let key = [0u8; 32];
+        let result = oscrypt_v3::decrypt_v3_blob(&[0u8; 10], &key);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn ingest_v3_into_archive_writes_chatgpt_conversations() {
+        let tmp = TempDir::new().unwrap();
+        let cache = tmp.path().join("cache");
+        let archive = tmp.path().join("archive");
+        let key = [0xaau8; 32];
+        let v3 = cache.join("conversations-v3-test");
+        fs::create_dir_all(&v3).unwrap();
+
+        let conv1 = serde_json::json!([{
+            "id": "v3-conv-1",
+            "title": "test",
+            "create_time": 1.0,
+            "mapping": {}
+        }]);
+        let conv1_bytes = serde_json::to_vec(&conv1).unwrap();
+        let nonce1 = [0x11u8; 12];
+        let blob1 = oscrypt_v3::encrypt_v3_blob(&conv1_bytes, &key, &nonce1).unwrap();
+        fs::write(v3.join("a.data"), blob1).unwrap();
+
+        let mut report = IngestReport::default();
+        ingest_v3_into_archive_with_key(&cache, &archive, &key, &mut report).unwrap();
+
+        assert_eq!(report.v3_attempted, 1);
+        assert_eq!(report.v3_decrypted, 1);
+        assert_eq!(report.v3_failed_decrypt, 0);
+        assert_eq!(report.v3_failed_parse, 0);
+        let written = archive.join("web/chatgpt.com/v3-conv-1.json");
+        assert!(
+            written.is_file(),
+            "v3 decrypt should write conversation, expected {}",
+            written.display()
         );
     }
 }

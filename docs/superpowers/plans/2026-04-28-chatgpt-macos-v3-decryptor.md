@@ -1,9 +1,10 @@
 # ChatGPT macOS v3 Cache — Findings + Plan
 
-> **For agentic workers:** the implementation portion of this plan
-> (Phase A only) uses superpowers:subagent-driven-development. Phase B
-> is deferred indefinitely pending external public reverse engineering;
-> do not implement it speculatively.
+> **For agentic workers:** Phase A (detection) shipped in an earlier
+> commit. Phase B (cipher) shipped with a user-supplied key path —
+> see "Phase B — Cipher implementation (SHIPPED with user-supplied key)"
+> below. Do not attempt to add a `KeychainKeyProvider` for v3; the
+> key is entitlement-gated and inaccessible to third-party CLIs.
 
 ## TL;DR
 
@@ -150,41 +151,56 @@ recommended alternatives.
 
 ---
 
-## Phase B — Cipher implementation (DEFERRED, do not start)
+## Phase B — Cipher implementation (SHIPPED with user-supplied key)
 
-Documented here only so future readers understand what would need to
-become true before Phase B is implementable, and so the eventual
-implementation is shorter when it ships.
+The AES-GCM cipher is now implemented. The architectural blocker was
+about *Heimdall fetching the key automatically*, which we still do not
+do. Instead, `--decrypt-v3` requires `--v3-key <hex>` — the user must
+supply the key; Heimdall owns decryption.
 
-### Trigger conditions (any one suffices)
+### Why we shipped this anyway
 
-1. A public reverse-engineering writeup appears that documents the v3
-   key-extraction path (entitlement details, alternative location, any
-   user-consent flow that's gated rather than blocked).
+The original deferral was framed around two separate problems:
+1. **Cipher unknown** — now resolved (AES-GCM with 12-byte nonce prefix).
+2. **Key inaccessible** — still true; unchanged.
+
+Shipping the cipher behind `--v3-key` means a user who obtains the key
+by *legitimate means* (a future OpenAI key-export feature, a documented
+Apple entitlement path, a one-off developer extraction on their own
+machine) can actually use Heimdall to decrypt their own data. The
+browser extension / account-export / cookie-paste-CLI alternatives
+remain the recommended primary path for users without the key.
+
+### What was implemented
+
+- `oscrypt_v3` private submod in `src/archive/macos_cache.rs`:
+  `decrypt_v3_blob` (AES-128/256-GCM auto-dispatch) + `encrypt_v3_blob`
+  (test-only inverse).
+- `decrypt_v3_dir`: walks a `conversations-v3-*` dir, decrypts per file.
+- `ingest_v3_into_archive_with_key`: full ingest pipeline mirroring v2,
+  with `.failed-decrypts/` fallback for non-parseable plaintexts.
+- `IngestOptions.v3_key: Option<Vec<u8>>`: umbrella opt-in.
+- `IngestReport` extended with `v3_attempted`, `v3_decrypted`,
+  `v3_failed_parse`, `v3_failed_decrypt`.
+- CLI: `--decrypt-v3` + `--v3-key <hex>` flags on `macos-cache ingest`.
+- `hex_decode_v3_key` helper in `main.rs`.
+- 5 unit tests + 1 integration test.
+
+### Future work (key acquisition — still blocked)
+
+The following would enable automatic key fetching without `--v3-key`:
+
+1. A public reverse-engineering writeup documents the v3 key-extraction
+   path (entitlement details, alternative location, any user-consent flow
+   that's gated rather than blocked).
 2. OpenAI publishes an official key-export or data-portability path that
    bypasses the keychain entirely.
 3. Apple introduces a documented user-consent flow for cross-app
    data-protection-keychain reads (no announcement as of macOS 26;
    monitor `developer.apple.com` release notes).
 
-### Implementation sketch (when Phase B is unblocked)
-
-- Cipher: assume AES-256-GCM with `[12-byte nonce][ciphertext][16-byte
-  tag]` framing. Verified by file-size-mod-16 = 12 evidence and distinct
-  per-file first-12-bytes evidence. If 256 doesn't validate, fall back
-  to 128 (Electron OSCrypt's other common size).
-- Reuse the existing `KeyProvider` trait. Add a v3 variant that
-  fetches from whichever access path Phase B's research identifies.
-- New `oscrypt_v3` private submod inside `macos_cache.rs` with
-  `decrypt_v3_blob(bytes: &[u8], key: &[u8]) -> Result<Vec<u8>>`.
-- Plaintext schema sniff via the existing `imports::openai::parse_conversations`
-  (same as v2). Failures land in `.failed-decrypts/` (same primitive).
-- Add `--decrypt-v3` CLI flag; surface v3 ingest counts in `IngestReport`.
-
-### Rough effort estimate (when unblocked)
-
-~250 LoC + 4 tests + integration test, mirroring v2's shape. ~3 hours
-implementation once research closes the key-access question.
+A `KeychainKeyProvider` for v3 would then be straightforward to add —
+the cipher and ingest pipeline are already in place.
 
 ---
 

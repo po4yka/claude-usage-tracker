@@ -462,7 +462,7 @@ enum MacosCacheAction {
         #[arg(long)]
         json: bool,
     },
-    /// Ingest plaintext (pre-July-2024) and optionally encrypted v2 caches into <archive_root>/web/chatgpt.com/
+    /// Ingest plaintext (pre-July-2024) and optionally encrypted v2/v3 caches into <archive_root>/web/chatgpt.com/
     Ingest {
         /// Override the cache root
         #[arg(long)]
@@ -474,6 +474,17 @@ enum MacosCacheAction {
         /// run triggers a macOS Keychain prompt; click Allow once.
         #[arg(long)]
         decrypt_v2: bool,
+        /// Decrypt the v3 cache too. Requires --v3-key. v3 keys are NOT
+        /// fetched from the system keychain (they live in the
+        /// data-protection keychain, gated by app entitlements). You must
+        /// supply the key yourself; see docs/superpowers/plans/2026-04-28-chatgpt-macos-v3-decryptor.md
+        /// for context.
+        #[arg(long)]
+        decrypt_v3: bool,
+        /// Hex-encoded v3 AES key (16 or 32 bytes; 32 or 64 hex chars).
+        /// Required when --decrypt-v3 is set.
+        #[arg(long)]
+        v3_key: Option<String>,
         /// Emit JSON instead of a human-readable report
         #[arg(long)]
         json: bool,
@@ -1353,6 +1364,8 @@ fn main() -> Result<()> {
                 cache_root,
                 archive_root,
                 decrypt_v2,
+                decrypt_v3,
+                v3_key,
                 json,
             } => {
                 let cache = cache_root
@@ -1360,7 +1373,20 @@ fn main() -> Result<()> {
                     .ok_or_else(|| anyhow::anyhow!("could not resolve home directory"))?;
                 let archive_root = archive_root.unwrap_or_else(archive::default_root);
                 let _archive = archive::Archive::at(archive_root.clone())?;
-                let opts = archive::macos_cache::IngestOptions { decrypt_v2 };
+                let v3_key_bytes = if decrypt_v3 {
+                    let hex = v3_key.ok_or_else(|| {
+                        anyhow::anyhow!(
+                            "--decrypt-v3 requires --v3-key <hex> (16 or 32 bytes hex-encoded)"
+                        )
+                    })?;
+                    Some(hex_decode_v3_key(&hex)?)
+                } else {
+                    None
+                };
+                let opts = archive::macos_cache::IngestOptions {
+                    decrypt_v2,
+                    v3_key: v3_key_bytes,
+                };
                 let report =
                     archive::macos_cache::ingest_into_archive(&cache, &archive_root, opts)?;
                 if json {
@@ -1401,6 +1427,15 @@ fn main() -> Result<()> {
                             );
                         }
                     }
+                    if report.v3_attempted > 0 {
+                        println!(
+                            "  v3: {} attempted, {} decrypted, {} failed-parse, {} failed-decrypt",
+                            report.v3_attempted,
+                            report.v3_decrypted,
+                            report.v3_failed_parse,
+                            report.v3_failed_decrypt,
+                        );
+                    }
                     for e in &report.errors {
                         eprintln!("  {e}");
                     }
@@ -1409,6 +1444,30 @@ fn main() -> Result<()> {
         },
     }
     Ok(())
+}
+
+/// Decode a hex-encoded v3 AES key supplied by the user via `--v3-key`.
+///
+/// Accepts 32 or 64 hex characters (16 or 32 bytes). Strips a leading `0x`
+/// prefix if present. Returns an error with a human-readable explanation for
+/// any invalid input.
+fn hex_decode_v3_key(hex: &str) -> anyhow::Result<Vec<u8>> {
+    let stripped = hex.trim().trim_start_matches("0x");
+    if stripped.len() != 32 && stripped.len() != 64 {
+        anyhow::bail!(
+            "v3 key must be 32 or 64 hex chars (16 or 32 bytes); got {} chars",
+            stripped.len()
+        );
+    }
+    if !stripped.chars().all(|c| c.is_ascii_hexdigit()) {
+        anyhow::bail!("v3 key must be hex; got non-hex character");
+    }
+    let mut out = Vec::with_capacity(stripped.len() / 2);
+    for chunk in stripped.as_bytes().chunks(2) {
+        let s = std::str::from_utf8(chunk).expect("ascii hex chunks are valid utf8");
+        out.push(u8::from_str_radix(s, 16)?);
+    }
+    Ok(out)
 }
 
 /// When config says `source = "litellm"`, load whatever is currently on disk

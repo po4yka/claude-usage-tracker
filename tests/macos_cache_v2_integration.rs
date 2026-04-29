@@ -214,7 +214,10 @@ fn ingest_into_archive_umbrella_plaintext_only_when_decrypt_v2_false() {
     fs::create_dir_all(&v2_dir).unwrap();
     fs::write(v2_dir.join("x.data"), b"\x00\x01\x02").unwrap();
 
-    let opts = IngestOptions { decrypt_v2: false };
+    let opts = IngestOptions {
+        decrypt_v2: false,
+        v3_key: None,
+    };
     let report = ingest_into_archive(&cache, &archive, opts).unwrap();
 
     assert_eq!(report.parsed, 1);
@@ -223,4 +226,69 @@ fn ingest_into_archive_umbrella_plaintext_only_when_decrypt_v2_false() {
     // v2 fields untouched when decrypt_v2 = false.
     assert_eq!(report.v2_attempted, 0);
     assert_eq!(report.v2_decrypted, 0);
+}
+
+#[test]
+fn v3_ingest_into_archive_umbrella_with_key() {
+    use aes_gcm::aead::{Aead, KeyInit};
+    use aes_gcm::{Aes256Gcm, Key, Nonce};
+
+    let tmp = TempDir::new().unwrap();
+    let cache = tmp.path().join("cache");
+    let archive = tmp.path().join("archive");
+
+    // Build a synthetic v3 directory with one encrypted conversation.
+    let v3_dir = cache.join("conversations-v3-00000000-0000-0000-0000-000000000001");
+    fs::create_dir_all(&v3_dir).unwrap();
+
+    let key_bytes = [0xbbu8; 32];
+    let nonce_bytes = [0xccu8; 12];
+    let conv = serde_json::json!([{
+        "id": "it-v3-conv-umbrella",
+        "title": "V3 Umbrella",
+        "create_time": 1.0,
+        "mapping": {}
+    }]);
+    let plaintext = serde_json::to_vec(&conv).unwrap();
+
+    // Encrypt: nonce (12) || ciphertext+tag
+    let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&key_bytes));
+    let nonce = Nonce::from_slice(&nonce_bytes);
+    let ct_and_tag = cipher.encrypt(nonce, plaintext.as_slice()).unwrap();
+    let mut blob = Vec::with_capacity(12 + ct_and_tag.len());
+    blob.extend_from_slice(&nonce_bytes);
+    blob.extend_from_slice(&ct_and_tag);
+    fs::write(v3_dir.join("conv.data"), &blob).unwrap();
+
+    // Exercise the umbrella via ingest_into_archive with v3_key set.
+    let opts = IngestOptions {
+        decrypt_v2: false,
+        v3_key: Some(key_bytes.to_vec()),
+    };
+    let report = ingest_into_archive(&cache, &archive, opts).unwrap();
+
+    // Detection counters (populated by ingest_plaintext_into_archive scan pass).
+    assert_eq!(report.v3_dirs, 1, "should detect the v3 dir");
+    assert_eq!(report.v3_files, 1, "should detect 1 file");
+    // Decryption counters.
+    assert_eq!(report.v3_attempted, 1, "should attempt the 1 file");
+    assert_eq!(report.v3_decrypted, 1, "should decrypt+parse successfully");
+    assert_eq!(report.v3_failed_decrypt, 0);
+    assert_eq!(report.v3_failed_parse, 0);
+    assert_eq!(report.written, 1, "conversation written to archive");
+
+    let web = archive.join("web").join("chatgpt.com");
+    assert!(
+        web.join("it-v3-conv-umbrella.json").is_file(),
+        "it-v3-conv-umbrella.json missing"
+    );
+
+    // Verify schema_fingerprint in the written file.
+    let raw = fs::read(web.join("it-v3-conv-umbrella.json")).unwrap();
+    let val: serde_json::Value = serde_json::from_slice(&raw).unwrap();
+    assert_eq!(
+        val["schema_fingerprint"].as_str().unwrap(),
+        "chatgpt.com/macos-v3-decrypted"
+    );
+    assert_eq!(val["vendor"].as_str().unwrap(), "chatgpt.com");
 }
