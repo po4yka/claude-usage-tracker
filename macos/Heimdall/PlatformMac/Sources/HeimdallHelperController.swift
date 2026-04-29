@@ -388,6 +388,7 @@ public actor HeimdallHelperController: HelperRuntime {
         guard result > 0 else {
             return nil
         }
-        return String(cString: buffer)
+        let length = Int(result)
+        return String(decoding: buffer.prefix(length).map { UInt8(bitPattern: $0) }, as: UTF8.self)
     }
 }

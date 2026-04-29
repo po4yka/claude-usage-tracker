@@ -52,6 +52,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: dev.po4yka.heimdall.HeimdallDomain
         PRODUCT_NAME: HeimdallDomain
         GENERATE_INFOPLIST_FILE: YES
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
   HeimdallServices:
     type: framework
     supportedDestinations: [macOS, iOS]
@@ -69,6 +70,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: dev.po4yka.heimdall.HeimdallServices
         PRODUCT_NAME: HeimdallServices
         GENERATE_INFOPLIST_FILE: YES
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
   HeimdallPlatformMac:
     type: framework
     platform: macOS
@@ -161,6 +163,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: dev.po4yka.heimdall
         PRODUCT_NAME: Heimdall
         INFOPLIST_KEY_LSUIElement: YES
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
       configs:
         Release:
           ENABLE_HARDENED_RUNTIME: YES

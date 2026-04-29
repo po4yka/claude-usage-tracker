@@ -186,7 +186,10 @@ public actor SnapshotCloudEngine: CloudSnapshotBackingStore, CKSyncEngineDelegat
             _ = try await withCloudKitRetry(policy: self.retryPolicy) {
                 try await container.accept([metadata])
             }
-            let zoneID = (metadata.hierarchicalRootRecordID ?? metadata.rootRecordID).zoneID
+            guard let rootRecordID = metadata.hierarchicalRootRecordID else {
+                throw SnapshotSyncStoreError.transportFailed("The CloudKit share metadata is missing a hierarchical root record.")
+            }
+            let zoneID = rootRecordID.zoneID
             return CloudSyncSpaceState(
                 role: .participant,
                 status: .participantJoined,
