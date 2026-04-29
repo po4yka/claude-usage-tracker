@@ -135,7 +135,7 @@ Run the skill with this brief loaded. In order:
 6. **Phase 3 — iteration** — narrow to 2–3 finalists with the user. On each refinement, return a complete replacement SVG (not a diff) and re-run the validator.
 7. **Phase 4 — icon set export** — write the chosen final to `assets/icons/master.svg`. Run `python scripts/render_icon_set.py assets/icons/master.svg`. Verify the `.icns`, `.ico`, and favicon all produce.
 8. **Phase 5 (optional)** — if `GEMINI_API_KEY` is set, render `void` + `clinical` + `swiss_flat` showcase images for press / README hero.
-9. **Phase 6 — wiring handoff** — one-line notes for HeimdallBar xcassets, dashboard favicon, Linux packaging, Windows packaging. Do not auto-wire; hand off to the user.
+9. **Phase 6 — wiring handoff** — one-line notes for Heimdall xcassets, dashboard favicon, Linux packaging, Windows packaging. Do not auto-wire; hand off to the user.
 
 ## Success criteria
 

@@ -688,7 +688,7 @@ pub struct LiveProviderSnapshot {
     /// Codex values: `"cli-rpc"` | `"oauth"` | `"cli-pty"` | `"bootstrap"` |
     /// `"unavailable"`.  Claude values: `"oauth"` | `"admin"` | `"local"` |
     /// `"unavailable"`.  Web-scraped fallback (`"web"`) is reserved for the
-    /// HeimdallBar dashboard-extras path and is not yet emitted from Rust.
+    /// Heimdall dashboard-extras path and is not yet emitted from Rust.
     pub source_used: String,
     /// Last source the resolver attempted before producing the snapshot.
     /// Useful for diagnosing which rung of the fallback chain stopped, even

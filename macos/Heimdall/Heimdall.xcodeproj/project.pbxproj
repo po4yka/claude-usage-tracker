@@ -1,0 +1,2633 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		01A140AAC2121670D86F6416 /* ProviderVisualState+Rank.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10FAFE6026FE6D6116066AEF /* ProviderVisualState+Rank.swift */; };
+		0282A6F1545D499742D8A188 /* HeimdallDomain.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6DD3582B86CA2DDB6BDD805A /* HeimdallDomain.framework */; };
+		02F000363F01F8B96EE7FACD /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4946CC1A3E8E241196B584BD /* Assets.xcassets */; };
+		065AE3F43CAC5521E816AAC5 /* HeimdallServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 42E0B20B3C4E946F5615DF15 /* HeimdallServices.framework */; };
+		09772A325DAA0593BD16BE95 /* ProviderFeatureModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46443A111BF7FAAC9BDD8B08 /* ProviderFeatureModel.swift */; };
+		0AB53B44545EE17545D79433 /* HeimdallMobileRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D366DB88855D0719D9706096 /* HeimdallMobileRootView.swift */; };
+		0ADD5DE884EB7F68A2AF6D27 /* HeimdallPlatformMac.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6CBBB18908B45BB3D4866B9E /* HeimdallPlatformMac.framework */; };
+		0C53AFDB4C63286A335916CB /* HeimdallCLI.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = F3E5345CE6B0370A17C849CB /* HeimdallCLI.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		0E5DF22795DC82C1FE44DD93 /* MobileDashboardModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8B0F6BD53BA7C15479C2A01 /* MobileDashboardModel.swift */; };
+		0E7F66A5A172806BFD22B9B6 /* ProviderCredentialInspectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8512DD66EB9D9BF5D52E944 /* ProviderCredentialInspectorTests.swift */; };
+		11CC9215C1240FE28D36DBDE /* UsageWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D7BA0C7C47E5C6990F0B11C /* UsageWidgetView.swift */; };
+		132B6A2C4134F75654DB1453 /* SwitcherWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03A7882CA3C6FAAD7B49FD64 /* SwitcherWidgetView.swift */; };
+		13388A7232926344F5713963 /* HeimdallMobileApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 738A325131643B1ADB134EB3 /* HeimdallMobileApp.swift */; };
+		13E2717D60EB448C8FC2A430 /* DashboardAdjunctController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F74308411EC6164742B7FA8 /* DashboardAdjunctController.swift */; };
+		15FFC63A0FC5FF952CDD1110 /* ProviderDataSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEF53959FBB2844C458551BD /* ProviderDataSource.swift */; };
+		17B2D0C2B5ADED6B5EB06649 /* CacheMixRing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25B73D3C14DB353CB18732AA /* CacheMixRing.swift */; };
+		1AFDA4B90D1903ADD47295C0 /* ProviderDataSourceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F671337874C5584E27C8CF9 /* ProviderDataSourceTests.swift */; };
+		1B7B0CFDBBFDA547AD211A45 /* HeimdallAppUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 70090E0E254BD8157B0C1585 /* HeimdallAppUI.framework */; };
+		1C7C2154D13B371A54F1B283 /* HeimdallAppCompositionRoot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F501622DFBB8B270F52F9A4 /* HeimdallAppCompositionRoot.swift */; };
+		225B55180D2A9C6B25A345EC /* InstallationIDStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89FCFC5A10E117974EA7DCDB /* InstallationIDStoreTests.swift */; };
+		236AF7E7F1677842136F35ED /* CloudKitSyncEngineStateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AA30A9F318A73A4DE344C68 /* CloudKitSyncEngineStateStore.swift */; };
+		241B0BDBF87CFA943D4C0761 /* HeimdallDomain.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6DD3582B86CA2DDB6BDD805A /* HeimdallDomain.framework */; };
+		26C65BEAB4A0F08D9635D4CA /* TerminalAuthCommandRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6AABFEAFDE97333A7D40F4D /* TerminalAuthCommandRunner.swift */; };
+		29F74E343DD404EAF3A340DE /* FixtureLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BC377795B018241788AF38F /* FixtureLoader.swift */; };
+		2BC5AC974961E20C9C6C1A91 /* LiveMonitorTimeFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20219CB528FF69CE9FA4675D /* LiveMonitorTimeFormatter.swift */; };
+		2C66DFB631229775DD7AFA87 /* CloudKitAccountObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 992ABBAD32B5A6363619A03D /* CloudKitAccountObserver.swift */; };
+		2C9C8F2E63A3B6941C80316D /* MobileDashboardModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FA47C2BDF387460459D04CE /* MobileDashboardModelTests.swift */; };
+		2E3C1B51711EC161494DCF2C /* AppRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BB29474406695841572DFE1 /* AppRuntime.swift */; };
+		2E51EB5A7940EDE1B670637D /* LiveMonitorFeatureModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 984DAE4914A65AC5AB23500A /* LiveMonitorFeatureModel.swift */; };
+		2E785032AAF4E1957F1771AE /* CloudKitRetryPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39EE70F6F8642941D57B0958 /* CloudKitRetryPolicyTests.swift */; };
+		2E8638D88DB111803985CAE3 /* CloudKitSyncEngineStateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AA30A9F318A73A4DE344C68 /* CloudKitSyncEngineStateStore.swift */; };
+		2F674BB1D3E0EB6598EE3718 /* HeimdallServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 42E0B20B3C4E946F5615DF15 /* HeimdallServices.framework */; };
+		2F9AAB08919EE78979F82DEA /* DesignTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E6CDC9335D16B5EB715CF31 /* DesignTokens.swift */; };
+		318B7E22459845641A12D620 /* WeeklyProjectionArc.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FF5238C41CE2F371F66DF1F /* WeeklyProjectionArc.swift */; };
+		3368877858861DC398108B25 /* CompactWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6F32C03C01D82DA0C61D0DF /* CompactWidgetView.swift */; };
+		33CF40D04CB30A2D5E160E99 /* ActivityHeatmap.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0A62196871EE1C85CF85E7D /* ActivityHeatmap.swift */; };
+		368B48742CBF7420E242701D /* CloudSyncDiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D29DC20EF5573DB4B5610595 /* CloudSyncDiagnosticsView.swift */; };
+		36D971CDFC33C8FE6785EC67 /* HeimdallDomain.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6DD3582B86CA2DDB6BDD805A /* HeimdallDomain.framework */; };
+		3832874E1C372B5291B8946D /* HeimdallAppUI.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 70090E0E254BD8157B0C1585 /* HeimdallAppUI.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		3ACFA36C0279F1C566A9FCEC /* HeimdallHelperController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D33482FE303649FDA40200C /* HeimdallHelperController.swift */; };
+		3BB8958D1CAFB7E280A9440C /* TokenStackChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA6C2C4580D3F1F8C37007B0 /* TokenStackChart.swift */; };
+		3D5775AEC7DED0CEF2F5BEAF /* SourceResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7C08FE6521316E41EC48430 /* SourceResolverTests.swift */; };
+		3E64423987D98B45DB23F9A4 /* CloudKitSnapshotSyncStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5E29CC0EA23FC301099615E /* CloudKitSnapshotSyncStore.swift */; };
+		3FA2B72EAE83D15916B3A265 /* SubagentSummaryCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7BCB034E0BCC9F847A5C9FB /* SubagentSummaryCard.swift */; };
+		3FFA54D864741891B12B5FCF /* WidgetIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7045ECF4AFD7BE3822AD4E5 /* WidgetIntents.swift */; };
+		42CA36576AF26C070E43A5D3 /* UserDefaultsCloudSyncStateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEC62D93CA7B8BCC6788FBD3 /* UserDefaultsCloudSyncStateStore.swift */; };
+		4471327755F33E62B5B1F516 /* PredictiveInsightModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = F180F66C0A6182DBE9C6D4C9 /* PredictiveInsightModels.swift */; };
+		46ECF6829CFA54A631D97CDF /* WidgetProjectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63ED8CBFFD94DD60166DA5F6 /* WidgetProjectionTests.swift */; };
+		495CB7C69F8B4EF157B25E26 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = C96AF691B9EF24FDA1BE9B47 /* main.swift */; };
+		49765D749B5C1FE0FFDE1AA6 /* LiveMonitorPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD836E600517F1D404B9E1FA /* LiveMonitorPresentationTests.swift */; };
+		4B085EA16E976D457F6121CE /* LiveMonitorModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95C985809DEE4B70DF443BE2 /* LiveMonitorModels.swift */; };
+		4C496305301C4479E8878253 /* SnapshotCloudEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4E4EA7187416A58C791287F /* SnapshotCloudEngine.swift */; };
+		4DDF4600223CC6A36A3B1AD3 /* HeimdallAppUI.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 70090E0E254BD8157B0C1585 /* HeimdallAppUI.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4E13AD0637E26CD74AD7C732 /* SnapshotCloudRecordTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2BF8B7F80A8FFECA517620C /* SnapshotCloudRecordTests.swift */; };
+		4F2137BA62E9DA1B6FF449ED /* CloudKitSnapshotSyncStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5E29CC0EA23FC301099615E /* CloudKitSnapshotSyncStore.swift */; };
+		4F63BBBD4F48A74E8B88F273 /* WidgetSnapshotCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F878880B7BB09FDCB32435D6 /* WidgetSnapshotCoordinator.swift */; };
+		508BCB92C4AAA2EAF0A10768 /* MobileDashboardCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52CDC30576B75756EC01975E /* MobileDashboardCoordinator.swift */; };
+		50CFDDD74E82AE2887C75C06 /* CloudKitSnapshotSyncStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5E29CC0EA23FC301099615E /* CloudKitSnapshotSyncStore.swift */; };
+		51D4DBBFCB608977C937722F /* CLIParityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67840B73F4DEEB3F6F8FAF13 /* CLIParityTests.swift */; };
+		53426A47109A3F20022DF380 /* HeimdallWidgets.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 35BFF4D6FF9429B8ED927DC9 /* HeimdallWidgets.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		5368BB9D8A2B1026D52EE071 /* FormatHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 291C6404CCA606CE5B27B016 /* FormatHelpers.swift */; };
+		54A52A0A9C3605084761069D /* HeimdallPlatformMac.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6CBBB18908B45BB3D4866B9E /* HeimdallPlatformMac.framework */; };
+		55B7E0EDFC19CC65D2AB1FED /* AppShellViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5588D866F8071D2CA189DAA /* AppShellViewTests.swift */; };
+		55EB68B04A289D168A449E58 /* HeimdallServices.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 42E0B20B3C4E946F5615DF15 /* HeimdallServices.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		5939076654EED851D46E812C /* HeimdallServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 42E0B20B3C4E946F5615DF15 /* HeimdallServices.framework */; };
+		5A08B515192B8BCC5698D500 /* WebDashboardScraperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C14F28DABC92E15A17291475 /* WebDashboardScraperTests.swift */; };
+		5A2AF7DBCFE853B29F45C648 /* WidgetTimelineProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07091C71637C185E7E4D2001 /* WidgetTimelineProvider.swift */; };
+		5A981C77B598E0399690D2D8 /* CloudKitAccountObserverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 192919572CC8C844C5277D95 /* CloudKitAccountObserverTests.swift */; };
+		5B12ABAA0CDD10305F51A5BB /* HistoryWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9497931DF80C9C2A6FF4E049 /* HistoryWidgetView.swift */; };
+		5C2F0F4DAA89A461D96D0465 /* HeimdallAppUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 70090E0E254BD8157B0C1585 /* HeimdallAppUI.framework */; };
+		5D17BB876186856C3CE2FE3F /* SnapshotCloudRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B598B5965CAD404C9541920 /* SnapshotCloudRecord.swift */; };
+		6116F7E11BD2DC1D174DCF45 /* AppShellModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B772ED10D0A3E2CD78744DC3 /* AppShellModel.swift */; };
+		61C91A74954293EB5C438196 /* RefreshCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = C388C03E7D4C3B5CA64A375A /* RefreshCoordinator.swift */; };
+		66E0BB5E76E80027513B4669 /* AppShellModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7FB72CB982B1605610B3DE6 /* AppShellModelTests.swift */; };
+		6859B8BB05728DC48DDB0F79 /* MacPlatformFactoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81D70834CEE2B65B314F8C33 /* MacPlatformFactoryTests.swift */; };
+		6A723DA9CD826013BCC45183 /* ProjectCostTable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EF8B66DB4466FA0E56A6BC1 /* ProjectCostTable.swift */; };
+		6B54B78F346D023EAE973CC4 /* ModelDistributionDonut.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46B8183C15D3B9A427BF5379 /* ModelDistributionDonut.swift */; };
+		6BB92EAF3701824AF60D1108 /* HeimdallDomain.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6DD3582B86CA2DDB6BDD805A /* HeimdallDomain.framework */; };
+		6D113CF5F8FCF9AE85725AD1 /* UserDefaultsCloudSyncStateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEC62D93CA7B8BCC6788FBD3 /* UserDefaultsCloudSyncStateStore.swift */; };
+		6D1B50968E97CE56C7BCEF0D /* HeimdallAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7609829C29171759DC09559 /* HeimdallAPIClient.swift */; };
+		6D3EA11F991F9DA198782B06 /* ProviderConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4BEC1CFB139254BD981842D /* ProviderConfig.swift */; };
+		6D489AD58A59FA82A0C47468 /* RootMenuView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0EC55606DC359A9CB40AF1 /* RootMenuView.swift */; };
+		71EAF6A07BFAAE5E99D98BC3 /* ProviderSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 721D020D2527E3EFDD559E50 /* ProviderSnapshot.swift */; };
+		7233DD306415495277BEC552 /* WebExtrasFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACFCB093CB35AF61EC492D11 /* WebExtrasFlowTests.swift */; };
+		747301ABCBDC32CDC0D7BF46 /* ChartsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A740508074D7E86FE75485FB /* ChartsTests.swift */; };
+		76332D90C712416426F62C8B /* HeimdallWidgets.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 35BFF4D6FF9429B8ED927DC9 /* HeimdallWidgets.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		765DCAEE814A29AF84A4C209 /* WidgetSnapshotBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BF8E344F6C7D8A4190F3B16 /* WidgetSnapshotBuilder.swift */; };
+		767F87D79271014B6D8423AC /* LocalNotificationCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9BFB707EB7ECC47A13C2EF2 /* LocalNotificationCoordinatorTests.swift */; };
+		77C6F04ACDFE7C5186A6C539 /* HeimdallModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E7836B95C21CF581CC28CAA /* HeimdallModels.swift */; };
+		780AAE10D30AC8C7052B53C2 /* HeimdallServices.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 42E0B20B3C4E946F5615DF15 /* HeimdallServices.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		78D16FF51DE49B19F7414CC6 /* HeimdallServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 42E0B20B3C4E946F5615DF15 /* HeimdallServices.framework */; };
+		78E2403F10FF0F52FBD74E4F /* ServiceProtocols.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48760731A02C9FE2BD7A5BF7 /* ServiceProtocols.swift */; };
+		7ADC3EB396010B54F0F9BBF5 /* MacPlatformFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6414EDD6B4CE9C3676D07C5 /* MacPlatformFactory.swift */; };
+		7C3269A4854FA59D9F84995A /* HeimdallServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 42E0B20B3C4E946F5615DF15 /* HeimdallServices.framework */; };
+		7D0907559221B8AB2033CB25 /* HeimdallCLIRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = D08F1C319B218AFE85EFFDD4 /* HeimdallCLIRunner.swift */; };
+		7D2125111C5CDFE4BEF14419 /* HeimdallDomain.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6DD3582B86CA2DDB6BDD805A /* HeimdallDomain.framework */; };
+		7D73A2B20FC7332E1146ABC9 /* HeimdallDomain.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6DD3582B86CA2DDB6BDD805A /* HeimdallDomain.framework */; };
+		7D7EF54EB1E65C0656368CA8 /* WidgetCenterReloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA351F2E960150EDB5A66009 /* WidgetCenterReloader.swift */; };
+		804A60B65B5641EEFABA4701 /* McpSummaryTable.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAAE5CE5E7A7099AD1D948DA /* McpSummaryTable.swift */; };
+		8436A9AFEB6BAE2107FC644F /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08DC7C68DA667057356F1DF0 /* AppModel.swift */; };
+		85352BEF15E8234C9AC9195D /* HeimdallDomain.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6DD3582B86CA2DDB6BDD805A /* HeimdallDomain.framework */; };
+		86BDBDA07824A34079262D7F /* MobileDashboardPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3B064178A09A8FEE0960741 /* MobileDashboardPreferences.swift */; };
+		8926FB9BA3B8D96C69A2F948 /* MenuProjectionBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F7B30BDF77F80AB00346920 /* MenuProjectionBuilder.swift */; };
+		8A531BCDF21F76DF6E1E99C1 /* HeimdallDomain.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 6DD3582B86CA2DDB6BDD805A /* HeimdallDomain.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		8A54735EDE4C0D468C25484B /* CloudKitSyncEngineStateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AA30A9F318A73A4DE344C68 /* CloudKitSyncEngineStateStore.swift */; };
+		8E25B4660E56B26E7810389C /* HeimdallWidgets.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 35BFF4D6FF9429B8ED927DC9 /* HeimdallWidgets.framework */; };
+		8E8A3BEB68579DCE31581D2A /* MobileDashboardProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = D63D5D89A35BDA53F3BC09E0 /* MobileDashboardProjection.swift */; };
+		90C7D8DFBF69CFDEF0757022 /* LiveMonitorFeatureModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E7FA1B7555CF5D28BD004CD /* LiveMonitorFeatureModelTests.swift */; };
+		9127D536CD86E6AC4BB54563 /* CloudKitRetryPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8E843024AC3D06E065E5560 /* CloudKitRetryPolicy.swift */; };
+		931D74FB31B5A565BC6587CF /* OverviewFeatureModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9268190866125BAC18D64413 /* OverviewFeatureModel.swift */; };
+		93B7741A4DEF95AF5012D736 /* BrowserSessionController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F15604BD3422C2F1FD3C806 /* BrowserSessionController.swift */; };
+		93C11984C14285C2F7450DC5 /* HourlyActivityChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F7016843FA80F2E65EF3855 /* HourlyActivityChart.swift */; };
+		93D3A49E17B62AE5BFBB349C /* VersionDistributionDonut.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDE6092BE7A5430C1B2F686F /* VersionDistributionDonut.swift */; };
+		93D8DF0544EFA176EDAC896F /* HeimdallServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 42E0B20B3C4E946F5615DF15 /* HeimdallServices.framework */; };
+		9563FDD6EE0EC60934592678 /* HeimdallServices.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 42E0B20B3C4E946F5615DF15 /* HeimdallServices.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		971EE0736057099CB938247D /* WidgetSnapshotStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A593154519BF77950081071 /* WidgetSnapshotStoreTests.swift */; };
+		976E82DB0A8F579B8C891623 /* HeimdallDomain.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6DD3582B86CA2DDB6BDD805A /* HeimdallDomain.framework */; };
+		978A784B0E723F6797A29C12 /* UserNotificationServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = B54B2BF220CB4DDBF4BD8BF3 /* UserNotificationServices.swift */; };
+		9816CE8CFDD37B25FC2AF735 /* ProviderComparisonChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50E73BED9B2C4E5A64ABDB5 /* ProviderComparisonChart.swift */; };
+		996A69D4E0094AB247D0CD4F /* CacheHitTrendChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = 145C8997FFEA689D3E6C9693 /* CacheHitTrendChart.swift */; };
+		99A696B46C5F5434B6BD1701 /* SnapshotCloudRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B598B5965CAD404C9541920 /* SnapshotCloudRecord.swift */; };
+		99C157F22CC4D7DA8A06843E /* AuthCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8E0B4ABF86B5945DCCB2D8E /* AuthCoordinator.swift */; };
+		9A9259CD7FC6D01D8C3B4F99 /* ProviderCredentialInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3397FA49246AFDC96358E2EE /* ProviderCredentialInspector.swift */; };
+		9B891BBA03EF055282D1059E /* CLIParity.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C6B82D26621D01453B473F /* CLIParity.swift */; };
+		9C41516ECA7143A822C7FB96 /* DailyCostChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D65E5059C19B9805AF1CD22 /* DailyCostChart.swift */; };
+		9D1DF649C307FA5C40E9E1EC /* SnapshotCloudRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B598B5965CAD404C9541920 /* SnapshotCloudRecord.swift */; };
+		9D345983C7CF9AB562949F91 /* MenuProjectionBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8574012551730BAD8CD832F /* MenuProjectionBuilderTests.swift */; };
+		9D5EC8AFE3EAD1493326290F /* BrowserSessionImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9681475BE9FF591A994B600D /* BrowserSessionImporter.swift */; };
+		9DDBB29814B384793A6AB9BA /* SnapshotCloudRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B598B5965CAD404C9541920 /* SnapshotCloudRecord.swift */; };
+		9FACD76802A11C7E3D05F1C5 /* SettingsFeatureModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 633D5594637E52225C5F14C1 /* SettingsFeatureModel.swift */; };
+		9FCE28E31471AC557DFA473C /* LocalProviderDataSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 820444B47D1FFE0BB8F440E4 /* LocalProviderDataSource.swift */; };
+		A0FA8D46D9FD5FA10A76E115 /* ProviderCostSummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82DDD23323FC0A6CA070BD23 /* ProviderCostSummary.swift */; };
+		A1CFE32082BB90E31A6F97AB /* CloudKitRetryPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8E843024AC3D06E065E5560 /* CloudKitRetryPolicy.swift */; };
+		A1EF11B3B44C90596F47C198 /* CloudSyncModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB623A518805C0A44769D531 /* CloudSyncModels.swift */; };
+		A3F44C55CD18E207CFD94E06 /* InstallationIDStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF444E821E0907E433A1D483 /* InstallationIDStore.swift */; };
+		A55416DB31A2A8211CAE4D2B /* CloudKitSnapshotSyncStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5E29CC0EA23FC301099615E /* CloudKitSnapshotSyncStore.swift */; };
+		A6DE060626285BED5903EC2B /* KeychainAndSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CC7190A49E73BA62377F21C /* KeychainAndSessionTests.swift */; };
+		A709030E46CEBA60994C1DC0 /* SnapshotStoreSyncProviderClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDCDDDFECDD0D37AE4A3E080 /* SnapshotStoreSyncProviderClient.swift */; };
+		A77D6B0836E693FD5677E943 /* CloudKitSyncEngineStateStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D22DF05F8CE9A0D9E8E9D47 /* CloudKitSyncEngineStateStoreTests.swift */; };
+		A96F806AA50F8D0DB4DFFD15 /* WidgetRendering.swift in Sources */ = {isa = PBXBuildFile; fileRef = C75FA28252AC0E35B97F3405 /* WidgetRendering.swift */; };
+		A97EC83B7EE5E884EF90FB06 /* HeimdallServices.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 42E0B20B3C4E946F5615DF15 /* HeimdallServices.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		A99194F0EC38639FEA038701 /* UserDefaultsCloudSyncStateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEC62D93CA7B8BCC6788FBD3 /* UserDefaultsCloudSyncStateStore.swift */; };
+		AB0F196C51F88421A9A42BA6 /* HeimdallWidgets.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 35BFF4D6FF9429B8ED927DC9 /* HeimdallWidgets.framework */; };
+		AC15659ABA95B201A2F1F970 /* CloudKitRetryPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8E843024AC3D06E065E5560 /* CloudKitRetryPolicy.swift */; };
+		B2E3770BED522668F5376555 /* SnapshotCloudEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4E4EA7187416A58C791287F /* SnapshotCloudEngine.swift */; };
+		B2EC18A1F031EFE206882141 /* ModelCostTable.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5D781FE9FFD7C14AC7CF693 /* ModelCostTable.swift */; };
+		B31EA6428975EB3CAEDDCFF3 /* LocalNotificationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05B5804BC3378CA122A3BD39 /* LocalNotificationCoordinator.swift */; };
+		B371CF08A8901E7599CC5A81 /* MobileSnapshotModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 606D7986E359AA5E42CB505B /* MobileSnapshotModels.swift */; };
+		B3C5FFBD0BEB50F0E47D4246 /* CloudKitSyncEngineStateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AA30A9F318A73A4DE344C68 /* CloudKitSyncEngineStateStore.swift */; };
+		B4018EFC85154A25CAA84459 /* HeimdallDomain.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 6DD3582B86CA2DDB6BDD805A /* HeimdallDomain.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		B5CEE7040025200863A53914 /* HeimdallServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 42E0B20B3C4E946F5615DF15 /* HeimdallServices.framework */; };
+		B95A7E80A652505C3D3EB15E /* HeimdallWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 5CDCCD0AFB7CEB07B95954C7 /* HeimdallWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		BA93D55A89789924F4F4FA7D /* HeimdallServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 42E0B20B3C4E946F5615DF15 /* HeimdallServices.framework */; };
+		BB2899F7C2C652C08E1DB1DC /* HeimdallDomain.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 6DD3582B86CA2DDB6BDD805A /* HeimdallDomain.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		BC88E532718689AEDAF0B5DB /* HeimdallApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D94E4C96B1476F4C7272C0D3 /* HeimdallApp.swift */; };
+		BDE2934ADFB00A84E8812DE4 /* HeimdallMobileCompositionRoot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 978EA353EF662DFEF0BE17AA /* HeimdallMobileCompositionRoot.swift */; };
+		C0477A62E08F4F8FD1EC4938 /* AppLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D99E82ED34C6E5CDC6B35736 /* AppLifecycleTests.swift */; };
+		C0BE7F8E280C02D92779910B /* ProviderCostSummary+Merge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D99DD1F52562269632122B8 /* ProviderCostSummary+Merge.swift */; };
+		C0C02D1740362752B7EB86EB /* HeimdallCLI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F3E5345CE6B0370A17C849CB /* HeimdallCLI.framework */; };
+		C335B1D99F851645805EEDE4 /* MobileSnapshotSyncTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF934086D0504BCB9407556E /* MobileSnapshotSyncTests.swift */; };
+		C4A75727CC4CA1E34902B8D0 /* HeimdallDomain.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6DD3582B86CA2DDB6BDD805A /* HeimdallDomain.framework */; };
+		C56867FBA101D7F3A24D03FD /* SessionsTable.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFFC68372427AC8C62AEC3F5 /* SessionsTable.swift */; };
+		C59DD32958507B322AA46D39 /* HistoryBarChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = 027DBA6179A20E8052957DB5 /* HistoryBarChart.swift */; };
+		C5C99A1C54C1EE8AECF37FB3 /* HeimdallWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 207F871AADEF74A31C2647AE /* HeimdallWidgetBundle.swift */; };
+		C6E530FE191DD015CCADB6CB /* HeimdallPlatformMac.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6CBBB18908B45BB3D4866B9E /* HeimdallPlatformMac.framework */; };
+		C6EC8AE25ABDF225CB41121B /* HeimdallDomain.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 6DD3582B86CA2DDB6BDD805A /* HeimdallDomain.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		C759872B5B786E00912BE88D /* HeimdallAPIClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 156085A4611B3040D8A4CFBC /* HeimdallAPIClientTests.swift */; };
+		C8A86D53A077A3398BF1F267 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84A37003A878A2473C662ECD /* SettingsView.swift */; };
+		CAB953001612950D3A52187F /* SnapshotSyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 386FB8D60E6D53D5B2669DD9 /* SnapshotSyncCoordinator.swift */; };
+		CBCAF8CF82178DD43236D43B /* WidgetSnapshotStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFC41770A1C8C49E0E812AC4 /* WidgetSnapshotStore.swift */; };
+		CCAD8BBF5F7CF0A32A1282DB /* CloudKitRetryPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8E843024AC3D06E065E5560 /* CloudKitRetryPolicy.swift */; };
+		CDECDA32D6F245B3E67BA48B /* HeimdallDomain.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6DD3582B86CA2DDB6BDD805A /* HeimdallDomain.framework */; };
+		CEA671EFFA57D9647D47EBDA /* SnapshotCloudEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4E4EA7187416A58C791287F /* SnapshotCloudEngine.swift */; };
+		CEBCDF1F68B6C750C6433109 /* HeimdallHelperControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E0809BAE9A8141B899471E4 /* HeimdallHelperControllerTests.swift */; };
+		CF0DF5C6481F9FBEAD7AE112 /* ProviderRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FEA45B811C86881A7064DAE /* ProviderRepository.swift */; };
+		CF86E830B631F745E6F234F7 /* ToolUsageTable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FA533982138D92CE83BA590 /* ToolUsageTable.swift */; };
+		D0158AB60A4F343FF2B4ED19 /* HeimdallServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 42E0B20B3C4E946F5615DF15 /* HeimdallServices.framework */; };
+		D0A2D5B8AE3561341CE223AB /* TokenBreakdownDonut.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F549F9E14A33C7C4C36F46A /* TokenBreakdownDonut.swift */; };
+		D21F79A8EAECB447AD228297 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 47B3519C7E0C0C5FE57E7763 /* Assets.xcassets */; };
+		D7F16C7665C8034DCA2CD70D /* HeimdallCLI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F3E5345CE6B0370A17C849CB /* HeimdallCLI.framework */; };
+		D867D541AD2C8FA59F10D771 /* CumulativeSpendChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD411586AC09DE856748933E /* CumulativeSpendChart.swift */; };
+		D88D94AADD38B60BA9F7D3F6 /* ChartStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EEECCF835DD1E2D2E1AC8CB /* ChartStyle.swift */; };
+		DB8D3F5D252DA769DE74D113 /* ConfigStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5A6EF53C3F4E1B07E1C4B81 /* ConfigStore.swift */; };
+		DBB7F481FE7BB6251101FCF2 /* HeimdallServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 42E0B20B3C4E946F5615DF15 /* HeimdallServices.framework */; };
+		DDA2CD26124EB66FEA8378FE /* SpendSparkline.swift in Sources */ = {isa = PBXBuildFile; fileRef = F595294A2330174E19F6DED0 /* SpendSparkline.swift */; };
+		DE8DEC4CC572EB5D6440D443 /* KeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44D3B73AB2DC84322E6C20DF /* KeychainStore.swift */; };
+		E1A483AF1AAA5A91869BFA91 /* TerminalAuthCommandRunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D902736EB3077BF6056C099 /* TerminalAuthCommandRunnerTests.swift */; };
+		E2A49A36ACF633F183D36F1D /* SourceResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 980BEA5AE42AAD34548CACB8 /* SourceResolver.swift */; };
+		E3A184841498E5629D8B3127 /* WebDashboardScraper.swift in Sources */ = {isa = PBXBuildFile; fileRef = B98C3D563055204D6857EA6D /* WebDashboardScraper.swift */; };
+		E5086EF3FF0A881F2FE3B881 /* AppSessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA7B53EADE369DC61E852C2A /* AppSessionStore.swift */; };
+		E83F2CD543A9D5C6B73B7AAE /* UserDefaultsCloudSyncStateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEC62D93CA7B8BCC6788FBD3 /* UserDefaultsCloudSyncStateStore.swift */; };
+		E93936CF92F2F9D53A8A4494 /* HeimdallDomain.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6DD3582B86CA2DDB6BDD805A /* HeimdallDomain.framework */; };
+		EC1F28BD6137B4FE8848C345 /* HeimdallPlatformMac.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 6CBBB18908B45BB3D4866B9E /* HeimdallPlatformMac.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		ECB1135FA5D2D05C1953E27E /* HeimdallServices.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 42E0B20B3C4E946F5615DF15 /* HeimdallServices.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		EFAC46570AF8D0DDFCE96255 /* AppShellView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDD421D7EDED7C49A0F38AF4 /* AppShellView.swift */; };
+		F08D2B2B5343F0513D64AA3C /* MenuBarMeterRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B528BD8A44913B12965FF41E /* MenuBarMeterRenderer.swift */; };
+		F0AB84BD26150183F5D74569 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = E0B08D45D0A9F6F6B2605754 /* AppIcon.icon */; };
+		F0C72F4B9B77A6E14131B3DD /* HeimdallScenes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E61CC850273713A67822F1C /* HeimdallScenes.swift */; };
+		F0E344C76C50CD82BC33D6C9 /* MobileSyncedAggregateCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCF16D468C9F644DCFF84245 /* MobileSyncedAggregateCache.swift */; };
+		F1B79CF5A187749C2286B12A /* VersionAlignmentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CCAA483DBCB1437ED895E38 /* VersionAlignmentTests.swift */; };
+		F1EDE2C1687F5152C5505C90 /* HeimdallDomain.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 6DD3582B86CA2DDB6BDD805A /* HeimdallDomain.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		F6A642C480881DCFC2F2463B /* SnapshotCloudEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4E4EA7187416A58C791287F /* SnapshotCloudEngine.swift */; };
+		F949AC71730361ED8B4AA1CD /* ModelFamilyHistoryChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB86F9ACB74CD8B48F2A5A9A /* ModelFamilyHistoryChart.swift */; };
+		FB0441D052314A18840D3B1C /* HeimdallPlatformMac.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 6CBBB18908B45BB3D4866B9E /* HeimdallPlatformMac.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		0420C7A41465767A061A0B25 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1D28A0C047310A6C1DB30D6B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 9AC04D97023C8C3658516BBC;
+			remoteInfo = HeimdallDomain;
+		};
+		22F0B052E58931247FB4808D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1D28A0C047310A6C1DB30D6B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 9AC04D97023C8C3658516BBC;
+			remoteInfo = HeimdallDomain;
+		};
+		2C42DC934D5A767028FE3FA0 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1D28A0C047310A6C1DB30D6B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = BE162B9BF2434C75AA5CE20F;
+			remoteInfo = HeimdallServices;
+		};
+		320F6B219EFDD1C6417BBB2B /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1D28A0C047310A6C1DB30D6B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = BE162B9BF2434C75AA5CE20F;
+			remoteInfo = HeimdallServices;
+		};
+		35ED7F6EB7CD88F1C5E38917 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1D28A0C047310A6C1DB30D6B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = F3D4658D199B2ADFDFFBE992;
+			remoteInfo = HeimdallAppUI;
+		};
+		3C1DA19E2205FC4083F6F8BF /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1D28A0C047310A6C1DB30D6B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 8F7681C367274F6A2187BAF3;
+			remoteInfo = HeimdallCLI;
+		};
+		3E547D32F1EAAFF2EB9869B0 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1D28A0C047310A6C1DB30D6B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 40704800EB79330E943FA184;
+			remoteInfo = HeimdallWidgets;
+		};
+		40F96AED23ADC7AEF2CBBDD4 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1D28A0C047310A6C1DB30D6B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = BE162B9BF2434C75AA5CE20F;
+			remoteInfo = HeimdallServices;
+		};
+		45FE3EC93FC4EBF3CF012B58 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1D28A0C047310A6C1DB30D6B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 43B52BCA1CEBB1503033AF8D;
+			remoteInfo = HeimdallWidget;
+		};
+		52EB1F63F95E010A69FFA351 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1D28A0C047310A6C1DB30D6B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 9AC04D97023C8C3658516BBC;
+			remoteInfo = HeimdallDomain;
+		};
+		57D759824B96186103030191 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1D28A0C047310A6C1DB30D6B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = BE162B9BF2434C75AA5CE20F;
+			remoteInfo = HeimdallServices;
+		};
+		59BA0B07F1E7EAD5A6AE3D85 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1D28A0C047310A6C1DB30D6B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 2B62A9BF1265F1E7506BAA4F;
+			remoteInfo = HeimdallPlatformMac;
+		};
+		5D5377A3FB633099E2E4D536 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1D28A0C047310A6C1DB30D6B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = BE162B9BF2434C75AA5CE20F;
+			remoteInfo = HeimdallServices;
+		};
+		6A549ECD0430A3E8621FA6D2 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1D28A0C047310A6C1DB30D6B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = BE162B9BF2434C75AA5CE20F;
+			remoteInfo = HeimdallServices;
+		};
+		717913F5791C01A5C5A4D3C7 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1D28A0C047310A6C1DB30D6B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = BE162B9BF2434C75AA5CE20F;
+			remoteInfo = HeimdallServices;
+		};
+		89487D0208FBEB93548E0163 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1D28A0C047310A6C1DB30D6B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 9AC04D97023C8C3658516BBC;
+			remoteInfo = HeimdallDomain;
+		};
+		95BFD87F90E1919956F501FD /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1D28A0C047310A6C1DB30D6B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 9AC04D97023C8C3658516BBC;
+			remoteInfo = HeimdallDomain;
+		};
+		9C81A02BB4BCE0380C988F5D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1D28A0C047310A6C1DB30D6B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = F3D4658D199B2ADFDFFBE992;
+			remoteInfo = HeimdallAppUI;
+		};
+		9CC7ADE657C5D4577F2A18E1 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1D28A0C047310A6C1DB30D6B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 8F7681C367274F6A2187BAF3;
+			remoteInfo = HeimdallCLI;
+		};
+		9E45A2CC19B5164816EABC80 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1D28A0C047310A6C1DB30D6B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = BE162B9BF2434C75AA5CE20F;
+			remoteInfo = HeimdallServices;
+		};
+		B07CDD4697A150FDBFE37825 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1D28A0C047310A6C1DB30D6B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 2B62A9BF1265F1E7506BAA4F;
+			remoteInfo = HeimdallPlatformMac;
+		};
+		B2A9499F9D3297EF5258ADA5 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1D28A0C047310A6C1DB30D6B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 9AC04D97023C8C3658516BBC;
+			remoteInfo = HeimdallDomain;
+		};
+		B6B1F59742135705C7C98393 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1D28A0C047310A6C1DB30D6B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 9AC04D97023C8C3658516BBC;
+			remoteInfo = HeimdallDomain;
+		};
+		B786794C9E05A31A29C9CEA1 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1D28A0C047310A6C1DB30D6B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 9AC04D97023C8C3658516BBC;
+			remoteInfo = HeimdallDomain;
+		};
+		C23B7525408301BBEB36FC33 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1D28A0C047310A6C1DB30D6B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 87F13C55B799D3E8DE986803;
+			remoteInfo = HeimdallMobileApp;
+		};
+		C4C333122FEDA20A1E09C525 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1D28A0C047310A6C1DB30D6B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 9AC04D97023C8C3658516BBC;
+			remoteInfo = HeimdallDomain;
+		};
+		C5EC9D547AA215BEE98653FC /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1D28A0C047310A6C1DB30D6B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = BE162B9BF2434C75AA5CE20F;
+			remoteInfo = HeimdallServices;
+		};
+		CD686B9064BE93F85A9CAC32 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1D28A0C047310A6C1DB30D6B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = BE162B9BF2434C75AA5CE20F;
+			remoteInfo = HeimdallServices;
+		};
+		D143F40215042F0CD9337FF3 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1D28A0C047310A6C1DB30D6B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 9AC04D97023C8C3658516BBC;
+			remoteInfo = HeimdallDomain;
+		};
+		DAAF745FF15710A849713371 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1D28A0C047310A6C1DB30D6B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 40704800EB79330E943FA184;
+			remoteInfo = HeimdallWidgets;
+		};
+		E08CD6475D10CAE3C18E0F95 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1D28A0C047310A6C1DB30D6B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 9AC04D97023C8C3658516BBC;
+			remoteInfo = HeimdallDomain;
+		};
+		ECF401E9DC6922192E4A0E01 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1D28A0C047310A6C1DB30D6B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 2B62A9BF1265F1E7506BAA4F;
+			remoteInfo = HeimdallPlatformMac;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		009F2A62C9A6DCF1867EB4D4 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				8A531BCDF21F76DF6E1E99C1 /* HeimdallDomain.framework in Embed Frameworks */,
+				780AAE10D30AC8C7052B53C2 /* HeimdallServices.framework in Embed Frameworks */,
+				FB0441D052314A18840D3B1C /* HeimdallPlatformMac.framework in Embed Frameworks */,
+				4DDF4600223CC6A36A3B1AD3 /* HeimdallAppUI.framework in Embed Frameworks */,
+				76332D90C712416426F62C8B /* HeimdallWidgets.framework in Embed Frameworks */,
+				0C53AFDB4C63286A335916CB /* HeimdallCLI.framework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		3BDBD80962D0AAD8A3DDF40F /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				B95A7E80A652505C3D3EB15E /* HeimdallWidget.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4F05DF891965E4D975DCA787 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				BB2899F7C2C652C08E1DB1DC /* HeimdallDomain.framework in Embed Frameworks */,
+				55EB68B04A289D168A449E58 /* HeimdallServices.framework in Embed Frameworks */,
+				53426A47109A3F20022DF380 /* HeimdallWidgets.framework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		695339F41D3D3EECD975EC10 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				B4018EFC85154A25CAA84459 /* HeimdallDomain.framework in Embed Frameworks */,
+				ECB1135FA5D2D05C1953E27E /* HeimdallServices.framework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6CA0F0B750D21F975BDA54C5 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				C6EC8AE25ABDF225CB41121B /* HeimdallDomain.framework in Embed Frameworks */,
+				9563FDD6EE0EC60934592678 /* HeimdallServices.framework in Embed Frameworks */,
+				EC1F28BD6137B4FE8848C345 /* HeimdallPlatformMac.framework in Embed Frameworks */,
+				3832874E1C372B5291B8946D /* HeimdallAppUI.framework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		808E823D05700A2F22A744E2 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				F1EDE2C1687F5152C5505C90 /* HeimdallDomain.framework in Embed Frameworks */,
+				A97EC83B7EE5E884EF90FB06 /* HeimdallServices.framework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		027DBA6179A20E8052957DB5 /* HistoryBarChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryBarChart.swift; sourceTree = "<group>"; };
+		03A7882CA3C6FAAD7B49FD64 /* SwitcherWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwitcherWidgetView.swift; sourceTree = "<group>"; };
+		05B5804BC3378CA122A3BD39 /* LocalNotificationCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalNotificationCoordinator.swift; sourceTree = "<group>"; };
+		07091C71637C185E7E4D2001 /* WidgetTimelineProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetTimelineProvider.swift; sourceTree = "<group>"; };
+		08DC7C68DA667057356F1DF0 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
+		0F74308411EC6164742B7FA8 /* DashboardAdjunctController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardAdjunctController.swift; sourceTree = "<group>"; };
+		10FAFE6026FE6D6116066AEF /* ProviderVisualState+Rank.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProviderVisualState+Rank.swift"; sourceTree = "<group>"; };
+		1299AC1A64FBBDACC2DF2419 /* HeimdallMobileApp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = HeimdallMobileApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		145C8997FFEA689D3E6C9693 /* CacheHitTrendChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheHitTrendChart.swift; sourceTree = "<group>"; };
+		156085A4611B3040D8A4CFBC /* HeimdallAPIClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeimdallAPIClientTests.swift; sourceTree = "<group>"; };
+		192919572CC8C844C5277D95 /* CloudKitAccountObserverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitAccountObserverTests.swift; sourceTree = "<group>"; };
+		1A0EC55606DC359A9CB40AF1 /* RootMenuView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootMenuView.swift; sourceTree = "<group>"; };
+		1BB29474406695841572DFE1 /* AppRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRuntime.swift; sourceTree = "<group>"; };
+		1D22DF05F8CE9A0D9E8E9D47 /* CloudKitSyncEngineStateStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitSyncEngineStateStoreTests.swift; sourceTree = "<group>"; };
+		1E0809BAE9A8141B899471E4 /* HeimdallHelperControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeimdallHelperControllerTests.swift; sourceTree = "<group>"; };
+		1FF5238C41CE2F371F66DF1F /* WeeklyProjectionArc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyProjectionArc.swift; sourceTree = "<group>"; };
+		20219CB528FF69CE9FA4675D /* LiveMonitorTimeFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveMonitorTimeFormatter.swift; sourceTree = "<group>"; };
+		207F871AADEF74A31C2647AE /* HeimdallWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeimdallWidgetBundle.swift; sourceTree = "<group>"; };
+		25B73D3C14DB353CB18732AA /* CacheMixRing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheMixRing.swift; sourceTree = "<group>"; };
+		291C6404CCA606CE5B27B016 /* FormatHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FormatHelpers.swift; sourceTree = "<group>"; };
+		2CC7190A49E73BA62377F21C /* KeychainAndSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainAndSessionTests.swift; sourceTree = "<group>"; };
+		2E61CC850273713A67822F1C /* HeimdallScenes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeimdallScenes.swift; sourceTree = "<group>"; };
+		2F15604BD3422C2F1FD3C806 /* BrowserSessionController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserSessionController.swift; sourceTree = "<group>"; };
+		2F501622DFBB8B270F52F9A4 /* HeimdallAppCompositionRoot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeimdallAppCompositionRoot.swift; sourceTree = "<group>"; };
+		3397FA49246AFDC96358E2EE /* ProviderCredentialInspector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderCredentialInspector.swift; sourceTree = "<group>"; };
+		35BFF4D6FF9429B8ED927DC9 /* HeimdallWidgets.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = HeimdallWidgets.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		386FB8D60E6D53D5B2669DD9 /* SnapshotSyncCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotSyncCoordinator.swift; sourceTree = "<group>"; };
+		39EE70F6F8642941D57B0958 /* CloudKitRetryPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitRetryPolicyTests.swift; sourceTree = "<group>"; };
+		3BF8E344F6C7D8A4190F3B16 /* WidgetSnapshotBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotBuilder.swift; sourceTree = "<group>"; };
+		3F671337874C5584E27C8CF9 /* ProviderDataSourceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderDataSourceTests.swift; sourceTree = "<group>"; };
+		3FA533982138D92CE83BA590 /* ToolUsageTable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolUsageTable.swift; sourceTree = "<group>"; };
+		42E0B20B3C4E946F5615DF15 /* HeimdallServices.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = HeimdallServices.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		44D3B73AB2DC84322E6C20DF /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
+		46443A111BF7FAAC9BDD8B08 /* ProviderFeatureModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderFeatureModel.swift; sourceTree = "<group>"; };
+		46B8183C15D3B9A427BF5379 /* ModelDistributionDonut.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelDistributionDonut.swift; sourceTree = "<group>"; };
+		47B3519C7E0C0C5FE57E7763 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		48760731A02C9FE2BD7A5BF7 /* ServiceProtocols.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServiceProtocols.swift; sourceTree = "<group>"; };
+		4946CC1A3E8E241196B584BD /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		4CCAA483DBCB1437ED895E38 /* VersionAlignmentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VersionAlignmentTests.swift; sourceTree = "<group>"; };
+		4D99DD1F52562269632122B8 /* ProviderCostSummary+Merge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProviderCostSummary+Merge.swift"; sourceTree = "<group>"; };
+		4E7FA1B7555CF5D28BD004CD /* LiveMonitorFeatureModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveMonitorFeatureModelTests.swift; sourceTree = "<group>"; };
+		4F549F9E14A33C7C4C36F46A /* TokenBreakdownDonut.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenBreakdownDonut.swift; sourceTree = "<group>"; };
+		4F7B30BDF77F80AB00346920 /* MenuProjectionBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuProjectionBuilder.swift; sourceTree = "<group>"; };
+		52CDC30576B75756EC01975E /* MobileDashboardCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobileDashboardCoordinator.swift; sourceTree = "<group>"; };
+		5B598B5965CAD404C9541920 /* SnapshotCloudRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotCloudRecord.swift; sourceTree = "<group>"; };
+		5CDCCD0AFB7CEB07B95954C7 /* HeimdallWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = HeimdallWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		5E6CDC9335D16B5EB715CF31 /* DesignTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignTokens.swift; sourceTree = "<group>"; };
+		5EEECCF835DD1E2D2E1AC8CB /* ChartStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartStyle.swift; sourceTree = "<group>"; };
+		606D7986E359AA5E42CB505B /* MobileSnapshotModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobileSnapshotModels.swift; sourceTree = "<group>"; };
+		62A2AB3DA27317891358F8D2 /* HeimdallModuleTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HeimdallModuleTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		633D5594637E52225C5F14C1 /* SettingsFeatureModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsFeatureModel.swift; sourceTree = "<group>"; };
+		63ED8CBFFD94DD60166DA5F6 /* WidgetProjectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetProjectionTests.swift; sourceTree = "<group>"; };
+		67840B73F4DEEB3F6F8FAF13 /* CLIParityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CLIParityTests.swift; sourceTree = "<group>"; };
+		6A593154519BF77950081071 /* WidgetSnapshotStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotStoreTests.swift; sourceTree = "<group>"; };
+		6AA30A9F318A73A4DE344C68 /* CloudKitSyncEngineStateStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitSyncEngineStateStore.swift; sourceTree = "<group>"; };
+		6CBBB18908B45BB3D4866B9E /* HeimdallPlatformMac.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = HeimdallPlatformMac.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		6D33482FE303649FDA40200C /* HeimdallHelperController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeimdallHelperController.swift; sourceTree = "<group>"; };
+		6DD3582B86CA2DDB6BDD805A /* HeimdallDomain.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = HeimdallDomain.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		70090E0E254BD8157B0C1585 /* HeimdallAppUI.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = HeimdallAppUI.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		721D020D2527E3EFDD559E50 /* ProviderSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderSnapshot.swift; sourceTree = "<group>"; };
+		738A325131643B1ADB134EB3 /* HeimdallMobileApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeimdallMobileApp.swift; sourceTree = "<group>"; };
+		7D7BA0C7C47E5C6990F0B11C /* UsageWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageWidgetView.swift; sourceTree = "<group>"; };
+		7E7836B95C21CF581CC28CAA /* HeimdallModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeimdallModels.swift; sourceTree = "<group>"; };
+		7FEA45B811C86881A7064DAE /* ProviderRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderRepository.swift; sourceTree = "<group>"; };
+		81D70834CEE2B65B314F8C33 /* MacPlatformFactoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacPlatformFactoryTests.swift; sourceTree = "<group>"; };
+		820444B47D1FFE0BB8F440E4 /* LocalProviderDataSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalProviderDataSource.swift; sourceTree = "<group>"; };
+		82DDD23323FC0A6CA070BD23 /* ProviderCostSummary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderCostSummary.swift; sourceTree = "<group>"; };
+		84A37003A878A2473C662ECD /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		88B3EEEC74012F10BBBDEF02 /* HeimdallTool */ = {isa = PBXFileReference; includeInIndex = 0; path = HeimdallTool; sourceTree = BUILT_PRODUCTS_DIR; };
+		89FCFC5A10E117974EA7DCDB /* InstallationIDStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstallationIDStoreTests.swift; sourceTree = "<group>"; };
+		8BC377795B018241788AF38F /* FixtureLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FixtureLoader.swift; sourceTree = "<group>"; };
+		8D3DEC24D0A05BF684D95A2F /* HeimdallApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HeimdallApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		8D902736EB3077BF6056C099 /* TerminalAuthCommandRunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalAuthCommandRunnerTests.swift; sourceTree = "<group>"; };
+		8EF8B66DB4466FA0E56A6BC1 /* ProjectCostTable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectCostTable.swift; sourceTree = "<group>"; };
+		8F7016843FA80F2E65EF3855 /* HourlyActivityChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HourlyActivityChart.swift; sourceTree = "<group>"; };
+		9268190866125BAC18D64413 /* OverviewFeatureModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverviewFeatureModel.swift; sourceTree = "<group>"; };
+		9497931DF80C9C2A6FF4E049 /* HistoryWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryWidgetView.swift; sourceTree = "<group>"; };
+		95C985809DEE4B70DF443BE2 /* LiveMonitorModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveMonitorModels.swift; sourceTree = "<group>"; };
+		9681475BE9FF591A994B600D /* BrowserSessionImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserSessionImporter.swift; sourceTree = "<group>"; };
+		978EA353EF662DFEF0BE17AA /* HeimdallMobileCompositionRoot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeimdallMobileCompositionRoot.swift; sourceTree = "<group>"; };
+		980BEA5AE42AAD34548CACB8 /* SourceResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceResolver.swift; sourceTree = "<group>"; };
+		984DAE4914A65AC5AB23500A /* LiveMonitorFeatureModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveMonitorFeatureModel.swift; sourceTree = "<group>"; };
+		992ABBAD32B5A6363619A03D /* CloudKitAccountObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitAccountObserver.swift; sourceTree = "<group>"; };
+		9D65E5059C19B9805AF1CD22 /* DailyCostChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyCostChart.swift; sourceTree = "<group>"; };
+		9FA47C2BDF387460459D04CE /* MobileDashboardModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobileDashboardModelTests.swift; sourceTree = "<group>"; };
+		A0A62196871EE1C85CF85E7D /* ActivityHeatmap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityHeatmap.swift; sourceTree = "<group>"; };
+		A4BEC1CFB139254BD981842D /* ProviderConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderConfig.swift; sourceTree = "<group>"; };
+		A50E73BED9B2C4E5A64ABDB5 /* ProviderComparisonChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderComparisonChart.swift; sourceTree = "<group>"; };
+		A5E29CC0EA23FC301099615E /* CloudKitSnapshotSyncStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitSnapshotSyncStore.swift; sourceTree = "<group>"; };
+		A740508074D7E86FE75485FB /* ChartsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartsTests.swift; sourceTree = "<group>"; };
+		A7C08FE6521316E41EC48430 /* SourceResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceResolverTests.swift; sourceTree = "<group>"; };
+		A8929DF98DFAA8AAB079A57D /* HeimdallMobileTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = HeimdallMobileTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A8E0B4ABF86B5945DCCB2D8E /* AuthCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthCoordinator.swift; sourceTree = "<group>"; };
+		ACFCB093CB35AF61EC492D11 /* WebExtrasFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebExtrasFlowTests.swift; sourceTree = "<group>"; };
+		AD411586AC09DE856748933E /* CumulativeSpendChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CumulativeSpendChart.swift; sourceTree = "<group>"; };
+		AEF53959FBB2844C458551BD /* ProviderDataSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderDataSource.swift; sourceTree = "<group>"; };
+		B2C6B82D26621D01453B473F /* CLIParity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CLIParity.swift; sourceTree = "<group>"; };
+		B3B064178A09A8FEE0960741 /* MobileDashboardPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobileDashboardPreferences.swift; sourceTree = "<group>"; };
+		B528BD8A44913B12965FF41E /* MenuBarMeterRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarMeterRenderer.swift; sourceTree = "<group>"; };
+		B54B2BF220CB4DDBF4BD8BF3 /* UserNotificationServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserNotificationServices.swift; sourceTree = "<group>"; };
+		B772ED10D0A3E2CD78744DC3 /* AppShellModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppShellModel.swift; sourceTree = "<group>"; };
+		B98C3D563055204D6857EA6D /* WebDashboardScraper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebDashboardScraper.swift; sourceTree = "<group>"; };
+		B9BFB707EB7ECC47A13C2EF2 /* LocalNotificationCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalNotificationCoordinatorTests.swift; sourceTree = "<group>"; };
+		BA351F2E960150EDB5A66009 /* WidgetCenterReloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetCenterReloader.swift; sourceTree = "<group>"; };
+		BA7B53EADE369DC61E852C2A /* AppSessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSessionStore.swift; sourceTree = "<group>"; };
+		BDE6092BE7A5430C1B2F686F /* VersionDistributionDonut.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VersionDistributionDonut.swift; sourceTree = "<group>"; };
+		BFC41770A1C8C49E0E812AC4 /* WidgetSnapshotStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotStore.swift; sourceTree = "<group>"; };
+		BFFC68372427AC8C62AEC3F5 /* SessionsTable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionsTable.swift; sourceTree = "<group>"; };
+		C14F28DABC92E15A17291475 /* WebDashboardScraperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebDashboardScraperTests.swift; sourceTree = "<group>"; };
+		C2BF8B7F80A8FFECA517620C /* SnapshotCloudRecordTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotCloudRecordTests.swift; sourceTree = "<group>"; };
+		C388C03E7D4C3B5CA64A375A /* RefreshCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefreshCoordinator.swift; sourceTree = "<group>"; };
+		C6AABFEAFDE97333A7D40F4D /* TerminalAuthCommandRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalAuthCommandRunner.swift; sourceTree = "<group>"; };
+		C75FA28252AC0E35B97F3405 /* WidgetRendering.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetRendering.swift; sourceTree = "<group>"; };
+		C8512DD66EB9D9BF5D52E944 /* ProviderCredentialInspectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderCredentialInspectorTests.swift; sourceTree = "<group>"; };
+		C8574012551730BAD8CD832F /* MenuProjectionBuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuProjectionBuilderTests.swift; sourceTree = "<group>"; };
+		C96AF691B9EF24FDA1BE9B47 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		CD836E600517F1D404B9E1FA /* LiveMonitorPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveMonitorPresentationTests.swift; sourceTree = "<group>"; };
+		D08F1C319B218AFE85EFFDD4 /* HeimdallCLIRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeimdallCLIRunner.swift; sourceTree = "<group>"; };
+		D29DC20EF5573DB4B5610595 /* CloudSyncDiagnosticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSyncDiagnosticsView.swift; sourceTree = "<group>"; };
+		D366DB88855D0719D9706096 /* HeimdallMobileRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeimdallMobileRootView.swift; sourceTree = "<group>"; };
+		D4E4EA7187416A58C791287F /* SnapshotCloudEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotCloudEngine.swift; sourceTree = "<group>"; };
+		D5A6EF53C3F4E1B07E1C4B81 /* ConfigStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigStore.swift; sourceTree = "<group>"; };
+		D63D5D89A35BDA53F3BC09E0 /* MobileDashboardProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobileDashboardProjection.swift; sourceTree = "<group>"; };
+		D8B0F6BD53BA7C15479C2A01 /* MobileDashboardModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobileDashboardModel.swift; sourceTree = "<group>"; };
+		D8E843024AC3D06E065E5560 /* CloudKitRetryPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitRetryPolicy.swift; sourceTree = "<group>"; };
+		D94E4C96B1476F4C7272C0D3 /* HeimdallApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeimdallApp.swift; sourceTree = "<group>"; };
+		D99E82ED34C6E5CDC6B35736 /* AppLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLifecycleTests.swift; sourceTree = "<group>"; };
+		DA6C2C4580D3F1F8C37007B0 /* TokenStackChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenStackChart.swift; sourceTree = "<group>"; };
+		DAAE5CE5E7A7099AD1D948DA /* McpSummaryTable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = McpSummaryTable.swift; sourceTree = "<group>"; };
+		DB623A518805C0A44769D531 /* CloudSyncModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSyncModels.swift; sourceTree = "<group>"; };
+		DCF16D468C9F644DCFF84245 /* MobileSyncedAggregateCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobileSyncedAggregateCache.swift; sourceTree = "<group>"; };
+		DEC62D93CA7B8BCC6788FBD3 /* UserDefaultsCloudSyncStateStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserDefaultsCloudSyncStateStore.swift; sourceTree = "<group>"; };
+		DF444E821E0907E433A1D483 /* InstallationIDStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstallationIDStore.swift; sourceTree = "<group>"; };
+		E0B08D45D0A9F6F6B2605754 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = AppIcon.icon; sourceTree = "<group>"; };
+		E5588D866F8071D2CA189DAA /* AppShellViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppShellViewTests.swift; sourceTree = "<group>"; };
+		E6F32C03C01D82DA0C61D0DF /* CompactWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompactWidgetView.swift; sourceTree = "<group>"; };
+		E7BCB034E0BCC9F847A5C9FB /* SubagentSummaryCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubagentSummaryCard.swift; sourceTree = "<group>"; };
+		EDCDDDFECDD0D37AE4A3E080 /* SnapshotStoreSyncProviderClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotStoreSyncProviderClient.swift; sourceTree = "<group>"; };
+		EF934086D0504BCB9407556E /* MobileSnapshotSyncTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobileSnapshotSyncTests.swift; sourceTree = "<group>"; };
+		F180F66C0A6182DBE9C6D4C9 /* PredictiveInsightModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PredictiveInsightModels.swift; sourceTree = "<group>"; };
+		F3E5345CE6B0370A17C849CB /* HeimdallCLI.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = HeimdallCLI.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		F595294A2330174E19F6DED0 /* SpendSparkline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpendSparkline.swift; sourceTree = "<group>"; };
+		F5D781FE9FFD7C14AC7CF693 /* ModelCostTable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelCostTable.swift; sourceTree = "<group>"; };
+		F6414EDD6B4CE9C3676D07C5 /* MacPlatformFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacPlatformFactory.swift; sourceTree = "<group>"; };
+		F7045ECF4AFD7BE3822AD4E5 /* WidgetIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetIntents.swift; sourceTree = "<group>"; };
+		F7609829C29171759DC09559 /* HeimdallAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeimdallAPIClient.swift; sourceTree = "<group>"; };
+		F7FB72CB982B1605610B3DE6 /* AppShellModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppShellModelTests.swift; sourceTree = "<group>"; };
+		F878880B7BB09FDCB32435D6 /* WidgetSnapshotCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotCoordinator.swift; sourceTree = "<group>"; };
+		FB86F9ACB74CD8B48F2A5A9A /* ModelFamilyHistoryChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelFamilyHistoryChart.swift; sourceTree = "<group>"; };
+		FDD421D7EDED7C49A0F38AF4 /* AppShellView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppShellView.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		1584F2FFE4C5088C9E79331D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7D2125111C5CDFE4BEF14419 /* HeimdallDomain.framework in Frameworks */,
+				93D8DF0544EFA176EDAC896F /* HeimdallServices.framework in Frameworks */,
+				0ADD5DE884EB7F68A2AF6D27 /* HeimdallPlatformMac.framework in Frameworks */,
+				C0C02D1740362752B7EB86EB /* HeimdallCLI.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		2E36E080EDA70D7415B27DA1 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E93936CF92F2F9D53A8A4494 /* HeimdallDomain.framework in Frameworks */,
+				065AE3F43CAC5521E816AAC5 /* HeimdallServices.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		444AEE9D3C69E7AED0E40B79 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				36D971CDFC33C8FE6785EC67 /* HeimdallDomain.framework in Frameworks */,
+				78D16FF51DE49B19F7414CC6 /* HeimdallServices.framework in Frameworks */,
+				AB0F196C51F88421A9A42BA6 /* HeimdallWidgets.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6911C31DAE88D14F79648711 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0282A6F1545D499742D8A188 /* HeimdallDomain.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6B618E270D901646D3175433 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CDECDA32D6F245B3E67BA48B /* HeimdallDomain.framework in Frameworks */,
+				7C3269A4854FA59D9F84995A /* HeimdallServices.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8E2DC0E747EEE866BE71AC52 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				976E82DB0A8F579B8C891623 /* HeimdallDomain.framework in Frameworks */,
+				B5CEE7040025200863A53914 /* HeimdallServices.framework in Frameworks */,
+				C6E530FE191DD015CCADB6CB /* HeimdallPlatformMac.framework in Frameworks */,
+				5C2F0F4DAA89A461D96D0465 /* HeimdallAppUI.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9E8114F487D2FFEE90119651 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C4A75727CC4CA1E34902B8D0 /* HeimdallDomain.framework in Frameworks */,
+				DBB7F481FE7BB6251101FCF2 /* HeimdallServices.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A07AFD787465E0A3743F307D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				85352BEF15E8234C9AC9195D /* HeimdallDomain.framework in Frameworks */,
+				5939076654EED851D46E812C /* HeimdallServices.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A9C9FF7F13D4A8B55987E5C0 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6BB92EAF3701824AF60D1108 /* HeimdallDomain.framework in Frameworks */,
+				BA93D55A89789924F4F4FA7D /* HeimdallServices.framework in Frameworks */,
+				54A52A0A9C3605084761069D /* HeimdallPlatformMac.framework in Frameworks */,
+				1B7B0CFDBBFDA547AD211A45 /* HeimdallAppUI.framework in Frameworks */,
+				8E25B4660E56B26E7810389C /* HeimdallWidgets.framework in Frameworks */,
+				D7F16C7665C8034DCA2CD70D /* HeimdallCLI.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C7F3C67599406D2CB6ACB119 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7D73A2B20FC7332E1146ABC9 /* HeimdallDomain.framework in Frameworks */,
+				D0158AB60A4F343FF2B4ED19 /* HeimdallServices.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		EB4069624D13FD2CB44DB10F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				241B0BDBF87CFA943D4C0761 /* HeimdallDomain.framework in Frameworks */,
+				2F674BB1D3E0EB6598EE3718 /* HeimdallServices.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		2DCB0D105E0AA574EAC2C1BF /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				738A325131643B1ADB134EB3 /* HeimdallMobileApp.swift */,
+				978EA353EF662DFEF0BE17AA /* HeimdallMobileCompositionRoot.swift */,
+				D366DB88855D0719D9706096 /* HeimdallMobileRootView.swift */,
+				52CDC30576B75756EC01975E /* MobileDashboardCoordinator.swift */,
+				D8B0F6BD53BA7C15479C2A01 /* MobileDashboardModel.swift */,
+				B3B064178A09A8FEE0960741 /* MobileDashboardPreferences.swift */,
+				D63D5D89A35BDA53F3BC09E0 /* MobileDashboardProjection.swift */,
+				DCF16D468C9F644DCFF84245 /* MobileSyncedAggregateCache.swift */,
+			);
+			name = Sources;
+			path = iOS/App/Sources;
+			sourceTree = "<group>";
+		};
+		3020C2A4857A97354BC5E033 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				2F15604BD3422C2F1FD3C806 /* BrowserSessionController.swift */,
+				9681475BE9FF591A994B600D /* BrowserSessionImporter.swift */,
+				D5A6EF53C3F4E1B07E1C4B81 /* ConfigStore.swift */,
+				0F74308411EC6164742B7FA8 /* DashboardAdjunctController.swift */,
+				F7609829C29171759DC09559 /* HeimdallAPIClient.swift */,
+				6D33482FE303649FDA40200C /* HeimdallHelperController.swift */,
+				44D3B73AB2DC84322E6C20DF /* KeychainStore.swift */,
+				820444B47D1FFE0BB8F440E4 /* LocalProviderDataSource.swift */,
+				F6414EDD6B4CE9C3676D07C5 /* MacPlatformFactory.swift */,
+				3397FA49246AFDC96358E2EE /* ProviderCredentialInspector.swift */,
+				C6AABFEAFDE97333A7D40F4D /* TerminalAuthCommandRunner.swift */,
+				B54B2BF220CB4DDBF4BD8BF3 /* UserNotificationServices.swift */,
+				B98C3D563055204D6857EA6D /* WebDashboardScraper.swift */,
+				BA351F2E960150EDB5A66009 /* WidgetCenterReloader.swift */,
+			);
+			name = Sources;
+			path = PlatformMac/Sources;
+			sourceTree = "<group>";
+		};
+		322525A8046FF4E2E70B3DC1 /* Charts */ = {
+			isa = PBXGroup;
+			children = (
+				A0A62196871EE1C85CF85E7D /* ActivityHeatmap.swift */,
+				145C8997FFEA689D3E6C9693 /* CacheHitTrendChart.swift */,
+				25B73D3C14DB353CB18732AA /* CacheMixRing.swift */,
+				5EEECCF835DD1E2D2E1AC8CB /* ChartStyle.swift */,
+				AD411586AC09DE856748933E /* CumulativeSpendChart.swift */,
+				9D65E5059C19B9805AF1CD22 /* DailyCostChart.swift */,
+				027DBA6179A20E8052957DB5 /* HistoryBarChart.swift */,
+				8F7016843FA80F2E65EF3855 /* HourlyActivityChart.swift */,
+				DAAE5CE5E7A7099AD1D948DA /* McpSummaryTable.swift */,
+				F5D781FE9FFD7C14AC7CF693 /* ModelCostTable.swift */,
+				46B8183C15D3B9A427BF5379 /* ModelDistributionDonut.swift */,
+				FB86F9ACB74CD8B48F2A5A9A /* ModelFamilyHistoryChart.swift */,
+				8EF8B66DB4466FA0E56A6BC1 /* ProjectCostTable.swift */,
+				A50E73BED9B2C4E5A64ABDB5 /* ProviderComparisonChart.swift */,
+				BFFC68372427AC8C62AEC3F5 /* SessionsTable.swift */,
+				F595294A2330174E19F6DED0 /* SpendSparkline.swift */,
+				E7BCB034E0BCC9F847A5C9FB /* SubagentSummaryCard.swift */,
+				4F549F9E14A33C7C4C36F46A /* TokenBreakdownDonut.swift */,
+				DA6C2C4580D3F1F8C37007B0 /* TokenStackChart.swift */,
+				3FA533982138D92CE83BA590 /* ToolUsageTable.swift */,
+				BDE6092BE7A5430C1B2F686F /* VersionDistributionDonut.swift */,
+				1FF5238C41CE2F371F66DF1F /* WeeklyProjectionArc.swift */,
+			);
+			path = Charts;
+			sourceTree = "<group>";
+		};
+		399DAD9513D205D9E4612788 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				1BB29474406695841572DFE1 /* AppRuntime.swift */,
+				BA7B53EADE369DC61E852C2A /* AppSessionStore.swift */,
+				A8E0B4ABF86B5945DCCB2D8E /* AuthCoordinator.swift */,
+				992ABBAD32B5A6363619A03D /* CloudKitAccountObserver.swift */,
+				DF444E821E0907E433A1D483 /* InstallationIDStore.swift */,
+				05B5804BC3378CA122A3BD39 /* LocalNotificationCoordinator.swift */,
+				AEF53959FBB2844C458551BD /* ProviderDataSource.swift */,
+				7FEA45B811C86881A7064DAE /* ProviderRepository.swift */,
+				C388C03E7D4C3B5CA64A375A /* RefreshCoordinator.swift */,
+				48760731A02C9FE2BD7A5BF7 /* ServiceProtocols.swift */,
+				EDCDDDFECDD0D37AE4A3E080 /* SnapshotStoreSyncProviderClient.swift */,
+				386FB8D60E6D53D5B2669DD9 /* SnapshotSyncCoordinator.swift */,
+				F878880B7BB09FDCB32435D6 /* WidgetSnapshotCoordinator.swift */,
+				BFC41770A1C8C49E0E812AC4 /* WidgetSnapshotStore.swift */,
+			);
+			name = Sources;
+			path = Services/Sources;
+			sourceTree = "<group>";
+		};
+		4DFB8A7A45D0764CD3BD7C3D /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				B2C6B82D26621D01453B473F /* CLIParity.swift */,
+				D08F1C319B218AFE85EFFDD4 /* HeimdallCLIRunner.swift */,
+			);
+			name = Sources;
+			path = CLIFramework/Sources;
+			sourceTree = "<group>";
+		};
+		5CC81957A92B55A61AA909B0 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				08DC7C68DA667057356F1DF0 /* AppModel.swift */,
+				B772ED10D0A3E2CD78744DC3 /* AppShellModel.swift */,
+				FDD421D7EDED7C49A0F38AF4 /* AppShellView.swift */,
+				D29DC20EF5573DB4B5610595 /* CloudSyncDiagnosticsView.swift */,
+				5E6CDC9335D16B5EB715CF31 /* DesignTokens.swift */,
+				2E61CC850273713A67822F1C /* HeimdallScenes.swift */,
+				984DAE4914A65AC5AB23500A /* LiveMonitorFeatureModel.swift */,
+				20219CB528FF69CE9FA4675D /* LiveMonitorTimeFormatter.swift */,
+				B528BD8A44913B12965FF41E /* MenuBarMeterRenderer.swift */,
+				9268190866125BAC18D64413 /* OverviewFeatureModel.swift */,
+				46443A111BF7FAAC9BDD8B08 /* ProviderFeatureModel.swift */,
+				1A0EC55606DC359A9CB40AF1 /* RootMenuView.swift */,
+				633D5594637E52225C5F14C1 /* SettingsFeatureModel.swift */,
+				84A37003A878A2473C662ECD /* SettingsView.swift */,
+				322525A8046FF4E2E70B3DC1 /* Charts */,
+			);
+			name = Sources;
+			path = AppUI/Sources;
+			sourceTree = "<group>";
+		};
+		6A370BA4365ECE96CB82B5B5 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				8D3DEC24D0A05BF684D95A2F /* HeimdallApp.app */,
+				70090E0E254BD8157B0C1585 /* HeimdallAppUI.framework */,
+				F3E5345CE6B0370A17C849CB /* HeimdallCLI.framework */,
+				6DD3582B86CA2DDB6BDD805A /* HeimdallDomain.framework */,
+				1299AC1A64FBBDACC2DF2419 /* HeimdallMobileApp.app */,
+				A8929DF98DFAA8AAB079A57D /* HeimdallMobileTests.xctest */,
+				62A2AB3DA27317891358F8D2 /* HeimdallModuleTests.xctest */,
+				6CBBB18908B45BB3D4866B9E /* HeimdallPlatformMac.framework */,
+				42E0B20B3C4E946F5615DF15 /* HeimdallServices.framework */,
+				88B3EEEC74012F10BBBDEF02 /* HeimdallTool */,
+				5CDCCD0AFB7CEB07B95954C7 /* HeimdallWidget.appex */,
+				35BFF4D6FF9429B8ED927DC9 /* HeimdallWidgets.framework */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		7414A5F9C55B12B3AFC8AA70 /* iOSTests */ = {
+			isa = PBXGroup;
+			children = (
+				9FA47C2BDF387460459D04CE /* MobileDashboardModelTests.swift */,
+			);
+			name = iOSTests;
+			path = Tests/iOSTests;
+			sourceTree = "<group>";
+		};
+		873D01843C66C3FC1F0AD691 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				4946CC1A3E8E241196B584BD /* Assets.xcassets */,
+			);
+			name = App;
+			path = iOS/App;
+			sourceTree = "<group>";
+		};
+		94315E228B42C78E6746B58B /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				E6F32C03C01D82DA0C61D0DF /* CompactWidgetView.swift */,
+				9497931DF80C9C2A6FF4E049 /* HistoryWidgetView.swift */,
+				03A7882CA3C6FAAD7B49FD64 /* SwitcherWidgetView.swift */,
+				7D7BA0C7C47E5C6990F0B11C /* UsageWidgetView.swift */,
+				F7045ECF4AFD7BE3822AD4E5 /* WidgetIntents.swift */,
+				C75FA28252AC0E35B97F3405 /* WidgetRendering.swift */,
+				07091C71637C185E7E4D2001 /* WidgetTimelineProvider.swift */,
+			);
+			name = Sources;
+			path = Widgets/Sources;
+			sourceTree = "<group>";
+		};
+		9A73BA3694E8513D7A99348C /* SharedTests */ = {
+			isa = PBXGroup;
+			children = (
+				D99E82ED34C6E5CDC6B35736 /* AppLifecycleTests.swift */,
+				F7FB72CB982B1605610B3DE6 /* AppShellModelTests.swift */,
+				E5588D866F8071D2CA189DAA /* AppShellViewTests.swift */,
+				A740508074D7E86FE75485FB /* ChartsTests.swift */,
+				67840B73F4DEEB3F6F8FAF13 /* CLIParityTests.swift */,
+				192919572CC8C844C5277D95 /* CloudKitAccountObserverTests.swift */,
+				39EE70F6F8642941D57B0958 /* CloudKitRetryPolicyTests.swift */,
+				1D22DF05F8CE9A0D9E8E9D47 /* CloudKitSyncEngineStateStoreTests.swift */,
+				8BC377795B018241788AF38F /* FixtureLoader.swift */,
+				156085A4611B3040D8A4CFBC /* HeimdallAPIClientTests.swift */,
+				1E0809BAE9A8141B899471E4 /* HeimdallHelperControllerTests.swift */,
+				89FCFC5A10E117974EA7DCDB /* InstallationIDStoreTests.swift */,
+				2CC7190A49E73BA62377F21C /* KeychainAndSessionTests.swift */,
+				4E7FA1B7555CF5D28BD004CD /* LiveMonitorFeatureModelTests.swift */,
+				CD836E600517F1D404B9E1FA /* LiveMonitorPresentationTests.swift */,
+				B9BFB707EB7ECC47A13C2EF2 /* LocalNotificationCoordinatorTests.swift */,
+				81D70834CEE2B65B314F8C33 /* MacPlatformFactoryTests.swift */,
+				C8574012551730BAD8CD832F /* MenuProjectionBuilderTests.swift */,
+				EF934086D0504BCB9407556E /* MobileSnapshotSyncTests.swift */,
+				C8512DD66EB9D9BF5D52E944 /* ProviderCredentialInspectorTests.swift */,
+				3F671337874C5584E27C8CF9 /* ProviderDataSourceTests.swift */,
+				C2BF8B7F80A8FFECA517620C /* SnapshotCloudRecordTests.swift */,
+				A7C08FE6521316E41EC48430 /* SourceResolverTests.swift */,
+				8D902736EB3077BF6056C099 /* TerminalAuthCommandRunnerTests.swift */,
+				4CCAA483DBCB1437ED895E38 /* VersionAlignmentTests.swift */,
+				C14F28DABC92E15A17291475 /* WebDashboardScraperTests.swift */,
+				ACFCB093CB35AF61EC492D11 /* WebExtrasFlowTests.swift */,
+				63ED8CBFFD94DD60166DA5F6 /* WidgetProjectionTests.swift */,
+				6A593154519BF77950081071 /* WidgetSnapshotStoreTests.swift */,
+			);
+			name = SharedTests;
+			path = Tests/SharedTests;
+			sourceTree = "<group>";
+		};
+		9EF32FFA2F975CD192407931 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				C96AF691B9EF24FDA1BE9B47 /* main.swift */,
+			);
+			name = Sources;
+			path = CLI/Sources;
+			sourceTree = "<group>";
+		};
+		A109B91B9F34884D10CA847C /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				D8E843024AC3D06E065E5560 /* CloudKitRetryPolicy.swift */,
+				A5E29CC0EA23FC301099615E /* CloudKitSnapshotSyncStore.swift */,
+				6AA30A9F318A73A4DE344C68 /* CloudKitSyncEngineStateStore.swift */,
+				D4E4EA7187416A58C791287F /* SnapshotCloudEngine.swift */,
+				5B598B5965CAD404C9541920 /* SnapshotCloudRecord.swift */,
+				DEC62D93CA7B8BCC6788FBD3 /* UserDefaultsCloudSyncStateStore.swift */,
+			);
+			name = Sources;
+			path = CloudSync/Sources;
+			sourceTree = "<group>";
+		};
+		DC41DAC2FA18D5F72D2EAC42 = {
+			isa = PBXGroup;
+			children = (
+				E64239DB246557DA2F027BA9 /* App */,
+				873D01843C66C3FC1F0AD691 /* App */,
+				7414A5F9C55B12B3AFC8AA70 /* iOSTests */,
+				9A73BA3694E8513D7A99348C /* SharedTests */,
+				FBF501D22FA2DA265BD994EF /* Sources */,
+				5CC81957A92B55A61AA909B0 /* Sources */,
+				9EF32FFA2F975CD192407931 /* Sources */,
+				4DFB8A7A45D0764CD3BD7C3D /* Sources */,
+				A109B91B9F34884D10CA847C /* Sources */,
+				F347608419F21D14FC8A971D /* Sources */,
+				2DCB0D105E0AA574EAC2C1BF /* Sources */,
+				3020C2A4857A97354BC5E033 /* Sources */,
+				399DAD9513D205D9E4612788 /* Sources */,
+				E5A2AB8FBD743B4916BBE403 /* Sources */,
+				94315E228B42C78E6746B58B /* Sources */,
+				6A370BA4365ECE96CB82B5B5 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		E5A2AB8FBD743B4916BBE403 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				207F871AADEF74A31C2647AE /* HeimdallWidgetBundle.swift */,
+			);
+			name = Sources;
+			path = Widget/Sources;
+			sourceTree = "<group>";
+		};
+		E64239DB246557DA2F027BA9 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				E0B08D45D0A9F6F6B2605754 /* AppIcon.icon */,
+				47B3519C7E0C0C5FE57E7763 /* Assets.xcassets */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		F347608419F21D14FC8A971D /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				DB623A518805C0A44769D531 /* CloudSyncModels.swift */,
+				291C6404CCA606CE5B27B016 /* FormatHelpers.swift */,
+				7E7836B95C21CF581CC28CAA /* HeimdallModels.swift */,
+				95C985809DEE4B70DF443BE2 /* LiveMonitorModels.swift */,
+				4F7B30BDF77F80AB00346920 /* MenuProjectionBuilder.swift */,
+				606D7986E359AA5E42CB505B /* MobileSnapshotModels.swift */,
+				F180F66C0A6182DBE9C6D4C9 /* PredictiveInsightModels.swift */,
+				A4BEC1CFB139254BD981842D /* ProviderConfig.swift */,
+				82DDD23323FC0A6CA070BD23 /* ProviderCostSummary.swift */,
+				4D99DD1F52562269632122B8 /* ProviderCostSummary+Merge.swift */,
+				721D020D2527E3EFDD559E50 /* ProviderSnapshot.swift */,
+				10FAFE6026FE6D6116066AEF /* ProviderVisualState+Rank.swift */,
+				980BEA5AE42AAD34548CACB8 /* SourceResolver.swift */,
+				3BF8E344F6C7D8A4190F3B16 /* WidgetSnapshotBuilder.swift */,
+			);
+			name = Sources;
+			path = Domain/Sources;
+			sourceTree = "<group>";
+		};
+		FBF501D22FA2DA265BD994EF /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				D94E4C96B1476F4C7272C0D3 /* HeimdallApp.swift */,
+				2F501622DFBB8B270F52F9A4 /* HeimdallAppCompositionRoot.swift */,
+			);
+			name = Sources;
+			path = App/Sources;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		125885206E182A0F784A16E6 /* HeimdallMobileTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 6E275FA4C5346A0188877F01 /* Build configuration list for PBXNativeTarget "HeimdallMobileTests" */;
+			buildPhases = (
+				A6633E05CAA29909D169B18D /* Sources */,
+				6B618E270D901646D3175433 /* Frameworks */,
+				808E823D05700A2F22A744E2 /* Embed Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				29E79668DC230ED3D9022F0F /* PBXTargetDependency */,
+				CDCED1F0E4A7B667639C6A82 /* PBXTargetDependency */,
+				7E0588BC5C606E78D77632EE /* PBXTargetDependency */,
+			);
+			name = HeimdallMobileTests;
+			packageProductDependencies = (
+			);
+			productName = HeimdallMobileTests;
+			productReference = A8929DF98DFAA8AAB079A57D /* HeimdallMobileTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		2B62A9BF1265F1E7506BAA4F /* HeimdallPlatformMac */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 3B247B29AC6A1C98220E2AF2 /* Build configuration list for PBXNativeTarget "HeimdallPlatformMac" */;
+			buildPhases = (
+				8117452182D6FACBE007F5E6 /* Sources */,
+				EB4069624D13FD2CB44DB10F /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				1A54B50BF9EEE8F3584874CD /* PBXTargetDependency */,
+				4C02A69F12EDF65CBDAEE73E /* PBXTargetDependency */,
+			);
+			name = HeimdallPlatformMac;
+			packageProductDependencies = (
+			);
+			productName = HeimdallPlatformMac;
+			productReference = 6CBBB18908B45BB3D4866B9E /* HeimdallPlatformMac.framework */;
+			productType = "com.apple.product-type.framework";
+		};
+		358FAC213BA5AFAEAA65EBE5 /* HeimdallTool */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 3AA0063DB50A71AADA9A9654 /* Build configuration list for PBXNativeTarget "HeimdallTool" */;
+			buildPhases = (
+				27CBDC808A6293FC8D6F4981 /* Sources */,
+				1584F2FFE4C5088C9E79331D /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				5F6C1730D2382627382A5124 /* PBXTargetDependency */,
+				F21431694D2DD670FE94E561 /* PBXTargetDependency */,
+				5C3285FC7CEA300A7E0A8501 /* PBXTargetDependency */,
+				F6F95D3DD8347D7B533E401A /* PBXTargetDependency */,
+			);
+			name = HeimdallTool;
+			packageProductDependencies = (
+			);
+			productName = HeimdallTool;
+			productReference = 88B3EEEC74012F10BBBDEF02 /* HeimdallTool */;
+			productType = "com.apple.product-type.tool";
+		};
+		40704800EB79330E943FA184 /* HeimdallWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A9578B0E0615B39A7484B020 /* Build configuration list for PBXNativeTarget "HeimdallWidgets" */;
+			buildPhases = (
+				D7FBB6B29CFC8236F7D99B01 /* Sources */,
+				2E36E080EDA70D7415B27DA1 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				F034EA1F2E3BA92145B0BBB4 /* PBXTargetDependency */,
+				D7571C1279753D0DBA8E5DBD /* PBXTargetDependency */,
+			);
+			name = HeimdallWidgets;
+			packageProductDependencies = (
+			);
+			productName = HeimdallWidgets;
+			productReference = 35BFF4D6FF9429B8ED927DC9 /* HeimdallWidgets.framework */;
+			productType = "com.apple.product-type.framework";
+		};
+		43B52BCA1CEBB1503033AF8D /* HeimdallWidget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E2F3A639528ED088AEDE2CE7 /* Build configuration list for PBXNativeTarget "HeimdallWidget" */;
+			buildPhases = (
+				E9EA879F848D7414FB173E6C /* Sources */,
+				444AEE9D3C69E7AED0E40B79 /* Frameworks */,
+				4F05DF891965E4D975DCA787 /* Embed Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				D0727CA1077F1C63E0CC80EB /* PBXTargetDependency */,
+				09626FB1E9E124EC5F4AB0BB /* PBXTargetDependency */,
+				D06C47920E9DAA3B7E8BF45B /* PBXTargetDependency */,
+			);
+			name = HeimdallWidget;
+			packageProductDependencies = (
+			);
+			productName = HeimdallWidget;
+			productReference = 5CDCCD0AFB7CEB07B95954C7 /* HeimdallWidget.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		4B482DD9A3DE0E385C5F3DA8 /* HeimdallModuleTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 946E9FD08C3BE5545C4AF7C8 /* Build configuration list for PBXNativeTarget "HeimdallModuleTests" */;
+			buildPhases = (
+				F8E9CD856E6E9105768CFD91 /* Sources */,
+				A9C9FF7F13D4A8B55987E5C0 /* Frameworks */,
+				009F2A62C9A6DCF1867EB4D4 /* Embed Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				CB88D29FA274B20F5B8C4CF6 /* PBXTargetDependency */,
+				B2A19A044388959A91456046 /* PBXTargetDependency */,
+				4342B42D7E7E6F7B83D60BDD /* PBXTargetDependency */,
+				3F433C683844408C337B0A40 /* PBXTargetDependency */,
+				2CDAD011387FF6F06BBFC34C /* PBXTargetDependency */,
+				0118EC00DEA30A962C0F64DA /* PBXTargetDependency */,
+			);
+			name = HeimdallModuleTests;
+			packageProductDependencies = (
+			);
+			productName = HeimdallModuleTests;
+			productReference = 62A2AB3DA27317891358F8D2 /* HeimdallModuleTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		58D15AD623C1C46F6DCD1883 /* HeimdallApp */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 394E233CDB90CC51CE06681D /* Build configuration list for PBXNativeTarget "HeimdallApp" */;
+			buildPhases = (
+				BBE3130C6383BB1DDD678D7D /* Sources */,
+				BFF6349ACD3EC13AA65F21C8 /* Resources */,
+				8E2DC0E747EEE866BE71AC52 /* Frameworks */,
+				3BDBD80962D0AAD8A3DDF40F /* Embed Foundation Extensions */,
+				6CA0F0B750D21F975BDA54C5 /* Embed Frameworks */,
+				6320A3B168C00065B1890BC2 /* Bundle Heimdall helper */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				26857137B21CAF3E3DDDFC51 /* PBXTargetDependency */,
+				ED0692A3E4E9FDF707B280AA /* PBXTargetDependency */,
+				962278EA0AA3DE46D791B70D /* PBXTargetDependency */,
+				45E901A63FA5055208978990 /* PBXTargetDependency */,
+				513ED71BD816CF7299734DF2 /* PBXTargetDependency */,
+			);
+			name = HeimdallApp;
+			packageProductDependencies = (
+			);
+			productName = HeimdallApp;
+			productReference = 8D3DEC24D0A05BF684D95A2F /* HeimdallApp.app */;
+			productType = "com.apple.product-type.application";
+		};
+		87F13C55B799D3E8DE986803 /* HeimdallMobileApp */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8F43C8D4AB96AB62FCD88E1F /* Build configuration list for PBXNativeTarget "HeimdallMobileApp" */;
+			buildPhases = (
+				C1958741D4A812C00F08AE17 /* Sources */,
+				D26A5E4BCF8BE01AD3A4CCE5 /* Resources */,
+				A07AFD787465E0A3743F307D /* Frameworks */,
+				695339F41D3D3EECD975EC10 /* Embed Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				CAD1808A5942AFC65EC7DDA8 /* PBXTargetDependency */,
+				25AC2BEBAFCFA43C266F7FFE /* PBXTargetDependency */,
+			);
+			name = HeimdallMobileApp;
+			packageProductDependencies = (
+			);
+			productName = HeimdallMobileApp;
+			productReference = 1299AC1A64FBBDACC2DF2419 /* HeimdallMobileApp.app */;
+			productType = "com.apple.product-type.application";
+		};
+		8F7681C367274F6A2187BAF3 /* HeimdallCLI */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5DFBE078A358E630ADB61B92 /* Build configuration list for PBXNativeTarget "HeimdallCLI" */;
+			buildPhases = (
+				85ED49D7731B8BC99FB4A9C2 /* Sources */,
+				9E8114F487D2FFEE90119651 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				FF8756929BAA6C67781BBCF1 /* PBXTargetDependency */,
+				0828E92E9AB590C06F6BDA48 /* PBXTargetDependency */,
+			);
+			name = HeimdallCLI;
+			packageProductDependencies = (
+			);
+			productName = HeimdallCLI;
+			productReference = F3E5345CE6B0370A17C849CB /* HeimdallCLI.framework */;
+			productType = "com.apple.product-type.framework";
+		};
+		9AC04D97023C8C3658516BBC /* HeimdallDomain */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8DA5DBAF277B7CDE56CCA6EA /* Build configuration list for PBXNativeTarget "HeimdallDomain" */;
+			buildPhases = (
+				1AB40025346C5C72A36C916C /* Validate Domain Boundaries */,
+				C9DFEEF19499428D653EA1CF /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = HeimdallDomain;
+			packageProductDependencies = (
+			);
+			productName = HeimdallDomain;
+			productReference = 6DD3582B86CA2DDB6BDD805A /* HeimdallDomain.framework */;
+			productType = "com.apple.product-type.framework";
+		};
+		BE162B9BF2434C75AA5CE20F /* HeimdallServices */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4F18DA8661A197036792FA7B /* Build configuration list for PBXNativeTarget "HeimdallServices" */;
+			buildPhases = (
+				678E5919480F2B74E08B7BE1 /* Validate Services Boundaries */,
+				148F911763E0F15D2C14649B /* Sources */,
+				6911C31DAE88D14F79648711 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				76E196DB5177F859D3F1DF0B /* PBXTargetDependency */,
+			);
+			name = HeimdallServices;
+			packageProductDependencies = (
+			);
+			productName = HeimdallServices;
+			productReference = 42E0B20B3C4E946F5615DF15 /* HeimdallServices.framework */;
+			productType = "com.apple.product-type.framework";
+		};
+		F3D4658D199B2ADFDFFBE992 /* HeimdallAppUI */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D3A9E87A3494BEA1A4E6F1AC /* Build configuration list for PBXNativeTarget "HeimdallAppUI" */;
+			buildPhases = (
+				036D72EEFE2D44E4A8B919F2 /* Sources */,
+				C7F3C67599406D2CB6ACB119 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				E6AB02095434671F60C85864 /* PBXTargetDependency */,
+				C9064D27004D8B64B6550DEA /* PBXTargetDependency */,
+			);
+			name = HeimdallAppUI;
+			packageProductDependencies = (
+			);
+			productName = HeimdallAppUI;
+			productReference = 70090E0E254BD8157B0C1585 /* HeimdallAppUI.framework */;
+			productType = "com.apple.product-type.framework";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		1D28A0C047310A6C1DB30D6B /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+				};
+			};
+			buildConfigurationList = 9AFF77233EBF59E858C7BDC8 /* Build configuration list for PBXProject "Heimdall" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = DC41DAC2FA18D5F72D2EAC42;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 6A370BA4365ECE96CB82B5B5 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				58D15AD623C1C46F6DCD1883 /* HeimdallApp */,
+				F3D4658D199B2ADFDFFBE992 /* HeimdallAppUI */,
+				8F7681C367274F6A2187BAF3 /* HeimdallCLI */,
+				9AC04D97023C8C3658516BBC /* HeimdallDomain */,
+				87F13C55B799D3E8DE986803 /* HeimdallMobileApp */,
+				125885206E182A0F784A16E6 /* HeimdallMobileTests */,
+				4B482DD9A3DE0E385C5F3DA8 /* HeimdallModuleTests */,
+				2B62A9BF1265F1E7506BAA4F /* HeimdallPlatformMac */,
+				BE162B9BF2434C75AA5CE20F /* HeimdallServices */,
+				358FAC213BA5AFAEAA65EBE5 /* HeimdallTool */,
+				43B52BCA1CEBB1503033AF8D /* HeimdallWidget */,
+				40704800EB79330E943FA184 /* HeimdallWidgets */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		BFF6349ACD3EC13AA65F21C8 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F0AB84BD26150183F5D74569 /* AppIcon.icon in Resources */,
+				D21F79A8EAECB447AD228297 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D26A5E4BCF8BE01AD3A4CCE5 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				02F000363F01F8B96EE7FACD /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		1AB40025346C5C72A36C916C /* Validate Domain Boundaries */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Validate Domain Boundaries";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"$SRCROOT/scripts/validate_module_boundaries.sh\" \"$SRCROOT/Domain/Sources\" \"HeimdallDomain\"\n";
+		};
+		6320A3B168C00065B1890BC2 /* Bundle Heimdall helper */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Bundle Heimdall helper";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"$SRCROOT/../../script/bundle_heimdall_helper.sh\" \"$TARGET_BUILD_DIR/$WRAPPER_NAME\" \"$CONFIGURATION\"\n";
+		};
+		678E5919480F2B74E08B7BE1 /* Validate Services Boundaries */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Validate Services Boundaries";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"$SRCROOT/scripts/validate_module_boundaries.sh\" \"$SRCROOT/Services/Sources\" \"HeimdallServices\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		036D72EEFE2D44E4A8B919F2 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				33CF40D04CB30A2D5E160E99 /* ActivityHeatmap.swift in Sources */,
+				8436A9AFEB6BAE2107FC644F /* AppModel.swift in Sources */,
+				6116F7E11BD2DC1D174DCF45 /* AppShellModel.swift in Sources */,
+				EFAC46570AF8D0DDFCE96255 /* AppShellView.swift in Sources */,
+				996A69D4E0094AB247D0CD4F /* CacheHitTrendChart.swift in Sources */,
+				17B2D0C2B5ADED6B5EB06649 /* CacheMixRing.swift in Sources */,
+				D88D94AADD38B60BA9F7D3F6 /* ChartStyle.swift in Sources */,
+				368B48742CBF7420E242701D /* CloudSyncDiagnosticsView.swift in Sources */,
+				D867D541AD2C8FA59F10D771 /* CumulativeSpendChart.swift in Sources */,
+				9C41516ECA7143A822C7FB96 /* DailyCostChart.swift in Sources */,
+				2F9AAB08919EE78979F82DEA /* DesignTokens.swift in Sources */,
+				F0C72F4B9B77A6E14131B3DD /* HeimdallScenes.swift in Sources */,
+				C59DD32958507B322AA46D39 /* HistoryBarChart.swift in Sources */,
+				93C11984C14285C2F7450DC5 /* HourlyActivityChart.swift in Sources */,
+				2E51EB5A7940EDE1B670637D /* LiveMonitorFeatureModel.swift in Sources */,
+				2BC5AC974961E20C9C6C1A91 /* LiveMonitorTimeFormatter.swift in Sources */,
+				804A60B65B5641EEFABA4701 /* McpSummaryTable.swift in Sources */,
+				F08D2B2B5343F0513D64AA3C /* MenuBarMeterRenderer.swift in Sources */,
+				B2EC18A1F031EFE206882141 /* ModelCostTable.swift in Sources */,
+				6B54B78F346D023EAE973CC4 /* ModelDistributionDonut.swift in Sources */,
+				F949AC71730361ED8B4AA1CD /* ModelFamilyHistoryChart.swift in Sources */,
+				931D74FB31B5A565BC6587CF /* OverviewFeatureModel.swift in Sources */,
+				6A723DA9CD826013BCC45183 /* ProjectCostTable.swift in Sources */,
+				9816CE8CFDD37B25FC2AF735 /* ProviderComparisonChart.swift in Sources */,
+				09772A325DAA0593BD16BE95 /* ProviderFeatureModel.swift in Sources */,
+				6D489AD58A59FA82A0C47468 /* RootMenuView.swift in Sources */,
+				C56867FBA101D7F3A24D03FD /* SessionsTable.swift in Sources */,
+				9FACD76802A11C7E3D05F1C5 /* SettingsFeatureModel.swift in Sources */,
+				C8A86D53A077A3398BF1F267 /* SettingsView.swift in Sources */,
+				DDA2CD26124EB66FEA8378FE /* SpendSparkline.swift in Sources */,
+				3FA2B72EAE83D15916B3A265 /* SubagentSummaryCard.swift in Sources */,
+				D0A2D5B8AE3561341CE223AB /* TokenBreakdownDonut.swift in Sources */,
+				3BB8958D1CAFB7E280A9440C /* TokenStackChart.swift in Sources */,
+				CF86E830B631F745E6F234F7 /* ToolUsageTable.swift in Sources */,
+				93D3A49E17B62AE5BFBB349C /* VersionDistributionDonut.swift in Sources */,
+				318B7E22459845641A12D620 /* WeeklyProjectionArc.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		148F911763E0F15D2C14649B /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2E3C1B51711EC161494DCF2C /* AppRuntime.swift in Sources */,
+				E5086EF3FF0A881F2FE3B881 /* AppSessionStore.swift in Sources */,
+				99C157F22CC4D7DA8A06843E /* AuthCoordinator.swift in Sources */,
+				2C66DFB631229775DD7AFA87 /* CloudKitAccountObserver.swift in Sources */,
+				A3F44C55CD18E207CFD94E06 /* InstallationIDStore.swift in Sources */,
+				B31EA6428975EB3CAEDDCFF3 /* LocalNotificationCoordinator.swift in Sources */,
+				15FFC63A0FC5FF952CDD1110 /* ProviderDataSource.swift in Sources */,
+				CF0DF5C6481F9FBEAD7AE112 /* ProviderRepository.swift in Sources */,
+				61C91A74954293EB5C438196 /* RefreshCoordinator.swift in Sources */,
+				78E2403F10FF0F52FBD74E4F /* ServiceProtocols.swift in Sources */,
+				A709030E46CEBA60994C1DC0 /* SnapshotStoreSyncProviderClient.swift in Sources */,
+				CAB953001612950D3A52187F /* SnapshotSyncCoordinator.swift in Sources */,
+				4F63BBBD4F48A74E8B88F273 /* WidgetSnapshotCoordinator.swift in Sources */,
+				CBCAF8CF82178DD43236D43B /* WidgetSnapshotStore.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		27CBDC808A6293FC8D6F4981 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				495CB7C69F8B4EF157B25E26 /* main.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8117452182D6FACBE007F5E6 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				93B7741A4DEF95AF5012D736 /* BrowserSessionController.swift in Sources */,
+				9D5EC8AFE3EAD1493326290F /* BrowserSessionImporter.swift in Sources */,
+				DB8D3F5D252DA769DE74D113 /* ConfigStore.swift in Sources */,
+				13E2717D60EB448C8FC2A430 /* DashboardAdjunctController.swift in Sources */,
+				6D1B50968E97CE56C7BCEF0D /* HeimdallAPIClient.swift in Sources */,
+				3ACFA36C0279F1C566A9FCEC /* HeimdallHelperController.swift in Sources */,
+				DE8DEC4CC572EB5D6440D443 /* KeychainStore.swift in Sources */,
+				9FCE28E31471AC557DFA473C /* LocalProviderDataSource.swift in Sources */,
+				7ADC3EB396010B54F0F9BBF5 /* MacPlatformFactory.swift in Sources */,
+				9A9259CD7FC6D01D8C3B4F99 /* ProviderCredentialInspector.swift in Sources */,
+				26C65BEAB4A0F08D9635D4CA /* TerminalAuthCommandRunner.swift in Sources */,
+				978A784B0E723F6797A29C12 /* UserNotificationServices.swift in Sources */,
+				E3A184841498E5629D8B3127 /* WebDashboardScraper.swift in Sources */,
+				7D7EF54EB1E65C0656368CA8 /* WidgetCenterReloader.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		85ED49D7731B8BC99FB4A9C2 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9B891BBA03EF055282D1059E /* CLIParity.swift in Sources */,
+				7D0907559221B8AB2033CB25 /* HeimdallCLIRunner.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A6633E05CAA29909D169B18D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A1CFE32082BB90E31A6F97AB /* CloudKitRetryPolicy.swift in Sources */,
+				3E64423987D98B45DB23F9A4 /* CloudKitSnapshotSyncStore.swift in Sources */,
+				2E8638D88DB111803985CAE3 /* CloudKitSyncEngineStateStore.swift in Sources */,
+				2C9C8F2E63A3B6941C80316D /* MobileDashboardModelTests.swift in Sources */,
+				CEA671EFFA57D9647D47EBDA /* SnapshotCloudEngine.swift in Sources */,
+				5D17BB876186856C3CE2FE3F /* SnapshotCloudRecord.swift in Sources */,
+				A99194F0EC38639FEA038701 /* UserDefaultsCloudSyncStateStore.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BBE3130C6383BB1DDD678D7D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9127D536CD86E6AC4BB54563 /* CloudKitRetryPolicy.swift in Sources */,
+				4F2137BA62E9DA1B6FF449ED /* CloudKitSnapshotSyncStore.swift in Sources */,
+				236AF7E7F1677842136F35ED /* CloudKitSyncEngineStateStore.swift in Sources */,
+				BC88E532718689AEDAF0B5DB /* HeimdallApp.swift in Sources */,
+				1C7C2154D13B371A54F1B283 /* HeimdallAppCompositionRoot.swift in Sources */,
+				F6A642C480881DCFC2F2463B /* SnapshotCloudEngine.swift in Sources */,
+				9D1DF649C307FA5C40E9E1EC /* SnapshotCloudRecord.swift in Sources */,
+				E83F2CD543A9D5C6B73B7AAE /* UserDefaultsCloudSyncStateStore.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C1958741D4A812C00F08AE17 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AC15659ABA95B201A2F1F970 /* CloudKitRetryPolicy.swift in Sources */,
+				50CFDDD74E82AE2887C75C06 /* CloudKitSnapshotSyncStore.swift in Sources */,
+				8A54735EDE4C0D468C25484B /* CloudKitSyncEngineStateStore.swift in Sources */,
+				13388A7232926344F5713963 /* HeimdallMobileApp.swift in Sources */,
+				BDE2934ADFB00A84E8812DE4 /* HeimdallMobileCompositionRoot.swift in Sources */,
+				0AB53B44545EE17545D79433 /* HeimdallMobileRootView.swift in Sources */,
+				508BCB92C4AAA2EAF0A10768 /* MobileDashboardCoordinator.swift in Sources */,
+				0E5DF22795DC82C1FE44DD93 /* MobileDashboardModel.swift in Sources */,
+				86BDBDA07824A34079262D7F /* MobileDashboardPreferences.swift in Sources */,
+				8E8A3BEB68579DCE31581D2A /* MobileDashboardProjection.swift in Sources */,
+				F0E344C76C50CD82BC33D6C9 /* MobileSyncedAggregateCache.swift in Sources */,
+				B2E3770BED522668F5376555 /* SnapshotCloudEngine.swift in Sources */,
+				99A696B46C5F5434B6BD1701 /* SnapshotCloudRecord.swift in Sources */,
+				6D113CF5F8FCF9AE85725AD1 /* UserDefaultsCloudSyncStateStore.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C9DFEEF19499428D653EA1CF /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A1EF11B3B44C90596F47C198 /* CloudSyncModels.swift in Sources */,
+				5368BB9D8A2B1026D52EE071 /* FormatHelpers.swift in Sources */,
+				77C6F04ACDFE7C5186A6C539 /* HeimdallModels.swift in Sources */,
+				4B085EA16E976D457F6121CE /* LiveMonitorModels.swift in Sources */,
+				8926FB9BA3B8D96C69A2F948 /* MenuProjectionBuilder.swift in Sources */,
+				B371CF08A8901E7599CC5A81 /* MobileSnapshotModels.swift in Sources */,
+				4471327755F33E62B5B1F516 /* PredictiveInsightModels.swift in Sources */,
+				6D3EA11F991F9DA198782B06 /* ProviderConfig.swift in Sources */,
+				C0BE7F8E280C02D92779910B /* ProviderCostSummary+Merge.swift in Sources */,
+				A0FA8D46D9FD5FA10A76E115 /* ProviderCostSummary.swift in Sources */,
+				71EAF6A07BFAAE5E99D98BC3 /* ProviderSnapshot.swift in Sources */,
+				01A140AAC2121670D86F6416 /* ProviderVisualState+Rank.swift in Sources */,
+				E2A49A36ACF633F183D36F1D /* SourceResolver.swift in Sources */,
+				765DCAEE814A29AF84A4C209 /* WidgetSnapshotBuilder.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D7FBB6B29CFC8236F7D99B01 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3368877858861DC398108B25 /* CompactWidgetView.swift in Sources */,
+				5B12ABAA0CDD10305F51A5BB /* HistoryWidgetView.swift in Sources */,
+				132B6A2C4134F75654DB1453 /* SwitcherWidgetView.swift in Sources */,
+				11CC9215C1240FE28D36DBDE /* UsageWidgetView.swift in Sources */,
+				3FFA54D864741891B12B5FCF /* WidgetIntents.swift in Sources */,
+				A96F806AA50F8D0DB4DFFD15 /* WidgetRendering.swift in Sources */,
+				5A2AF7DBCFE853B29F45C648 /* WidgetTimelineProvider.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E9EA879F848D7414FB173E6C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C5C99A1C54C1EE8AECF37FB3 /* HeimdallWidgetBundle.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F8E9CD856E6E9105768CFD91 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C0477A62E08F4F8FD1EC4938 /* AppLifecycleTests.swift in Sources */,
+				66E0BB5E76E80027513B4669 /* AppShellModelTests.swift in Sources */,
+				55B7E0EDFC19CC65D2AB1FED /* AppShellViewTests.swift in Sources */,
+				51D4DBBFCB608977C937722F /* CLIParityTests.swift in Sources */,
+				747301ABCBDC32CDC0D7BF46 /* ChartsTests.swift in Sources */,
+				5A981C77B598E0399690D2D8 /* CloudKitAccountObserverTests.swift in Sources */,
+				CCAD8BBF5F7CF0A32A1282DB /* CloudKitRetryPolicy.swift in Sources */,
+				2E785032AAF4E1957F1771AE /* CloudKitRetryPolicyTests.swift in Sources */,
+				A55416DB31A2A8211CAE4D2B /* CloudKitSnapshotSyncStore.swift in Sources */,
+				B3C5FFBD0BEB50F0E47D4246 /* CloudKitSyncEngineStateStore.swift in Sources */,
+				A77D6B0836E693FD5677E943 /* CloudKitSyncEngineStateStoreTests.swift in Sources */,
+				29F74E343DD404EAF3A340DE /* FixtureLoader.swift in Sources */,
+				C759872B5B786E00912BE88D /* HeimdallAPIClientTests.swift in Sources */,
+				CEBCDF1F68B6C750C6433109 /* HeimdallHelperControllerTests.swift in Sources */,
+				225B55180D2A9C6B25A345EC /* InstallationIDStoreTests.swift in Sources */,
+				A6DE060626285BED5903EC2B /* KeychainAndSessionTests.swift in Sources */,
+				90C7D8DFBF69CFDEF0757022 /* LiveMonitorFeatureModelTests.swift in Sources */,
+				49765D749B5C1FE0FFDE1AA6 /* LiveMonitorPresentationTests.swift in Sources */,
+				767F87D79271014B6D8423AC /* LocalNotificationCoordinatorTests.swift in Sources */,
+				6859B8BB05728DC48DDB0F79 /* MacPlatformFactoryTests.swift in Sources */,
+				9D345983C7CF9AB562949F91 /* MenuProjectionBuilderTests.swift in Sources */,
+				C335B1D99F851645805EEDE4 /* MobileSnapshotSyncTests.swift in Sources */,
+				0E7F66A5A172806BFD22B9B6 /* ProviderCredentialInspectorTests.swift in Sources */,
+				1AFDA4B90D1903ADD47295C0 /* ProviderDataSourceTests.swift in Sources */,
+				4C496305301C4479E8878253 /* SnapshotCloudEngine.swift in Sources */,
+				9DDBB29814B384793A6AB9BA /* SnapshotCloudRecord.swift in Sources */,
+				4E13AD0637E26CD74AD7C732 /* SnapshotCloudRecordTests.swift in Sources */,
+				3D5775AEC7DED0CEF2F5BEAF /* SourceResolverTests.swift in Sources */,
+				E1A483AF1AAA5A91869BFA91 /* TerminalAuthCommandRunnerTests.swift in Sources */,
+				42CA36576AF26C070E43A5D3 /* UserDefaultsCloudSyncStateStore.swift in Sources */,
+				F1B79CF5A187749C2286B12A /* VersionAlignmentTests.swift in Sources */,
+				5A08B515192B8BCC5698D500 /* WebDashboardScraperTests.swift in Sources */,
+				7233DD306415495277BEC552 /* WebExtrasFlowTests.swift in Sources */,
+				46ECF6829CFA54A631D97CDF /* WidgetProjectionTests.swift in Sources */,
+				971EE0736057099CB938247D /* WidgetSnapshotStoreTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		0118EC00DEA30A962C0F64DA /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 8F7681C367274F6A2187BAF3 /* HeimdallCLI */;
+			targetProxy = 9CC7ADE657C5D4577F2A18E1 /* PBXContainerItemProxy */;
+		};
+		0828E92E9AB590C06F6BDA48 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = BE162B9BF2434C75AA5CE20F /* HeimdallServices */;
+			targetProxy = 2C42DC934D5A767028FE3FA0 /* PBXContainerItemProxy */;
+		};
+		09626FB1E9E124EC5F4AB0BB /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = BE162B9BF2434C75AA5CE20F /* HeimdallServices */;
+			targetProxy = CD686B9064BE93F85A9CAC32 /* PBXContainerItemProxy */;
+		};
+		1A54B50BF9EEE8F3584874CD /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 9AC04D97023C8C3658516BBC /* HeimdallDomain */;
+			targetProxy = B6B1F59742135705C7C98393 /* PBXContainerItemProxy */;
+		};
+		25AC2BEBAFCFA43C266F7FFE /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = BE162B9BF2434C75AA5CE20F /* HeimdallServices */;
+			targetProxy = 320F6B219EFDD1C6417BBB2B /* PBXContainerItemProxy */;
+		};
+		26857137B21CAF3E3DDDFC51 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 9AC04D97023C8C3658516BBC /* HeimdallDomain */;
+			targetProxy = B2A9499F9D3297EF5258ADA5 /* PBXContainerItemProxy */;
+		};
+		29E79668DC230ED3D9022F0F /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 9AC04D97023C8C3658516BBC /* HeimdallDomain */;
+			targetProxy = 22F0B052E58931247FB4808D /* PBXContainerItemProxy */;
+		};
+		2CDAD011387FF6F06BBFC34C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 40704800EB79330E943FA184 /* HeimdallWidgets */;
+			targetProxy = 3E547D32F1EAAFF2EB9869B0 /* PBXContainerItemProxy */;
+		};
+		3F433C683844408C337B0A40 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = F3D4658D199B2ADFDFFBE992 /* HeimdallAppUI */;
+			targetProxy = 35ED7F6EB7CD88F1C5E38917 /* PBXContainerItemProxy */;
+		};
+		4342B42D7E7E6F7B83D60BDD /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 2B62A9BF1265F1E7506BAA4F /* HeimdallPlatformMac */;
+			targetProxy = 59BA0B07F1E7EAD5A6AE3D85 /* PBXContainerItemProxy */;
+		};
+		45E901A63FA5055208978990 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = F3D4658D199B2ADFDFFBE992 /* HeimdallAppUI */;
+			targetProxy = 9C81A02BB4BCE0380C988F5D /* PBXContainerItemProxy */;
+		};
+		4C02A69F12EDF65CBDAEE73E /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = BE162B9BF2434C75AA5CE20F /* HeimdallServices */;
+			targetProxy = 40F96AED23ADC7AEF2CBBDD4 /* PBXContainerItemProxy */;
+		};
+		513ED71BD816CF7299734DF2 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 43B52BCA1CEBB1503033AF8D /* HeimdallWidget */;
+			targetProxy = 45FE3EC93FC4EBF3CF012B58 /* PBXContainerItemProxy */;
+		};
+		5C3285FC7CEA300A7E0A8501 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 2B62A9BF1265F1E7506BAA4F /* HeimdallPlatformMac */;
+			targetProxy = B07CDD4697A150FDBFE37825 /* PBXContainerItemProxy */;
+		};
+		5F6C1730D2382627382A5124 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 9AC04D97023C8C3658516BBC /* HeimdallDomain */;
+			targetProxy = 52EB1F63F95E010A69FFA351 /* PBXContainerItemProxy */;
+		};
+		76E196DB5177F859D3F1DF0B /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 9AC04D97023C8C3658516BBC /* HeimdallDomain */;
+			targetProxy = C4C333122FEDA20A1E09C525 /* PBXContainerItemProxy */;
+		};
+		7E0588BC5C606E78D77632EE /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 87F13C55B799D3E8DE986803 /* HeimdallMobileApp */;
+			targetProxy = C23B7525408301BBEB36FC33 /* PBXContainerItemProxy */;
+		};
+		962278EA0AA3DE46D791B70D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 2B62A9BF1265F1E7506BAA4F /* HeimdallPlatformMac */;
+			targetProxy = ECF401E9DC6922192E4A0E01 /* PBXContainerItemProxy */;
+		};
+		B2A19A044388959A91456046 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = BE162B9BF2434C75AA5CE20F /* HeimdallServices */;
+			targetProxy = 9E45A2CC19B5164816EABC80 /* PBXContainerItemProxy */;
+		};
+		C9064D27004D8B64B6550DEA /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = BE162B9BF2434C75AA5CE20F /* HeimdallServices */;
+			targetProxy = 6A549ECD0430A3E8621FA6D2 /* PBXContainerItemProxy */;
+		};
+		CAD1808A5942AFC65EC7DDA8 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 9AC04D97023C8C3658516BBC /* HeimdallDomain */;
+			targetProxy = E08CD6475D10CAE3C18E0F95 /* PBXContainerItemProxy */;
+		};
+		CB88D29FA274B20F5B8C4CF6 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 9AC04D97023C8C3658516BBC /* HeimdallDomain */;
+			targetProxy = 89487D0208FBEB93548E0163 /* PBXContainerItemProxy */;
+		};
+		CDCED1F0E4A7B667639C6A82 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = BE162B9BF2434C75AA5CE20F /* HeimdallServices */;
+			targetProxy = 57D759824B96186103030191 /* PBXContainerItemProxy */;
+		};
+		D06C47920E9DAA3B7E8BF45B /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 40704800EB79330E943FA184 /* HeimdallWidgets */;
+			targetProxy = DAAF745FF15710A849713371 /* PBXContainerItemProxy */;
+		};
+		D0727CA1077F1C63E0CC80EB /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 9AC04D97023C8C3658516BBC /* HeimdallDomain */;
+			targetProxy = 95BFD87F90E1919956F501FD /* PBXContainerItemProxy */;
+		};
+		D7571C1279753D0DBA8E5DBD /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = BE162B9BF2434C75AA5CE20F /* HeimdallServices */;
+			targetProxy = C5EC9D547AA215BEE98653FC /* PBXContainerItemProxy */;
+		};
+		E6AB02095434671F60C85864 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 9AC04D97023C8C3658516BBC /* HeimdallDomain */;
+			targetProxy = 0420C7A41465767A061A0B25 /* PBXContainerItemProxy */;
+		};
+		ED0692A3E4E9FDF707B280AA /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = BE162B9BF2434C75AA5CE20F /* HeimdallServices */;
+			targetProxy = 717913F5791C01A5C5A4D3C7 /* PBXContainerItemProxy */;
+		};
+		F034EA1F2E3BA92145B0BBB4 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 9AC04D97023C8C3658516BBC /* HeimdallDomain */;
+			targetProxy = B786794C9E05A31A29C9CEA1 /* PBXContainerItemProxy */;
+		};
+		F21431694D2DD670FE94E561 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = BE162B9BF2434C75AA5CE20F /* HeimdallServices */;
+			targetProxy = 5D5377A3FB633099E2E4D536 /* PBXContainerItemProxy */;
+		};
+		F6F95D3DD8347D7B533E401A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 8F7681C367274F6A2187BAF3 /* HeimdallCLI */;
+			targetProxy = 3C1DA19E2205FC4083F6F8BF /* PBXContainerItemProxy */;
+		};
+		FF8756929BAA6C67781BBCF1 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 9AC04D97023C8C3658516BBC /* HeimdallDomain */;
+			targetProxy = D143F40215042F0CD9337FF3 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		0209292D162E2A99EA7096E7 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = App/Heimdall.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = App/Info.plist;
+				INFOPLIST_KEY_LSUIElement = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dev.po4yka.heimdall;
+				PRODUCT_NAME = Heimdall;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		0F7FF709AC3E43D28C4279BD /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "";
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEFINES_MODULE = YES;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				GENERATE_INFOPLIST_FILE = YES;
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dev.po4yka.heimdall.HeimdallAppUI;
+				PRODUCT_NAME = HeimdallAppUI;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				VERSIONING_SYSTEM = "apple-generic";
+			};
+			name = Debug;
+		};
+		11A32D8736791D506B452545 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dev.po4yka.heimdall.HeimdallModuleTests;
+				PRODUCT_NAME = HeimdallModuleTests;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		1B9DC52C3BDCB6C4578DF073 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "";
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEFINES_MODULE = YES;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				GENERATE_INFOPLIST_FILE = YES;
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dev.po4yka.heimdall.HeimdallAppUI;
+				PRODUCT_NAME = HeimdallAppUI;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				VERSIONING_SYSTEM = "apple-generic";
+			};
+			name = Release;
+		};
+		2602FB58605CA93FC7738D99 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = iOS/App/HeimdallMobile.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = iOS/App/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dev.po4yka.heimdall.HeimdallMobile;
+				PRODUCT_NAME = HeimdallMobileApp;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		26BC8818294AE7382F5B592A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = Widget/HeimdallWidget.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = Widget/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dev.po4yka.heimdall.widget;
+				PRODUCT_NAME = HeimdallWidget;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		2A7B30CECCF667E3A8BB8AAC /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "";
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEFINES_MODULE = YES;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				GENERATE_INFOPLIST_FILE = YES;
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dev.po4yka.heimdall.HeimdallWidgets;
+				PRODUCT_NAME = HeimdallWidgets;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				VERSIONING_SYSTEM = "apple-generic";
+			};
+			name = Release;
+		};
+		2EB2202778AFD3043EE737BD /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dev.po4yka.heimdall.HeimdallMobileTests;
+				PRODUCT_NAME = HeimdallMobileTests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/HeimdallMobileApp.app/HeimdallMobileApp";
+			};
+			name = Debug;
+		};
+		3BFD6D7C4A1C038832A19A8B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		422C64F3E9A38A4EF1E9F6AC /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dev.po4yka.heimdall.HeimdallModuleTests;
+				PRODUCT_NAME = HeimdallModuleTests;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		47EB4491494F3EE2BE18DC72 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "";
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEFINES_MODULE = YES;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				GENERATE_INFOPLIST_FILE = YES;
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dev.po4yka.heimdall.HeimdallPlatformMac;
+				PRODUCT_NAME = HeimdallPlatformMac;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				VERSIONING_SYSTEM = "apple-generic";
+			};
+			name = Debug;
+		};
+		49EA6D6BF8BE665C26A4F019 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "";
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEFINES_MODULE = YES;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				GENERATE_INFOPLIST_FILE = YES;
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dev.po4yka.heimdall.HeimdallCLI;
+				PRODUCT_NAME = HeimdallCLI;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				VERSIONING_SYSTEM = "apple-generic";
+			};
+			name = Debug;
+		};
+		53DF121F5FEA5CDEE4886F26 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path @loader_path @loader_path/../Frameworks";
+				PRODUCT_BUNDLE_IDENTIFIER = dev.po4yka.heimdall.cli;
+				PRODUCT_NAME = heimdall;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		5A66517E00EFEF6A10A48900 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		5C1E2C44792D68671B511200 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = Widget/HeimdallWidget.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				INFOPLIST_FILE = Widget/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dev.po4yka.heimdall.widget;
+				PRODUCT_NAME = HeimdallWidget;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		8204692D89A8C0B421C7A701 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = iOS/App/HeimdallMobile.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = iOS/App/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dev.po4yka.heimdall.HeimdallMobile;
+				PRODUCT_NAME = HeimdallMobileApp;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		8EE5F3C04791E1F7226E0B85 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = App/Heimdall.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				INFOPLIST_FILE = App/Info.plist;
+				INFOPLIST_KEY_LSUIElement = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dev.po4yka.heimdall;
+				PRODUCT_NAME = Heimdall;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		900CFF4EB89A38BD1F064F0A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "";
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEFINES_MODULE = YES;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				GENERATE_INFOPLIST_FILE = YES;
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dev.po4yka.heimdall.HeimdallPlatformMac;
+				PRODUCT_NAME = HeimdallPlatformMac;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				VERSIONING_SYSTEM = "apple-generic";
+			};
+			name = Release;
+		};
+		966BB703BD36480C283956CD /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "";
+				CURRENT_PROJECT_VERSION = 1;
+				DEFINES_MODULE = YES;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				GENERATE_INFOPLIST_FILE = YES;
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dev.po4yka.heimdall.HeimdallServices;
+				PRODUCT_NAME = HeimdallServices;
+				SDKROOT = auto;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VERSIONING_SYSTEM = "apple-generic";
+			};
+			name = Debug;
+		};
+		9A3A25ADEFC13C8CC3DF2745 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "";
+				CURRENT_PROJECT_VERSION = 1;
+				DEFINES_MODULE = YES;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				GENERATE_INFOPLIST_FILE = YES;
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dev.po4yka.heimdall.HeimdallServices;
+				PRODUCT_NAME = HeimdallServices;
+				SDKROOT = auto;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VERSIONING_SYSTEM = "apple-generic";
+			};
+			name = Release;
+		};
+		A32A1876BB5A0956A4D92BAB /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "";
+				CURRENT_PROJECT_VERSION = 1;
+				DEFINES_MODULE = YES;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				GENERATE_INFOPLIST_FILE = YES;
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dev.po4yka.heimdall.HeimdallDomain;
+				PRODUCT_NAME = HeimdallDomain;
+				SDKROOT = auto;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VERSIONING_SYSTEM = "apple-generic";
+			};
+			name = Release;
+		};
+		AECE850AE79F82B5B9F7C424 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dev.po4yka.heimdall.HeimdallMobileTests;
+				PRODUCT_NAME = HeimdallMobileTests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/HeimdallMobileApp.app/HeimdallMobileApp";
+			};
+			name = Release;
+		};
+		B7F3DAE0CB2AB2B384559ABF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "";
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEFINES_MODULE = YES;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				GENERATE_INFOPLIST_FILE = YES;
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dev.po4yka.heimdall.HeimdallWidgets;
+				PRODUCT_NAME = HeimdallWidgets;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				VERSIONING_SYSTEM = "apple-generic";
+			};
+			name = Debug;
+		};
+		BD600E0E7192197E9EA97BD0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path @loader_path @loader_path/../Frameworks";
+				PRODUCT_BUNDLE_IDENTIFIER = dev.po4yka.heimdall.cli;
+				PRODUCT_NAME = heimdall;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		D6DF7AEE186A57AB3B86ADF1 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "";
+				CURRENT_PROJECT_VERSION = 1;
+				DEFINES_MODULE = YES;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				GENERATE_INFOPLIST_FILE = YES;
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dev.po4yka.heimdall.HeimdallDomain;
+				PRODUCT_NAME = HeimdallDomain;
+				SDKROOT = auto;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VERSIONING_SYSTEM = "apple-generic";
+			};
+			name = Debug;
+		};
+		DF099E1B548F25754E285421 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "";
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEFINES_MODULE = YES;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				GENERATE_INFOPLIST_FILE = YES;
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dev.po4yka.heimdall.HeimdallCLI;
+				PRODUCT_NAME = HeimdallCLI;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				VERSIONING_SYSTEM = "apple-generic";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		394E233CDB90CC51CE06681D /* Build configuration list for PBXNativeTarget "HeimdallApp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0209292D162E2A99EA7096E7 /* Debug */,
+				8EE5F3C04791E1F7226E0B85 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		3AA0063DB50A71AADA9A9654 /* Build configuration list for PBXNativeTarget "HeimdallTool" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				53DF121F5FEA5CDEE4886F26 /* Debug */,
+				BD600E0E7192197E9EA97BD0 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		3B247B29AC6A1C98220E2AF2 /* Build configuration list for PBXNativeTarget "HeimdallPlatformMac" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				47EB4491494F3EE2BE18DC72 /* Debug */,
+				900CFF4EB89A38BD1F064F0A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		4F18DA8661A197036792FA7B /* Build configuration list for PBXNativeTarget "HeimdallServices" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				966BB703BD36480C283956CD /* Debug */,
+				9A3A25ADEFC13C8CC3DF2745 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		5DFBE078A358E630ADB61B92 /* Build configuration list for PBXNativeTarget "HeimdallCLI" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				49EA6D6BF8BE665C26A4F019 /* Debug */,
+				DF099E1B548F25754E285421 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		6E275FA4C5346A0188877F01 /* Build configuration list for PBXNativeTarget "HeimdallMobileTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2EB2202778AFD3043EE737BD /* Debug */,
+				AECE850AE79F82B5B9F7C424 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		8DA5DBAF277B7CDE56CCA6EA /* Build configuration list for PBXNativeTarget "HeimdallDomain" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D6DF7AEE186A57AB3B86ADF1 /* Debug */,
+				A32A1876BB5A0956A4D92BAB /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		8F43C8D4AB96AB62FCD88E1F /* Build configuration list for PBXNativeTarget "HeimdallMobileApp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8204692D89A8C0B421C7A701 /* Debug */,
+				2602FB58605CA93FC7738D99 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		946E9FD08C3BE5545C4AF7C8 /* Build configuration list for PBXNativeTarget "HeimdallModuleTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				422C64F3E9A38A4EF1E9F6AC /* Debug */,
+				11A32D8736791D506B452545 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		9AFF77233EBF59E858C7BDC8 /* Build configuration list for PBXProject "Heimdall" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				3BFD6D7C4A1C038832A19A8B /* Debug */,
+				5A66517E00EFEF6A10A48900 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		A9578B0E0615B39A7484B020 /* Build configuration list for PBXNativeTarget "HeimdallWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B7F3DAE0CB2AB2B384559ABF /* Debug */,
+				2A7B30CECCF667E3A8BB8AAC /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		D3A9E87A3494BEA1A4E6F1AC /* Build configuration list for PBXNativeTarget "HeimdallAppUI" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0F7FF709AC3E43D28C4279BD /* Debug */,
+				1B9DC52C3BDCB6C4578DF073 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		E2F3A639528ED088AEDE2CE7 /* Build configuration list for PBXNativeTarget "HeimdallWidget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				26BC8818294AE7382F5B592A /* Debug */,
+				5C1E2C44792D68671B511200 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 1D28A0C047310A6C1DB30D6B /* Project object */;
+}

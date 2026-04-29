@@ -19,7 +19,7 @@ Participation in this project is governed by the [Code of Conduct](CODE_OF_CONDU
 
 - **Rust** stable (edition 2024). Run `rustup update`.
 - **Node.js** 20+ and **npm** — only needed when editing `src/ui/*.tsx` or `src/ui/input.css`. The compiled `app.js`/`style.css` are committed so plain Rust builds don't need Node.
-- **Xcode 26+** — only needed for the macOS HeimdallBar app and iOS surfaces.
+- **Xcode 26+** — only needed for the macOS Heimdall app and iOS surfaces.
 
 ### Clone & build
 
@@ -74,7 +74,7 @@ After UI changes, **commit the regenerated `src/ui/app.js` and `src/ui/style.css
 - Keep components under ~300 lines; extract new files into `src/ui/components/` rather than growing existing ones.
 - Follow the design system documented at `.agents/skills/industrial-design/SKILL.md`.
 
-### Swift (HeimdallBar)
+### Swift (Heimdall)
 
 - The macOS app is split into layered modules: `HeimdallDomain` → `HeimdallServices` → `HeimdallPlatformMac` → `HeimdallAppUI` / `HeimdallWidgets` / `HeimdallCLI`. Don't introduce upward dependencies.
 - Run the `Validate Domain Boundaries` and `Validate Services Boundaries` build phases — they enforce the layering.

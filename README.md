@@ -21,7 +21,7 @@ Three surfaces ship together: `claude-usage-tracker` (CLI + dashboard), `heimdal
 - **5-hour billing blocks** — burn rate, projection, quota severity, gap visualization
 - **Cost reconciliation** — hook-reported vs locally-calculated, divergence alerts at 10 %
 - **Waste detector** — A–F grade with five detectors (CLAUDE.md bloat, ghost agents, MCP rereads, …)
-- **Native macOS app** — `HeimdallBar.app` menu-bar widget + bundled CLI + browser-session import
+- **Native macOS app** — `Heimdall.app` menu-bar widget + bundled CLI + browser-session import
 - **Zero runtime dependencies** — single binary, cross-platform (macOS / Linux)
 
 Full feature list: [docs/features.md](docs/features.md).
@@ -46,7 +46,7 @@ flowchart LR
     U1[Web dashboard :8080]
     U2[statusline]
     U3[MCP · 9 tools]
-    U4[HeimdallBar.app]
+    U4[Heimdall.app]
   end
 
   S --> CLI
@@ -138,7 +138,7 @@ Full CLI reference: [docs/cli.md](docs/cli.md).
 |---|---|
 | Feature catalogue | [docs/features.md](docs/features.md) |
 | Install (all platforms · hook · statusline · MCP · daemon · scheduler) | [docs/install.md](docs/install.md) |
-| HeimdallBar (native macOS app) | [docs/heimdallbar.md](docs/heimdallbar.md) |
+| Heimdall (native macOS app) | [docs/heimdall.md](docs/heimdall.md) |
 | CLI reference | [docs/cli.md](docs/cli.md) |
 | Configuration (TOML / JSON · per-command overrides · pricing) | [docs/configuration.md](docs/configuration.md) |
 | REST API + SSE | [docs/api.md](docs/api.md) |

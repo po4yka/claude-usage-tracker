@@ -107,8 +107,8 @@ gh run watch --workflow=release.yml
 ```
 
 The matrix builds five Rust targets in parallel. The release workflow also
-builds a separate macOS app artifact for `HeimdallBar.app` plus the bundled
-`heimdallbar` CLI, signs it, validates the embedded widget/helper/framework
+builds a separate macOS app artifact for `Heimdall.app` plus the bundled
+`heimdall` CLI, signs it, validates the embedded widget/helper/framework
 layout, notarizes it when Apple credentials are present, and creates the GitHub
 Release only after all artifacts and checksums have been produced.
 
@@ -127,11 +127,11 @@ workflow.
 ## Post-release checklist
 
 - [ ] Confirm all five platform archives appear on the GitHub Releases page.
-- [ ] Confirm the `heimdallbar-<version>-macos-app.zip` artifact appears on
+- [ ] Confirm the `heimdall-<version>-macos-app.zip` artifact appears on
       the GitHub Releases page and contains:
-  - `HeimdallBar.app`
-  - `bin/heimdallbar`
-  - `Frameworks/HeimdallBarShared.framework`
+  - `Heimdall.app`
+  - `bin/heimdall`
+  - `Frameworks/HeimdallShared.framework`
 - [ ] Download `SHA256SUMS.txt` and verify at least one archive locally:
   ```bash
   sha256sum --check --ignore-missing SHA256SUMS.txt
@@ -147,16 +147,16 @@ workflow.
   ```
 - [ ] Smoke-test the native app artifact on macOS:
   ```bash
-  unzip heimdallbar-v0.x.y-macos-app.zip
-  open heimdallbar-v0.x.y-macos-app/HeimdallBar.app
-  DYLD_FRAMEWORK_PATH=heimdallbar-v0.x.y-macos-app/Frameworks \
-    ./heimdallbar-v0.x.y-macos-app/bin/heimdallbar config dump
-  spctl -a -vv heimdallbar-v0.x.y-macos-app/HeimdallBar.app
+  unzip heimdall-v0.x.y-macos-app.zip
+  open heimdall-v0.x.y-macos-app/Heimdall.app
+  DYLD_FRAMEWORK_PATH=heimdall-v0.x.y-macos-app/Frameworks \
+    ./heimdall-v0.x.y-macos-app/bin/heimdall config dump
+  spctl -a -vv heimdall-v0.x.y-macos-app/Heimdall.app
   ```
 - [ ] If signing secrets were configured, confirm notarization completed and
       stapling succeeded:
   ```bash
-  xcrun stapler validate heimdallbar-v0.x.y-macos-app/HeimdallBar.app
+  xcrun stapler validate heimdall-v0.x.y-macos-app/Heimdall.app
   ```
 - [ ] Verify at least one attestation for a published asset:
   ```bash
@@ -179,14 +179,14 @@ workflow.
 ## macOS distribution notes
 
 - The workflow stages the macOS release with
-  [script/package_heimdallbar_distribution.sh](/Users/po4yka/GitRep/heimdall/script/package_heimdallbar_distribution.sh:1),
+  [script/package_heimdall_distribution.sh](/Users/po4yka/GitRep/heimdall/script/package_heimdall_distribution.sh:1),
   signs it with
-  [script/sign_heimdallbar_distribution.sh](/Users/po4yka/GitRep/heimdall/script/sign_heimdallbar_distribution.sh:1),
+  [script/sign_heimdall_distribution.sh](/Users/po4yka/GitRep/heimdall/script/sign_heimdall_distribution.sh:1),
   and validates it with
-  [script/validate_heimdallbar_distribution.sh](/Users/po4yka/GitRep/heimdall/script/validate_heimdallbar_distribution.sh:1).
+  [script/validate_heimdall_distribution.sh](/Users/po4yka/GitRep/heimdall/script/validate_heimdall_distribution.sh:1).
 - Validation includes `codesign --verify`, helper/widget presence checks, and a
-  real `heimdallbar config dump` launch against the packaged framework layout.
-- The bundled `heimdallbar` CLI is shipped outside the `.app` bundle, so local
+  real `heimdall config dump` launch against the packaged framework layout.
+- The bundled `heimdall` CLI is shipped outside the `.app` bundle, so local
   smoke tests should export `DYLD_FRAMEWORK_PATH=<artifact>/Frameworks` before
   invoking it directly.
 

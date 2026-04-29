@@ -7,7 +7,7 @@ Heimdall iPhone dashboard and shared-zone collaboration between Macs.
 
 | Environment | Container identifier |
 |---|---|
-| Production | `iCloud.dev.heimdall.heimdallbar` |
+| Production | `iCloud.dev.po4yka.heimdall` |
 | Development (unsigned builds) | disabled by `MacPlatformFactory.shouldEnableCloudKitSnapshotSync` |
 
 Both macOS and iOS apps target the same container; the iOS app joins
@@ -21,11 +21,11 @@ team, then the container above.
 - **Custom zone:** `heimdall-sync-space` in the user's private database.
 - **Sync engine:** `SnapshotCloudEngine` (actor) owns one `CKSyncEngine`
   per container, configured against the private database.
-  `macos/HeimdallBar/Services/Sources/SnapshotCloudEngine.swift`
+  `macos/Heimdall/Services/Sources/SnapshotCloudEngine.swift`
 - **Record type:** `SyncedInstallationSnapshot` — one record per Mac,
   record name = the Mac's installation ID (Keychain-stored,
   reinstall-safe). Schema centralised in
-  `macos/HeimdallBar/Services/Sources/SnapshotCloudRecord.swift`.
+  `macos/Heimdall/Services/Sources/SnapshotCloudRecord.swift`.
 - **Payload encryption:** `record.encryptedValues["payload"]` (per-field
   E2E, iOS 15+ / macOS 12+). Metadata fields
   (`installationID`, `sourceDevice`, `publishedAt`) stay plain so
@@ -83,7 +83,7 @@ engine path. Everything else — participant reads from the shared
 database, CKShare creation, share acceptance, zone bootstrapping, and
 the query pagination in `allRecords` — goes through
 `withCloudKitRetry(policy:)` from
-`macos/HeimdallBar/Services/Sources/CloudKitRetryPolicy.swift`.
+`macos/Heimdall/Services/Sources/CloudKitRetryPolicy.swift`.
 
 Defaults: 3 attempts, 1 s → 2 s → 4 s exponential backoff capped at
 8 s, ±100 ms jitter. Retries only on `CKError.networkFailure`,
@@ -127,7 +127,7 @@ token internally and does a full zone re-fetch on the next
 more than an hour, suspect:
 
 1. Account recovery on a user's iCloud — check that `accountChange`
-   events are firing (search logs for `subsystem:dev.heimdall.heimdallbar
+   events are firing (search logs for `subsystem:dev.po4yka.heimdall
    category:CloudKit`).
 2. App reinstall storm — expected bump after a release; should subside
    within a day.
@@ -185,11 +185,11 @@ serialized. Key rules:
 
 ## Observability
 
-Logs use `Logger(subsystem: "dev.heimdall.heimdallbar", category:
+Logs use `Logger(subsystem: "dev.po4yka.heimdall", category:
 "CloudKit")`. To filter in Console.app:
 
 ```
-subsystem:dev.heimdall.heimdallbar category:CloudKit
+subsystem:dev.po4yka.heimdall category:CloudKit
 ```
 
 Notable log lines to watch:
@@ -207,10 +207,10 @@ for translating numeric codes to cases.
 
 ## Related files
 
-- `macos/HeimdallBar/Services/Sources/SnapshotCloudEngine.swift` — engine
-- `macos/HeimdallBar/Services/Sources/SnapshotCloudRecord.swift` — schema
-- `macos/HeimdallBar/Services/Sources/CloudKitSyncEngineStateStore.swift` — state persistence
-- `macos/HeimdallBar/Services/Sources/CloudKitAccountObserver.swift` — account notifications
-- `macos/HeimdallBar/Services/Sources/InstallationIDStore.swift` — Keychain-backed installation ID
-- `macos/HeimdallBar/Services/Sources/CloudKitSnapshotSyncStore.swift` — high-level `SnapshotSyncStore` wrapper
-- `macos/HeimdallBar/iOS/App/Sources/HeimdallMobileApp.swift` — silent-push handler
+- `macos/Heimdall/Services/Sources/SnapshotCloudEngine.swift` — engine
+- `macos/Heimdall/Services/Sources/SnapshotCloudRecord.swift` — schema
+- `macos/Heimdall/Services/Sources/CloudKitSyncEngineStateStore.swift` — state persistence
+- `macos/Heimdall/Services/Sources/CloudKitAccountObserver.swift` — account notifications
+- `macos/Heimdall/Services/Sources/InstallationIDStore.swift` — Keychain-backed installation ID
+- `macos/Heimdall/Services/Sources/CloudKitSnapshotSyncStore.swift` — high-level `SnapshotSyncStore` wrapper
+- `macos/Heimdall/iOS/App/Sources/HeimdallMobileApp.swift` — silent-push handler

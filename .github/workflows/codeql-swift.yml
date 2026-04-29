@@ -6,7 +6,7 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - 'macos/HeimdallBar/**'
+      - 'macos/Heimdall/**'
       - '.github/workflows/codeql-swift.yml'
   schedule:
     - cron: "17 5 * * 2"
@@ -28,9 +28,9 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
-      - name: Generate HeimdallBar project
+      - name: Generate Heimdall project
         run: |
-          cd macos/HeimdallBar
+          cd macos/Heimdall
           xcodegen generate --use-cache
 
       - uses: github/codeql-action/init@v4
@@ -38,13 +38,13 @@ jobs:
           languages: swift
           queries: security-and-quality
 
-      - name: Build HeimdallBar for CodeQL
+      - name: Build Heimdall for CodeQL
         run: |
           xcodebuild \
-            -project macos/HeimdallBar/HeimdallBar.xcodeproj \
-            -scheme HeimdallBarModules \
+            -project macos/Heimdall/Heimdall.xcodeproj \
+            -scheme HeimdallModules \
             -destination 'platform=macOS' \
-            -derivedDataPath macos/HeimdallBar/.derived \
+            -derivedDataPath macos/Heimdall/.derived \
             ARCHS=arm64 \
             ONLY_ACTIVE_ARCH=YES \
             CODE_SIGNING_ALLOWED=NO \

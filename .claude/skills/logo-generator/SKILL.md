@@ -1,7 +1,7 @@
 ---
 name: logo-generator
-description: Generate SVG logos and a complete cross-platform application-icon set for heimdall (macOS .icns + menu-bar template, Linux freedesktop hicolor PNGs, Windows .ico, web favicon). Use when the user wants to create a logo or mark for heimdall, HeimdallBar, the Preact dashboard, or any related surface; generate multiple concept variants; or export the full icon set from a master SVG. Enforces heimdall's Apple-Swiss refined design system (DESIGN.md + .claude/skills/industrial-design/): strict monochrome, one optional chromatic pip (red #D71921 = error, or blue-gray #4A7FA5 = interactive), Inter + Geist Mono typography, concentric radii, no gradients, no shadows, no glow. Optional Gemini 3.1 Flash Image Preview (Nano Banana) showcase renders require a local GEMINI_API_KEY — phase 5 is skipped if none is configured.
-when_to_use: Invoke when the user asks for a heimdall logo, mark, app icon, favicon, HeimdallBar menu-bar icon, or platform icon set. Also invoke when iterating on existing variants in `assets/icons/variants/`.
+description: Generate SVG logos and a complete cross-platform application-icon set for heimdall (macOS .icns + menu-bar template, Linux freedesktop hicolor PNGs, Windows .ico, web favicon). Use when the user wants to create a logo or mark for heimdall, Heimdall, the Preact dashboard, or any related surface; generate multiple concept variants; or export the full icon set from a master SVG. Enforces heimdall's Apple-Swiss refined design system (DESIGN.md + .claude/skills/industrial-design/): strict monochrome, one optional chromatic pip (red #D71921 = error, or blue-gray #4A7FA5 = interactive), Inter + Geist Mono typography, concentric radii, no gradients, no shadows, no glow. Optional Gemini 3.1 Flash Image Preview (Nano Banana) showcase renders require a local GEMINI_API_KEY — phase 5 is skipped if none is configured.
+when_to_use: Invoke when the user asks for a heimdall logo, mark, app icon, favicon, Heimdall menu-bar icon, or platform icon set. Also invoke when iterating on existing variants in `assets/icons/variants/`.
 argument-hint: "[concept-direction] [--template] [--variants N]"
 effort: xhigh
 allowed-tools: [Read, Write, Edit, Glob, Grep, Bash]
@@ -206,8 +206,8 @@ Hand the user:
 - the full platform icon tree under `assets/icons/`
 - optional showcase PNGs
 - a one-line wiring checklist (do not auto-wire):
-  - HeimdallBar: symlink or copy `assets/icons/macos/AppIcon.appiconset` into `macos/HeimdallBar/App/Sources/Assets.xcassets/` and set `CFBundleIconFile=AppIcon` in `macos/HeimdallBar/App/Sources/Info.plist`.
-  - HeimdallBar menu-bar button: reference `icon_template.png` via `NSImage(named:)` with `isTemplate = true`.
+  - Heimdall: symlink or copy `assets/icons/macos/AppIcon.appiconset` into `macos/Heimdall/App/Sources/Assets.xcassets/` and set `CFBundleIconFile=AppIcon` in `macos/Heimdall/App/Sources/Info.plist`.
+  - Heimdall menu-bar button: reference `icon_template.png` via `NSImage(named:)` with `isTemplate = true`.
   - Dashboard favicon: drop `web/favicon.ico` and `web/favicon.svg` next to `src/ui/index.html` and add `<link rel="icon" href="/favicon.svg">` + `<link rel="alternate icon" href="/favicon.ico">`.
   - Linux packaging: install `linux/hicolor/` into `$prefix/share/icons/hicolor/`.
   - Windows packaging: bundle `windows/heimdall.ico`.

@@ -1,0 +1,667 @@
+import Foundation
+
+public enum MenuProjectionBuilder {
+    public static func availableTabs(config: HeimdallConfig) -> [MergeMenuTab] {
+        var tabs = [MergeMenuTab.overview]
+        if config.claude.enabled {
+            tabs.append(.claude)
+        }
+        if config.codex.enabled {
+            tabs.append(.codex)
+        }
+        return tabs
+    }
+
+    public static func projection(
+        from presentation: ProviderPresentationState,
+        config: HeimdallConfig,
+        isRefreshing: Bool,
+        lastGlobalError: String?
+    ) -> ProviderMenuProjection {
+        let provider = presentation.provider
+        let snapshot = presentation.snapshot
+        let adjunct = presentation.adjunct
+        let resolution = presentation.resolution
+        let history = snapshot.map { historyFractions($0.costSummary.daily) } ?? []
+        let normalizedStatusIndicator = snapshot?.status?.indicator
+            .lowercased()
+            .trimmingCharacters(in: .whitespaces)
+        let statusLabel = snapshot?.status.map { status -> String in
+            let normalized = normalizedStatusIndicator ?? ""
+            if normalized.isEmpty || normalized == "none" {
+                return status.description
+            }
+            return "[\(status.indicator.uppercased())] \(status.description)"
+        }
+        let incidentLabel: String?
+        if let statusLabel,
+           let normalizedStatusIndicator,
+           normalizedStatusIndicator.contains("major") || normalizedStatusIndicator.contains("critical") {
+            incidentLabel = statusLabel
+        } else {
+            incidentLabel = nil
+        }
+        let identityLabel = presentation.displayIdentityLabel
+        let creditsLabel = presentation.displayCredits.map { value in
+            resolution.effectiveSource == .web
+                ? String(format: "Web credits: %.2f", value)
+                : String(format: "Credits: %.2f", value)
+        }
+        let lanePrimary = presentation.primary
+        let laneSecondary = presentation.secondary
+        let laneTertiary = presentation.tertiary
+        let auth = presentation.auth
+        let hasCachedSnapshot = snapshot != nil
+        let connectivityFailure = hasCachedSnapshot ? lastGlobalError : nil
+        let effectiveError = snapshot?.error ?? (hasCachedSnapshot ? nil : lastGlobalError)
+        let lastRefreshLabel = if let lastRefresh = snapshot?.lastRefresh {
+            "Updated \(relativeLabel(lastRefresh))"
+        } else if let lastUpdated = adjunct?.lastUpdated {
+            "Web data \(relativeLabel(lastUpdated))"
+        } else {
+            "Waiting for data"
+        }
+        let todayCostUSD = snapshot?.costSummary.todayCostUSD
+        let last30DaysCostUSD = snapshot?.costSummary.last30DaysCostUSD
+        let costLabel = if let snapshot {
+            "Today: \(currencyLabel(snapshot.costSummary.todayCostUSD)) · 30 days: \(currencyLabel(snapshot.costSummary.last30DaysCostUSD))"
+        } else {
+            "Today: unavailable"
+        }
+        let visualState = self.visualState(
+            statusIndicator: snapshot?.status?.indicator,
+            stale: snapshot?.stale ?? false,
+            error: effectiveError,
+            isRefreshing: isRefreshing
+        )
+        let displayState = self.displayState(
+            from: visualState,
+            showingCachedData: connectivityFailure?.isEmpty == false
+        )
+        let refreshStatusLabel = self.refreshStatusLabel(
+            visualState: displayState,
+            isRefreshing: isRefreshing,
+            lastRefreshLabel: lastRefreshLabel,
+            error: effectiveError,
+            showingCachedData: connectivityFailure?.isEmpty == false
+        )
+        let authHeadline = auth.flatMap { self.authHeadline(for: $0) }
+        let authDetail = auth.flatMap {
+            self.authDetail(
+                for: $0,
+                requestedSource: resolution.requestedSource,
+                provider: provider
+            )
+        }
+        let laneDetails = [
+            laneDetail(title: "Session", window: lanePrimary, config: config),
+            laneDetail(title: "Weekly", window: laneSecondary, config: config),
+        ] + (laneTertiary.map { [laneDetail(title: "Extra", window: $0, config: config)] } ?? [])
+        var warningLabels = resolution.warnings + fallbackChainWarnings(resolution.fallbackChain)
+        if let auth, !auth.isSourceCompatible {
+            warningLabels.append("\(provider.title) auth cannot satisfy the selected \(resolution.requestedSource.rawValue) source.")
+        }
+        if let auth, auth.requiresRelogin {
+            warningLabels.append("\(provider.title) requires re-login before live quota can refresh.")
+        }
+        // "Showing cached data" is already conveyed by the StateBadge; suppress the duplicate warning.
+        warningLabels = warningLabels.uniqued()
+
+        // Align the historyBreakdowns slice with the same 7-day window the
+        // historyFractions uses so the stacked 7-day bar chart has one
+        // TokenBreakdown per visible bar.
+        let historyBreakdowns: [TokenBreakdown] = snapshot.map { snap in
+            let recent = Array(snap.costSummary.daily.suffix(7))
+            return recent.map { $0.breakdown ?? TokenBreakdown() }
+        } ?? []
+
+        // Phase 3: weekly projection + spend-trend direction.
+        let weeklyProjectedCost: Double? = snapshot.flatMap {
+            self.projectedWeeklyCost(snapshot: $0, secondary: presentation.secondary)
+        }
+        let spendTrendDirection: TrendDirection? = snapshot.flatMap {
+            self.trendDirection(daily: $0.costSummary.daily)
+        }
+
+        return ProviderMenuProjection(
+            provider: provider,
+            title: provider.title,
+            sourceLabel: resolution.sourceLabel,
+            sourceExplanationLabel: resolution.explanation,
+            authHeadline: authHeadline,
+            authDetail: authDetail,
+            authDiagnosticCode: auth?.diagnosticCode,
+            authSummaryLabel: presentation.authSummaryLabel,
+            authRecoveryActions: auth?.recoveryActions ?? [],
+            warningLabels: warningLabels,
+            quotaSuggestions: snapshot?.quotaSuggestions,
+            depletionForecast: snapshot?.depletionForecast,
+            predictiveInsights: snapshot?.predictiveInsights,
+            visualState: displayState,
+            stateLabel: stateLabel(for: displayState),
+            statusLabel: statusLabel,
+            identityLabel: identityLabel,
+            lastRefreshLabel: lastRefreshLabel,
+            refreshStatusLabel: refreshStatusLabel,
+            costLabel: costLabel,
+            todayCostUSD: todayCostUSD,
+            last30DaysCostUSD: last30DaysCostUSD,
+            laneDetails: laneDetails,
+            creditsLabel: creditsLabel,
+            incidentLabel: incidentLabel,
+            stale: snapshot?.stale ?? false,
+            isShowingCachedData: connectivityFailure?.isEmpty == false,
+            isRefreshing: isRefreshing,
+            error: effectiveError,
+            globalIssueLabel: connectivityFailure.map(self.presentableRefreshFailure),
+            historyFractions: history,
+            claudeFactors: snapshot?.claudeUsage?.factors ?? [],
+            adjunct: adjunct,
+            historyBreakdowns: historyBreakdowns,
+            todayBreakdown: snapshot?.costSummary.todayBreakdown,
+            last30DaysBreakdown: snapshot?.costSummary.last30DaysBreakdown,
+            cacheHitRateToday: snapshot?.costSummary.cacheHitRateToday,
+            cacheHitRate30d: snapshot?.costSummary.cacheHitRate30d,
+            cacheSavings30dUSD: snapshot?.costSummary.cacheSavings30dUSD,
+            weeklyProjectedCostUSD: weeklyProjectedCost,
+            spendTrendDirection: spendTrendDirection,
+            dailyCosts: snapshot?.costSummary.daily ?? [],
+            byModel: snapshot?.costSummary.byModel ?? [],
+            byProject: snapshot?.costSummary.byProject ?? [],
+            byTool: snapshot?.costSummary.byTool ?? [],
+            byMcp: snapshot?.costSummary.byMcp ?? [],
+            hourlyActivity: snapshot?.costSummary.hourlyActivity ?? [],
+            activityHeatmap: snapshot?.costSummary.activityHeatmap ?? [],
+            recentSessions: snapshot?.costSummary.recentSessions ?? [],
+            subagentBreakdown: snapshot?.costSummary.subagentBreakdown,
+            versionBreakdown: snapshot?.costSummary.versionBreakdown ?? [],
+            dailyByModel: snapshot?.costSummary.dailyByModel ?? []
+        )
+    }
+
+    public static func overview(
+        from items: [ProviderMenuProjection],
+        isRefreshing: Bool,
+        lastGlobalError: String?
+    ) -> OverviewMenuProjection {
+        let refreshedLabel = items.map(\.lastRefreshLabel).first ?? "Waiting for data"
+        let totalCost = items.compactMap(\.todayCostUSD).reduce(0.0, +)
+        let historyFractions = mergedHistory(items: items)
+        let warningLabels = items
+            .flatMap(\.warningLabels)
+            .uniqued()
+        let hottestProvider = items.max(by: { lhs, rhs in
+            (lhs.todayCostUSD ?? 0) < (rhs.todayCostUSD ?? 0)
+        })
+        let activitySummaryLabel: String
+        if let hottestProvider {
+            let providerCost = hottestProvider.todayCostUSD ?? 0
+            if totalCost > 0 {
+                let share = Int((providerCost / totalCost * 100).rounded())
+                activitySummaryLabel = "\(hottestProvider.title) accounts for \(share)% of today's spend"
+            } else {
+                activitySummaryLabel = "Highest spend today: \(hottestProvider.title)"
+            }
+        } else {
+            activitySummaryLabel = "Waiting for provider activity"
+        }
+        let refreshStatusLabel: String
+        let isShowingCachedData = lastGlobalError?.isEmpty == false && !items.isEmpty
+        let globalIssueLabel: String?
+        if isRefreshing {
+            let providerNames = items.map(\.title).joined(separator: " + ")
+            refreshStatusLabel = if providerNames.isEmpty {
+                "Refreshing providers…"
+            } else {
+                "Refreshing \(providerNames)…"
+            }
+        } else if isShowingCachedData {
+            refreshStatusLabel = "Showing cached data"
+        } else if lastGlobalError?.isEmpty == false {
+            refreshStatusLabel = "Refresh failed"
+        } else {
+            refreshStatusLabel = refreshedLabel
+        }
+
+        if let lastGlobalError, !lastGlobalError.isEmpty {
+            // Always surface the specific reason. refreshStatusLabel already
+            // communicates "Showing cached data" / "Refresh failed", so the
+            // banner can stay focused on the 'why' instead of repeating the
+            // cached-state tag.
+            globalIssueLabel = self.presentableRefreshFailure(lastGlobalError)
+        } else {
+            globalIssueLabel = nil
+        }
+
+        return OverviewMenuProjection(
+            items: items,
+            combinedCostLabel: "Combined today: \(currencyLabel(totalCost))",
+            combinedTodayCostUSD: totalCost,
+            refreshedAtLabel: refreshedLabel,
+            activitySummaryLabel: activitySummaryLabel,
+            historyFractions: historyFractions,
+            warningLabels: warningLabels,
+            isShowingCachedData: isShowingCachedData,
+            isRefreshing: isRefreshing,
+            refreshStatusLabel: refreshStatusLabel,
+            globalIssueLabel: globalIssueLabel
+        )
+    }
+
+    public static func menuTitle(
+        for presentation: ProviderPresentationState?,
+        provider: ProviderID?,
+        config: HeimdallConfig
+    ) -> String {
+        guard let presentation, let snapshot = presentation.snapshot, let primary = presentation.primary else {
+            if let presentation, let primary = presentation.primary {
+                let value = config.showUsedValues ? primary.usedPercent : max(0, 100 - primary.usedPercent)
+                let suffix = config.showUsedValues ? "used" : "left"
+                let label = provider?.title ?? presentation.provider.title
+                return "\(label) \(Int(value.rounded()))% \(suffix)"
+            }
+            if let presentation, presentation.resolution.requestedSource == .web {
+                return provider?.title ?? presentation.provider.title
+            }
+            return provider?.title ?? presentation?.provider.title ?? "Heimdall"
+        }
+
+        let value = config.showUsedValues ? primary.usedPercent : max(0, 100 - primary.usedPercent)
+        let suffix = config.showUsedValues ? "used" : "left"
+        let label = provider?.title ?? snapshot.provider.capitalized
+        return "\(label) \(Int(value.rounded()))% \(suffix)"
+    }
+
+    private static func laneDetail(
+        title: String,
+        window: ProviderRateWindow?,
+        config: HeimdallConfig
+    ) -> LaneDetailProjection {
+        guard let window else {
+            return LaneDetailProjection(
+                title: title,
+                summary: "\(title): unavailable",
+                remainingPercent: nil,
+                resetDetail: nil,
+                paceLabel: nil,
+                resetMinutes: nil,
+                windowMinutes: nil
+            )
+        }
+
+        let value = config.showUsedValues ? window.usedPercent : max(0, 100 - window.usedPercent)
+        let remainingPercent = Int(max(0, 100 - window.usedPercent).rounded())
+        let modeLabel = config.showUsedValues ? "used" : "left"
+        let resetLabel: String
+        switch config.resetDisplayMode {
+        case .countdown:
+            if let minutes = window.resetsInMinutes {
+                resetLabel = "resets in \(Self.humanizeMinutes(minutes))"
+            } else {
+                resetLabel = window.resetLabel ?? "reset unknown"
+            }
+        case .absolute:
+            resetLabel = window.resetsAt ?? window.resetLabel ?? "reset unknown"
+        }
+        let paceLabel = paceLabel(forRemainingPercent: remainingPercent)
+        return LaneDetailProjection(
+            title: title,
+            summary: "\(title): \(Int(value.rounded()))% \(modeLabel) · pace \(paceLabel.lowercased()) · \(resetLabel)",
+            remainingPercent: remainingPercent,
+            resetDetail: resetLabel,
+            paceLabel: paceLabel,
+            resetMinutes: window.resetsInMinutes,
+            windowMinutes: window.windowMinutes
+        )
+    }
+
+    private static func relativeLabel(_ timestamp: String) -> String {
+        guard let date = parseISO8601(timestamp) else { return "just now" }
+        let delta = max(0, Int(Date().timeIntervalSince(date)))
+        if delta < 60 {
+            return "right now"
+        }
+        if delta < 3600 {
+            return "\(delta / 60)m ago"
+        }
+        if delta < 86_400 {
+            return "\(delta / 3600)h ago"
+        }
+        return "\(delta / 86_400)d ago"
+    }
+
+    // ISO8601DateFormatter is thread-safe for read-only parsing once
+    // configured (Apple docs). nonisolated(unsafe) opts these out of
+    // Swift 6 actor isolation since the formatOptions are set once in
+    // the closure and the formatter is only used via .date(from:).
+    nonisolated(unsafe) private static let iso8601FractionalFormatter: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+
+    nonisolated(unsafe) private static let iso8601StandardFormatter: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f
+    }()
+
+    private static func parseISO8601(_ timestamp: String) -> Date? {
+        if let date = self.iso8601FractionalFormatter.date(from: timestamp) {
+            return date
+        }
+        return self.iso8601StandardFormatter.date(from: timestamp)
+    }
+
+    private static func historyFractions(_ points: [CostHistoryPoint]) -> [Double] {
+        let recent = Array(points.suffix(7))
+        let maxValue = recent.map(\.costUSD).max() ?? 0
+        guard maxValue > 0 else { return recent.map { _ in 0 } }
+        return recent.map { min(1, $0.costUSD / maxValue) }
+    }
+
+    private static func fallbackChainWarnings(_ chain: [String]) -> [String] {
+        guard chain.count > 1 else { return [] }
+        // Suppress the chain when the final step is 'unavailable' — the ERROR
+        // badge and top message already tell the user the whole pipeline
+        // failed. A chain like 'oauth -> cli-rpc' where we DID recover is
+        // still worth showing.
+        if chain.last == "unavailable" {
+            return []
+        }
+        return ["Resolution chain: \(chain.joined(separator: " -> "))"]
+    }
+
+    private static func mergedHistory(items: [ProviderMenuProjection]) -> [Double] {
+        guard let count = items.map(\.historyFractions.count).max(), count > 0 else { return [] }
+        var merged = Array(repeating: 0.0, count: count)
+        var totals = Array(repeating: 0, count: count)
+        for item in items {
+            for (index, value) in item.historyFractions.enumerated() {
+                merged[index] += value
+                totals[index] += 1
+            }
+        }
+        return zip(merged, totals).map { total, count in
+            guard count > 0 else { return 0 }
+            return min(1, total / Double(count))
+        }
+    }
+
+    private static func visualState(
+        statusIndicator: String?,
+        stale: Bool,
+        error: String?,
+        isRefreshing: Bool
+    ) -> ProviderVisualState {
+        if let error, !error.isEmpty {
+            if self.isTransientThrottleError(error) {
+                return .degraded
+            }
+            return .error
+        }
+        if stale {
+            return .stale
+        }
+        let indicator = statusIndicator?.lowercased() ?? ""
+        if indicator.contains("critical") || indicator.contains("major") {
+            return .incident
+        }
+        if indicator.contains("minor")
+            || indicator.contains("degraded")
+            || indicator.contains("maintenance")
+            || indicator.contains("partial")
+        {
+            return .degraded
+        }
+        if isRefreshing {
+            return .refreshing
+        }
+        return .healthy
+    }
+
+    private static func displayState(
+        from visualState: ProviderVisualState,
+        showingCachedData: Bool
+    ) -> ProviderVisualState {
+        guard showingCachedData else { return visualState }
+        switch visualState {
+        case .healthy, .refreshing:
+            return .stale
+        default:
+            return visualState
+        }
+    }
+
+    /// Upstream rate-limits (HTTP 429 from Anthropic's OAuth usage endpoint)
+    /// surface as errors in the helper's refresh envelope, but the next poll
+    /// will recover on its own. Treat them as `.degraded` instead of `.error`
+    /// so the menu doesn't shout "Error" at the user every time the API
+    /// briefly throttles our poll. The marker string comes from the helper
+    /// itself (`src/oauth/api.rs`), so it's stable.
+    static func isTransientThrottleError(_ error: String) -> Bool {
+        let lower = error.lowercased()
+        return lower.contains("rate-limit") || lower.contains("rate limited")
+    }
+
+    private static func stateLabel(for state: ProviderVisualState) -> String {
+        switch state {
+        case .healthy: return "Operational"
+        case .refreshing: return "Refreshing"
+        case .stale: return "Stale"
+        case .degraded: return "Degraded"
+        case .incident: return "Incident"
+        case .error: return "Error"
+        }
+    }
+
+    private static func refreshStatusLabel(
+        visualState: ProviderVisualState,
+        isRefreshing: Bool,
+        lastRefreshLabel: String,
+        error: String?,
+        showingCachedData: Bool
+    ) -> String {
+        if isRefreshing {
+            return "Refreshing…"
+        }
+        if showingCachedData {
+            return "Showing cached data"
+        }
+        if let error, !error.isEmpty {
+            if self.isTransientThrottleError(error) {
+                return "Throttled · retrying on next poll"
+            }
+            return "Refresh failed"
+        }
+        switch visualState {
+        case .incident:
+            return "Incident active · \(lastRefreshLabel.lowercased())"
+        case .degraded:
+            return "Provider degraded · \(lastRefreshLabel.lowercased())"
+        case .stale:
+            return "Data is stale · \(lastRefreshLabel.lowercased())"
+        default:
+            return lastRefreshLabel
+        }
+    }
+
+    private static func authHeadline(for auth: ProviderAuthHealth) -> String? {
+        if let code = auth.diagnosticCode {
+            switch code {
+            case "authenticated-compatible":
+                return nil
+            case "authenticated-incompatible-source":
+                return "Authenticated, but incompatible with selected source"
+            case "expired-refreshable":
+                return "Expired, but refreshable"
+            case "requires-relogin":
+                return "Expired and requires re-login"
+            case "env-override":
+                return "Environment override blocks subscription auth"
+            case "keychain-unavailable":
+                return "Credential store access is blocked"
+            case "managed-policy":
+                return "Managed policy blocks this auth mode"
+            case "missing-credentials":
+                return "No saved login was found"
+            case "headless-oauth-env":
+                return "Headless OAuth token is active"
+            default:
+                break
+            }
+        }
+        if auth.isAuthenticated && auth.isSourceCompatible {
+            return nil
+        }
+        if auth.isAuthenticated && !auth.isSourceCompatible {
+            return "Authenticated, but incompatible with selected source"
+        }
+        if auth.requiresRelogin {
+            return "Re-login required"
+        }
+        return auth.failureReason == nil ? nil : "Authentication needs attention"
+    }
+
+    private static func authDetail(
+        for auth: ProviderAuthHealth,
+        requestedSource: UsageSourcePreference,
+        provider: ProviderID
+    ) -> String? {
+        if let failureReason = auth.failureReason, !failureReason.isEmpty {
+            return failureReason
+        }
+
+        if auth.isAuthenticated && auth.isSourceCompatible && !auth.requiresRelogin {
+            return nil
+        }
+
+        var fragments = [String]()
+        if let loginMethod = auth.loginMethod?.replacingOccurrences(of: "-", with: " ") {
+            fragments.append("Login: \(loginMethod.capitalized)")
+        }
+        if let backend = auth.credentialBackend {
+            fragments.append("Store: \(backend.replacingOccurrences(of: "-", with: " ").capitalized)")
+        }
+        if !auth.isSourceCompatible {
+            fragments.append("Does not satisfy \(provider.title) \(requestedSource.rawValue) source")
+        }
+        if auth.requiresRelogin {
+            fragments.append("Run login again to restore live quota")
+        }
+
+        return fragments.isEmpty ? nil : fragments.joined(separator: " · ")
+    }
+
+    private static func presentableRefreshFailure(_ error: String) -> String {
+        let normalized = error.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lowercased = normalized.lowercased()
+        if lowercased.contains("could not connect to the server")
+            || lowercased.contains("failed to connect")
+            || lowercased.contains("connection refused")
+        {
+            return "Cannot reach the local Heimdall server."
+        }
+        if lowercased.contains("timed out") {
+            return "The local Heimdall server did not respond in time."
+        }
+        return normalized
+    }
+
+    private static func currencyLabel(_ value: Double) -> String {
+        FormatHelpers.formatUSD(value)
+    }
+
+    /// Linearly extrapolate the current weekly window's cost to the reset
+    /// point: projected = cost_so_far / elapsed_fraction. Uses the Weekly /
+    /// secondary lane's windowMinutes + resetsInMinutes to derive elapsed
+    /// time and sums the matching suffix of costSummary.daily as
+    /// cost-so-far. Returns nil when the window info is missing, when
+    /// elapsed time is < 10% of the window (projection would be noisy), or
+    /// when we have no daily history to sum.
+    static func projectedWeeklyCost(
+        snapshot: ProviderSnapshot,
+        secondary: ProviderRateWindow?
+    ) -> Double? {
+        guard let secondary,
+              let windowMinutes = secondary.windowMinutes,
+              let resetsInMinutes = secondary.resetsInMinutes,
+              windowMinutes > 0,
+              resetsInMinutes >= 0,
+              resetsInMinutes < windowMinutes
+        else { return nil }
+
+        let elapsed = Double(windowMinutes - resetsInMinutes)
+        let elapsedFraction = elapsed / Double(windowMinutes)
+        guard elapsedFraction >= 0.1 else { return nil }
+
+        // Pull the suffix of daily rows that approximately covers the
+        // elapsed window — ceil so we include today. Daily rows align to
+        // UTC day boundaries so this is off by at most ±1 day vs the
+        // actual window start, which is fine for a rough projection.
+        let elapsedDays = max(1, Int(ceil(elapsed / 1440.0)))
+        let relevant = Array(snapshot.costSummary.daily.suffix(elapsedDays))
+        guard !relevant.isEmpty else { return nil }
+        let costSoFar = relevant.reduce(0.0) { $0 + $1.costUSD }
+        return costSoFar / elapsedFraction
+    }
+
+    /// Classify recent spend direction from daily costs. Compares the mean of
+    /// the last 3 days to the mean of the prior 4 days and buckets the ratio
+    /// into up (> 1.1), flat (0.9–1.1), or down (< 0.9). Requires at least
+    /// 5 data points so the windows aren't trivially comparable.
+    static func trendDirection(daily: [CostHistoryPoint]) -> TrendDirection? {
+        guard daily.count >= 5 else { return nil }
+        let recent = Array(daily.suffix(7))
+        let splitIndex = recent.count - 3
+        let earlier = Array(recent.prefix(splitIndex))
+        let later = Array(recent.suffix(3))
+        guard !earlier.isEmpty, !later.isEmpty else { return nil }
+        let earlierAvg = earlier.reduce(0.0) { $0 + $1.costUSD } / Double(earlier.count)
+        let laterAvg = later.reduce(0.0) { $0 + $1.costUSD } / Double(later.count)
+        guard earlierAvg > 0.0 else {
+            return laterAvg > 0.0 ? .up : .flat
+        }
+        let ratio = laterAvg / earlierAvg
+        if ratio > 1.10 { return .up }
+        if ratio < 0.90 { return .down }
+        return .flat
+    }
+
+    /// Convert a minute count into a compact human-readable window:
+    /// 45 -> "45m", 225 -> "3h 45m", 1440 -> "1d", 3945 -> "2d 17h".
+    /// Keeps at most two magnitudes so the label stays short.
+    static func humanizeMinutes(_ minutes: Int) -> String {
+        if minutes < 60 {
+            return "\(minutes)m"
+        }
+        if minutes < 1440 {
+            let hours = minutes / 60
+            let mins = minutes % 60
+            return mins == 0 ? "\(hours)h" : "\(hours)h \(mins)m"
+        }
+        let days = minutes / 1440
+        let hours = (minutes % 1440) / 60
+        return hours == 0 ? "\(days)d" : "\(days)d \(hours)h"
+    }
+
+    private static func paceLabel(forRemainingPercent remainingPercent: Int) -> String {
+        switch remainingPercent {
+        case ..<15:
+            return "Critical"
+        case ..<35:
+            return "Heavy"
+        case ..<65:
+            return "Steady"
+        default:
+            return "Comfortable"
+        }
+    }
+}
+
+private extension Array where Element: Hashable {
+    func uniqued() -> [Element] {
+        var seen = Set<Element>()
+        return self.filter { seen.insert($0).inserted }
+    }
+}

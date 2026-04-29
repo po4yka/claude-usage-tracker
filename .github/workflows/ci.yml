@@ -33,11 +33,11 @@ jobs:
               - 'package-lock.json'
               - 'tsconfig.json'
             native:
-              - 'macos/HeimdallBar/**'
+              - 'macos/Heimdall/**'
               - 'script/bundle_heimdall_helper.sh'
-              - 'script/package_heimdallbar_distribution.sh'
-              - 'script/sign_heimdallbar_distribution.sh'
-              - 'script/validate_heimdallbar_distribution.sh'
+              - 'script/package_heimdall_distribution.sh'
+              - 'script/sign_heimdall_distribution.sh'
+              - 'script/validate_heimdall_distribution.sh'
               - '.github/workflows/release.yml'
               - '.github/workflows/release-smoke.yml'
               - '.github/workflows/codeql-swift.yml'
@@ -46,9 +46,9 @@ jobs:
               - '.github/workflows/release-smoke.yml'
               - '.github/RELEASING.md'
               - 'script/bundle_heimdall_helper.sh'
-              - 'script/package_heimdallbar_distribution.sh'
-              - 'script/sign_heimdallbar_distribution.sh'
-              - 'script/validate_heimdallbar_distribution.sh'
+              - 'script/package_heimdall_distribution.sh'
+              - 'script/sign_heimdall_distribution.sh'
+              - 'script/validate_heimdall_distribution.sh'
 
   rust-stable:
     name: rust-stable
@@ -165,41 +165,41 @@ jobs:
         if: needs.changes.outputs.native == 'true'
         run: brew install xcodegen
 
-      - name: Generate HeimdallBar project
+      - name: Generate Heimdall project
         if: needs.changes.outputs.native == 'true'
         run: |
-          cd macos/HeimdallBar
+          cd macos/Heimdall
           xcodegen generate --use-cache
 
-      - name: Run HeimdallBar module tests
+      - name: Run Heimdall module tests
         if: needs.changes.outputs.native == 'true'
         run: |
           xcodebuild \
-            -project macos/HeimdallBar/HeimdallBar.xcodeproj \
-            -scheme HeimdallBarModules \
+            -project macos/Heimdall/Heimdall.xcodeproj \
+            -scheme HeimdallModules \
             -destination 'platform=macOS' \
-            -derivedDataPath macos/HeimdallBar/.derived \
+            -derivedDataPath macos/Heimdall/.derived \
             CODE_SIGNING_ALLOWED=NO \
             test
 
-      - name: Build HeimdallBar app
+      - name: Build Heimdall app
         if: needs.changes.outputs.native == 'true'
         run: |
           xcodebuild \
-            -project macos/HeimdallBar/HeimdallBar.xcodeproj \
-            -scheme HeimdallBarApp \
+            -project macos/Heimdall/Heimdall.xcodeproj \
+            -scheme HeimdallApp \
             -configuration Release \
-            -derivedDataPath macos/HeimdallBar/.derived \
+            -derivedDataPath macos/Heimdall/.derived \
             CODE_SIGNING_ALLOWED=NO \
             build
 
-      - name: Build HeimdallBar CLI
+      - name: Build Heimdall CLI
         if: needs.changes.outputs.native == 'true'
         run: |
           xcodebuild \
-            -project macos/HeimdallBar/HeimdallBar.xcodeproj \
-            -scheme HeimdallBarCLI \
+            -project macos/Heimdall/Heimdall.xcodeproj \
+            -scheme HeimdallTool \
             -configuration Release \
-            -derivedDataPath macos/HeimdallBar/.derived \
+            -derivedDataPath macos/Heimdall/.derived \
             CODE_SIGNING_ALLOWED=NO \
             build

@@ -2,7 +2,7 @@
 
 Authoritative size/format matrix for every heimdall surface that consumes an icon. `scripts/render_icon_set.py` implements this matrix — if you change the numbers here, update the script at the same time.
 
-## macOS — AppIcon.appiconset (HeimdallBar)
+## macOS — AppIcon.appiconset (Heimdall)
 
 Apple requires a specific set of sizes in an `.appiconset` bundle. Xcode validates on drag-in and flags anything missing.
 
@@ -31,7 +31,7 @@ iconutil -c icns assets/icons/macos/AppIcon.appiconset -o assets/icons/macos/hei
 
 `iconutil` is a macOS-only built-in (`/usr/bin/iconutil`). On Linux/Windows the script emits the `.appiconset` directory but skips the compilation step. Run `iconutil` later on a Mac or in a macOS CI job.
 
-## macOS — menu-bar template icon (HeimdallBar status item)
+## macOS — menu-bar template icon (Heimdall status item)
 
 Menu-bar icons use the **template image** convention: grayscale PNG on transparent background, where black pixels become the current foreground color (macOS inverts them when the menu extra is selected or when dark mode is active). The logo's optional `#D71921` pip MUST be stripped for this export.
 
@@ -40,7 +40,7 @@ Menu-bar icons use the **template image** convention: grayscale PNG on transpare
 | `icon_template.png` | 16 × 16 |
 | `icon_template@2x.png` | 32 × 32 |
 
-Convention: the file must be named with the `Template` suffix *or* the Swift code must set `NSImage.isTemplate = true`. HeimdallBar currently uses the latter, so the filename suffix is for our own discoverability.
+Convention: the file must be named with the `Template` suffix *or* the Swift code must set `NSImage.isTemplate = true`. Heimdall currently uses the latter, so the filename suffix is for our own discoverability.
 
 Rules:
 - Single color (black ink on transparent), no gradients, no anti-aliased color.

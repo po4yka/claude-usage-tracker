@@ -126,8 +126,8 @@ jobs:
         if: ${{ env.HEIMDALL_APPLE_CERTIFICATE_BASE64 != '' && env.HEIMDALL_APPLE_CERTIFICATE_PASSWORD != '' && env.HEIMDALL_CODESIGN_IDENTITY != '' }}
         shell: bash
         run: |
-          CERT_PATH="$RUNNER_TEMP/heimdallbar-signing.p12"
-          KEYCHAIN_PATH="$RUNNER_TEMP/heimdallbar-signing.keychain-db"
+          CERT_PATH="$RUNNER_TEMP/heimdall-signing.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/heimdall-signing.keychain-db"
           KEYCHAIN_PASSWORD="$(openssl rand -hex 18)"
           EXISTING_KEYCHAINS=$(security list-keychains -d user | sed 's/^[[:space:]]*//; s/"//g')
 
@@ -149,56 +149,56 @@ jobs:
           echo "HEIMDALL_SIGNING_KEYCHAIN=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
           echo "HEIMDALL_SIGNING_KEYCHAIN_PASSWORD=$KEYCHAIN_PASSWORD" >> "$GITHUB_ENV"
 
-      - name: Generate HeimdallBar project
+      - name: Generate Heimdall project
         shell: bash
         run: |
-          cd macos/HeimdallBar
+          cd macos/Heimdall
           xcodegen generate --use-cache
 
-      - name: Build HeimdallBar app
+      - name: Build Heimdall app
         shell: bash
         run: |
           xcodebuild \
-            -project macos/HeimdallBar/HeimdallBar.xcodeproj \
-            -scheme HeimdallBarApp \
+            -project macos/Heimdall/Heimdall.xcodeproj \
+            -scheme HeimdallApp \
             -configuration Release \
-            -derivedDataPath macos/HeimdallBar/.derived \
+            -derivedDataPath macos/Heimdall/.derived \
             CODE_SIGNING_ALLOWED=NO \
             build
 
-      - name: Build HeimdallBar CLI
+      - name: Build Heimdall CLI
         shell: bash
         run: |
           xcodebuild \
-            -project macos/HeimdallBar/HeimdallBar.xcodeproj \
-            -scheme HeimdallBarCLI \
+            -project macos/Heimdall/Heimdall.xcodeproj \
+            -scheme HeimdallTool \
             -configuration Release \
-            -derivedDataPath macos/HeimdallBar/.derived \
+            -derivedDataPath macos/Heimdall/.derived \
             CODE_SIGNING_ALLOWED=NO \
             build
 
-      - name: Stage HeimdallBar distribution
+      - name: Stage Heimdall distribution
         shell: bash
         run: |
           VERSION=${{ steps.version.outputs.version }}
-          STAGING_DIR="heimdallbar-${VERSION}-macos-app"
-          ./script/package_heimdallbar_distribution.sh "macos/HeimdallBar/.derived/Build/Products/Release" "${STAGING_DIR}"
+          STAGING_DIR="heimdall-${VERSION}-macos-app"
+          ./script/package_heimdall_distribution.sh "macos/Heimdall/.derived/Build/Products/Release" "${STAGING_DIR}"
           echo "STAGING_DIR=${STAGING_DIR}" >> "$GITHUB_ENV"
 
-      - name: Sign HeimdallBar distribution
+      - name: Sign Heimdall distribution
         shell: bash
         run: |
           IDENTITY="${HEIMDALL_CODESIGN_IDENTITY:--}"
-          ./script/sign_heimdallbar_distribution.sh \
-            "${STAGING_DIR}/HeimdallBar.app" \
-            "${STAGING_DIR}/bin/heimdallbar" \
+          ./script/sign_heimdall_distribution.sh \
+            "${STAGING_DIR}/Heimdall.app" \
+            "${STAGING_DIR}/bin/heimdall" \
             "$IDENTITY"
 
-      - name: Notarize HeimdallBar app bundle
+      - name: Notarize Heimdall app bundle
         if: ${{ env.HEIMDALL_CODESIGN_IDENTITY != '' && env.HEIMDALL_NOTARY_APPLE_ID != '' && env.HEIMDALL_NOTARY_TEAM_ID != '' && env.HEIMDALL_NOTARY_APP_PASSWORD != '' }}
         shell: bash
         run: |
-          NOTARY_ARCHIVE="$RUNNER_TEMP/heimdallbar-notary.zip"
+          NOTARY_ARCHIVE="$RUNNER_TEMP/heimdall-notary.zip"
           ditto -c -k --sequesterRsrc --keepParent "${STAGING_DIR}" "$NOTARY_ARCHIVE"
 
           xcrun notarytool submit "$NOTARY_ARCHIVE" \
@@ -207,18 +207,18 @@ jobs:
             --password "$HEIMDALL_NOTARY_APP_PASSWORD" \
             --wait
 
-          xcrun stapler staple "${STAGING_DIR}/HeimdallBar.app"
+          xcrun stapler staple "${STAGING_DIR}/Heimdall.app"
 
-      - name: Validate HeimdallBar distribution
+      - name: Validate Heimdall distribution
         shell: bash
         run: |
           if [[ -n "$HEIMDALL_CODESIGN_IDENTITY" && -n "$HEIMDALL_NOTARY_APPLE_ID" && -n "$HEIMDALL_NOTARY_TEAM_ID" && -n "$HEIMDALL_NOTARY_APP_PASSWORD" ]]; then
-            HEIMDALL_REQUIRE_STAPLE=1 ./script/validate_heimdallbar_distribution.sh "${STAGING_DIR}"
+            HEIMDALL_REQUIRE_STAPLE=1 ./script/validate_heimdall_distribution.sh "${STAGING_DIR}"
           else
-            ./script/validate_heimdallbar_distribution.sh "${STAGING_DIR}"
+            ./script/validate_heimdall_distribution.sh "${STAGING_DIR}"
           fi
 
-      - name: Package HeimdallBar app artifact
+      - name: Package Heimdall app artifact
         shell: bash
         run: |
           ARCHIVE_NAME="${STAGING_DIR}.zip"
@@ -226,13 +226,13 @@ jobs:
           ditto -c -k --sequesterRsrc --keepParent "${STAGING_DIR}" "${ARCHIVE_NAME}"
           shasum -a 256 "${ARCHIVE_NAME}" > "${ARCHIVE_NAME}.sha256"
 
-      - name: Upload HeimdallBar app artifact
+      - name: Upload Heimdall app artifact
         uses: actions/upload-artifact@v7
         with:
           name: release-smoke-macos-app
           path: |
-            heimdallbar-${{ steps.version.outputs.version }}-macos-app.zip
-            heimdallbar-${{ steps.version.outputs.version }}-macos-app.zip.sha256
+            heimdall-${{ steps.version.outputs.version }}-macos-app.zip
+            heimdall-${{ steps.version.outputs.version }}-macos-app.zip.sha256
           if-no-files-found: error
           retention-days: 7
 

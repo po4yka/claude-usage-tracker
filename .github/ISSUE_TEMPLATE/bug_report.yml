@@ -31,8 +31,8 @@ body:
         - Web dashboard
         - statusline
         - MCP server
-        - HeimdallBar (macOS app)
-        - HeimdallBar widgets
+        - Heimdall (macOS app)
+        - Heimdall widgets
         - Other / unsure
     validations:
       required: true

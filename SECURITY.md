@@ -45,7 +45,7 @@ In scope:
 
 - The `claude-usage-tracker` CLI and embedded dashboard (`src/server/`)
 - The `heimdall-hook` ingest binary (`src/hook/`)
-- The HeimdallBar SwiftUI menu-bar app (`macos/HeimdallBar/`)
+- The Heimdall SwiftUI menu-bar app (`macos/Heimdall/`)
 - OAuth credential handling (`src/oauth/`)
 - Pricing, currency, and webhook outbound calls
 - Build and release workflows under `.github/workflows/`

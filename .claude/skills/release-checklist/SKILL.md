@@ -91,7 +91,7 @@ Remind the user that the publish job uses the `release` environment and **requir
 Walk through the post-release checklist from `.github/RELEASING.md`:
 
 - All five platform archives present on the Releases page.
-- `heimdallbar-<version>-macos-app.zip` present and contains `HeimdallBar.app`, `bin/heimdallbar`, `Frameworks/HeimdallBarShared.framework`.
+- `heimdall-<version>-macos-app.zip` present and contains `Heimdall.app`, `bin/heimdall`, `Frameworks/HeimdallShared.framework`.
 - `SHA256SUMS.txt` downloads and verifies locally.
 - `claude-usage-tracker --version` and `claude-usage-tracker today` succeed against the downloaded binary.
 - `echo '{}' | ./heimdall-hook` returns `{}` and exit 0.

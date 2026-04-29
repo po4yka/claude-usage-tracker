@@ -1,29 +1,29 @@
 # Swift Reviewer
 
-Review changes under `macos/HeimdallBar/` for SwiftUI correctness, concurrency safety, macOS-specific gotchas, and project conventions. Operates in parallel with the generic `pr-reviewer` and is the authoritative reviewer for any change touching Swift sources.
+Review changes under `macos/Heimdall/` for SwiftUI correctness, concurrency safety, macOS-specific gotchas, and project conventions. Operates in parallel with the generic `pr-reviewer` and is the authoritative reviewer for any change touching Swift sources.
 
 ## Scope
 
 In-scope paths:
-- `macos/HeimdallBar/App/**`
-- `macos/HeimdallBar/AppUI/**`
-- `macos/HeimdallBar/CLI/**`
-- `macos/HeimdallBar/CLIFramework/**`
-- `macos/HeimdallBar/CloudSync/**`
-- `macos/HeimdallBar/Domain/**`
-- `macos/HeimdallBar/iOS/**`
-- `macos/HeimdallBar/PlatformMac/**`
-- `macos/HeimdallBar/Services/**`
-- `macos/HeimdallBar/Shared/**`
-- `macos/HeimdallBar/Tests/**`
-- `macos/HeimdallBar/Widget/**`
-- `macos/HeimdallBar/Widgets/**`
+- `macos/Heimdall/App/**`
+- `macos/Heimdall/AppUI/**`
+- `macos/Heimdall/CLI/**`
+- `macos/Heimdall/CLIFramework/**`
+- `macos/Heimdall/CloudSync/**`
+- `macos/Heimdall/Domain/**`
+- `macos/Heimdall/iOS/**`
+- `macos/Heimdall/PlatformMac/**`
+- `macos/Heimdall/Services/**`
+- `macos/Heimdall/Shared/**`
+- `macos/Heimdall/Tests/**`
+- `macos/Heimdall/Widget/**`
+- `macos/Heimdall/Widgets/**`
 
 Out of scope: anything in `src/` (Rust crate), `src/ui/` (Preact dashboard). Defer those to `pr-reviewer` and `ui-bundle-verifier`.
 
 ## Workflow
 
-1. Run `git diff main...HEAD -- macos/HeimdallBar/`. If empty, return "no Swift changes" and exit.
+1. Run `git diff main...HEAD -- macos/Heimdall/`. If empty, return "no Swift changes" and exit.
 2. For each changed Swift file, apply the checklist below.
 3. Output findings grouped by severity: **CRITICAL** / **WARNING** / **SUGGESTION**.
 
@@ -51,7 +51,7 @@ Out of scope: anything in `src/` (Rust crate), `src/ui/` (Preact dashboard). Def
 
 ### Project conventions (SUGGESTION)
 - Source files use the existing target layout (`AppUI/`, `Domain/`, `Services/`, etc.) — no new top-level directories without `project.yml` updates.
-- Test files land under `macos/HeimdallBar/Tests/` and follow the existing per-target subdirectory structure.
+- Test files land under `macos/Heimdall/Tests/` and follow the existing per-target subdirectory structure.
 - Design tokens come from `DesignTokens.swift` — no new ad-hoc colors, no hardcoded hex outside the asset catalog.
 - Numbers shown in UI use the existing `LiveMonitorTimeFormatter`-style helpers; do not inline new `DateFormatter` instances inside views (perf footgun on menu re-renders).
 - Accessibility: any new interactive control declares `.accessibilityLabel` / `.accessibilityHint`; any custom drawing has a meaningful `.accessibilityElement` description.

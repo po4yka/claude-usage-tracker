@@ -58,9 +58,9 @@ cargo build --release
 sudo cp target/release/claude-usage-tracker target/release/heimdall-hook /usr/local/bin/
 ```
 
-## HeimdallBar (native macOS menu-bar app)
+## Heimdall (native macOS menu-bar app)
 
-See [heimdallbar.md](heimdallbar.md).
+See [heimdall.md](heimdall.md).
 
 ## Daemon mode (macOS only)
 

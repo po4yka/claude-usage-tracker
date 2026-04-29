@@ -23,7 +23,7 @@ flowchart LR
     U1[Web dashboard<br/>:8080]
     U2[statusline]
     U3[MCP server<br/>9 tools]
-    U4[HeimdallBar.app<br/>menu bar]
+    U4[Heimdall.app<br/>menu bar]
   end
 
   S --> CLI

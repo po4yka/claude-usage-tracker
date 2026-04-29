@@ -2,10 +2,10 @@
 set -euo pipefail
 
 MODE="${1:-run}"
-APP_NAME="HeimdallBar"
+APP_NAME="Heimdall"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PROJECT_DIR="$ROOT_DIR/macos/HeimdallBar"
-PROJECT_FILE="$PROJECT_DIR/HeimdallBar.xcodeproj"
+PROJECT_DIR="$ROOT_DIR/macos/Heimdall"
+PROJECT_FILE="$PROJECT_DIR/Heimdall.xcodeproj"
 DERIVED_DATA="$PROJECT_DIR/.derived"
 APP_BUNDLE="$DERIVED_DATA/Build/Products/Debug/$APP_NAME.app"
 APP_BINARY="$APP_BUNDLE/Contents/MacOS/$APP_NAME"
@@ -30,7 +30,7 @@ pkill -x "$APP_NAME" >/dev/null 2>&1 || true
 )
 xcodebuild \
   -project "$PROJECT_FILE" \
-  -scheme HeimdallBarApp \
+  -scheme HeimdallApp \
   -configuration Debug \
   -derivedDataPath "$DERIVED_DATA" \
   "${DESTINATION_ARGS[@]}" \
@@ -54,7 +54,7 @@ case "$MODE" in
     ;;
   --telemetry|telemetry)
     open_app
-    /usr/bin/log stream --info --style compact --predicate "subsystem == \"dev.heimdall.HeimdallBar\""
+    /usr/bin/log stream --info --style compact --predicate "subsystem == \"dev.po4yka.heimdall\""
     ;;
   --verify|verify)
     open_app

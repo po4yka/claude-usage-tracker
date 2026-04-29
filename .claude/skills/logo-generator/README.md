@@ -4,7 +4,7 @@ Adapted from [op7418/logo-generator-skill](https://github.com/op7418/logo-genera
 
 ## What this skill does here
 
-- Generate 6+ variants of a monochrome SVG mark for heimdall, HeimdallBar, or the Preact dashboard.
+- Generate 6+ variants of a monochrome SVG mark for heimdall, Heimdall, or the Preact dashboard.
 - Use `currentColor` throughout so the mark inherits `--color-text-primary`.
 - Export a complete platform icon set from the chosen master SVG: macOS `.icns` + `AppIcon.appiconset`, macOS menu-bar template PNGs, Linux freedesktop hicolor tree, Windows `.ico`, and web favicon.
 - Optionally render showcase presentations via Gemini's Nano Banana (`gemini-3.1-flash-image-preview`) against on-brand neutral backgrounds.
@@ -18,7 +18,7 @@ Invoke by describing what you need — e.g. "design a heimdall sentinel-eye mark
 | Swiss / Geist typography | Inter + Geist Mono | Matches DESIGN.md and `.claude/skills/industrial-design/` (Apple-Swiss refined). |
 | No chromatic accent | One optional `#D71921` pip | Heimdall's "one red accent per screen" rule permits a single signal pip; everything else stays monochrome. |
 | 2px radii on all presentation containers | Same 2px default | Kept — aligns with industrial-design surfaces. |
-| Outputs: 1024×1024 PNG + favicon | **Full platform icon set** via `render_icon_set.py` | Heimdall ships a macOS menu-bar app (`HeimdallBar`) and Linux/Windows binaries; needs `.icns`, `.ico`, hicolor tree, and menu-bar template. |
+| Outputs: 1024×1024 PNG + favicon | **Full platform icon set** via `render_icon_set.py` | Heimdall ships a macOS menu-bar app (`Heimdall`) and Linux/Windows binaries; needs `.icns`, `.ico`, hicolor tree, and menu-bar template. |
 | `references/design_patterns.md` | Same content, new `heimdall-brand.md` added | Generic SVG patterns are domain-agnostic; brand-specific motifs (sentinel, dot-matrix H) live in a separate file. |
 | 6 showcase backgrounds tuned to graphite/paper | Same 6, defaults re-ordered to `void` + `swiss_flat` + `clinical` | Matches heimdall's OLED dark default. |
 

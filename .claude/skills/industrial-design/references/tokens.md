@@ -15,7 +15,7 @@ Canonical token definitions for the Apple-Swiss refined design system. Directory
 
 **Do not use:** Space Grotesk, Space Mono, Doto (these were the Nothing/industrial era — removed). Helvetica Now (poor screen rendering below 16px). Geometric sans (Futura, Nunito, Poppins — reduce legibility at small sizes).
 
-### Font Stack (Swift — HeimdallBar)
+### Font Stack (Swift — Heimdall)
 
 Use the SF Pro system cascade via SwiftUI's font modifiers:
 - `.font(.largeTitle)` / `.font(.title)` / `.font(.headline)` for headings (auto-selects SF Pro Display above 20pt, Text below)

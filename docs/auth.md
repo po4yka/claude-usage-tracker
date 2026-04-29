@@ -84,9 +84,9 @@ sequenceDiagram
 
 Codex JSONL session files (`~/.codex/sessions/*.jsonl`, `~/.codex/archived_sessions/`) are parsed without OAuth — those drive local cost estimation. The OAuth path is only for *reconciliation* against OpenAI's official organization usage buckets, gated by `[openai] enabled = true` and `OPENAI_ADMIN_KEY` env var.
 
-## Browser session import (HeimdallBar only)
+## Browser session import (Heimdall only)
 
-`HeimdallBar.app` can import a browser session (Safari, Chrome, Arc, Brave) for provider dashboard extras that aren't exposed via OAuth. Imported material is stored in Keychain — never in plaintext repo files. See [heimdallbar.md § privacy model](heimdallbar.md#privacy-model).
+`Heimdall.app` can import a browser session (Safari, Chrome, Arc, Brave) for provider dashboard extras that aren't exposed via OAuth. Imported material is stored in Keychain — never in plaintext repo files. See [heimdall.md § privacy model](heimdall.md#privacy-model).
 
 ## Network surface
 

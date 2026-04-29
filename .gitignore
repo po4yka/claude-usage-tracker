@@ -9,7 +9,7 @@ node_modules/
 scorecard.png
 .omc/
 .claude/scheduled_tasks.lock
-macos/HeimdallBar/.derived/
-macos/HeimdallBar/build/
+macos/Heimdall/.derived/
+macos/Heimdall/build/
 extensions/heimdall-companion/node_modules/
 extensions/heimdall-companion/dist/

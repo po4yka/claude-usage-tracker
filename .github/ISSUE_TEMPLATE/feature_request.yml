@@ -38,8 +38,8 @@ body:
         - Web dashboard
         - statusline
         - MCP server
-        - HeimdallBar (macOS app)
-        - HeimdallBar widgets
+        - Heimdall (macOS app)
+        - Heimdall widgets
         - Configuration / schema
         - New scanner provider
         - New analytics / detector

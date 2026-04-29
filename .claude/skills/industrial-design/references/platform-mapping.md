@@ -1,6 +1,6 @@
 # heimdall design system — Platform Mapping
 
-This system targets web surfaces and SwiftUI (HeimdallBar). Three implementations are documented: vanilla HTML/CSS (reference), this repo's Preact + Tailwind v4 stack (practical), and the SwiftUI system-font approach (HeimdallBar).
+This system targets web surfaces and SwiftUI (Heimdall). Three implementations are documented: vanilla HTML/CSS (reference), this repo's Preact + Tailwind v4 stack (practical), and the SwiftUI system-font approach (Heimdall).
 
 ---
 
@@ -221,9 +221,9 @@ Commit both `app.js` and `style.css`. The Rust binary inlines them at compile ti
 
 ---
 
-## 3. SwiftUI (HeimdallBar)
+## 3. SwiftUI (Heimdall)
 
-HeimdallBar is a SwiftUI menu-bar app; it uses Apple's system font stack natively. No font loading required.
+Heimdall is a SwiftUI menu-bar app; it uses Apple's system font stack natively. No font loading required.
 
 ### 3.1 Typography modifiers
 
