@@ -1,5 +1,6 @@
 import Foundation
 import HeimdallServices
+import os.log
 
 public struct MacPlatformCompositionRoot: Sendable {
     private let settingsStore: any SettingsStore
@@ -51,11 +52,19 @@ public struct MacPlatformCompositionRoot: Sendable {
             cloudSyncStatePersistence: cloudSyncStatePersistence
         )
         let providerRepository = ProviderRepository()
-        let localNotificationCoordinator = LocalNotificationCoordinator(
-            authorizationManager: UserNotificationAuthorizationManager(),
-            scheduler: UserNotificationScheduler(),
-            stateStore: UserDefaultsLocalNotificationStateStore()
-        )
+        let localNotificationCoordinator: any LocalNotificationCoordinating
+        if Self.shouldEnableUserNotifications() {
+            localNotificationCoordinator = LocalNotificationCoordinator(
+                authorizationManager: UserNotificationAuthorizationManager(),
+                scheduler: UserNotificationScheduler(),
+                stateStore: UserDefaultsLocalNotificationStateStore()
+            )
+        } else {
+            Self.userNotificationsLogger.info(
+                "User notifications disabled: bundle lacks the entitlements that usernotificationsd requires. Coordinator wired as no-op."
+            )
+            localNotificationCoordinator = NoopLocalNotificationCoordinator()
+        }
         let liveProviderClient = HeimdallAPIClient(port: sessionStore.config.helperPort)
         let snapshotSyncer = cloudSyncStore.map {
             SnapshotSyncCoordinator(client: liveProviderClient, store: $0)
@@ -107,6 +116,31 @@ public struct MacPlatformCompositionRoot: Sendable {
         #endif
         return true
     }
+
+    public static func shouldEnableUserNotifications(
+        bundleURL: URL = Bundle.main.bundleURL
+    ) -> Bool {
+        let path = bundleURL.path
+        #if DEBUG
+        // Unsigned debug bundles are rejected by usernotificationsd because
+        // they lack com.apple.private.usernotifications.bundle-identifiers
+        // (and any application-identifier entitlement). Without this gate,
+        // every requestAuthorization / add() call surfaces a misleading
+        // "Failed to request notification permission" issue at startup.
+        if path.contains("/.derived/")
+            || path.contains("/DerivedData/")
+            || path.contains("/Build/Products/Debug/")
+        {
+            return false
+        }
+        #endif
+        return true
+    }
+
+    private static let userNotificationsLogger = Logger(
+        subsystem: "dev.heimdall.HeimdallBar",
+        category: "UserNotifications"
+    )
 
     public func cliDependencies() -> HeimdallCLIDependencies {
         HeimdallCLIDependencies(
