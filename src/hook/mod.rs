@@ -387,6 +387,23 @@ mod tests {
     /// gracefully via the None arm in ingest_event).
     #[test]
     fn ingest_event_returns_ok_on_non_json() {
+        // Valid-but-empty JSON inputs (`{}`, `{"foo":1}`) reach the DB write
+        // path, so we must isolate from concurrent tests that mutate
+        // HEIMDALL_CONFIG by holding the mutex and pointing at a temp DB.
+        let _guard = crate::config::HEIMDALL_CONFIG_MUTEX
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
+        let dir = TempDir::new().unwrap();
+        let db_path = dir.path().join("non_json_test.db");
+        let cfg_path = dir.path().join("config.toml");
+        std::fs::write(
+            &cfg_path,
+            format!("db_path = {:?}\n", db_path.to_string_lossy().as_ref()),
+        )
+        .unwrap();
+        // SAFETY: single-threaded under the mutex; env mutation is safe here.
+        unsafe { std::env::set_var("HEIMDALL_CONFIG", &cfg_path) };
+
         let garbage_inputs = [
             "not json at all",
             "{{{{",
@@ -403,6 +420,8 @@ mod tests {
                 result
             );
         }
+
+        unsafe { std::env::remove_var("HEIMDALL_CONFIG") };
     }
 
     /// Panic-safety: a deliberately panicking closure inside catch_unwind is
