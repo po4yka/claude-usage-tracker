@@ -31,6 +31,15 @@ settings:
     SWIFT_VERSION: 6.0
     CURRENT_PROJECT_VERSION: 1
     MARKETING_VERSION: 0.1.0
+    # Default every target to ad-hoc Manual signing so Xcode UI builds work
+    # without an Apple Developer team. Personal Team gets re-overwritten by
+    # xcodegen on every regen, and Personal Team can't sign iCloud / app-
+    # groups capabilities anyway. Switch to Automatic + Team when on a paid
+    # Apple Developer Program.
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: "-"
+    DEVELOPMENT_TEAM: ""
+    PROVISIONING_PROFILE_SPECIFIER: ""
 options:
   minimumXcodeGenVersion: 2.38.0
   deploymentTarget:
