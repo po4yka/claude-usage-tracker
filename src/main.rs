@@ -1321,7 +1321,8 @@ fn main() -> Result<()> {
                     for r in &reports {
                         let kind = match r.kind {
                             archive::macos_cache::CacheKind::Plaintext => "plaintext",
-                            archive::macos_cache::CacheKind::Encrypted => "encrypted",
+                            archive::macos_cache::CacheKind::Encrypted => "v2-encrypted",
+                            archive::macos_cache::CacheKind::EncryptedV3 => "v3-encrypted",
                         };
                         println!(
                             "{}  {}  {} files  {} bytes",
@@ -1376,6 +1377,13 @@ fn main() -> Result<()> {
                         println!(
                             "  {} encrypted dir(s) detected ({} files)",
                             report.encrypted_dirs, report.encrypted_files
+                        );
+                    }
+                    if report.v3_dirs > 0 {
+                        println!(
+                            "  v3: {} dir(s) skipped ({} files); key in macOS data-protection keychain — \
+                             use the browser extension or `heimdall import-export` instead",
+                            report.v3_dirs, report.v3_files
                         );
                     }
                     if report.v2_attempted > 0 || decrypt_v2 {

@@ -23,9 +23,9 @@
 //! ## What this module does
 //!
 //! - **Detection** (`scan_caches`): walks the support directory and reports
-//!   every cache it finds, classifying each as `Plaintext` (v1) or
-//!   `Encrypted` (v2). Always safe to call; never opens the encrypted
-//!   blobs.
+//!   every cache it finds, classifying each as `Plaintext` (v1), `Encrypted`
+//!   (v2), or `EncryptedV3` (v3). Always safe to call; never opens the
+//!   encrypted blobs.
 //!
 //! - **Plaintext ingest** (`ingest_plaintext_into_archive`): walks any v1
 //!   plaintext directories and writes each conversation through the
@@ -41,6 +41,14 @@
 //!   `"chatgpt.com/macos-v2-decrypted"`. Blobs that decrypt but fail the
 //!   JSON sniff are saved raw to `<archive>/web/chatgpt.com/.failed-decrypts/`
 //!   for inspection; nothing is silently discarded.
+//!
+//! - **v3 detection (read-only)**: post-2025 `conversations-v3-{uuid}/`
+//!   directories are detected and surfaced via `scan_caches`, but never
+//!   decrypted — their key is in the macOS data-protection keychain
+//!   (entitlement-gated, no third-party access path). The CLI prints a
+//!   pointer to the alternatives (browser extension / account-export /
+//!   cookie-paste CLI). See `docs/superpowers/plans/2026-04-28-chatgpt-macos-v3-decryptor.md`
+//!   for forensic findings and the deferred Phase B.
 //!
 //! ## What this module does NOT do
 //!
@@ -59,6 +67,13 @@
 //!   schema is assumed to match the publicly-observed OpenAI mapping/messages
 //!   tree. If ChatGPT.app changes either, decryption or parsing fails cleanly
 //!   and is surfaced in the report.
+//!
+//! - Decrypt v3 (`conversations-v3-{uuid}/`) caches. The cipher is most
+//!   likely AES-GCM (forensically inferred), but the key is partitioned
+//!   into the data-protection keychain by Team ID; no documented path
+//!   exists for an unsigned third-party CLI to read it. Phase B of the
+//!   v3 plan describes what would need to change before this is
+//!   implementable; until then we detect and report only.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -89,8 +104,15 @@ pub fn default_cache_root() -> Option<PathBuf> {
 pub enum CacheKind {
     /// Pre-July-2024 plaintext layout (`conversations-{uuid}/`).
     Plaintext,
-    /// Post-July-2024 encrypted layout (`conversations-v2-{uuid}/`).
+    /// Post-July-2024 encrypted v2 layout (`conversations-v2-{uuid}/`).
     Encrypted,
+    /// Post-2025 encrypted v3 layout (`conversations-v3-{uuid}/`).
+    /// Cipher is AES-GCM (forensically inferred from file size mod 16
+    /// and per-file 96-bit nonces). Key is in the macOS data-protection
+    /// keychain, partitioned by Team ID — not extractable by
+    /// third-party tools. We detect and report; we do not attempt to
+    /// decrypt.
+    EncryptedV3,
 }
 
 /// One ChatGPT-cache directory found under the bundle dir.
@@ -129,6 +151,14 @@ pub fn scan_caches(cache_root: &Path) -> Result<Vec<CacheReport>> {
                 "v2 encrypted; run `heimdall macos-cache ingest --decrypt-v2` to decrypt"
                     .to_string(),
             ),
+            CacheKind::EncryptedV3 => Some(
+                "v3 encrypted; key is in the macOS data-protection keychain (entitlement-gated). \
+                 Heimdall cannot extract this. Use the browser extension \
+                 (extensions/heimdall-companion), the account-export importer \
+                 (heimdall import-export), or the cookie-paste CLI \
+                 (heimdall scrape chatgpt) instead."
+                    .to_string(),
+            ),
         };
         out.push(CacheReport {
             kind,
@@ -143,6 +173,9 @@ pub fn scan_caches(cache_root: &Path) -> Result<Vec<CacheReport>> {
 }
 
 fn classify_dir_name(name: &str) -> Option<CacheKind> {
+    if name.starts_with("conversations-v3-") {
+        return Some(CacheKind::EncryptedV3);
+    }
     if name.starts_with("conversations-v2-") {
         return Some(CacheKind::Encrypted);
     }
@@ -194,6 +227,10 @@ pub struct IngestReport {
     pub v2_failed_parse: usize,
     /// Number where decryption itself failed (cipher mismatch?).
     pub v2_failed_decrypt: usize,
+    /// Number of v3 directories detected (skipped — key not extractable).
+    pub v3_dirs: usize,
+    /// Total .data file count across v3 directories (skipped — key not extractable).
+    pub v3_files: usize,
 }
 
 /// Walk every plaintext cache under `cache_root` and ingest each
@@ -214,6 +251,16 @@ pub fn ingest_plaintext_into_archive(
                 debug!(
                     target: "archive::macos_cache",
                     "skipping encrypted cache {} ({} files)",
+                    cache.path.display(),
+                    cache.file_count
+                );
+            }
+            CacheKind::EncryptedV3 => {
+                report.v3_dirs += 1;
+                report.v3_files += cache.file_count;
+                info!(
+                    target: "archive::macos_cache",
+                    "skipping v3 encrypted cache {} ({} files) — key in macOS data-protection keychain, not extractable by third-party tools",
                     cache.path.display(),
                     cache.file_count
                 );
@@ -903,9 +950,11 @@ mod tests {
         );
         assert_eq!(classify_dir_name("conversations"), None);
         assert_eq!(classify_dir_name("Cache"), None);
-        // Future-proofing: a hypothetical v3 should NOT be misclassified
-        // as plaintext.
-        assert_eq!(classify_dir_name("conversations-v3-abc"), None);
+        // v3 is now its own variant.
+        assert_eq!(
+            classify_dir_name("conversations-v3-abc"),
+            Some(CacheKind::EncryptedV3)
+        );
     }
 
     #[test]
@@ -1317,6 +1366,64 @@ mod tests {
         assert!(
             failed_dir.join("garbage.bin").is_file(),
             "garbage.bin missing in .failed-decrypts"
+        );
+    }
+
+    #[test]
+    fn classify_recognises_v3_layout() {
+        assert_eq!(
+            classify_dir_name("conversations-v3-abc-def-123"),
+            Some(CacheKind::EncryptedV3)
+        );
+        // Hypothetical v4 should NOT be misclassified as v3.
+        assert_eq!(classify_dir_name("conversations-v4-abc"), None);
+    }
+
+    #[test]
+    fn scan_caches_classifies_v3() {
+        let tmp = TempDir::new().unwrap();
+        let v3_dir = tmp.path().join("conversations-v3-test");
+        fs::create_dir_all(&v3_dir).unwrap();
+        fs::write(v3_dir.join("a.data"), b"\x00\x01\x02\x03").unwrap();
+        fs::write(v3_dir.join("b.data"), b"\x00\x01").unwrap();
+
+        let reports = scan_caches(tmp.path()).unwrap();
+        assert_eq!(reports.len(), 1);
+        let r = &reports[0];
+        assert_eq!(r.kind, CacheKind::EncryptedV3);
+        assert_eq!(r.file_count, 2);
+        assert_eq!(r.byte_count, 6);
+        let reason = r.unreadable_reason.as_deref().unwrap_or("");
+        assert!(
+            reason.contains("v3 encrypted") && reason.contains("data-protection keychain"),
+            "v3 reason should mention data-protection keychain, got: {reason:?}"
+        );
+    }
+
+    #[test]
+    fn ingest_v2_does_not_attempt_v3() {
+        let tmp = TempDir::new().unwrap();
+        let cache = tmp.path().join("cache");
+        let archive = tmp.path().join("archive");
+        fs::create_dir_all(&cache).unwrap();
+
+        // Create one v3 dir; populate with junk bytes that would NOT decrypt
+        // even if we tried.
+        let v3 = cache.join("conversations-v3-only");
+        fs::create_dir_all(&v3).unwrap();
+        fs::write(v3.join("dummy.data"), b"\xbf\x20\x52\x00\xd0\x88\xf9").unwrap();
+
+        let opts = IngestOptions { decrypt_v2: true };
+        let report = ingest_into_archive(&cache, &archive, opts).unwrap();
+        assert_eq!(report.v3_dirs, 1);
+        assert_eq!(report.v3_files, 1);
+        // No v2 attempts (no v2 dirs).
+        assert_eq!(report.v2_attempted, 0);
+        // No failed-decrypts written; we never tried to decrypt v3.
+        let failed = archive.join("web/chatgpt.com/.failed-decrypts");
+        assert!(
+            !failed.exists(),
+            "ingest must not touch v3 — no failed-decrypts dir"
         );
     }
 }
