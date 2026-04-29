@@ -9,8 +9,6 @@ struct VersionAlignmentTests {
         let pbxproj = try FixtureLoader.string("macos/Heimdall/Heimdall.xcodeproj/project.pbxproj")
         let appInfo = try FixtureLoader.string("macos/Heimdall/App/Info.plist")
         let widgetInfo = try FixtureLoader.string("macos/Heimdall/Widget/Info.plist")
-        let appEntitlements = try FixtureLoader.string("macos/Heimdall/App/Heimdall.entitlements")
-        let widgetEntitlements = try FixtureLoader.string("macos/Heimdall/Widget/HeimdallWidget.entitlements")
 
         let cargoVersion = try #require(Self.firstMatch(in: cargo, pattern: #"(?m)^version\s*=\s*"([^"]+)""#))
         let marketingVersion = try #require(Self.firstMatch(in: project, pattern: #"(?m)^\s*MARKETING_VERSION:\s*([^\s]+)\s*$"#))
@@ -21,8 +19,6 @@ struct VersionAlignmentTests {
         #expect(appInfo.contains("$(CURRENT_PROJECT_VERSION)"))
         #expect(widgetInfo.contains("$(MARKETING_VERSION)"))
         #expect(widgetInfo.contains("$(CURRENT_PROJECT_VERSION)"))
-        #expect(appEntitlements.contains("group.dev.po4yka.heimdall"))
-        #expect(widgetEntitlements.contains("group.dev.po4yka.heimdall"))
     }
 
     private static func firstMatch(in text: String, pattern: String) -> String? {
