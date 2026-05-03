@@ -140,15 +140,15 @@ pub fn render(data: &MenubarData) -> String {
 
     let snapshot_section = match (&data.last_snapshot_at, data.last_snapshot_bytes) {
         (Some(at), Some(bytes)) => format!(
-            "Snapshots\nLast: {at} ({bytes} bytes)\nSnapshot now | bash=claude-usage-tracker param0=archive param1=snapshot terminal=false",
+            "Snapshots\nLast: {at} ({bytes} bytes)\nSnapshot now | bash=heimdall param0=archive param1=snapshot terminal=false",
             at = sanitize_swiftbar_text(at),
             bytes = bytes,
         ),
-        _ => "Snapshots\nNo snapshots yet\nSnapshot now | bash=claude-usage-tracker param0=archive param1=snapshot terminal=false".to_string(),
+        _ => "Snapshots\nNo snapshots yet\nSnapshot now | bash=heimdall param0=archive param1=snapshot terminal=false".to_string(),
     };
 
     format!(
-        "{title}\n---\nToday\nCost: ${cost:.2}\nSessions: {sessions}\n{one_shot_line}\n---\n{snapshot_section}\n---\nOpen dashboard | href=http://localhost:8080\nRescan | bash=claude-usage-tracker terminal=false",
+        "{title}\n---\nToday\nCost: ${cost:.2}\nSessions: {sessions}\n{one_shot_line}\n---\n{snapshot_section}\n---\nOpen dashboard | href=http://localhost:8080\nRescan | bash=heimdall terminal=false",
         title = title,
         cost = data.today_cost_usd,
         sessions = data.today_sessions,

@@ -15,7 +15,7 @@ flowchart LR
   end
 
   HK["heimdall-hook<br/>(stdin · ~50ms p99)"]
-  CLI["claude-usage-tracker<br/>scan · serve · MCP"]
+  CLI["heimdall<br/>scan · serve · MCP"]
   DB[("SQLite<br/>~/.claude/usage.db")]
 
   subgraph U["Output surfaces"]

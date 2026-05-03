@@ -16,7 +16,7 @@ Detailed feature catalogue. See the [README](../README.md) for a high-level over
 
 ## Real-time
 
-- **`heimdall-hook`** — stdin-driven PreToolUse hook binary writes per-tool cost straight into SQLite (~50ms p99). Bypass mode (`--dangerously-skip-permissions`) short-circuits automatically. Captures Anthropic's hook-reported cost into `live_events.hook_reported_cost_nanos` alongside context-window fill. Install with `claude-usage-tracker hook install`.
+- **`heimdall-hook`** — stdin-driven PreToolUse hook binary writes per-tool cost straight into SQLite (~50ms p99). Bypass mode (`--dangerously-skip-permissions`) short-circuits automatically. Captures Anthropic's hook-reported cost into `live_events.hook_reported_cost_nanos` alongside context-window fill. Install with `heimdall hook install`.
 - **`statusline` command** — PostToolUse hook that emits a single compact line for Claude Code's status bar: `MODEL | $SESSION / $TODAY / $BLOCK (Xh Ym left) | $/hr [TIER] | N tokens (XX%)`. Hybrid time + transcript-mtime cache with PID semaphore; warm-cache p99 under 5ms. Exits 0 in every path so Claude Code's status bar never breaks on error.
 - **Visual burn-rate tier** — `--visual-burn-rate=<off|bracket|emoji|both>` maps tokens/min to Normal / Moderate / High with `[NORMAL]` / `[WARN]` / `[CRIT]` bracketed labels (default) or optional emoji.
 - **Context-window tracking** — reads `context_window.total_input_tokens / context_window_size` from the hook payload, falls back to parsing the transcript JSONL for the most recent assistant turn. Configurable severity thresholds surface `[WARN]` at 50% and `[CRIT]` at 80% so users know when to compact.
@@ -68,13 +68,13 @@ The full OAuth handshake is documented in [auth.md](auth.md).
 Heimdall exposes 9 tools to Claude / Claude Desktop / Cursor at inference time via stdio or HTTP transport. Gated behind the default-on `mcp` cargo feature so `cargo build --no-default-features` excludes the subcommand.
 
 - **Tools:** `heimdall_today`, `heimdall_stats`, `heimdall_weekly`, `heimdall_sessions`, `heimdall_blocks_active`, `heimdall_optimize_grade`, `heimdall_rate_windows`, `heimdall_context_window`, `heimdall_quota`, `heimdall_cost_reconciliation`.
-- **Install:** `claude-usage-tracker mcp install --client=<claude-code|claude-desktop|cursor>` writes a tagged entry with a `_heimdall_mcp_version` sentinel so uninstall only removes Heimdall's own entry (user customizations preserved).
+- **Install:** `heimdall mcp install --client=<claude-code|claude-desktop|cursor>` writes a tagged entry with a `_heimdall_mcp_version` sentinel so uninstall only removes Heimdall's own entry (user customizations preserved).
 - **Transports:** stdio (default; used by most MCP clients) and HTTP-SSE on an axum subrouter.
 - **Ingest-time safe:** SQLite access goes through `tokio::task::spawn_blocking`; tracing goes to stderr so stdout stays pure JSON-RPC.
 
 ## `optimize` waste detector
 
-`claude-usage-tracker optimize [--format=text|json]` runs five detectors and produces an A–F health grade:
+`heimdall optimize [--format=text|json]` runs five detectors and produces an A–F health grade:
 
 - `ClaudeMdBloatDetector` — estimates tokens `× session count × input rate`.
 - `UnusedMcpDetector` — MCP servers in `~/.claude/settings.json` never invoked in recorded sessions.
@@ -100,7 +100,7 @@ Heimdall exposes 9 tools to Claude / Claude Desktop / Cursor at inference time v
 
 ## Extensibility
 
-- **Config file** — `~/.claude/usage-tracker.{json,toml}` for all settings. JSON ships a `$schema` for IDE autocomplete; generate via `claude-usage-tracker config schema`. Dual-path resolver adds `$HEIMDALL_CONFIG` and `~/.config/heimdall/config.{json,toml}`. JSON is preferred at each path when both exist.
+- **Config file** — `~/.claude/usage-tracker.{json,toml}` for all settings. JSON ships a `$schema` for IDE autocomplete; generate via `heimdall config schema`. Dual-path resolver adds `$HEIMDALL_CONFIG` and `~/.config/heimdall/config.{json,toml}`. JSON is preferred at each path when both exist.
 - **Per-command overrides** — `commands.blocks.token_limit`, `commands.statusline.context_low_threshold`, etc. win over the flat config. CLI flags still win over everything.
 - **Custom pricing overrides** — per-model rate customization in config.
 - **Webhook notifications** — POST to URL on session depletion, cost threshold, agent status transition, or community-signal spike divergence.

@@ -52,14 +52,14 @@ jobs:
         if: ${{ !matrix.use_cross }}
         run: |
           cargo build --release --target ${{ matrix.target }} \
-            --bin claude-usage-tracker \
+            --bin heimdall \
             --bin heimdall-hook
 
       - name: Build binaries (cross)
         if: ${{ matrix.use_cross }}
         run: |
           cross build --release --target ${{ matrix.target }} \
-            --bin claude-usage-tracker \
+            --bin heimdall \
             --bin heimdall-hook
 
       - name: Determine version
@@ -76,7 +76,7 @@ jobs:
           STAGING_DIR="heimdall-${VERSION}-${TARGET}"
 
           mkdir -p "${STAGING_DIR}"
-          cp "target/${TARGET}/release/claude-usage-tracker" "${STAGING_DIR}/"
+          cp "target/${TARGET}/release/heimdall" "${STAGING_DIR}/"
           cp "target/${TARGET}/release/heimdall-hook" "${STAGING_DIR}/"
 
           tar czf "${ARCHIVE_NAME}" "${STAGING_DIR}"
@@ -282,17 +282,17 @@ jobs:
           mkdir -p "${STAGING_DIR}"
 
           lipo -create \
-            "${ARM_DIR}/claude-usage-tracker" \
-            "${X86_DIR}/claude-usage-tracker" \
-            -output "${STAGING_DIR}/claude-usage-tracker"
+            "${ARM_DIR}/heimdall" \
+            "${X86_DIR}/heimdall" \
+            -output "${STAGING_DIR}/heimdall"
 
           lipo -create \
             "${ARM_DIR}/heimdall-hook" \
             "${X86_DIR}/heimdall-hook" \
             -output "${STAGING_DIR}/heimdall-hook"
 
-          lipo -info "${STAGING_DIR}/claude-usage-tracker" | grep -q "arm64"
-          lipo -info "${STAGING_DIR}/claude-usage-tracker" | grep -q "x86_64"
+          lipo -info "${STAGING_DIR}/heimdall" | grep -q "arm64"
+          lipo -info "${STAGING_DIR}/heimdall" | grep -q "x86_64"
           lipo -info "${STAGING_DIR}/heimdall-hook" | grep -q "arm64"
           lipo -info "${STAGING_DIR}/heimdall-hook" | grep -q "x86_64"
 

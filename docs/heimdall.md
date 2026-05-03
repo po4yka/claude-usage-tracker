@@ -29,13 +29,13 @@ open /Applications/Heimdall.app
 
 When `Heimdall.app` starts, it manages its own local helper:
 
-- launches the bundled `claude-usage-tracker` from `Contents/Helpers`
+- launches the bundled `heimdall` from `Contents/Helpers`
 - keeps the helper bound to loopback only
 - reuses a healthy existing loopback helper when possible
 - restarts the owned helper when it becomes stale
 - shuts the owned helper down on app exit
 
-You do not need a separate `PATH` installation of `claude-usage-tracker` for the app itself.
+You do not need a separate `PATH` installation of `heimdall` for the app itself.
 
 ## App architecture
 

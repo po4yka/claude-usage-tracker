@@ -21,12 +21,12 @@ cask "heimdall" do
   desc "Local analytics dashboard for coding agent usage (Claude Code, Codex)"
   homepage "https://github.com/YOUR_ORG/heimdall"
 
-  binary "claude-usage-tracker"
+  binary "heimdall"
   binary "heimdall-hook"
 
   preflight do
     # Uninstall any existing scheduler entry before upgrading.
-    system_command "#{staged_path}/claude-usage-tracker",
+    system_command "#{staged_path}/heimdall",
                    args: ["scheduler", "uninstall"],
                    must_succeed: false
   end

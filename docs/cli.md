@@ -1,6 +1,6 @@
 # CLI reference
 
-`claude-usage-tracker` is the primary CLI; `heimdall-hook` is a tiny stdin-driven companion. Most subcommands accept a shared `--jq=<filter>`, `--locale=<BCP-47>`, `--compact`, and `--project-alias=KEY=VAL` (repeatable). `--jq` implies `--json` and runs through an embedded `jaq-core` engine — no system `jq` needed.
+`heimdall` is the primary CLI; `heimdall-hook` is a tiny stdin-driven companion. Most subcommands accept a shared `--jq=<filter>`, `--locale=<BCP-47>`, `--compact`, and `--project-alias=KEY=VAL` (repeatable). `--jq` implies `--json` and runs through an embedded `jaq-core` engine — no system `jq` needed.
 
 ## Subcommand catalogue
 
@@ -23,66 +23,66 @@
 
 ```bash
 # Scan transcripts and open the dashboard
-claude-usage-tracker dashboard
+heimdall dashboard
 
 # Dashboard with live auto-refresh (file-watcher + SSE)
-claude-usage-tracker dashboard --watch
+heimdall dashboard --watch
 
 # Quick terminal summary of today's usage
-claude-usage-tracker today
-claude-usage-tracker today --json
-claude-usage-tracker today --breakdown          # per-model sub-rows under provider totals
-claude-usage-tracker today --compact            # narrow layout for screenshots
+heimdall today
+heimdall today --json
+heimdall today --breakdown          # per-model sub-rows under provider totals
+heimdall today --compact            # narrow layout for screenshots
 
 # All-time statistics
-claude-usage-tracker stats
-claude-usage-tracker stats --json
+heimdall stats
+heimdall stats --json
 
 # Weekly aggregation
-claude-usage-tracker weekly
-claude-usage-tracker weekly --start-of-week=monday --breakdown
+heimdall weekly
+heimdall weekly --start-of-week=monday --breakdown
 
 # 5-hour billing blocks with burn rate
-claude-usage-tracker blocks                      # all blocks, most recent last
-claude-usage-tracker blocks --active             # only the currently-active block
-claude-usage-tracker blocks --token-limit=1M     # show REMAINING/PROJECTED quota rows
-claude-usage-tracker blocks --provider=codex     # use Codex's configured session length
+heimdall blocks                      # all blocks, most recent last
+heimdall blocks --active             # only the currently-active block
+heimdall blocks --token-limit=1M     # show REMAINING/PROJECTED quota rows
+heimdall blocks --provider=codex     # use Codex's configured session length
 
 # Claude Code status line (reads hook JSON on stdin)
 echo '{"session_id":"...","transcript_path":"...","model":"claude-sonnet-4-6"}' \
-  | claude-usage-tracker statusline
-claude-usage-tracker statusline --cost-source=both --visual-burn-rate=bracket
+  | heimdall statusline
+heimdall statusline --cost-source=both --visual-burn-rate=bracket
 
 # Scan only (update database without UI)
-claude-usage-tracker scan
+heimdall scan
 
 # Custom transcript directory
-claude-usage-tracker scan --projects-dir /path/to/projects
+heimdall scan --projects-dir /path/to/projects
 
 # Custom host/port
-claude-usage-tracker dashboard --host 0.0.0.0 --port 9090
+heimdall dashboard --host 0.0.0.0 --port 9090
 
 # Export aggregated usage
-claude-usage-tracker export --format=csv --period=month --output=usage.csv
-claude-usage-tracker export --format=json --period=all --output=all.json --provider=claude
+heimdall export --format=csv --period=month --output=usage.csv
+heimdall export --format=json --period=all --output=all.json --provider=claude
 
 # Run the waste detector
-claude-usage-tracker optimize               # human-readable text
-claude-usage-tracker optimize --format=json
+heimdall optimize               # human-readable text
+heimdall optimize --format=json
 
 # MCP server
-claude-usage-tracker mcp serve              # stdio
-claude-usage-tracker mcp serve --transport=http --port=8081   # loopback-only
+heimdall mcp serve              # stdio
+heimdall mcp serve --transport=http --port=8081   # loopback-only
 
 # Config introspection
-claude-usage-tracker config schema > schemas/heimdall.config.schema.json
-claude-usage-tracker config show --format=json
+heimdall config schema > schemas/heimdall.config.schema.json
+heimdall config show --format=json
 
 # Refresh long-tail model pricing
-claude-usage-tracker pricing refresh
+heimdall pricing refresh
 
 # SwiftBar menu-bar widget (macOS)
-claude-usage-tracker menubar
+heimdall menubar
 ```
 
 ## Filter output with `--jq`
@@ -90,12 +90,12 @@ claude-usage-tracker menubar
 Every report command accepts `--jq <filter>` for in-tool post-processing (implies `--json`). No system `jq` needed.
 
 ```bash
-claude-usage-tracker today --jq '.total_estimated_cost'
-claude-usage-tracker stats --jq '.by_model[] | select(.provider == "claude") | .model'
-claude-usage-tracker weekly --jq '.weeks | length'
-claude-usage-tracker blocks --jq '.[0].estimated_cost'
-claude-usage-tracker optimize --jq '.grade'
-claude-usage-tracker export --format=jsonl --jq '.model' --output=-
+heimdall today --jq '.total_estimated_cost'
+heimdall stats --jq '.by_model[] | select(.provider == "claude") | .model'
+heimdall weekly --jq '.weeks | length'
+heimdall blocks --jq '.[0].estimated_cost'
+heimdall optimize --jq '.grade'
+heimdall export --format=jsonl --jq '.model' --output=-
 ```
 
 Filter errors exit with status 2. Empty results (no match) produce no output and exit 0. `null` outputs print as the literal `null`.

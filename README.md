@@ -38,7 +38,7 @@ flowchart LR
   end
 
   HK["heimdall-hook<br/>(stdin · ~50ms p99)"]
-  CLI["claude-usage-tracker<br/>scan · serve · MCP"]
+  CLI["heimdall<br/>scan · serve · MCP"]
   DB[("SQLite<br/>~/.claude/usage.db")]
 
   subgraph U["Surfaces"]
@@ -114,8 +114,8 @@ curl -fsSL "https://github.com/po4yka/heimdall/releases/download/${VERSION}/heim
   | tar xz --strip-components=1 -C /usr/local/bin
 
 # Wire up live ingest + open the dashboard
-claude-usage-tracker hook install
-claude-usage-tracker dashboard --watch
+heimdall hook install
+heimdall dashboard --watch
 ```
 
 Other platforms, Homebrew, from-source, daemon, scheduler, statusline, MCP install: [docs/install.md](docs/install.md).
@@ -123,11 +123,11 @@ Other platforms, Homebrew, from-source, daemon, scheduler, statusline, MCP insta
 A few representative commands:
 
 ```bash
-claude-usage-tracker today --breakdown          # per-model sub-rows under provider totals
-claude-usage-tracker blocks --token-limit=1M    # 5h billing block with quota
-claude-usage-tracker optimize                   # waste-detector A–F grade
-claude-usage-tracker mcp serve                  # MCP server (stdio)
-claude-usage-tracker export --format=csv --period=month --output=usage.csv
+heimdall today --breakdown          # per-model sub-rows under provider totals
+heimdall blocks --token-limit=1M    # 5h billing block with quota
+heimdall optimize                   # waste-detector A–F grade
+heimdall mcp serve                  # MCP server (stdio)
+heimdall export --format=csv --period=month --output=usage.csv
 ```
 
 Full CLI reference: [docs/cli.md](docs/cli.md).

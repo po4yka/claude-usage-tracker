@@ -23,12 +23,12 @@ HELPERS_DIR="$APP_BUNDLE/Contents/Helpers"
 
 case "$CONFIGURATION" in
   Release)
-    CARGO_ARGS=(build --release --bin claude-usage-tracker)
-    HELPER_SOURCE="$ROOT_DIR/target/release/claude-usage-tracker"
+    CARGO_ARGS=(build --release --bin heimdall)
+    HELPER_SOURCE="$ROOT_DIR/target/release/heimdall"
     ;;
   *)
-    CARGO_ARGS=(build --bin claude-usage-tracker)
-    HELPER_SOURCE="$ROOT_DIR/target/debug/claude-usage-tracker"
+    CARGO_ARGS=(build --bin heimdall)
+    HELPER_SOURCE="$ROOT_DIR/target/debug/heimdall"
     ;;
 esac
 

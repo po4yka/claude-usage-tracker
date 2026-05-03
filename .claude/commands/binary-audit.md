@@ -9,7 +9,7 @@ Audit the release binary for size and bloat.
 
 2. **Report binary size**:
    ```
-   ls -lh target/release/claude-usage-tracker
+   ls -lh target/release/heimdall
    ```
 
 3. **Bloat analysis** (if cargo-bloat installed):

@@ -7,7 +7,7 @@ use crate::models::ClaudeAdminSummary;
 const ORG_URL: &str = "https://api.anthropic.com/v1/organizations/me";
 const ANALYTICS_URL: &str = "https://api.anthropic.com/v1/organizations/usage_report/claude_code";
 const API_VERSION: &str = "2023-06-01";
-const USER_AGENT: &str = "claude-usage-tracker/0.1";
+const USER_AGENT: &str = concat!("heimdall/", env!("CARGO_PKG_VERSION"));
 const DATA_LATENCY_NOTE: &str = "Org-wide · UTC daily aggregation · up to 1 hour delayed";
 
 #[derive(Debug, Deserialize)]

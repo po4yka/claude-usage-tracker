@@ -283,10 +283,7 @@ mod tests {
         let v: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
         assert_eq!(v["mcpServers"]["heimdall"]["_heimdall_mcp_version"], "v1");
-        assert_eq!(
-            v["mcpServers"]["heimdall"]["command"],
-            "claude-usage-tracker"
-        );
+        assert_eq!(v["mcpServers"]["heimdall"]["command"], "heimdall");
     }
 
     /// Re-running install with our sentinel present reports `Updated` and
@@ -313,10 +310,7 @@ mod tests {
         assert_eq!(v["mcpServers"].as_object().unwrap().len(), 1);
         // Sentinel and command are still canonical.
         assert_eq!(v["mcpServers"]["heimdall"]["_heimdall_mcp_version"], "v1");
-        assert_eq!(
-            v["mcpServers"]["heimdall"]["command"],
-            "claude-usage-tracker"
-        );
+        assert_eq!(v["mcpServers"]["heimdall"]["command"], "heimdall");
     }
 
     #[test]

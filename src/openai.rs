@@ -85,7 +85,7 @@ async fn fetch_org_usage_reconciliation_inner(
     estimated_local_cost: f64,
 ) -> Result<OpenAiReconciliation> {
     let client = Client::builder()
-        .user_agent("claude-usage-tracker/0.1")
+        .user_agent(concat!("heimdall/", env!("CARGO_PKG_VERSION")))
         .build()
         .context("failed to build OpenAI client")?;
 

@@ -286,7 +286,7 @@ pub struct CodexRefreshedTokens {
 /// error; the caller is responsible for falling back to the pre-refresh auth.
 pub async fn refresh_oauth_token(refresh_token: &str) -> Result<CodexRefreshedTokens> {
     let client = reqwest::Client::builder()
-        .user_agent("claude-usage-tracker/0.1")
+        .user_agent(concat!("heimdall/", env!("CARGO_PKG_VERSION")))
         .timeout(CODEX_REFRESH_TIMEOUT)
         .build()
         .context("failed to build Codex refresh client")?;
@@ -408,7 +408,7 @@ pub fn looks_like_oauth_auth_error(err: &anyhow::Error) -> bool {
 
 pub async fn fetch_oauth_usage(auth: &CodexAuth) -> Result<CodexUsageResponse> {
     let client = reqwest::Client::builder()
-        .user_agent("claude-usage-tracker/0.1")
+        .user_agent(concat!("heimdall/", env!("CARGO_PKG_VERSION")))
         .build()
         .context("failed to build Codex OAuth client")?;
 

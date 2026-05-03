@@ -138,8 +138,8 @@ workflow.
   ```
 - [ ] Smoke-test the downloaded binary on at least one platform:
   ```bash
-  ./claude-usage-tracker --version
-  ./claude-usage-tracker today
+  ./heimdall --version
+  ./heimdall today
   ```
 - [ ] Confirm `heimdall-hook` binary is present in the archive and executes:
   ```bash

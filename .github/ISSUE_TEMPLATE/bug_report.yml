@@ -14,7 +14,7 @@ body:
     id: version
     attributes:
       label: Heimdall version
-      description: Output of `claude-usage-tracker --version` (or commit SHA if built from source).
+      description: Output of `heimdall --version` (or commit SHA if built from source).
       placeholder: "0.1.0 / git rev-parse HEAD"
     validations:
       required: true
@@ -26,7 +26,7 @@ body:
       description: Which Heimdall surface is affected?
       multiple: true
       options:
-        - CLI (claude-usage-tracker)
+        - CLI (heimdall)
         - heimdall-hook
         - Web dashboard
         - statusline
@@ -96,7 +96,7 @@ body:
       label: Steps to reproduce
       description: Numbered steps. Include any commands, sample data, or config snippets needed.
       placeholder: |
-        1. Run `claude-usage-tracker dashboard --watch`
+        1. Run `heimdall dashboard --watch`
         2. Open <http://127.0.0.1:8080>
         3. Click X / observe Y
     validations:

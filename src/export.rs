@@ -135,7 +135,7 @@ pub struct ExportOptions {
 pub fn run_export(db_path: &Path, opts: &ExportOptions) -> Result<usize> {
     if !db_path.exists() {
         anyhow::bail!(
-            "Database not found: {}. Run `claude-usage-tracker scan` first.",
+            "Database not found: {}. Run `heimdall scan` first.",
             db_path.display()
         );
     }

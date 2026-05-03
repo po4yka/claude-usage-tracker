@@ -67,7 +67,7 @@ jobs:
       - run: cargo test
       - name: Verify committed config schema matches `cargo run -- config schema`
         run: |
-          cargo run --quiet --bin claude-usage-tracker -- config schema > /tmp/heimdall.config.schema.json
+          cargo run --quiet --bin heimdall -- config schema > /tmp/heimdall.config.schema.json
           diff -u schemas/heimdall.config.schema.json /tmp/heimdall.config.schema.json
 
   rust-msrv:
