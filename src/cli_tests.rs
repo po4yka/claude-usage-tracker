@@ -438,15 +438,15 @@ mod tests {
 
         // Derive the CLI binary path from the test executable location.
         // Unit tests run from `target/<profile>/deps/`; the CLI binary sits one
-        // level up at `target/<profile>/claude-usage-tracker`.
+        // level up at `target/<profile>/heimdall`.
         let test_exe = std::env::current_exe().unwrap();
         let target_dir = test_exe.parent().unwrap().parent().unwrap();
-        let exe = target_dir.join("claude-usage-tracker");
+        let exe = target_dir.join("heimdall");
         if !exe.exists() {
             // `cargo test` builds the binary on demand into the same profile;
             // if it doesn't exist yet, build it.
             let status = std::process::Command::new(env!("CARGO"))
-                .args(["build", "--bin", "claude-usage-tracker"])
+                .args(["build", "--bin", "heimdall"])
                 .status()
                 .expect("cargo build");
             assert!(status.success(), "cargo build failed");
@@ -504,10 +504,10 @@ mod tests {
 
         let test_exe = std::env::current_exe().unwrap();
         let target_dir = test_exe.parent().unwrap().parent().unwrap();
-        let exe = target_dir.join("claude-usage-tracker");
+        let exe = target_dir.join("heimdall");
         if !exe.exists() {
             let s = std::process::Command::new(env!("CARGO"))
-                .args(["build", "--bin", "claude-usage-tracker"])
+                .args(["build", "--bin", "heimdall"])
                 .status()
                 .unwrap();
             assert!(s.success());
@@ -539,10 +539,10 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let test_exe = std::env::current_exe().unwrap();
         let target_dir = test_exe.parent().unwrap().parent().unwrap();
-        let exe = target_dir.join("claude-usage-tracker");
+        let exe = target_dir.join("heimdall");
         if !exe.exists() {
             let s = std::process::Command::new(env!("CARGO"))
-                .args(["build", "--bin", "claude-usage-tracker"])
+                .args(["build", "--bin", "heimdall"])
                 .status()
                 .unwrap();
             assert!(s.success());

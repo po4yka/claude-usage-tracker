@@ -117,7 +117,7 @@ pub fn resolve_client_path(client: &str) -> Result<PathBuf> {
 
 fn make_entry() -> serde_json::Value {
     serde_json::json!({
-        "command": "claude-usage-tracker",
+        "command": "heimdall",
         "args": ["mcp", "serve", "--transport=stdio"],
         SENTINEL_KEY: SENTINEL_VAL
     })

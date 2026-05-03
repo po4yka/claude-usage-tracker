@@ -6,7 +6,7 @@ description = "Heimdall: local analytics dashboard for coding agent usage and to
 license = "BSD-3-Clause"
 
 [[bin]]
-name = "claude-usage-tracker"
+name = "heimdall"
 path = "src/main.rs"
 
 [[bin]]

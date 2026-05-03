@@ -30,7 +30,7 @@ use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
 #[command(
-    name = "claude-usage-tracker",
+    name = "heimdall",
     version,
     about = "Local analytics dashboard for Claude Code and Codex usage"
 )]
@@ -1586,7 +1586,7 @@ fn cmd_optimize(db_path: &std::path::Path, format: &str, jq: Option<&str>) -> Re
 
     if !db_path.exists() {
         anyhow::bail!(
-            "Database not found at {}. Run: claude-usage-tracker scan",
+            "Database not found at {}. Run: heimdall scan",
             db_path.display()
         );
     }
@@ -2031,7 +2031,7 @@ fn cmd_hook(action: HookAction) -> Result<()> {
             }
             HookStatus::Absent => {
                 println!("Not installed");
-                println!("  Run: claude-usage-tracker hook install");
+                println!("  Run: heimdall hook install");
             }
         },
     }
@@ -2048,11 +2048,11 @@ fn cmd_statusline_hook(action: StatuslineHookAction) -> Result<()> {
         StatuslineHookAction::Install => match sl_install()? {
             StatuslineActionResult::Installed => {
                 println!("Installed: statusLine entry added to ~/.claude/settings.json");
-                println!("  command: claude-usage-tracker statusline");
+                println!("  command: heimdall statusline");
             }
             StatuslineActionResult::Updated => {
                 println!("Updated: statusLine entry refreshed in ~/.claude/settings.json");
-                println!("  command: claude-usage-tracker statusline");
+                println!("  command: heimdall statusline");
             }
             _ => {}
         },
@@ -2072,7 +2072,7 @@ fn cmd_statusline_hook(action: StatuslineHookAction) -> Result<()> {
             }
             StatuslineStatus::Absent => {
                 println!("Not installed");
-                println!("  Run: claude-usage-tracker statusline-hook install");
+                println!("  Run: heimdall statusline-hook install");
             }
         },
     }
@@ -2137,7 +2137,7 @@ fn cmd_mcp(action: McpAction, default_db: &dyn Fn(Option<PathBuf>) -> PathBuf) -
             }
             McpInstallStatus::Absent => {
                 println!("Not installed");
-                println!("  Run: claude-usage-tracker mcp install");
+                println!("  Run: heimdall mcp install");
             }
         },
     }
@@ -2258,7 +2258,7 @@ pub(crate) fn cmd_today(
     compact: bool,
 ) -> Result<()> {
     if !db_path.exists() {
-        anyhow::bail!("Database not found. Run: claude-usage-tracker scan");
+        anyhow::bail!("Database not found. Run: heimdall scan");
     }
     let conn = scanner::db::open_db(db_path)?;
     let today = chrono::Local::now().format("%Y-%m-%d").to_string();
@@ -2628,7 +2628,7 @@ fn cmd_weekly(
     compact: bool,
 ) -> Result<()> {
     if !db_path.exists() {
-        anyhow::bail!("Database not found. Run: claude-usage-tracker scan");
+        anyhow::bail!("Database not found. Run: heimdall scan");
     }
     let tz = claude_usage_tracker::tz::TzParams {
         tz_offset_min: None,
@@ -2792,7 +2792,7 @@ pub(crate) fn cmd_stats(
     compact: bool,
 ) -> Result<()> {
     if !db_path.exists() {
-        anyhow::bail!("Database not found. Run: claude-usage-tracker scan");
+        anyhow::bail!("Database not found. Run: heimdall scan");
     }
     let conn = scanner::db::open_db(db_path)?;
 
@@ -3739,7 +3739,7 @@ mod tests {
 
     #[test]
     fn dashboard_cli_flags_default_to_interactive_foreground() {
-        let cli = Cli::parse_from(["claude-usage-tracker", "dashboard"]);
+        let cli = Cli::parse_from(["heimdall", "dashboard"]);
         match cli.command {
             Commands::Dashboard {
                 watch,
@@ -3761,7 +3761,7 @@ mod tests {
     #[test]
     fn dashboard_cli_accepts_background_flags() {
         let cli = Cli::parse_from([
-            "claude-usage-tracker",
+            "heimdall",
             "dashboard",
             "--watch",
             "--no-open",

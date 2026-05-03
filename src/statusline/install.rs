@@ -29,7 +29,7 @@ use crate::install_json::{
 /// with the hook entry — see module docblock.
 pub const STATUSLINE_VERSION_KEY: &str = "_heimdall_version";
 
-pub const STATUSLINE_COMMAND: &str = "claude-usage-tracker statusline";
+pub const STATUSLINE_COMMAND: &str = "heimdall statusline";
 
 /// Package version stamped into the entry's value field at install time.
 /// Sourced from `Cargo.toml` via `env!`. Informational — see module
