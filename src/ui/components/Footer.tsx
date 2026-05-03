@@ -25,11 +25,11 @@ export function Footer() {
         <p>
           GitHub:{' '}
           <a
-            href="https://github.com/po4yka/claude-usage-tracker"
+            href="https://github.com/po4yka/heimdall"
             target="_blank"
             rel="noopener noreferrer"
           >
-            po4yka/claude-usage-tracker
+            po4yka/heimdall
           </a>{' '}
           &middot; License: MIT
         </p>

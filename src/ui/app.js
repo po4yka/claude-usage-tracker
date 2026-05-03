@@ -1706,10 +1706,10 @@
         /* @__PURE__ */ u4(
           "a",
           {
-            href: "https://github.com/po4yka/claude-usage-tracker",
+            href: "https://github.com/po4yka/heimdall",
             target: "_blank",
             rel: "noopener noreferrer",
-            children: "po4yka/claude-usage-tracker"
+            children: "po4yka/heimdall"
           }
         ),
         " ",

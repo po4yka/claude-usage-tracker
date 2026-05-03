@@ -28,7 +28,7 @@ describe('Footer', () => {
     expect(links.map(link => link.href)).toEqual([
       'https://docs.anthropic.com/en/docs/about-claude/pricing',
       'https://developers.openai.com/api/docs/pricing',
-      'https://github.com/po4yka/claude-usage-tracker',
+      'https://github.com/po4yka/heimdall',
     ]);
   });
 });
