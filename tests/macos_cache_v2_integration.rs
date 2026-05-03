@@ -46,14 +46,14 @@ fn make_v10_blob(plaintext: &[u8], passphrase: &[u8]) -> Vec<u8> {
 
     // AES-128-CBC with constant 16-space IV, v10 prefix, PKCS#7 padding.
     use aes::Aes128;
-    use cbc::cipher::{BlockEncryptMut, KeyIvInit, block_padding::Pkcs7};
+    use cbc::cipher::{BlockModeEncrypt, KeyIvInit, block_padding::Pkcs7};
     type Aes128CbcEnc = cbc::Encryptor<Aes128>;
     let iv = [0x20u8; 16];
     let padded_len = ((plaintext.len() / 16) + 1) * 16;
     let mut buf = vec![0u8; padded_len];
     buf[..plaintext.len()].copy_from_slice(plaintext);
     let ct = Aes128CbcEnc::new(&key.into(), &iv.into())
-        .encrypt_padded_mut::<Pkcs7>(&mut buf, plaintext.len())
+        .encrypt_padded::<Pkcs7>(&mut buf, plaintext.len())
         .expect("encrypt ok");
     let mut out = Vec::with_capacity(3 + ct.len());
     out.extend_from_slice(b"v10");

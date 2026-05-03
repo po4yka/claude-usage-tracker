@@ -873,7 +873,7 @@ pub mod keychain {
 mod oscrypt {
     use aes::Aes128;
     use anyhow::{Context, Result, bail};
-    use cbc::cipher::{BlockDecryptMut, KeyIvInit, block_padding::Pkcs7};
+    use cbc::cipher::{BlockModeDecrypt, KeyIvInit, block_padding::Pkcs7};
     use pbkdf2::pbkdf2_hmac;
     use sha1::Sha1;
 
@@ -923,7 +923,7 @@ mod oscrypt {
         type Aes128CbcDec = cbc::Decryptor<Aes128>;
         let mut buf = ciphertext.to_vec();
         let plaintext = Aes128CbcDec::new(key.into(), &IV.into())
-            .decrypt_padded_mut::<Pkcs7>(&mut buf)
+            .decrypt_padded::<Pkcs7>(&mut buf)
             .map_err(|e| anyhow::anyhow!("AES-128-CBC decrypt / unpad failed: {e}"))?;
         Ok(plaintext.to_vec())
     }
@@ -936,15 +936,15 @@ mod oscrypt {
     /// fixtures without depending on external tooling.
     #[cfg(test)]
     pub(super) fn encrypt_v10_blob(plaintext: &[u8], key: &[u8; 16]) -> Vec<u8> {
-        use cbc::cipher::BlockEncryptMut;
+        use cbc::cipher::BlockModeEncrypt;
         type Aes128CbcEnc = cbc::Encryptor<Aes128>;
         // Allocate space: plaintext + up to one full padding block.
         let padded_len = ((plaintext.len() / 16) + 1) * 16;
         let mut buf = vec![0u8; padded_len];
         buf[..plaintext.len()].copy_from_slice(plaintext);
         let ciphertext = Aes128CbcEnc::new(key.into(), &IV.into())
-            .encrypt_padded_mut::<Pkcs7>(&mut buf, plaintext.len())
-            .expect("encrypt_padded_mut: buffer too small (should not happen)");
+            .encrypt_padded::<Pkcs7>(&mut buf, plaintext.len())
+            .expect("encrypt_padded: buffer too small (should not happen)");
         let mut out = Vec::with_capacity(PREFIX.len() + ciphertext.len());
         out.extend_from_slice(PREFIX);
         out.extend_from_slice(ciphertext);
